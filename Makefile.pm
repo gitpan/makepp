@@ -76,80 +76,128 @@ sub expand_text {
 				# local $_ = $_[1] makes a copy).
 				# Note that this messes up @_, so we have
 				# to do this after getting the other arguments.
-  local $_ = $_[1];		# The above somehow doesn't work reliably
-				# (it works sometimes, and I can't figure
-				# out exactly when it doesn't work).
-
+  local $_ = $_[1];		# The above somehow does not work reliably
+				# (it works sometimes, and I do not understand
+				# exactly when it does not work).
   my $ret_str = '';
-  my @cur_words = ('');		# The word we are currently expanding.  There
-				# may be more than one if we're in the middle
+  pos($_) = 0;			# Suppress a warning message.
+
+  if ($main::rc_substitution) {
+#
+# Code for handling rc-style substitution (the default):
+#
+    my @cur_words = ('');	# The word we are currently expanding.  There
+				# may be more than one if we are in the middle
 				# of RC expansion.  For example, if X = a b c
-				# and we're expanding q$(X)r, then
+				# and we are expanding q$(X)r, then
 				# @cur_words will contain just one element
 				# when we see the q.  When we process the $(X)
 				# @cur_words will be (qa, qb, qc).  Then when
 				# we see the r, it turns into (qar, qbr, qcr).
 				# When we see a space, it is reset.
 
-  pos($_) = 0;			# Suppress a warning message.
-  while (pos($_) < length($_)) {
-    if (/\G([\s,:;\{\[\(\)\]\}=\#\`\"\'@]+)/gc) {	# Word separators?
-      $ret_str .= join(" ", @cur_words);
+    while (pos($_) < length($_)) {
+      if (/\G([\s,:;\{\[\(\)\]\}=\#\`\"\'@]+)/gc) {	 # Word separators?
+	$ret_str .= join(" ", @cur_words);
 				# Store the accumulated words.
-      @cur_words = ('');
-      $ret_str .= $1;		# Put in the original punctuation.  
-    }
-    elsif (/\G([^\$\s,:;\{\[\(\)\]\}=\#\`\"\'@]+)/gc) { # Text of a word?
-      foreach (@cur_words) { $_ .= $1; } # Append to each word fragment
-				# we're holding.
-    }
-    elsif (/\G\$\$/gc) {	# Double dollar sign?
-      foreach (@cur_words) { $_ .= "\$"; } # Replace with a single one.
-    }
-    elsif (/\G\$/gc) {		# Something to expand?
+	@cur_words = ('');
+	$ret_str .= $1;		# Put in the original punctuation.  
+      } elsif (/\G([^\$\s,:;\{\[\(\)\]\}=\#\`\"\'@]+)/gc) {  # Text of a word?
+	foreach (@cur_words) {
+	  $_ .= $1;
+	}			# Append to each word fragment we are holding.
+      } elsif (/\G\$\$/gc) {	# Double dollar sign?
+	foreach (@cur_words) {
+	  $_ .= "\$";
+	}			# Replace with a single one.
+      } elsif (/\G\$/gc) {	# Something to expand?
 #
 # Get the whole text of the expression to expand, and expand any nested
 # parts of it.
 #      
-      my $oldpos = pos($_);	# Remember where the expression starts.
-      &TextSubs::skip_over_make_expression; # Find the end of it.
-      my $newpos = pos($_);	# For some obscure reason, the following
+	my $oldpos = pos($_);	# Remember where the expression starts.
+	&TextSubs::skip_over_make_expression; # Find the end of it.
+	my $newpos = pos($_);	# For some obscure reason, the following
 				# messes up pos($_).
-      my $expr = $self->expand_text(substr($_, $oldpos, $newpos-$oldpos),
-				    $makefile_line);
+	my $expr = $self->expand_text(substr($_, $oldpos, $newpos-$oldpos),
+				      $makefile_line);
 				# Get the string to expand, and expand any
 				# nested make expressions.
-      if ($expr =~ s/^\(//) { $expr =~ s/\)$//; } # Strip off the surrounding
-      elsif ($expr =~ s/^\{//) { $expr =~ s/\}$//; } # braces or parentheses.
-      
-      my @exp_words = split_on_whitespace($self->expand_expression($expr, $makefile_line));
-
-      if (@exp_words == 1) {	# Optimize for the most common case.
+	if ($expr =~ s/^\(//) {
+	  $expr =~ s/\)$//;
+	}			# Strip off the surrounding
+	elsif ($expr =~ s/^\{//) {
+	  $expr =~ s/\}$//;
+	}			# braces or parentheses.
+	
+	my @exp_words = split_on_whitespace($self->expand_expression($expr, $makefile_line));
+	
+	if (@exp_words == 1) {	# Optimize for the most common case.
 				# Treat as a single word, and append to each
 				# current word.
-	foreach my $word (@cur_words) { $word .= $exp_words[0]; }
-      }
-      elsif (@exp_words > 1) {	# We have to do a real cartesian product.
-	my (@old_words) = @cur_words; # Make a copy of the old things.
-	@cur_words = ();
-	foreach my $old_word (@old_words) {
-	  foreach (@exp_words) {
-	    push @cur_words, "$old_word$_";
+	  foreach my $word (@cur_words) {
+	    $word .= $exp_words[0];
+	  }
+	} elsif (@exp_words > 1) { # We have to do a real cartesian product.
+	  my (@old_words) = @cur_words; # Make a copy of the old things.
+	  @cur_words = ();
+	  foreach my $old_word (@old_words) {
+	    foreach (@exp_words) {
+	      push @cur_words, "$old_word$_";
+	    }
 	  }
 	}
+	
+	pos($_) = $newpos;	# Reset the position after the make expression.
+      } else {
+	die "$makefile_line: internal error parsing $_ at position " . pos($_);
       }
-
-      pos($_) = $newpos;	# Reset the position after the make expression.
     }
-    else {
-      die "$makefile_line: internal error parsing $_ at position " . pos($_);
-    }
+    
+    $ret_str .= join(" ", @cur_words); # Store the last word(s), if any.
+    return $ret_str;		# Return all the words.
   }
+  else {
+#
+# Code for handling the traditional substitution style (needed for some
+# legacy makefiles, usually those that depend on leading/trailing whitespace).
+#
+    while (pos($_) < length($_)) {
+      if (/\G([^\$])/gc) {	# Text w/o variables?
+	$ret_str .= $1;		# Just append it.
+      }
+      elsif (/\G\$/gc) {	# Got a dollar sign.
+#
+# Get the whole text of the expression to expand, and expand any nested
+# parts of it.
+#      
+	my $oldpos = pos($_);	# Remember where the expression starts.
+	&TextSubs::skip_over_make_expression; # Find the end of it.
+	my $newpos = pos($_);	# For some obscure reason, the following
+				# messes up pos($_).
+	my $expr = $self->expand_text(substr($_, $oldpos, $newpos-$oldpos),
+				      $makefile_line);
+				# Get the string to expand, and expand any
+				# nested make expressions.
+	if ($expr =~ s/^\(//) {
+	  $expr =~ s/\)$//;
+	}			# Strip off the surrounding
+	elsif ($expr =~ s/^\{//) {
+	  $expr =~ s/\}$//;
+	}			# braces or parentheses.
 
-  $ret_str .= join(" ", @cur_words); # Store the last word(s), if any.
-  $ret_str;			# Return all the words.
+	$ret_str .= $self->expand_expression($expr, $makefile_line);
+				# Do the expansion.
+	pos($_) = $newpos;	# Move to after the make expression.
+      }	
+      else {
+	die "$makefile_line: internal error parsing $_ at position " . pos($_);
+      }	
+    }
+
+    return $ret_str;
+  }
 }
-
 
 #
 # This is a helper routine which is used for expanding a variable expression.
@@ -505,8 +553,6 @@ sub load {
   if ($main::traditional_recursive_make) {
     my @words =			# Pass commnd line variables down.
       map { "$_=" . requote($command_line_vars->{$_}) } keys %$command_line_vars;
-    $main::hard_tabs and
-      push @words, '--hard-tabs';
     $main::keep_going and
       push @words, '-k';
     $main::sigmethod_name and

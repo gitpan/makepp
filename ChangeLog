@@ -1,3 +1,13 @@
+2000-11-26  Gary Holt  <holt@lnc.usc.edu>
+
+	* Makefile.pm (expand_text): Support the --norc_substitution
+	option so we can handle those weird makefiles that need trailing
+	space on variables.
+
+	* TextSubs.pm (split_on_colon): don't look for colons after a
+	semicolon.  This solves a bug with a rule that looks like this:
+	    $(srcdir)/cat-id-tbl.c: stamp-cat-id; @:
+
 Version 1.03 released.
 	
 2000-11-11  Gary Holt  <holt@lnc.usc.edu>

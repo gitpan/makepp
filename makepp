@@ -6,7 +6,7 @@
 #
 require 5.005;
 
-$version = 1.03;
+$version = 1.05;
 use Config;
 
 use IO::Socket;
@@ -63,56 +63,52 @@ $architecture = $Config{'archname'}; # Get a tag for the architectu.
 
 $ENV{'SHELL'} = "/bin/sh";	# Always use the Bourne shell.
 
-$n_files_changed = 0;		# Keep track of the number of files that
-				# we actually changed.
-
 $MakeEvent::max_proc = 1;	# Default to running only one process at a
 				# time, unless we know better.
-$keep_going = 0;		# -k specified.
 $MakeEvent::exit_on_error = 1;	# Default to quitting as soon as possible after
 				# an error.
-
-$logfile = ".makepp_log";	# Default to logging to this file.
-$log_level = 1;			# Default to logging.
-$warn_level = 1;		# Default to warning.
-$environment_override = 0;	# Variables in environment do not override
-				# variables in the makefile by default.
 $error_found = 0;		# Non-zero if we found an error.  This is used
 				# to stop cleanly when we are doing a parallel
 				# build (unless -k is specified).
-$quiet_flag = 0;		# Default to printing informational messages.
+$indent_level = 0;		# Indentation level in the log file.
+$n_files_changed = 0;		# Keep track of the number of files that
+				# we actually changed.
 
 $original_cwd = $FileInfo::CWD_INFO; # Remember the directory we started from.
+$rebuilding_makefile = 0;	# 1 if we're currently tring to rebuild the
+				# makefile, 0 if we're not.
 
-$parallel_make = 0;		# True if we're in parallel make mode.
-$percent_subdirs = 0;		# True if "%.c" turns into **/*.c.  False if
-				# it turns into *.c.
-$hard_tabs = 0;			# True if rules are ended by a line that
-				# dose not begin with a tab character.
-
+#
+# Default settings for various command line options:
+#
 $default_signature_method = $Signature::exact_match::exact_match;
 				# Default to requiring an exact match for
 				# building.  This gets overridden when
 				# we are trying to build a makefile, however.
-$rebuilding_makefile = 0;	# 1 if we're currently tring to rebuild the
-				# makefile, 0 if we're not.
-
+$environment_override = 0;	# Variables in environment do not override
+				# variables in the makefile by default.
+$implicitly_load_makefiles = 1; # Load a makefile from every directory
+				# that contains a dependency or is searched
+				# by a wildcard.
+$keep_going = 0;		# -k specified.
+$logfile = ".makepp_log";	# Default to logging to this file.
+$log_level = 1;			# Default to logging.
+$parallel_make = 0;		# True if we're in parallel make mode.
+$percent_subdirs = 0;		# True if "%.c" turns into **/*.c.  False if
+				# it turns into *.c.
+$quiet_flag = 0;		# Default to printing informational messages.
+$rc_substitution = 1;		# Default to doing rc-style substitution.
 $remake_makefiles = eval '!defined($DB::OUT)';
 				# Default to making the makefiles automatically
 				# unless we are running under the debugger
 				# (since forking under the debugger causes
 				# confusion).  (In an eval to prevent a
 				# warning message.)
-$implicitly_load_makefiles = 1; # Load a makefile from every directory
-				# that contains a dependency or is searched
-				# by a wildcard.
-
+$sigmethod_name = '';		# No -m option seen yet.
 $traditional_recursive_make = 0; # 1 if we invoke makepp recursively, 0 if
 				# we call the recursive_makepp stub and do
 				# the build in the parent process.
-
-$indent_level = 0;		# Indentation level in the log file.
-$sigmethod_name = '';		# No -m option seen yet.
+$warn_level = 1;		# Default to warning.
 
 =head2 build
 
@@ -877,10 +873,13 @@ while (defined($_ = shift @ARGV)) { # Get the next argument.
   elsif (/^--nolog$/) {
     $log_level = 0;		# Turn off logging.
   }
-  elsif (/^--noremake[-_]makefiles$/) {	# Don't remake makefiles automatically?
+  elsif (/^--no[-_]?rc[-_]substitution$/) {
+    $rc_substitution = 0;
+  }
+  elsif (/^--no[-_]?remake[-_]makefiles$/) { # Don't remake makefiles automatically?
     $remake_makefiles = 0;
   }
-  elsif (/^--nowarn$/) {
+  elsif (/^--no[-_]?warn$/) {
     $warn_level = 0;
   }
   elsif (/^--percent-subdirs$/) { # Backwards compatibility flag.
@@ -1001,6 +1000,9 @@ Valid options include:
 	makefile.
 --noremake-makefiles
 	Don't try to make each makefile using instructions in that makefile.
+--norc-substitution
+	Don't use rc-style substitution.  This may be necessary if you depend
+	on your make variables having leading or trailing whitespace.
 --nowarn
 	Don't print any warning messages.
 --percent-subdirs

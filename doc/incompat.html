@@ -14,7 +14,8 @@
     implemented because I haven't had time.  Also, in order to emulate
     GNU make's behavior precisely, you may in some cases have to add
     additional command line options to the <i>makepp</i> command line,
-    as noted below.</p>
+    as noted below.  Most of the differences from GNU make are quite
+    technical and only rarely cause problems.</p>
 
     <p><i>Makepp</i> will give warning messages for many things which
     the traditional unix make accepts without flinching.  This is
@@ -64,6 +65,10 @@
 	href="syntax_makefile.html#statement_include"><code>include</code></a>
 	statement in each one of them.
 
+	<p>I am working on a better design for makepp to figure out how
+	to compile various things if no rule is
+	supplied.  If you have any suggestions, please let me know.</p>
+
       <li>
 	Archive members are not supported, and neither are the
 	associated automatic variables <code>$%</code>,
@@ -79,9 +84,10 @@
       <code>$(shell&nbsp;)</code>.
 
       <li>Leading and trailing whitespace in variable assignments is
-	ignored (even if the whitespace is followed by a comment).
-	There is at present no way to put leading or trailing whitespace
-	into a variable.  This will be fixed later.
+      ignored (even if the whitespace is followed by a comment).  For
+      more details on whitespace handling incompatibilities, see the
+      section on <a
+      href="#norc_substitution"><code>--norc-substitution</code></a>.
 
       <li>
 	Double colon rules are not currently supported; they are treated
@@ -108,9 +114,9 @@
 	makefile, it knows exactly which files need recompilation.
 
       <li>
-	<code>$?</code> is equivalent to <code>$+</code>.  See <a
-	href="syntax_makefile.html#var_quesmark">above</a> for the
-	reasons.
+	<code>$?</code> is equivalent to <code>$+</code>.  See the
+	section on <a href="syntax_makefile.html#var_quesmark">automatic
+	variables</a> for the reasons.
 
       <li>
 	Intermediate files are not deleted.  (Because <i>makepp</i>
@@ -157,8 +163,9 @@
 	    These targets are not supported and are simply ignored.
 
 	  <dt><code>.POSIX</code>
+	  <dt><code>.DEFAULT</code>
 	  <dd>
-	    This targets is simply ignored.
+	    These targets are simply ignored.
 	</dl>
 
 
@@ -205,14 +212,11 @@
     <a name="percent_subdirs"></a>
     <h2>Incompatibilities without the --percent-subdirs option</h2>
 
-    <ul>
-      <li>
-	By default, <code>%</code> in a pattern rule does not match
-	directories.  Thus <code>%.c</code> matches only <code>.c</code>
-	files in the current directory.  If you want it to match files
-	in subdirectories too, then add the
-	<code>--percent-subdirs</code> option to the command line.
-    </ul>
+    <p>By default, <code>%</code> in a pattern rule does not match
+    directories.  Thus <code>%.c</code> matches only <code>.c</code>
+    files in the current directory.  If you want it to match files in
+    subdirectories too, then add the <code>--percent-subdirs</code>
+    option to the command line.</p>
 
     <h2>Incompatibilities without the -m option</h2>
 
@@ -326,6 +330,57 @@ target: dependencies
       <code>MFLAGS</code> not set up, and are ignored.
     </ul>
 
+    <a name="norc_substitution"></a>
+    <h2>Incompatibilities without the --norc-substitution option</h2>
+
+    <p><a href="syntax_makefile.html#substitution">Rc-style
+    substitution</a> is the default way <i>makepp</i> performs variable
+    substitution into text strings because it very rarely breaks legacy
+    makefiles and is often useful in new makefiles.  However, it does
+    introduce occasional incompatibilities in the substitution of
+    variables not surrounded by spaces.  For example,</p>
+
+<pre>
+INCLUDE_PREFIX := -I/some/include/dir -I
+INCLUDES := $(INCLUDE_PREFIX)/other/include/dir
+</pre>
+
+    <p>will set <code>INCLUDES</code> to
+    <pre>-I/some/include/dir/other/include/dir-I/other/include/dir</pre>
+    if rc-style substitution is enabled, whereas GNU make would set it
+    to <pre>-I/some/include/dir&nbsp;-I/other/include/dir</pre>
+
+    <p>There is also an incompatibility in the handling of whitespace in
+      a variable:</p>
+
+<pre>
+null :=
+T := -o $(null)		# T contains -o followed by one space.
+OUTFILE = $(T)outfile
+</pre>
+
+    <p>will set <code>OUTFILE</code> to <code>-ooutfile</code> if
+    rc-style substitution is enabled, whereas GNU make would set it to
+    <code>-o&nbsp;outfile</code>.
+
+    <p>Both of these incompatibilities are removed by the <a
+    href="command_line.html#norc_substitution"><code>--norc-substitution</code></a>
+    option.  Note, however, that even with
+    <code>--norc-substitution</code>, makepp still treats whitespace
+    incompatibly in some situations:</p>
+
+<pre>
+T := -o # Don't delete this comment.
+</pre>
+
+    <p>GNU make sets <code>T</code> to contain <code>-o</code> followed
+    by a space, whereas <i>makepp</i> strips out the trailing space
+    anyway.  If you want the trailing space, you must specify
+    <code>--norc-substitution</code> and also set <code>T</code> using
+    the technique involving a dummy variable such as <code>null</code>,
+    as shown above.</p>
+    
+
     <h2>Command line incompatibilities</h2>
 
     <p>At present, you may not combine single character options into a
@@ -381,7 +436,7 @@ target: dependencies
 
 <!-- Created: Wed Aug  9 21:44:55 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Tue Nov 14 15:58:57 PST 2000
+Last modified: Sun Nov 26 17:48:33 PST 2000
 <!-- hhmts end -->
   </body>
 </html>

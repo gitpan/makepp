@@ -1,15 +1,17 @@
 Make++ (or makepp) is a drop-in replacement for GNU make which has a
-number of features that allow for more reliable builds and simpler build
-files.  It supports almost all of the syntax that GNU make supports, and
-can be used with makefiles produced by utilities such as automake.
+number of features that guarantee more reliable builds and allow simpler
+build files.  It supports almost all of the syntax that GNU make
+supports, and can be used with makefiles produced by utilities such as
+automake.
 
 makepp at present works only on Unix/linux systems, since it currently
 depends on fork() and Unix filename and directory conventions.
 Suggestions for porting and code contributions are welcome.
 
-makepp is written in perl.  It requires version 5.005 of perl or better.
-It's distributed under the terms of the perl Artistic License, which
-means that it's freely available to anyone for just about any purpose.
+makepp is written entirely in perl.  It requires version 5.005 of perl
+or better.  It's distributed under the terms of the perl Artistic
+License, which means that it's freely available to anyone for just about
+any purpose.
 
 For the latest distribution, manual pages, and information about mailing
 lists, please see the makepp home page, http://LNC.usc.edu/~holt/makepp.
@@ -30,18 +32,19 @@ o Makepp remembers the build command, and rebuilds if the command has
   you change command line options (e.g., adding -DDEBUG or -g)--you
   don't have to do make clean.
 
-o By default, rebuilds if any dependency files have changed
+o By default, makepp rebuilds if any dependency files have changed
   (even if they are still older than the target).  For example, if you
   replace a file with an older version, makepp knows to recompile.  This
-  means that makepp is not bothered by clock synchronization problems.
-  (If necessary, you can tell it to recompile only if the target is
-  older than a dependency.)
+  also means that makepp is not bothered by clock synchronization
+  problems.  (If necessary, you can tell it to recompile only if the
+  target is older than a dependency.)
 
 o Makepp has a better system for handling makefiles spread across several
-  directories.  makepp will realize automatically that a file needed by
-  one makefile is built by a different makefile.  Recursive invocations
-  of make are no longer necessary (but are still supported for backward
-  compatibility).
+  directories.  makepp loads several makefiles simultaneously (keeping
+  the variables and default directories separate), and it will realize
+  automatically that a file needed by one makefile is built by a
+  different makefile.  Recursive invocations of make are no longer
+  necessary (but are still supported for backward compatibility).
 
 o Makepp won't mix output from separate processes when running compilation
   commands in parallel.
@@ -72,7 +75,7 @@ o Makepp can automatically separate your source and object directories,
   options or on different architectures, automatically keeping the
   output files separate--you don't have to modify your makefiles at all.
 	
-o Makepp can sometimes automatically infer what object files are necessary for
+o You can ask makepp to infer what object files are necessary for
   your program if your source files follow the simple convention that
   the implementation of all the classes and functions in a .h file is
   contained in a .cxx, .cc, .C, or .cpp file of the same name.  This can

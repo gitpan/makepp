@@ -7,8 +7,8 @@
   <body>
     <h1>Makepp's build algorithm</h1>
 
-    <p><i>Makepp</i> differs from the standard unix make in 
-      fundamental ways.</p>
+    <p><i>Makepp</i>'s internals differ from the standard unix make in
+    fundamental ways.</p>
 
 
     <h2>Reverse vs. forward inference</h2>
@@ -34,14 +34,13 @@
     all files that it can possibly build by applying rules that match
     the characters in the dependency filenames.  Then when it needs to
     build a file, it simply looks to see if it's one of the files that
-    it knows how to build.</p>
+    it knows how to build.  The list of known files is stored based on
+    the absolute filename.</p>
 
     <p>When <i>makepp</i> encounters the above pattern rule, it searches
     for all files in the directory matching the pattern
-    <code>%.cxx</code> (i.e., <code>**/*.cxx</code>, where the <a
-    href="syntax_makefile.html#wildcards">wildcard</a> <code>**</code>
-    means to match any number of intervening directories).  For each of
-    these files, it then remembers that it can produce the corresponding
+    <code>%.cxx</code> (i.e., <code>*.cxx</code>).  For each of these
+    files, it then remembers that it can produce the corresponding
     <code>.o</code> file.  If subsequently <i>makepp</i> discovers that
     it can make another <code>.cxx</code> file that doesn't currently
     exist, this rule will also be applied and the corresponding
@@ -54,14 +53,22 @@
 
     <ul>
       <li>
+	Wildcards can match files which don't exist yet but can be built.
+
+      <li>
 	Header files which have been detected by the automatic
 	dependency scanner don't have to exist; <i>makepp</i> knows
 	where they will be.  (Most other solutions to this problem
 	assume that any headers which don't exist yet are in the current
 	directory.)
 
-      <li>
-	Wildcards can match files which don't exist yet but can be built.
+      <li><i>Makepp</i>'s <a
+      href="inferring.html"><code>infer_objects</code></a> function is
+      greatly simplified by knowing what objects are available.
+
+      <li><a href="repositories.html">Repositories</a> are much simpler
+	to implement since <i>makepp</i> knows beforehand what files it
+	can make.
 
       <li>
 	A complete list of all buildable files is available via the <a
@@ -135,7 +142,7 @@
     <br>
 <!-- Created: Thu Aug  3 15:03:16 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Sat Aug 19 14:30:20 PDT 2000
+Last modified: Fri Nov 24 17:04:35 PST 2000
 <!-- hhmts end -->
   </body>
 </html>

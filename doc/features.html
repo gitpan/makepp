@@ -15,16 +15,16 @@
 
     <h2>Automatic scanning for include files</h2>
 
-    <p><i>makepp</i> scans automatically for include files.  This obviates
-    the need for tools like makedepend.  <i>makepp</i>'s scanner works
-    even if the included files don't exist yet but have to be built.
-    (This is true no matter where on the include path they come from,
-    unlike programs that depend on gcc's <code>-MM&nbsp;-MG</code>
-    option.)  <i>makepp</i> has a flexible system for doing this which
-    is based on <a href="scanning.html">examining the build command</a>;
-    you can adapt it for other languages or build commands.</p>
-
-
+    <p><i>makepp</i> scans automatically for include files.  This
+    obviates the need for tools like makedepend.  <i>makepp</i>'s
+    scanner works even if the included files don't exist yet but have to
+    be built.  (This is true no matter where on the include path they
+    come from, unlike programs that depend on gcc's
+    <code>-MM&nbsp;-MG</code> option.)  <i>makepp</i> has a flexible
+    system for doing this which is based on <a
+    href="scanning.html">examining the build command</a>; you can adapt
+    it for other languages or build commands by writing a simple perl
+    subroutine.</p>
 
 
     <h2>Better system for hierarchical builds</h2>
@@ -174,7 +174,7 @@ y.tab.c y.tab.h:
 
     <p>If you include this line in your makefile:</p>
 <pre>
-<a href="syntax_makefile.html#statement_include">include</a>&nbsp;<a href="syntax_makefile.html#signature_methods">c_compilation_md5</a>.mk
+<a href="syntax_makefile.html#statement_include">include</a>&nbsp;<a href="signature_checking.html">c_compilation_md5</a>.mk
 </pre>
     <p>then <i>makepp</i> will use the checksums instead of file times
     for source files, and changing comments or whitespace will not cause
@@ -325,6 +325,19 @@ makepp CFLAGS=-O2			# Recompiles everything a third time.
     explains the decisions.</p>
 
 
+    <h2>Improved support for parallel builds</h2>
+
+    <p><i>Makepp</i> supports parallel compilations, but (unlike GNU
+    make) it won't mix output from separate processes which are running
+    simultaneously.</p>
+
+    <h2>Synonymns for cryptic variables</h2>
+
+    <p><i>Makepp</i> supports <a
+    href="syntax_makefile.html#automatic_variables">easier-to-remember
+    synonymns</a> for the cryptic make variables <code>$@</code>,
+    <code>$^</code>, and <code>$&lt;</code>.
+
 
     <hr>
     See the discussion on <a href="legacy_makefiles.html">using and
@@ -338,7 +351,7 @@ makepp CFLAGS=-O2			# Recompiles everything a third time.
     <br>
 <!-- Created: Thu Aug  3 14:53:55 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Sat Oct 14 22:33:10 PDT 2000
+Last modified: Fri Nov 24 19:12:30 PST 2000
 <!-- hhmts end -->
 
   </body>

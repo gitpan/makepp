@@ -85,6 +85,8 @@ sub s_include {
 	die "can't find include file $file\n";
     }
 
+    $main::log_level and
+      main::print_log("Including ", $finfo->name);
     $makefile->read_makefile($finfo); # Read the file.
   }
   '';

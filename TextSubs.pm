@@ -216,7 +216,10 @@ This subroutine is equivalent to
   @pieces = split(/:+/, "string");
 
 except that colons inside double quoted strings or make expressions are passed
-over.
+over.  Also, a semicolon terminates the expression; any colons after a
+semicolon are ignored.  This is to support parsing of this horrible rule:
+
+  $(srcdir)/cat-id-tbl.c: stamp-cat-id; @:
 
 =cut
 
@@ -232,7 +235,7 @@ sub split_on_colon {
 
  mainloop:
   for (;;) {
-    /\G[^:\"\'\\\$]+/gc;	# Skip over irrelevant stuff.
+    /\G[^;:\"\'\\\$]+/gc;	# Skip over irrelevant stuff.
     last if length($_) <= pos($_); # End of string?
 				# For reasons that I don't understand, testing
 				# for /\G\z/gc doesn't work here.
@@ -261,6 +264,11 @@ sub split_on_colon {
 
     if (/\G\'/gc) {		# Single quoted string?
       &skip_over_squote;
+      next;
+    }
+
+    if (/\G;/gc) {		# Found end of the rule?
+      pos($_) = length($_);	# Don't look for any more colons.
       next;
     }
 

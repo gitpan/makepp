@@ -83,9 +83,21 @@ Y = $(X)
 X = 2
 </pre>
 	Then <code>$(Y)</code> later in the makefile will evaluate to "2".
+
+	<p>
 	Leading and trailing whitespace around the text string is
-	stripped; there is at present no way to put trailing whitespace
-	into a variable.
+	stripped.  If you need to control the whitespace in a variable,
+	you must (currently) disable <a
+	name="variable_substitution">rc-style substitution<a> using the
+	<a
+	href="command_line.html#option_norc_substitution"><code>--norc-substitution</code></a>
+	command line option, and then use a syntax like this:
+<pre>
+null =
+T = -o $(null)
+</pre>
+	<p>When you do this, the variable <code>T</code> contains
+	<code>-o</code> followed by a space.</p>
 
       <dt>VARIABLE := expr
 	<dd>
@@ -97,7 +109,9 @@ Y := $(X)
 X := 2
 </pre>
 	then <code>$(Y)</code> later in the makefile will evaluate to "1" since
-	that's what <code>$(X)</code> was when <code>$(Y)</code> was defined.
+	that's what <code>$(X)</code> was when <code>$(Y)</code> was
+	defined.  The same warnings about leading and trailing
+	whitespace apply to this syntax as well.
 
       <dt>VARIABLE += expr
       <dd>
@@ -121,9 +135,9 @@ X := 2
     you need a literal dollar sign, put in a double dollar sign
     (<code>$$</code>).</p>
 
-    <p><i>makepp</i> uses rc-style substitution (so called because it
-    was pioneered by the rc shell).  This is best illustrated by an
-    example:</p>
+    <p>By default, <i>makepp</i> uses rc-style substitution (so called
+    because it was pioneered by the rc shell).  This is best illustrated
+    by an example:</p>
 
 <pre>
 MODULES = a b c d
@@ -151,6 +165,11 @@ object_files = $(source_files:%.c=%.o)
     a special character matches any arbitrary string.  Substitution
     references are <a href="#func_patsubst">an abbreviation for the
     <code>patsubst</code> function</a>.
+
+    <p>If rc-style substitution gets in the way, or if you need to have
+      leading or trailing whitespace in your make variables, then you
+      can turn off rc-style substitution with the <a
+	href="command_line.html#option_norc_substitution"><code>--norc-substitution</code></a> command line option.</p>
 
     <a name="automatic_variables">
     <h3>Automatic variables</h3>
@@ -1249,7 +1268,7 @@ echo "Special contents" > a file name with spaces
     <br>
 <!-- Created: Thu Aug  3 15:19:01 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Tue Nov 14 15:58:55 PST 2000
+Last modified: Fri Nov 24 19:16:21 PST 2000
 <!-- hhmts end -->
   </body>
 </html>

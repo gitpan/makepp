@@ -135,6 +135,20 @@ makepp -F /your/source/dir/top
 	changed.  However, it does take some extra CPU time, and you
 	might not want to bother.
 
+	<a name="option_norc_substitution"></a>
+      <dt><code>--norc-substitution</code>
+      <dd>
+	Disables <a
+	href="syntax_makefile.html#variable_substitution">rc-style
+	substitution</a> of make variables.  Ordinarily rc-style
+	substitution is either harmless or beneficial, but occasionally
+	you may find a case where it breaks an existing makefile.  Also,
+	disabling rc-style expansion is necessary to prevent stripping
+	of leading and trailing whitespace from variables.  See the
+	section on <a
+	href="incompat.html#norc_substitution">incompatibilities</a> for
+	when this is important.
+
 	<a name="noremake_makefiles"></a>
       <dt><code>--noremake-makefiles<code>
       <dd>
@@ -227,7 +241,7 @@ makepp -F /your/source/dir/top
 
 <!-- Created: Tue Aug  8 18:07:56 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Sat Oct 14 22:37:29 PDT 2000
+Last modified: Fri Nov 24 19:03:19 PST 2000
 <!-- hhmts end -->
   </body>
 </html>
