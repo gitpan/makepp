@@ -1,3 +1,4 @@
+# $Id: md5.pm,v 1.1.1.1 2002/01/10 07:04:35 grholt Exp $
 package Signature::md5;
 
 use Signature::exact_match;

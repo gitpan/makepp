@@ -1,9 +1,11 @@
+# $Id: TextSubs.pm,v 1.2 2003/07/18 21:11:08 grholt Exp $
 package TextSubs;
 require Exporter;
 @ISA = qw(Exporter);
 
 @EXPORT = qw(index_ignoring_quotes split_on_whitespace split_on_colon unquote
-	     requote format_exec_args whitespace_len hash_neq);
+	     requote format_exec_args whitespace_len hash_neq
+             is_cpp_source_name is_object_or_library_name);
 
 #
 # This module contains a few subroutines for manipulating text, mostly for
@@ -45,7 +47,7 @@ sub pattern_substitution {
 	substr($_, 0, length($src_prefix)) eq $src_prefix &&
 	substr($_, length($_)-length($src_suffix)) eq $src_suffix) {
       my $pattern_stem = substr($_, length($src_prefix),
-			     length($_)-length($src_prefix)-length($src_suffix));
+				length($_)-length($src_prefix)-length($src_suffix));
       my $dest_copy;
       ($dest_copy = $dest) =~ s/\%/$pattern_stem/g;
 				# Replace all occurences of % with the stem.
@@ -55,7 +57,11 @@ sub pattern_substitution {
       defined($Makesubs::rule) and
 	$Makesubs::rule->{PATTERN_STEM} = $pattern_stem;
 				# Set it up so $* can return the stem.
-     }
+    }
+    else {
+      push @ret_words, $_;	# If the pattern doesn't match, then we copy
+				# it without modification to the output.
+    }
   }
   
   return @ret_words;
@@ -327,6 +333,7 @@ sub skip_over_make_expression {
 
       if (/\G\$/gc) {		# A nested make expression?a
 	&skip_over_make_expression;
+	next;
       }
 
       if (/\G\"/gc) {		# Double quoted string?
@@ -430,7 +437,8 @@ unquote() knows nothing about make expressions.
 =cut
 
 sub unquote {
-  local *_ = \$_[0];		# Put the string in $_ (without copying it).
+#  local *_ = \$_[0];		# Put the string in $_ (without copying it).
+  local $_ = $_[0];
 				# (Just doing local $_ = $_[0] actually
 				# duplicates the string in memory.)
   my $ret_str = '';
@@ -461,13 +469,18 @@ sub unquote {
     elsif (/\G\\(.)/sgc) {	# Backslashed wildcard char?
       $ret_str .= "\\$1";	# Leave the backslash there.
     }
-
+    elsif (/\G\\/sgc) {
+      die "single backslash at end of string\n";
+    }
     elsif (/\G\'/sgc) {		# Single quoted string?
       /\G([^\']+)/gc and $ret_str .= $1; # Copy up to terminating quote.
       unless (/\G\'/gc ||
 	      length($_) <= pos($_) and last) { # End of string w/o matching quote.
 	die "How did I get here?";
       }
+    }
+    else {
+      die "How did I get here?";
     }
   }
 
@@ -573,6 +586,32 @@ sub hash_neq {
     return (%a_not_b)[0] || '0_'; # Return the first key value.
   }
   return '';			# No difference.
+}
+
+=head2 is_cpp_source_name
+
+  if (is_cpp_source_name($filename))  { ... }
+
+Returns true if the given filename has the appropriate extension to be
+a C or C++ source or include file.
+
+=cut
+
+sub is_cpp_source_name {
+  return $_[0] =~ /\.(?:[ch]|cc|hh|[ch]xx|[ch]pp|[ch]\+\+|moc|x[bp]m)$/i;
+}
+
+=head2 is_object_name
+
+  if (is_object_or_library_name($filename)) { ... }
+
+Returns true if the given filename has the appropriate extension to be some
+sort of object or library file.
+
+=cut
+
+sub is_object_or_library_name {
+  return $_[0] =~ /\.(?:l[ao]|[ao]|s[aol](?:\.[\d\.]+))$/;
 }
 
 1;

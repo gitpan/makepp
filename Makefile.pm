@@ -1,3 +1,4 @@
+# $Id: Makefile.pm,v 1.7 2003/07/18 21:13:13 grholt Exp $
 package Makefile;
 
 use IO::File;
@@ -20,7 +21,7 @@ Makefile -- an object that parses makefiles and stores their relevant info
   $makefile = Makefile::load("filename_or_dir_nae");
   $makefile = Makefile::load($fileinfo_or_dirinfo);
 
-  $makefile->expand_string("$(STRING) $(WITH) $(MAKE) $(VARIABLES) $(OR FUNCTIONS)");
+  $makefile->expand_text("$(STRING) $(WITH) $(MAKE) $(VARIABLES) $(OR FUNCTIONS)");
   $makefilename = $makefile->name("dir");
 
 =head1 DESCRIPTION
@@ -58,7 +59,7 @@ foreach (qw(.DEFAULT .PRECIOUS .INTERMEDIATE .SECONDARY
 				# target.
 }
 
-=head2 expand_text("string", $makefile_line)
+=head2 expand_text($makefile, "string", $makefile_line)
 
   my $expanded_string = $makefile->expand_text("string with make variables",
 			                       $makefile_line);
@@ -69,6 +70,9 @@ C<$makefile_line>.
 
 =cut
 sub expand_text { 
+  $_[1] =~ /\$/ or return $_[1]; # No variables ==> no substitution, so exit
+                                # immediately to avoid consuming CPU time.
+
   my $self = $_[0];
   my $makefile_line = $_[2];
 #  local *_ = \$_[1];		# Get the string into $_.  This gets the
@@ -82,7 +86,9 @@ sub expand_text {
   my $ret_str = '';
   pos($_) = 0;			# Suppress a warning message.
 
-  if ($main::rc_substitution) {
+  my $rc_substitution = $ {$self->{PACKAGE} . "::rc_substitution"};
+  !defined($rc_substitution) and $rc_substitution = $main::rc_substitution;
+  if ($rc_substitution) {
 #
 # Code for handling rc-style substitution (the default):
 #
@@ -225,8 +231,8 @@ sub expand_expression {
   my ($self, $expr, $makefile_line) = @_; # Name the arguments.
 
   my $result;
-  if ($expr =~ /^([-\w]+)\s+(.*)/s) { # Does it begin with a leading word, so it
-				# could be a function?
+  if ($expr =~ /^([-\w]+)\s+(.*)/s) { # Does it begin with a leading word, so 
+				# it could be a function?
     local $main::makefile = $self; # Pass the function a reference to the
 				# makefile.
     my ($rtn, $rest_of_line) = ($1, $2);
@@ -269,52 +275,74 @@ sub expand_expression {
       $@ and die "$makefile_line: $@\n";
     }
     else {
-      my $perl_vname = $self->{PACKAGE} . "::$expr";
-				# The name of the perl variable.
+      my $expand_again = 1;     # Assume it was an = variable, not a :=
+                                # variable.
+                                # Note that we actually do want to reexpand
+                                # variables gotten from the comand line (gcc
+                                # 2.95.2's build procedure depends on this) and
+                                # from the environment.
 
-      $result = $self->{COMMAND_LINE_VARS}{$expr};
+      {                         # This isn't a real loop; it merely defines
+                                # where "last" actually goes to.
+        $result = $self->{COMMAND_LINE_VARS}{$expr};
 				# Try to get it from the command line.
-      $result and $result = $self->expand_text($result, $makefile_line);
-				# Evidently GNU make expands the variables
-				# after fetching them from the command line.
-				# gcc 2.95.2's build procedure depends on this.
-      !defined($result) && $main::environment_override and
-	$result = $self->{ENVIRONMENT}{$expr};
-				# Get from environment if that's supposed to
-				# override what's in the makefile.
-				# (Don't use ||= since that will wipe out
-				# a variable which is defind as "0".)
-      if (!defined($result)) {	# No value yet?
-	$result = $$perl_vname;	# Get from the makefile.
-	defined($result) && $self->{VAR_REEXPAND}{$expr} and
-	  $result = $self->expand_text($result, $makefile_line);
-				# If it was't a := variable, then we need to
-				# expand the variable's text.
-      }
-      !defined($result) && !$main::environment_override and
-	$result = $self->{ENVIRONMENT}{$expr};
+        defined($result) and last;
+        if ($main::environment_override) { # Environment variables override
+                                # makefile variables?
+          $result = $self->{ENVIRONMENT}{$expr};
+          defined($result) and last;
+        }
+
+                                # Check for target-specific variables.  The
+                                # array target_specific is set up by the
+                                # rule when it's expanding the action.
+        $result = $Makefile::target_specific->{$expr};
+        if (defined($result)) {
+          exists($Makefile::target_specific_reexpand->{$expr}) or
+            $expand_again = 0;  # It was a := variable.
+          last;
+        }
+
+        $result = $ {$self->{PACKAGE} . "::$expr"};
+                                # Get from the makefile.
+        if (defined($result)) { # Did we find it?
+          exists($self->{VAR_REEXPAND}{$expr}) or 
+            $expand_again = 0;  # It was a := variable.
+          last;
+        }
+
+        if (!$main::environment_override) { # Didn't already look at environment?
+          $result = $self->{ENVIRONMENT}{$expr};
 				# Get from environment if we didn't already
 				# try to do that.
+          defined($result) and last;
+        }
 #
 # If it's not a variable, maybe it's a function with no arguments.  See if
 # there are any such functions.
 #
-      if (!defined($result)) {	# No result yet?
-	$perl_vname = $self->{PACKAGE} . "::f_$expr"; # Name of the function.
-	$perl_vname =~ s/-/_/g;	# Convert - to _ so it's more perl friendly.
-	$perl_vname =~ s/\./_dot_/g;
-	if (defined(*{$perl_vname}{CODE})) { # Defined in the makefile?
+	my $perl_fname = $self->{PACKAGE} . "::f_$expr"; # Name of the function.
+	$perl_fname =~ s/-/_/g;	# Convert - to _ so it's more perl friendly.
+	$perl_fname =~ s/\./_dot_/g;
+	if (defined(*{$perl_fname}{CODE})) { # Defined in the makefile?
 	  eval { 
 	    local $_;		# Causes very weird errors if $_ is messed up.
-	    $result = &{$perl_vname}('', $self, $makefile_line); 
+	    $result = &{$perl_fname}('', $self, $makefile_line); 
 	  };
 	  $@ and die "$makefile_line: $@\n"; # Forward any errors after tagging
 				# them with the line.
+          $expand_again = 0;    # Don't perform another expansion on this.
+          last;
 	}
+
+        $result = '';           # Variable not found--substitute blank.
+        $expand_again = 0;
       }
-    }      
-      
-    !defined($result) and $result = '';	# Avoid perl's warning messages.
+                                # "last" above breaks to here:
+      $expand_again and
+        $result = $self->expand_text($result, $makefile_line);
+                                # Reexpand any variables inside.
+    }
   }
 
   return $result;
@@ -356,12 +384,20 @@ sub implicitly_load {
 
   exists($dirinfo->{MAKEINFO}) and return;
 				# Already tried to load something.
-  $dirinfo->{ALTERNATE_VERSIONS} ||
-    $dirinfo->is_writable or
+  $dirinfo->is_writable ||      # Directory already exists?
+    ($dirinfo->{ALTERNATE_VERSIONS} && !$dirinfo->{EXISTS}) or
       return;			# If the directory isn't writable, don't
 				# try to load from it.  (Directories from
 				# repositories will always be writable since
-				# we're going to create them.)
+				# we're going to create them, except if there
+                                # is already an unwritable directory there.)
+#
+# See if this directory or any of its parents is marked for no implicit
+# loading.
+#
+  for (my $pdirinfo = $dirinfo; $pdirinfo; $pdirinfo = $pdirinfo->{".."} || '') {
+    $pdirinfo->{NO_IMPLICIT_LOAD} and return;
+  }
 
   eval { Makefile::load($dirinfo, $dirinfo,
 			$Makefile::global_command_line_vars,
@@ -565,12 +601,14 @@ sub load {
 # environment variables change, it seemed unnecessarily conservative to allow
 # it to do it the old way.
 #
-  wait_for main::build($minfo, 0); # Build the makefile, using what rules we
+  if ($minfo->{NAME} ne 'makepp_default_makefile.mk') {
+    wait_for main::build($minfo); # Build the makefile, using what rules we
 				# know from outside the makefile.  This may
 				# also load it from a repository.
-  delete $minfo->{BUILD_HANDLE}; # Get rid of the build handle, so we avoid
+    delete $minfo->{BUILD_HANDLE}; # Get rid of the build handle, so we avoid
 				# the error message that we built the file
 				# before we saw the rule.
+  }
 
   chdir $mdinfo;		# Get in the correct directory for wildcard
 				# action routines.
@@ -591,38 +629,6 @@ sub load {
   $self->read_makefile(file_info("$main::datadir/makepp_builtin_rules.mk"))
     unless $ {$mpackage . "::makepp_no_builtin"} ||
       !$main::builtin_rules;
-
-#
-# Now see if the makefile is up to date.  If it's not, we just wipe it out
-# and reload.  This may leave some bogus rules lying around.  Oh well.
-#
-
-  if ($main::remake_makefiles) { # This often causes problems, so we provide
-				# a way of turning it off.
-    my $old_n_files = $main::n_files_changed;
-    {
-      local $main::default_signature_method = $Signature::target_newer::target_newer;
-				# Use the target_newer technique for rebuilding
-				# makefiles, since makefiles are often modified
-				# by programs like configure which aren't
-				# under the control of make.
-      wait_for main::build($minfo) and # Try to rebuild the makefile.
-	die "can't find or build " . $minfo->absolute_filename . "\n";
-    }
-    if ($old_n_files != $main::n_files_changed) {
-				# Did we change anything?
-      $self->{ENVIRONMENT} = { I_rebuilt_it => "FORCE RELOAD"};
-				# Wipe out the environment, so we force a
-				# reload.
-      local $main::remake_makefiles = 0; # Don't try to keep on remaking the
-				# makefile.
-      return load(@_);		# Call ourselves with the same arguments to
-				# force rereading the makefile.
-    }
-  }
-
-#  print "Finished loading ", $minfo->name, "\n"
-#    unless $main::quiet_flag;
 
 #
 # Build up the MAKEFLAGS variable:
@@ -655,13 +661,49 @@ sub load {
   }
 #
 # Fetch the values of exported variables so we can quickly change the
-# environment when we have to execute a rule:
+# environment when we have to execute a rule.  When the export statement was
+# seen, we put the names of the variables into a hash with a null value;
+# now replace that null value with the actual value.
 #
   if ($self->{EXPORTS}) {	# Are there any?
     foreach (keys %{$self->{EXPORTS}}) {
       $self->{EXPORTS}{$_} = $self->expand_text("\$($_)", $minfo->name);
     }	
   }
+
+#
+# Now see if the makefile is up to date.  If it's not, we just wipe it out
+# and reload.  This may leave some bogus rules lying around.  Oh well.
+# This must be done after setting up the EXPORTS variables above, because
+# makefile rebuilding might depend on that.
+#
+  if ($main::remake_makefiles && # This often causes problems, so we provide
+				# a way of turning it off.
+      $minfo->{NAME} ne 'makepp_default_makefile.mk') {
+    my $old_n_files = $main::n_files_changed;
+    {
+      local $main::default_signature_method = $Signature::target_newer::target_newer;
+				# Use the target_newer technique for rebuilding
+				# makefiles, since makefiles are often modified
+				# by programs like configure which aren't
+				# under the control of make.
+      wait_for main::build($minfo) and # Try to rebuild the makefile.
+	die "can't find or build " . $minfo->absolute_filename . "\n";
+    }
+    if ($old_n_files != $main::n_files_changed) {
+				# Did we change anything?
+      $self->{ENVIRONMENT} = { I_rebuilt_it => "FORCE RELOAD"};
+				# Wipe out the environment, so we force a
+				# reload.
+      local $main::remake_makefiles = 0; # Don't try to keep on remaking the
+				# makefile.
+      return load(@_);		# Call ourselves with the same arguments to
+				# force rereading the makefile.
+    }
+  }
+
+#  print "Finished loading ", $minfo->name, "\n"
+#    unless $main::quiet_flag;
 
   return $self;
 }
@@ -683,49 +725,102 @@ sub parse_assignment {
   my $assignment_type = '';	# Assume it's just an ordinary =.
   $var_name =~ s/([\+\:\?\!])$// and $assignment_type = $1;
 				# Pull off the character before the equals
-				# sign.
+				# sign if it's part of the assignment token.
   $var_name = $self->expand_text($var_name, $makefile_line);
 				# Make sure we can handle indirect assignments 
 				# like x$(var) = value.
   $var_name =~ s/^\s+//;	# Strip leading whitespace.
   $var_name =~ s/\s+$//;	# Strip trailing whitespace.
-  $var_name =~ /[\s:\#]/ and return undef; # More than one word on the LHS
-				# implies it's not an assignment.
-
-  $var_name eq "MAKE" && $main::warn_level and
-    main::print_error("warning: MAKE redefined at $makefile_line, recursive make won't work as expected");
-
-  my $mpackage = $self->{PACKAGE}; # Get the package name conveniently.
-
   $var_value =~ s/^\s+//;	# Strip out leading whitespace.
   $var_value =~ s/\s+$//;	# Strip out trailing whitespace.
 
-  if ($assignment_type eq '+') { # Append?
-    $ {$mpackage . "::$var_name"} .= ' ' . 
-      (exists($self->{VAR_REEXPAND}{$var_name}) ? $var_value : # Was it a regular =?
-       $self->expand_text($var_value, $makefile_line));
+
+  if ($var_name =~ /:/) {       # If there's a : on the LHS, it's probably a
+                                # target-specific variable assignment.
+#
+# It's a target-specific assignment, like this:
+#   target1 target2: VAR = val
+# or
+#   target1 target2: VAR := val
+# or
+#   target1 target2: VAR += val
+#
+    my ($targets, @extra_junk);
+    ($targets, $var_name, @extra_junk) = split_on_colon($var_name);
+                                # Get the targets for which this variable
+                                # applies.
+    @extra_junk and return undef; # Not a valid target-specific assignment.
+    $var_name =~ s/^\s+//;	# Strip leading whitespace (again).
+    $var_name =~ s/\s+$//;	# Strip trailing whitespace.
+
+    my $reexpand = 1;           # Assume it will be a regular assignment.
+    if ($assignment_type eq ':') {
+      $reexpand = 0;            # := assignment.
+    }
+    elsif ($assignment_type eq '+') { # Append?
+      $reexpand = $self->{VAR_REEXPAND}{$var_name}; # Keep same type as before.
+    }
+    $reexpand or $var_value = $self->expand_text($var_value, $makefile_line);
+                                # Expand immediately if we're supposed to.
+
+    $targets =~ s/\%/*/g;       # Convert % wildcard to normal filename wildcard.
+    Glob::wildcard_action map(unquote($_), split_on_whitespace($targets)),
+    sub {                       # This subroutine is called for every file
+                                # that matches the wildcard.
+      my $tinfo = $_[0];
+      if ($assignment_type eq '+') { # Append?
+        my $old_val = $tinfo->{TARGET_SPECIFIC_VARS}{$var_name};
+                                # Append to previous target-specific value,
+                                # if there is one.
+        defined($old_val) or $old_val = $ {$self->{PACKAGE} . "::$var_name"};
+        $tinfo->{TARGET_SPECIFIC_VARS}{$var_name} = "$old_val $var_value";
+      }
+      else {
+        $tinfo->{TARGET_SPECIFIC_VARS}{$var_name} = $var_value;
+      }
+
+      $reexpand and
+	$tinfo->{TARGET_SPECIFIC_REEXPAND}{$var_name} = 1;
+      
+    };
+  }
+  else {
+#
+# Not a target-specific assignment:
+#
+    $var_name =~ /[\s:\#]/ and return undef; # More than one word on the LHS
+				# implies it's not an assignment.
+
+    $var_name eq "MAKE" && $main::warn_level and
+      main::print_error("warning: MAKE redefined at $makefile_line, recursive make won't work as expected");
+
+    my $mpackage = $self->{PACKAGE}; # Get the package name conveniently.
+
+    if ($assignment_type eq '+') { # Append?
+       $ {$mpackage . "::$var_name"} .= ' ' . 
+	(exists($self->{VAR_REEXPAND}{$var_name}) ? $var_value : # Was it a regular =?
+	 $self->expand_text($var_value, $makefile_line));
 				# Expand the RHS if it was set with := 
 				# previously.
-  }
-  elsif ($assignment_type eq ':') { # Immediate evaluation?
-    $ {$mpackage . "::$var_name"} = $self->expand_text($var_value, $makefile_line);
-    delete $self->{VAR_REEXPAND}{$var_name}; # Don't expand this text again.
-  }
-  elsif ($assignment_type eq '!') { # Run through shell to evaluate?
-    $ {$mpackage . "::$var_name"} = Makesubs::f_shell($self->expand_text($var_value, $makefile_line), $self, $makefile_line);
-  }
-  elsif ($assignment_type eq '?') { # Assign only if not defined?
-    if (!defined($ {$mpackage . "::$var_name"}) &&
-	!defined($self->{COMMAND_LINE_VARS}{$var_name}) &&
-	!defined($self->{ENVIRONMENT}{$var_name})) {
-      $ {$mpackage . "::$var_name"} = $var_value;
-      $self->{VAR_REEXPAND}{$var_name} = 1; # Reexpand when invoked.
     }
-  }
-  else {			# Ordinary, vanilla assignment?
-    $ {$mpackage . "::$var_name"} = $var_value;
-    $self->{VAR_REEXPAND}{$var_name} = 1; # Remember to expand this variable's
-				# contents when it's invoked.
+    elsif ($assignment_type eq ':') { # Immediate evaluation?
+      $ {$mpackage . "::$var_name"} = $self->expand_text($var_value, $makefile_line);
+      delete $self->{VAR_REEXPAND}{$var_name}; # Don't expand this text again.
+    }
+    elsif ($assignment_type eq '!') { # Run through shell to evaluate?
+      $ {$mpackage . "::$var_name"} = Makesubs::f_shell($self->expand_text($var_value, $makefile_line), $self, $makefile_line);
+    } elsif ($assignment_type eq '?') { # Assign only if not defined?
+      if (!defined($ {$mpackage . "::$var_name"}) &&
+	  !defined($self->{COMMAND_LINE_VARS}{$var_name}) &&
+	  !defined($self->{ENVIRONMENT}{$var_name})) {
+	$ {$mpackage . "::$var_name"} = $var_value;
+	$self->{VAR_REEXPAND}{$var_name} = 1; # Reexpand when invoked.
+      }
+    } else {			# Ordinary, vanilla assignment?
+      $ {$mpackage . "::$var_name"} = $var_value;
+      $self->{VAR_REEXPAND}{$var_name} = 1; # Remember to expand this 
+				# variable's contents when it's invoked.
+    }
   }
 
   return $self;			# Return a true value.
@@ -875,12 +970,16 @@ sub parse_rule {
   while (@after_colon > 1) {	# Anything left?
     if ($after_colon[-1] =~ /^\s*foreach\s+(.*)$/) {
       $foreach and die "$makefile_line: multiple :foreach clauses\n";
-      $foreach = $self->expand_text($1, $makefile_line);
+      my $foreach_val = $1;        # Make a copy of $1.  $1 gets wiped out and
+                                # so it isn't valid to pass it to
+                                # expand_text.
+      $foreach = $self->expand_text($foreach_val, $makefile_line);
       pop @after_colon;
     }
     elsif ($after_colon[-1] =~ /^\s*signature\s+(\w+)/) { # Specify signature class?
       $signature and die "$makefile_line: multiple :signature clauses\n";
-      $signature = $self->expand_text($1, $makefile_line);
+      my $signature_val = $1;
+      $signature = $self->expand_text($signature_val, $makefile_line);
       defined($ {"Signature::${signature}::$signature"}) or
 	die "$makefile_line: invalid signature class $signature\n";
       $signature = $ {"Signature::${signature}::$signature"};
@@ -888,7 +987,8 @@ sub parse_rule {
     }
     elsif ($after_colon[-1] =~ /^\s*scanner\s+(.*)$/) { # Specify scanner class?
       $scanner and die "$makefile_line: multiple :scanner clauses\n";
-      $scanner = $self->expand_text($1, $makefile_line);
+      my $scanner_val = $1;
+      $scanner = $self->expand_text($scanner_val, $makefile_line);
       defined(*{$self->{PACKAGE} . "::scanner_$scanner"}{CODE}) or
 	die "$makefile_line: invalid scanner $scanner\n";
       $scanner = *{$self->{PACKAGE} . "::scanner_$scanner"}{CODE};
@@ -965,7 +1065,8 @@ sub parse_rule {
 
     unless ($foreach) {		# No foreach explicitly specified?
       $foreach = $deps[0];	# Add one, making wildcard from first dep.
-      if ($main::percent_subdirs) { # % searches subdirs?
+      if ($main::percent_subdirs ||
+	  $ {$self->{PACKAGE} . "::percent_subdirs"}) { # % searches subdirs?
 	$foreach =~ s@^\%@**/*@ or # Convert leading % to **/*.
 	  $foreach =~ s/\%/*/;	# Convert nested % to just a *.
       } else {
@@ -1034,12 +1135,14 @@ sub parse_rule {
 
       foreach (@targets) {
 	my $tinfo = main::find_makepp_info(unquote($_), $self->{CWD}); # Access the target object.
+	$tinfo->{PATTERN_LEVEL} = $pattern_level if $was_wildcard_flag;
+				# Remember the pattern level, so we can prevent
+				# infinite loops on patterns.  This must be
+				# set before we call set_rule or we'll get
+				# infinite recursion.
 	$tinfo->set_rule($rule); # Update its rule.  This will be ignored if
 				# it is overriding something we shouldn't
 				# override.
-	$tinfo->{PATTERN_LEVEL} = $pattern_level if $was_wildcard_flag;
-				# Remember the pattern level, so we can prevent
-				# infinite loops on patterns.
 	$was_wildcard_flag or	# If there was no wildcard involved, this is
 				# a candidate for the first target in the file.
 	  $self->{FIRST_TARGET} ||= $tinfo;
@@ -1107,15 +1210,17 @@ sub parse_rule {
 	}
       }
     }
-    else {			# This is just adding dependencies for a 
-				# specific file.  We have to expand the
-				# dependency list now:
-      my @dependencies = map(main::find_makepp_info(unquote($_), $self->{CWD}),
-			     split_on_whitespace($self->expand_text($after_colon[0], $makefile_line)));
-
+    else {
+#
+# We're just adding a dependency to this target, like this:
+#   target : additional-dependency
+#
       if (@targets == 1) {
 	if ($targets[0] =~ /^\s*\.PHONY\s*$/) {
 				# Mark other targets as phony?
+          my @dependencies = map(main::find_makepp_info(unquote($_), $self->{CWD}),
+                                 split_on_whitespace($self->expand_text($after_colon[0], $makefile_line)));
+
 	  foreach (@dependencies) {
 	    $_->{IS_PHONY} = 1; # Mark as phony.
 	  }	
@@ -1130,6 +1235,7 @@ sub parse_rule {
 	  return;
 	}
       }
+
       foreach (@targets) {
 	my $tinfo = main::find_makepp_info(unquote($_), $self->{CWD});
 	$tinfo->set_additional_dependencies($after_colon[0], $self, $makefile_line);
@@ -1170,6 +1276,9 @@ sub read_makefile {
     open(MAKEFILE_FH, $Makefile::makefile_name) || 
       die "can't read makefile $Makefile::makefile_name--$!\n";
     $Makefile::makefile_contents = <MAKEFILE_FH>; # Read the whole makefile.
+    $Makefile::makefile_contents =~ s/\r//g;
+				# Strip out those annoying CR characters
+				# which get put in sometimes on windows.
     close MAKEFILE_FH;		# Done with the makefile.
   }
 
@@ -1325,11 +1434,14 @@ sub read_makefile_line_stripped {
 
     my $truthval;
     if ($cond =~ /def$/) {	# See whether something is defined?
-      $truthval = exists $Makefile::makefile->{COMMAND_LINE_VARS}{$line} ||
-	exists $ {$Makefile::makefile->{PACKAGE} . "::"}{$line} ||
-	  exists $Makefile::makefile->{ENVIRONMENT}{$line};
+      my $var = $Makefile::makefile->{COMMAND_LINE_VARS}{$line} ||
+        $ {$Makefile::makefile->{PACKAGE} . "::$line"} ||
+          $Makefile::makefile->{ENVIRONMENT}{$line};
 				# See if it was defined on the command line,
 				# in the makefile, or in the environment.
+      $truthval = defined($var) && $var ne '';
+                                # GNU make regards variables set equal to the
+                                # null string as undefined.
     }	
     elsif ($cond =~ /eq$/) {	# Check for string equality?
       if ($line =~ /^\((.*?),(.*)\)$/) { # Parenthesized syntax?

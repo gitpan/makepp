@@ -1,3 +1,4 @@
+# $Id: exact_match.pm,v 1.1.1.1 2002/01/10 07:04:35 grholt Exp $
 package Signature::exact_match;
 
 use strict;

@@ -1,0 +1,109 @@
+=head1 NAME
+
+makepp_scanning -- How makepp finds include files and other hidden dependencies
+
+=head1 DESCRIPTION
+
+Makepp can guess additional dependencies or targets for certain commands
+that it knows something about.  This is especially importat for C/C++
+compilation, where it is too error-prone to list manually all of the
+include files that a given source file depends on.  By looking at the
+compilation command and the source files themselves, makepp is able to
+determine accurately which object files need to be rebuilt when some
+include file changes.
+
+Makepp looks at the first word of your command line. (B<**** WARNING:
+This may change soon because I think there's a better way of doing
+this. ****>) If it recognizes it, it uses the scanner corresponding to
+that first word.  Specifically, it isolates the first word and looks it
+up in its table; if nothing is found, it strips off the directory
+information and looks it up again.  (This means that you can specify the
+path to your compiler and makepp will still recognize it.)  Currently,
+makepp recognizes most C/C++ compiler names.  It also recognizes
+commands invoking C<sh> and C<libtool>; for these commands, it skips to
+the first word in the command that's not an option and looks it up in
+the table again.
+
+If makepp thinks it's compiling a C/C++ program but can't find a
+scanner, it will give a warning message to let you know.  This usually
+means that you buried your compiler command too deeply in the action for
+makepp to find it.  For example, I have seen rules like this:
+
+    %.o: %.c
+    	@echo Compiling $< now
+    	@gcc -c $< $(CFLAGS) -o $@
+
+The first word of the action here is C<echo>, for which therer is no
+scanner, so makepp will not scan for include files in this case.
+
+=head2 C/C++ compilation
+
+The C/C++ scanner is activated by a command beginning with a compile
+program that makepp knows about.  (I've included every compiler I've
+ever heard of, but if I missed your compiler, you can tell makepp about
+it by adding an entry to the C<%Makesubs::scanners> array (see
+F<Makesubs.pm> in the distribution).  Also send me email at
+holt-makepp@gholt.net so I can include it in subsequent releases.
+
+It looks at the command for C<-Idir> options specifying the include path
+or C<-Ldir> options specifying the link path.  It then scans any source
+files for C<#include> directives, and also looks at the command line to
+see if there are any source files or libraries mentioned which are not
+listed as dependencies.  It recognizes these by their extension.
+
+This scanner gives a warning message if files included with S<C<#include
+"file.h">> are not found in the include path, or in the directory
+containing the file which is C<#includ>ing, or in C</usr/include>.  No
+warning is given if a file included with S<C<#include E<lt>file.hE<gt>>>
+is not found.  makepp assumes it is in some system include directory
+that the compiler knows about, and that files in system include
+directories won't change.
+
+In addition, files in C</usr/include>, C</usr/local/include>,
+C</usr/X11R6/include>, and any other directory which is not writable are
+not scanned to see what they include.  Makepp assumes that these files
+won't change.  (If you're running as root, the writability test is
+performed with the UID and GID of the directory you ran makepp from.
+This is so compiling a program as an ordinary user and then doing
+S<C<make install>> as root won't cause extra directories to be scanned.)
+
+This is a fairly simple-minded scanner.  It will get confused if you do
+things like this:
+
+    #ifdef INCLUDE_THIS
+    #include "this.h"
+    #endif
+
+because it doesn't know about preprocessor conditionals.  This is
+usually harmless; it might cause additional extra files to be labelled
+as dependencies (occasionally causing unnecessary rebuilds), or else it
+might cause makepp to warn that the include file was not found.  You can
+either ignore the warning messages, or put an empty file C<this.h> out
+there to shut makepp up.
+
+=head2 Libtool
+
+Libtool is a very clever compilation system that greatly simplifies
+making shared libraries by hiding all the system-dependent details away
+in a shell script.  The only difficulty is that the library binary files
+are not actually stored in the same directory as the output
+file--libtool actuall creates a subdirectory, C<.libs>, which contains
+the real files.  This is ordinarily not a problem, but makepp has to
+know where the real binaries are if it is to link them in from a
+repository.  At the moment, libtool libraries (C<.la> files) are not
+linked in from repositories; they are always rebuilt if needed.  Also,
+makepp at the moment is not able to use the dependency information that
+is stored inside the C<.la> file itself.  This will hopefully change
+soon.
+
+=head2 Other special command words
+
+Makepp recognizes the following command words and skips over them
+appropriately in in its search for the correct scanner:
+C<condor_compile>, C<echo> C<ignore_error> C<libtool>, C<noecho>
+C<purify>, C<sh>.
+
+=head2 Custom scanners
+
+I hope to improve the scanner interface greatly soon, so the mechanism
+will be changing significantly.  More details later....

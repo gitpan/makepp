@@ -1,5 +1,7 @@
 # use strict qw(vars subs);
 
+# $Id: MakeEvent.pm,v 1.2 2003/07/18 21:13:13 grholt Exp $
+
 package MakeEvent;
 
 require Exporter;
@@ -134,7 +136,7 @@ sub event_loop {
 
   read_wait FILE_HANDLE, sub { ... };
 
-Queue a subroutie to be activated whenever there is data on the given file
+Queue a subroutine to be activated whenever there is data on the given file
 handle (or IO::Handle object, or anything that can be supplied as an argument
 to IO::Select::new.
 
@@ -173,7 +175,7 @@ sub process_finished {
 # even bother to activate waiters--just exit immediately.
 #
   if ($status && $MakeEvent::exit_on_error) {
-    main::print_error("error, stopping now"); # Print a suitable message.
+    main::print_error("error ($status), stopping now"); # Print a suitable message.
 #    if ($MakeEvent::n_external_processes > 0) {	# Did we run anything?
 #      main::print_error("waiting for other jobs to complete");
 #      while ($MakeEvent::n_external_processes > 0) {
@@ -500,6 +502,36 @@ sub status {
 sub start {
   my $self = shift @_;
 
+  if (!$main::can_fork) {	# On windows, we don't fork because the
+				# operating system doesn't support this well.
+    if (@{$self->{PARAMS}}) {
+      die "makepp: internal error: parameters to MakeEvent::Process not supported on windows\n";
+    }
+
+    my $cmd = $self->{CODE};	# Get the thing to execute.
+    my $status;
+    if (!ref($cmd)) {		# Is this a string to execute as shell cmd?
+      system(format_exec_args($cmd));
+      if ($? > 255) {		# Non-zero exit status?
+	$status = $? >> 8;	# Use that as the status.
+      }
+      elsif (($? & 127) != 0) {	# Exited with a signal?
+	$status = "signal " . ($? & 127);
+      }
+      else {			# No error.  (I don't know if it's possible
+				# for the process to dump core then exit with
+				# a status code of 0 and no signal.)
+	$status = 0;
+      }
+    } 
+    else {
+      $status = &$cmd();	# Call the subroutine.
+    }
+    MakeEvent::process_finished($self, $status);
+				# Store the status code.
+    return;
+  }
+
   my $pid;
   $SIG{'CHLD'} = sub { ++$child_exited; }; # Call the reaper subroutine in the
 				# mainline code.
@@ -569,7 +601,8 @@ sub process_reaper {
 # actually return the PID of a process which was stopped, not exited.  So we
 # have to check for this.
 #
-    next unless WIFEXITED($?); # Make sure it really has exited.
+#    next unless WIFEXITED($?); # Make sure it really has exited.
+# The above causes a hang.  I don't know why.
 
     my $proc = delete $running_processes{$pid};
 				# Get the structure defining the process.

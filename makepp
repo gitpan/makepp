@@ -1,12 +1,11 @@
 #!/usr/bin/perl -w
 #JJ
-
-#
+# Makepp version @VERSION@.
 # See @htmldir@/index.html for user documentation.
 #
-require 5.005;
+require 5.00503;
 
-$version = 1.10;
+$version = '@VERSION@';
 use Config;
 
 #use SelfLoader;
@@ -65,6 +64,7 @@ sub print_log;
 $architecture = $Config{'archname'}; # Get a tag for the architecture.
 
 $ENV{'SHELL'} = "/bin/sh";	# Always use the Bourne shell.
+delete $ENV{'PWD'};             # This is dangerous.
 
 %global_ENV = %ENV;		# Make a copy of the environment, because
 				# we're going to change the environment a lot.
@@ -116,6 +116,11 @@ $traditional_recursive_make = 0; # 1 if we invoke makepp recursively, 0 if
 				# the build in the parent process.
 $warn_level = 1;		# Default to warning.
 
+$can_fork = 1;			# Assume fork() works ok.
+if ($^O eq 'cygwin') {
+  $can_fork = 0;		# Fork works, but not well.  Always use
+				# system() instead.
+}
 #
 # Because automake/autoconfig is so #@%!(#%&!)#$&(^)$(^&!( hacked up, there
 # doesn't seem to be any way to support repositories without simply putting
@@ -135,12 +140,18 @@ libtool stamp-h stamp-h.in install.sh install-sh missing mkinstalldirs)) {
 
 =head2 build
 
-  my $handle = build $objinfo;
+  my $handle = build($objinfo);
 
 Starts building the specified object.  When build() returns, the object
 may not have been built yet; build() returns a handle (see MakeEvent.pm for
 details) which you can wait on if you want to wait until the build is
-actually done.
+actually done.  The usual idiom is
+
+  wait_for main::build($objinfo);
+
+If you do this, of course, you make it harder for makepp to build targets in
+parallel because the makepp process will not spawn any other build requests
+until this one is done.
 
 When any targets are built, the global variable $n_files_changed is
 updated.
@@ -525,22 +536,6 @@ sub find_makepp_info_register {
   unshift @registered_findinfos, @_; # Put them on the front of the list.
 }
 
-=head2 is_cpp_source_name
-
-  if (is_cpp_source_name($filename)) { ... }
-
-This subroutine checks to see if a filename looks like a C or C++ source 
-file.
-
-Argument is the name (not the FileInfo structure) of the file.  The check is
-based entirely on the extension of the file.
-
-=cut
-
-sub is_cpp_source_name {
-  return $_[0] =~ /\.(?:[ch]|cc|hh|[ch]xx|[ch]pp|[ch]\+\+|moc|x[bp]m)$/i;
-}
-
 =head2 parse_command_line
 
   parse_command_line(@ARGV, \%environment_hash);
@@ -608,7 +603,7 @@ sub parse_command_line {
 
     elsif (/^-I(.*)$/) {	# Specify more directories for the include
 				# path?
-      unshift(@include_path, file_info($1 || shift(@_)));
+      push(@include_path, file_info($1 || shift(@_)));
     }
 
     elsif (/^-R$/ || /^--repository(?:=(.*))?$/) {
@@ -678,7 +673,7 @@ sub parse_command_line {
   }
 
   foreach my $target (@targets) {
-    my $handle = build($target, 0); # Try to build the file.
+    my $handle = build($target); # Try to build the file.
     $handle and push @handles, $handle; # If the build actually did anything,
 				# save the handle for it.
   }	
@@ -742,9 +737,14 @@ $ENV{'HOME'} and file_info($ENV{'HOME'})->dereference;
 my @other_args;			# Arguments that are valid at places other
 				# than the top level.
 
-$ENV{'MAKEFLAGS'} && unshift @ARGV, map { unquote $_ } split_on_whitespace($ENV{'MAKEFLAGS'});
+if ($ENV{'MAKEFLAGS'}) {
+  unshift @ARGV, map { unquote $_ } split_on_whitespace($ENV{'MAKEFLAGS'});
 				# See if we're passed flags from a parent
 				# process.
+  $ARGV[0] =~ /^-/ or $ARGV[0] = "-$ARGV[0]";
+				# If we're actually called from make, the first
+				# argument might not have a minus sign.
+}
 
 while (defined($_ = shift @ARGV)) { # Get the next argument.
   if (/^-e$/ || /^--environment[-_]overrides?$/) {
@@ -756,6 +756,11 @@ while (defined($_ = shift @ARGV)) { # Get the next argument.
   }
   elsif (/^-j$/ || /^-jobs(?:=(\d+))$/) {
     $MakeEvent::max_proc = $1 || shift @ARGV || die "$progname: no argument to -j\n";
+    if (!$can_fork) {
+        $MakeEvent::max_proc = 1;
+	warn "$progname: parallel make (-j) not supported on this platform\n";
+	next;
+    }
     if ($MakeEvent::max_proc != 1) { # More than one process?
       $MakeEvent::exit_on_error = 0; # Don't exit on error immediately from the
 				# fork process, because that won't print
@@ -821,7 +826,7 @@ while (defined($_ = shift @ARGV)) { # Get the next argument.
   }
   elsif (/^--version$/) {
     print "makepp $version is distributed under the terms of the Artistic license.
-For more details, see the makepp homepage at http://LNC.usc.edu/~holt/makepp.
+For more details, see the makepp homepage at http://makepp.sourceforge.net.
 ";
     exit 0;
   }
@@ -834,7 +839,7 @@ For more details, see the makepp homepage at http://LNC.usc.edu/~holt/makepp.
 # Open the log file if we're supposed to:
 #
 if ($log_level) {
-  open(LOG_FILE, "> $logfile") ||
+  open(LOG_FILE, ">$logfile") ||
     die "$progname: can't create log file ./$logfile--$!\n";
 }
 
@@ -898,6 +903,11 @@ sub load_repository {
     print_error("warning: repositories are ignored by make subprocesses when --traditional-recursive-make is in effect");
   }	
 
+  $destdirinfo->file_exists && # Local directory exists?
+    !$destdirinfo->is_writable and return; # Not writable?  This is a signal 
+				# not to try to incorporate anything from
+				# the repository.
+
   local $Glob::allow_dot_files = 1; # Temporarily allow dot files, because
 				# we need to look into .libs directories
 				# for libtool support.
@@ -922,8 +932,8 @@ sub load_repository {
 				# wasn't explicitly requested.
 
   foreach (values %{$dirinfo->{DIRCONTENTS}}) {
-    next if $_->{DIRCONTENTS};	# Do not link directories to directories in the
-				# repository; directories need to be created.
+    next if $_->{NAME} =~ /\.la$/; # Skip libtool stuff--we don't handle
+                                # it very gracefully right now.
     my $dest_finfo = file_info($_->{NAME}, $destdirinfo);
 				# Where the file will be linked to.
     if ($using_autoconf && $automake_garbage{$_->{NAME}} || # Is this automake's crap?
@@ -1121,7 +1131,7 @@ Valid options include:
 --version
 	Print out the current version.
 
-Look at @htmldir@/index.html for more details.
+Look at @htmldir@/index.html for more details, or type "man makepp".
 END_OF_USAGE
   
 }

@@ -1,3 +1,4 @@
+# $Id: Makesubs.pm,v 1.14 2003/07/19 23:21:57 grholt Exp $
 ###############################################################################
 #
 # This package contains subroutines which are can be called from a makefile.
@@ -18,14 +19,10 @@ package Makesubs;
 
 use strict qw(vars subs);
 
-use SelfLoader;
-
-SelfLoader->load_stubs();	# Force it to load the stubs immediately.
-
 use TextSubs;
 use FileInfo;
 use FileInfo_makepp;
-use MakeEvent qw(wait_for when_done);
+use MakeEvent qw(wait_for when_done read_wait);
 use Config;
 
 #
@@ -91,7 +88,11 @@ sub scanner_c_compilation {
 
   while (defined($_ = shift @cmd_words)) { # Get the next word.
     if (/^-I(.*)/) {		# Specifying a new include directory?
-      my $dirinfo = file_info($1, $build_cwd)->dereference;
+      my $incdir = $1;          # Get the directory.
+      length($incdir) == 0 and $incdir = shift @cmd_words;
+                                # There can be a space between -I and the
+                                # directory name.
+      my $dirinfo = file_info($incdir, $build_cwd)->dereference;
       if (!$dirinfo->is_or_will_be_dir) {
 	$main::warn_level and
 	  main::print_error("warning: invalid directory " . $dirinfo->absolute_filename . " mentioned in compile command " . $rule->source)
@@ -103,7 +104,9 @@ sub scanner_c_compilation {
       }
     }
     elsif (/^-L(.*)/) {		# Specifying new link library directory?
-      my $dirinfo = file_info($1, $build_cwd)->dereference;
+      my $ldir = $1;            # Get the name of the directory.
+      length($ldir) == 0 and $ldir = shift @cmd_words;
+      my $dirinfo = file_info($ldir, $build_cwd)->dereference;
       if (!$dirinfo->is_or_will_be_dir) {
 	$main::warn_level && 
 	  main::print_error("warning: invalid directory $1 mentioned in compile command")
@@ -138,7 +141,7 @@ sub scanner_c_compilation {
 	push @obj_files, file_info($_, $build_cwd);
       }
     }
-    elsif (main::is_cpp_source_name($_)) { # Looks like a source file?
+    elsif (is_cpp_source_name($_)) { # Looks like a source file?
       if (/[\*\?\[]/) {		# Might be a wildcarded file?
 #	foreach my $src_info (Glob::zglob_fileinfo($_, $build_cwd)) {
 #	  push @source_files, $src_info unless $all_sources{$src_info}++;
@@ -221,6 +224,15 @@ sub scanner_c_compilation {
   inc_file_loop:
     foreach my $include_fname (@includes) {
 #
+# Check for non-system include files in the same directory as the file itself.
+#
+      my $inc_finfo = file_info($include_fname, $src_info->{".."});
+      if ($inc_finfo->exists_or_can_be_built) {
+	push @source_files, $inc_finfo # Remember it.
+	  unless $all_sources{$inc_finfo}++; # Don't duplicate files.
+	next inc_file_loop;
+      }
+#
 # Check the directories specified in the include path:
 #
       foreach my $incdir (@include_dirs) {
@@ -232,15 +244,6 @@ sub scanner_c_compilation {
 	}
       }
 
-#
-# Non-system include files can also be in the same directory as the file itself.
-#
-      my $inc_finfo = file_info($include_fname, $src_info->{".."});
-      if ($inc_finfo->exists_or_can_be_built) {
-	push @source_files, $inc_finfo # Remember it.
-	  unless $all_sources{$inc_finfo}++; # Don't duplicate files.
-	next inc_file_loop;
-      }
 #
 # Do the same thing for the system includes, except that we don't check files
 # that they include--we assume they don't change.  We also don't list them
@@ -291,7 +294,7 @@ sub scanner_c_compilation {
  libloop:
   foreach my $libname (@libs) {
     foreach my $libdirinfo ($build_cwd, @lib_dirs) {
-      foreach (qw(la a so sa)) { # Common extensions.
+      foreach (qw(la so sa a)) { # Common extensions.
 	my $lib_info = file_info("lib$libname.$_", $libdirinfo);
 	if ($lib_info->exists_or_can_be_built) {
 	  push @obj_files, $lib_info; # Found the library.
@@ -323,6 +326,17 @@ sub scanner_none {
 }
 
 #
+# Skip to the next command (after a semicolon or newline) and scan again.
+# This is used to ignore an echo or something like that.
+#
+sub scanner_skip_command {
+  my ($action, $rule) = @_;	# Name the arguments.
+
+  $action =~ s/^.*?[;\n]// and	# Skip to newline or semicolon.
+    $rule->scan_action($action); # Scan the remainder of the action.
+}
+
+#
 # This scanner simply moves to the next word that doesn't begin with
 # - and scans again.
 #
@@ -346,13 +360,17 @@ sub scanner_skip_word {
 # command words.
 #
 %Makesubs::scanners =
-  ("libtool" => \&scanner_libtool,
+  (
 				# These words usually introduce another command
 				# which actually is the real compilation command.
+   "libtool" => \&scanner_skip_word,
    "sh"      => \&scanner_skip_word,
    "purify"  => \&scanner_skip_word,
    "ignore_error" => \&scanner_skip_word,
+   "echo"    => \&scanner_skip_command,
    "noecho"  => \&scanner_skip_word,
+   "fast_cc" => \&scanner_skip_word,
+   "condor_compile" => \&scanner_skip_word,
 
    "cc"      => \&scanner_c_compilation, # These are all the C/C++
    "gcc"     => \&scanner_c_compilation, # compilers I can think of.
@@ -369,6 +387,28 @@ sub scanner_skip_word {
    "pg++"    => \&scanner_c_compilation,
 );
 
+#
+# An internal subroutine that converts FileInfo structures to printable
+# names.  Takes either a single FileInfo structure, an array of FileInfo
+# structures, or a reference to an array of FileInfo structures.
+#
+sub relative_filenames {
+  my @ret_vals;
+
+  my $cwd = $Makesubs::rule->build_cwd;
+  foreach (@_) {
+    next unless defined $_;	# Skip undef things--results in a blank.
+    if (ref($_) eq 'ARRAY') {
+      push @ret_vals, relative_filenames(@$_);
+    }
+    else {
+      push @ret_vals, $_->name($cwd);
+    }
+  }
+
+  return @ret_vals; 
+}
+
 ###############################################################################
 #
 # Functions that are intended to be invoked by make expressions.  These
@@ -380,6 +420,67 @@ sub scanner_skip_word {
 # b) The makefile.
 # c) The line number in the makefile that this expression occured in.
 #
+
+#
+# Return the absolute filename of all the arguments.
+#
+sub f_absolute_filename {
+  my $makefile = $_[1];
+  my @files = split_on_whitespace($_[0]); # Get a list of files.
+  my @ret_names;
+  foreach (@files) {
+    push @ret_names, file_info(unquote($_), $makefile->{CWD})->absolute_filename;
+  }	
+
+  return join(" ", @ret_names);
+}
+
+sub f_addprefix {
+  my ($prefix, $text) = split(/,\s+/, $_[0]); # Get the prefix.
+  return join(" ", map { "$prefix$_" } split(' ', $text));
+}
+
+sub f_addsuffix {
+  my ($suffix, $text) = split(/,\s+/, $_[0]); # Get the prefix.
+  return join(" ", map { "$_$suffix" } split(' ', $text));
+}
+
+sub f_basename {
+  my @ret_vals;
+  foreach (split ' ', $_[0]) {
+    if (m@(\.[^./\,]*)$@) {	# Match the extension, but don't look into the
+				# directory for a period.
+      push @ret_vals, substr($_, 0, length($_)-length($1)); # Take it off
+				# (without using $PRE or $POST or a regex
+				# that has lots and lots of backtracking).
+    } else {
+      push @ret_vals, $_;	# No extension.  Return the whole filename.
+    }
+  }
+
+  return join(" ", @ret_vals);
+}
+
+sub f_dir {
+  my @ret_vals;
+  foreach (split ' ', $_[0]) {
+    if (m@^(.*/)@) { push @ret_vals, $1; }
+    else           { push @ret_vals, './'; }
+  }
+
+  return join(" ", @ret_vals);
+}
+
+sub f_dir_noslash {		# An internal routine that does the same
+				# thing but doesn't return a trailing slash.
+  my @ret_vals;
+  foreach (split ' ', $_[0]) {
+    if (m@^(.*)/@) { push @ret_vals, $1; }
+    else           { push @ret_vals, '.'; }
+  }
+
+  return join(" ", @ret_vals);
+}
 
 #
 # Perform a pattern substitution on file names.  This differs from patsubst
@@ -428,6 +529,191 @@ sub f_filesubst {
   return join(" ", TextSubs::pattern_substitution($src, $dest, @words));
 }
 
+sub f_filter {
+  my ($filters, $words) = split(/,\s*/, $_[0]);
+
+  my @filters = split(' ', $filters); # Can be more than one filter.
+  foreach (@filters) {		# Convert these into regular expressions.
+    s/([\.\+\(\)])/\\$1/g;	# Protect all the periods and other special chars.
+    s/\*/\.\*/g;                # Replace '*' with '.*'.
+    s/\%/\.\*/g;		# Replace '%' with '.*'.
+    $_ = "^$_\$";		# Anchor the pattern.
+  }
+
+  my @ret_words;
+ wordloop:
+  foreach (split(' ', $words)) { # Now look at each word.
+    foreach my $filter (@filters) {
+      if (/$filter/) {		# Does it match this filter?
+	push @ret_words, $_;
+	next wordloop;
+      }
+    }
+  }
+
+  return join(" ", @ret_words);
+}
+
+sub f_filter_out {
+  my ($filters, $words) = split(/,\s*/, $_[0]);
+
+  my @filters = split(' ', $filters); # Can be more than one filter.
+  foreach (@filters) {		# Convert these into regular expressions.
+    s/([\.\+\(\)])/\\$1/g;	# Protect all the periods and other special chars.
+    s/\*/\.\*/g;                # Replace '*' with '.*'.
+    s/\%/\.\*/g;		# Replace '%' with '.*'.
+    $_ = "^$_\$";		# Anchor the pattern.
+  }
+
+  my @ret_words;
+ wordloop:
+  foreach (split(' ', $words)) { # Now look at each word.
+    foreach my $filter (@filters) {
+      next wordloop if /$filter/; # Skip if it matches this filter.
+    }
+    push @ret_words, $_;
+  }
+
+  return join(" ", @ret_words);
+}
+
+#
+# Find one of several executables in PATH.
+#
+sub f_find_program {
+  my @names = split(' ', $_[0]); # Get the programs to look for.
+  my ($makefile, $makefile_line) = @_[1,2]; # Access the other arguments.
+
+  my @pathdirs = map { file_info($_, $makefile->{CWD}) }
+    split(/:/, $makefile->{EXPORTS}{PATH} || $ENV{'PATH'});
+				# Get the list of directories to search.
+  foreach my $name (@names) {	# Find it in the path:
+    foreach my $dir (@pathdirs) {
+      if (file_info($name, $dir)->is_executable) {
+	return $name;
+      }
+    }
+  }
+
+  return $names[0];		# None of the programs were executable.
+}
+
+#
+# Find a file in a specified path, or in the environment variable PATH if
+# nothing is specified.
+#
+sub f_findfile {
+  my ($name, $path) = split(/\,\s*/, $_[0]); # Get what to look for, and where
+				# to look for it.
+  my ($makefile, $makefile_line) = @_[1,2]; # Access the other arguments.
+  my @pathdirnames = split(/[:\s]+/, $path || $ENV{'PATH'});
+				# Get a separate list of directories.
+  my @names = split(' ', $name); # Get a list of names to find.
+  foreach $name (@names) {	# Look for each one in the path:
+    foreach my $dir (@pathdirnames) {
+      my $finfo = file_info($name, file_info($dir, $makefile->{CWD}));
+				# Get the finfo structure.
+      if ($finfo->file_exists) { # Found it?
+	$name = $finfo->absolute_filename; # Replace it with the full name.
+	last;			# Skip to the next thing to look for.
+      }
+    }
+  }
+
+  return join(" ", @names);
+}
+
+#
+# Find a file by searching for it in the current directory, then in ., ..,
+# etc.
+# Modified from function contributed by Matthew Lovell.
+#
+sub f_find_upwards {
+  my @fnames = map { unquote($_) } split_on_whitespace($_[0]);
+  my $makefile = $_[1];
+  
+  my @ret_names;
+
+  my $this_dir_devid = ($makefile->{CWD}->stat_array)->[0];
+                                # Remember what device this is mounted on
+                                # so we can avoid crossing file system
+                                # boundaries.
+
+  foreach my $fname (@fnames) {
+    my $found = 0;
+    my $finfo;
+    for (my $dirinfo = $makefile->{CWD};
+         $dirinfo && ($dirinfo->stat_array)->[0] == $this_dir_devid;
+                                # Don't cross device boundaries.  This is
+                                # intended to avoid trouble with automounters
+                                # or dead network file systems.
+         $dirinfo = $dirinfo->{".."}) { # Look in all directories above us.
+      $finfo = file_info($fname, $dirinfo);
+      if ($finfo->exists_or_can_be_built) { # Found file in the path?
+        $found = 1;
+        last;                   # done searching
+      }
+    }
+    $found or die "cannot find file $fname\n";
+    push @ret_names, $finfo->relative_filename($makefile->{CWD});
+  }
+
+  return join(" ", @ret_names);
+}
+
+sub f_findstring {
+  my ($find, $in) = split(/,/, $_[0]);
+
+  return (index($in, $find) >= 0) ? $find : '';
+}
+
+sub f_firstword {
+  return (split(' ', $_[0]))[0] || '';
+}
+
+#
+# The if function is unusual, because its arguments have not
+# been expanded before we call it.  The if function is defined so that
+# only the expression that is actually used is expanded.  E.g., if the
+# if statement is true, then only the then expression is expanded, and
+# any side effects of the else expression do not happen.
+#
+sub f_if {
+  my ($text, $makefile, $makefile_line) = @_; # Name the arguments.
+  my $first_comma = index_ignoring_quotes($text, ',');
+				# Find the first comma.
+  $first_comma >= 0 or die "$makefile_line: $(if ) with only one argument\n";
+  my $cond = $makefile->expand_text(substr($text, 0, $first_comma), $makefile_line);
+				# Evaluate the condition.
+  $cond =~ s/^\s+//;		# Strip out whitespace on the response.
+  $cond =~ s/\s+$//;
+
+  $text = substr($text, $first_comma+1); # Get the text w/o the comma.
+
+  my $second_comma = index_ignoring_quotes($text, ',');
+				# Find the boundary between the then and the
+				# else clause.
+  if ($cond) {			# Is the condition true?
+    my $then;
+    if ($second_comma >= 0) {	# Was there an else clause?
+      $then = substr($text, 0, $second_comma);
+    } else {
+      $then = $text;		# No else clause, then clause is the rest.
+    }	
+    $then =~ s/^\s+//;		# Strip out leading whitespace.
+    $then =~ s/\s+$//;		# Strip out trailing whitespace.
+    return $makefile->expand_text($then, $makefile_line);
+    
+  } else {			# Condition was false.  Extract the else
+				# clause.
+    $second_comma >= 0 or return ''; # No else clause.
+    my $else = substr($text, $second_comma+1); # Get the text.
+    $else =~ s/^\s+//;		# Strip out leading whitespace.
+    $else =~ s/\s+$//;		# Strip out trailing whitespace.
+    return $makefile->expand_text($else, $makefile_line);
+  }	
+}
+
 #
 # Infer the linker command from a list of objects.  If any of the objects
 # is fortran, we use $(FC) as a linker; if any of the objects is C++, we
@@ -469,171 +755,237 @@ sub f_infer_linker {
     }
   }	
 
-  my $linker = '$(LINK.c)';	# Assume we can use the ordinary C linker.
-  $is_cpp and $linker = '$(LINK.cc)';
-  $is_fortran and $linker = '$(LINK.f)';
+  my $linker = '$(CC)';	# Assume we can use the ordinary C linker.
+  $is_cpp and $linker = '$(CXX)';
+  $is_fortran and $linker = '$(FC)';
 
   return $makefile->expand_text($linker, $makefile_line);
 				# Figure out what those things expand to.
 }
 
 #
-# This is an experimental function which attempts to infer the proper 
-# libraries given a list of objects.  We do this by looking at what
-# files are included; from the names of the include files, we try to guess
-# the corresponding libraries.  This is tricky and system dependent, so I
-# don't expect this to work even close to 100% ofo the time.  It's intended
-# mostly for the default rule set, so that even if there's no makefile, it
-# may be possible for makepp to correctly link a program.  This should help
-# novices who don't want to learn what the libraries actually are.
+# Usage:
+#    target : $(infer_objs seed-list, list of possible objs)
 #
-# We should probably also have some platform specific knowledge about what
-# extra libraries might be needed on solaris or other operating systems
-# besides linux.  There should probably be an OS-specific module for each
-# variant of unix.  However, since I can only test conveniently on one
-# variant, things will have to be simpler for the moment.
-#
-sub f_infer_libraries {
+sub f_infer_objects {
   my ($text, $makefile, $makefile_line) = @_; # Name the arguments.
-  my @objs = split(' ', $text);	# Get a list of objects.
-#
-# Make a list 
-#
-  unless (%Makesubs::include_to_library) { # We haven't set up the data yet?
-    %Makesubs::include_to_library = ();
-  }
+  my ($seed_objs, $candidate_list) = split(/,\s*/, $text);
+				# Get the arguments.
+
+  $candidate_list or die "infer_objects called without a candidate list\n";
+  $Makesubs::rule or die "infer_objects called outside of a rule\n";
+
+  my $build_cwd = $Makesubs::rule->build_cwd;
 
 #
-# First build all the objs.  Until we build them, we don't actually know what
-# source files went into them.  They've probably been built, but we must 
-# make sure.
+# Build up a list of all the possibilities:
 #
-  my @build_handles;
-  foreach my $obj (@objs) {
-    $obj = file_info($obj, $makefile->{CWD}); # Replace the name with the
-				# fileinfo.
-    my $bh = main::build($obj); # Build this one.
-    $bh and push @build_handles, $bh;
-  }
-
-  my $status = wait_for @build_handles;	# Wait for them all to build.
-  $status and die "Error while compiling\n"; # Maybe I'll come up with a better
-				# error message later.
-
-#
-# Now look at the include files they depend on, and see if we can get any
-# useful information out of that.  This is a little tricky, since many of the
-# include files are not actually listed in the dependency list since we don't
-# usually scan files in /usr/include.  We get the complete list of files
-# included from every source file that was scanned; hopefully this will
-# contain enough of the files from /usr/include so we can guess the libraries.
-#
-  my %includes;			# All the files that are included.
-
-  foreach my $obj (@objs) {
-    foreach my $source_name (split(/\01/, $obj->build_info_string("SORTED_DEPS") || '')) {
-      if ($source_name =~ /\.[Hh](?:xx|\+\+)?$/) { # Looks like an include file?
-	$includes{$source_name} = 1; # Remember we know about this one.
-      }
-      my $source_info = file_info($source_name, $obj->{".."});
-      foreach my $incfile (split(' ', $source_info->build_info_string("SYSTEM_INCLUDES") || ''),
-			   split(' ', $source_info->build_info_string("INCLUDES") || '')) {
-				# Look at every file included in this source file.
-	$includes{$incfile} = 1;
-      }
-    }	
-  }
-#
-# At this point, the keys of %includes are the names of all include files
-# that we can find out about (since we never actually scanned include
-# files in /usr/include or in other non-writable directories).  Try to
-# infer from these what libraries are necessary.
-#
-# This is of course very heuristic.  But if it doesn't work, you shouldn't
-# try to use $(infer_libraries).
-#
-  my %libs;			# Where we build up the libraries that we need.
-  my @dirinfos;
-  foreach my $dirname (split(' ', $Config{'libpth'})) {
-				# Look at all the places where system
-				# libraries might be.
-    push @dirinfos, file_info($dirname); # Get the fileinfo for it.
-    $dirinfos[-1]->{READDIR} || $dirinfos[-1]->read_directory;
-				# Get a complete list of files in it.
-  }
-
- include_file_loop:
-  foreach (keys %includes) {
-#
-# Some special cases:
-#
-    if (m@^X11/@) { $libs{'X11'} = 1; next; }
-    if (m@^q.*\.h$@) { $libs{'qt'} = 1; next; }
-    if ($Makesubs::include_to_library{$1}) { # Is this a special builtin translation?
-      my @liblist = split(' ', $Makesubs::include_to_library{$1});
-      @libs{@liblist} = (1) x @liblist;
+  my %candidate_objs;
+  foreach my $candidate_obj (map(Glob::zglob_fileinfo_atleastone($_, $build_cwd),
+				 split(' ', $candidate_list))) {
+				# Get a list of all the possible objs.
+    my $objname = $candidate_obj->{NAME};
+    $objname =~ s/\.[^\.]+$//;	# Strip off the extension.
+    if ($candidate_objs{$objname}) { # Already something by this name?
+      ref($candidate_objs{$objname}) eq 'ARRAY' or
+	$candidate_objs{$objname} = [ $candidate_objs{$objname} ];
+				# Make into an array as appropriate.
+      push @{$candidate_objs{$objname}}, $candidate_obj;
     }
-    if ($_ eq 'zlib.h') { $libs{'z'} = 1; next; }
-    if ($_ eq 'jpeglib.h') { $libs{'jpeg'} = 1; next }
+    else {			# Just one obj?
+      $candidate_objs{$objname} = $candidate_obj;
+    }
+  }	
 #
-# The general case.  There are several general rules here:
-# o For a file xyz/abc.h, we look for a library libxyz.
-# o For a file xyzlib.h or xyz_lib.h, we look for a library libxyz.
-# o For a file xyz.h, we look for a library libxyz.
+# Now look at the list of all the include files.  This is a little tricky
+# because we don't know the include files until we've actually built the
+# dependencies.
 #
-    if (m@^([^\./]+?)_?lib.h$@ || # xyzlib.h or xyz_lib.h => look for libxyz.
-	m@^([^/]+)/@) {		# xyz/abc.h => look for libxyz.
-      my $basename = $1;
-      foreach my $dirinfo (@dirinfos) {
-	if (file_info("lib$1.$Config{'dlext'}", $dirinfo)->file_exists ||
-	    file_info("lib$1$Config{'_a'}", $dirinfo)->file_exists) {
-				# Found a corresponding library?
-	  $libs{$1} = 1;	# Indicate that we'll need that library.
-	  next include_file_loop;
-	}
-      }
+  my %source_names;		# These are the names of include files for
+				# which are look for the corresponding objects.
+
+  my @build_handles;		# Where we put the handles for building objects.
+  my @deps = map { Glob::zglob_fileinfo($_, $build_cwd) } split(' ', $seed_objs);
+				# Start with the seed files
+				# themselves.
+  $main::log_level and 
+    main::print_log("infer_objects called with seed objects ",
+		    join(" ", map { $_->name } @deps));
+  
+  foreach (@deps) {
+    my $name = $_->{NAME};
+    $name =~ s/\.[^\.]+$//;	# Strip off the extension.
+    $source_names{$name}++;	# Indicate that we already have this as a
+				# source file.
+  }	
+
+
+  my $dep_idx = 0;
+
+#
+# Build everything, so we know what everything's dependencies are.  Initially,
+# we'll only have a few objects to start from, so we build all of those, in
+# parallel if possible.  (That's why the loop structure is so complicated
+# here.)  Then we infer additional objects, build those in parallel, and
+# so on.
+#
+  for (;;) {
+    while ($dep_idx < @deps) {	# Look at each dependency currently available.
+      my $o_info = $deps[$dep_idx]; # Access the FileInfo for this object.
+      my $bh = main::build($o_info); # Start building it.
+      my $handle = when_done $bh, # Build this dependency.
+      sub {			# Called when the build is finished:
+	$bh->status and return $bh->status;
+				# Skip if an error occured.
+	my @this_sources = split(/\01/, $o_info->build_info_string("SORTED_DEPS") || '');
+				# Get the list of source files that went into
+				# it.
+	foreach (@this_sources) {
+	  my $name = $_;	# Make a copy of the file.
+	  $name =~ s@.*/@@;	# Strip off the path.
+	    $name =~ s/\.[^\.]+$//; # Strip off the extension.
+	  unless ($source_names{$name}++) { # Did we already know about that source?
+	    if (ref($candidate_objs{$name}) eq 'FileInfo') { # Found a file?
+	      $main::log_level and
+		main::print_log("infer_objects: adding ",
+				$candidate_objs{$name}->name,
+				" to dependency list because of $_");
+	      push @deps, $candidate_objs{$name}; # Scan for its dependencies.
+	    }
+	    elsif (ref($candidate_objs{$name}) eq 'ARRAY') { # More than 1 match?
+	      main::print_error($Makesubs::rule->source, " in infer_objects: more than one possible object for include file $_:\n  ",
+				join("\n  ", map { $_->absolute_filename } @{$candidate_objs{$name}}),
+				"\n");
+	    }
+	  }
+	}	
+      };
+
+      defined($handle) and push @build_handles, $handle;
+				# Is this something we need to wait for?
+      ++$dep_idx;
     }
 
-    if (m@^([^\./]+)\.h$@) {	# Does it look like an ordinary .h file?
-      my $basename = $1;	# Get the base name for a prospective library.
-      foreach my $dirinfo (@dirinfos) {
-	if (file_info("lib$1.$Config{'dlext'}", $dirinfo)->file_exists ||
-	    file_info("lib$1$Config{'_a'}", $dirinfo)->file_exists) {
-				# Found a corresponding library?
-	  $libs{$1} = 1;	# Indicate that we'll need that library.
-	  next include_file_loop;
-	}
-      }
+    last unless @build_handles;	# Quit if nothing to wait for.
+    my $status = wait_for @build_handles; # Wait for them all to build, and 
+				# try again.
+    @build_handles = ();	# We're done with those handles.
+    $status and last;		# Quit if there was an error.
+  }	
+
+#
+# At this point, we have built all the dependencies, and we also have a
+# complete list of all the objects.
+#
+  return join(" ", map { $_->relative_filename($build_cwd) } @deps);
+}
+
+sub f_join {
+  my ($words1, $words2) = split(/,/, $_[0]);
+				# Get the two lists of words.
+  defined($words2) or die "$_[2]: $(join ) called with < 2 arguments\n";
+  my @words1 = split(' ', $words1);
+  my @words2 = split(' ', $words2);
+
+  my $maxidx = @words1;		# Get the number of words in the output.
+  $maxidx < @words2 and $maxidx = @words2;
+
+  my @outwords;
+  for (my $idx = 0; $idx < $maxidx; ++$idx) {
+    push @outwords, ($words1[$idx] || '') . ($words2[$idx] || '');
+				# Do the concatenation.
+  }
+
+  return join(' ', @outwords);
+}
+
+sub f_notdir {
+  my @ret_vals;
+  foreach (split ' ', $_[0]) {
+    if (m@^.*/([^/]+)@) { push @ret_vals, $1; }
+    else                { push @ret_vals, $_; }
+  }
+
+  return join(" ", @ret_vals);
+}
+
+#
+# Return only the files in the list that are actually targets of some rule:
+#
+sub f_only_targets {
+  my ($text, $makefile, $makefile_line) = @_; # Name the arguments.
+  my @ret_files;
+
+  my $build_cwd = $makefile->{CWD};
+
+  foreach (split(' ', $_[0])) {
+    foreach my $finfo (Glob::zglob_fileinfo($_, $build_cwd)) {
+      $finfo->get_rule(1) and
+	push @ret_files, $finfo->name($build_cwd);
     }
-
-  }
-#
-# Now that we have a list of libraries that we want, add some necessary flags.
-# For some stupid reason, on all linux systems the X11 libraries aren't in
-# the default build path (but they are in the default runtime search path), so
-# we have to put in linker options.
-#
-  my $libpaths = '';
-  if ($libs{'X11'}) {
-    if (-d '/usr/X11R6/lib') { $libpaths .= "-L/usr/X11R6/lib "; }
-    elsif (-d '/usr/X11/lib') { $libpaths .= "-L/usr/X11/lib "; }
   }
 
+  return join(" ", @ret_files);
+}
+
 #
-# Qt is often not in the direct library path.  Usually if it's not, the
-# variable QTDIR is set instead.
+# Return only the files in the list that are not targets of some rule:
 #
-  if ($libs{'qt'}) {
-    my $qtdir = $makefile->expand_text('$(QTDIR'); # See if it's defined.
-    if ($qtdir) {
-      $libpaths .= "-L$qtdir/lib "; # Search that directory.
-      $Config{'archname'} =~ /linux/ and $libpaths .= "-Wl,-rpath -Wl,$qtdir/lib ";
-				# Add a bit of magic to force it to be
-				# searched at runtime.
+sub f_only_nontargets {
+  my ($text, $makefile, $makefile_line) = @_; # Name the arguments.
+  my @ret_files;
+
+  my $build_cwd = $makefile->{CWD};
+
+  foreach (split(' ', $_[0])) {
+    foreach my $finfo (Glob::zglob_fileinfo_atleastone($_, $build_cwd)) {
+      $finfo->get_rule(1) or
+	push @ret_files, $finfo->name($build_cwd);
     }
   }
 
-  return "$libpaths" . join(" ", map { "-l$_" } sort keys %libs);
+  return join(" ", @ret_files);
+}
+
+#
+# Figure out where a variable came from:
+#
+sub f_origin {
+  my ($varname, $makefile, $makefile_line) = @_;
+
+  my $answer = "undefined";     # Assume we don't know what this variable is.
+  if ($Makesubs::perl_unfriendly_symbols{$varname}) {
+    $answer = "automatic";
+  }
+  elsif (defined($ {$makefile->{PACKAGE} . "::$varname"})) {
+    $answer = "file";
+  }
+  elsif ($makefile->{ENVIRONMENT}{$varname}) {
+    $answer = "environment";
+  }
+  elsif (defined(*{$makefile->{PACKAGE} . "::f_$varname"}{CODE})) { # Function?
+    if ($varname =~ /^(?:foreach|targets?|dependency|dependencies|inputs?|outputs?)$/) {
+      $answer = "automatic";
+    } else {
+      $answer = "default";      # Must be a variable like "CC".
+    }
+  }
+
+  if ($makefile->{COMMAND_LINE_VARS}{$varname}) { # Overriden by command line?
+    $answer = "command line";
+  }
+
+  return $answer;
+}
+
+#
+# Perform a pattern substitution:
+#
+sub f_patsubst {
+  my ($src, $dest, $words) = split(/,\s*/, $_[0]);
+				# Get the arguments.
+  return join(" ", TextSubs::pattern_substitution($src, $dest,
+						  split_on_whitespace($words)));
 }
 
 #
@@ -649,7 +1001,186 @@ sub f_phony {
   return $str;			# Just return our argument.
 }
 
-sub f_sort;			# Must be predeclared or else $+ doesn't work.
+sub f_print {
+  print $_[0], "\n";		# Print the text.
+  $_[0];			# Just return it verbatim.
+}
+
+#
+# Return a filename for a given file relative to the current directory.
+# (Modified from Matthew Lovell's contribution.)
+#
+sub f_relative_filename {
+  my $makefile = $_[1];
+  my @files = split_on_whitespace($_[0]); # Get a list of files.
+  my @ret_names;
+  foreach (@files) {
+    push @ret_names, file_info(unquote($_), $makefile->{CWD})->relative_filename($makefile->{CWD});
+  }	
+
+  return join(" ", @ret_names);
+}
+
+#
+# Return a filename relative to a given directory.
+# Syntax: $(relative_to file1 file2, path/to/other/directory)
+#
+sub f_relative_to {
+  my $makefile = $_[1];
+  my @ret_names;
+  my ($files, $dir, @extra_junk) = split(/,/, $_[0]);
+  defined($dir) && @extra_junk == 0 or
+    die "wrong number of arguments to \$(relative_to file, dir)\n";
+  $dir =~ s/^\s+//;		# Trim whitespace.
+  $dir =~ s/\s+$//;
+  my @files = split_on_whitespace($files);
+  my $dirinfo = file_info(unquote($dir), $makefile->{CWD});
+                                # Directory this is relative to.
+  foreach (@files) {
+    push @ret_names, file_info(unquote($_), $makefile->{CWD})->relative_filename($dirinfo);
+  }
+
+  return join(" ", @ret_names);
+}
+
+sub f_shell {
+  my ($str, $makefile, $makefile_line) = @_; # Name the arguments.
+
+  chdir $makefile->{CWD};	# Make sure we're in the correct directory.
+  my $shell_output = '';
+  if (!$main::can_fork) {       # Doesn't support forking well?
+    $shell_output = `$str`;	# Run the shell command.
+    $? == 0 or
+      die "error $? running shell command `$str'\n";
+  }
+  else {
+#
+# We used to use perl's backquotes operators but these seem to have trouble,
+# especially when doing parallel builds.  The backquote operator doesn't seem
+# to capture all of the output.  Every once in a while (sometimes more often,
+# depending on system load and whether it's a parallel build) the backquote
+# operator returns without giving any output, even though the shell command
+# is actually executed; evidently it's finishing before it's captured all
+# the output.  So we try a different approach here.
+# This is about the third different technique that I've tried, and this one
+# (finally) seems to work.  I'm still not 100% clear on why some of the
+# other ones didn't.
+#
+    local (*INHANDLE, *OUTHANDLE); # Make a pair of file handles.
+    pipe(INHANDLE, OUTHANDLE) or die "can't make pipe--$!\n";
+    my $proc_handle = new MakeEvent::Process sub { # Wait for process to finish.
+      #
+      # This is the child process.  Redirect our standard output to the pipe.
+      #
+      close INHANDLE;           # Don't read from the handle any more.
+      close STDOUT;
+      open(STDOUT,">&OUTHANDLE") || die "can't redirect stdout--$!\n";
+      exec(TextSubs::format_exec_args($str));
+      die "exec failed--$!n";
+    };
+
+    close OUTHANDLE;            # In parent, get rid of the output handle.
+    my $line;
+    my $n_errors_remaining = 3;
+    for (;;) {
+      my $n_chars = sysread(INHANDLE, $line, 8192); # Try to read.
+      if (!defined($n_chars)) {  # An error on the read?
+        $n_errors_remaining-- > 0 and next; # Probably "Interrupted system call".
+        die "read error--$!\n";
+      }
+      last if $n_chars == 0;    # No characters read--other process closed pipe.
+      $shell_output .= $line;
+    }
+    wait_for $proc_handle;      # Should not really be necessary.
+    close INHANDLE;
+  }
+  $shell_output =~ s/\r?\n/ /g;	# Get rid of newlines.
+  $shell_output =~ s/\s+$//;	# Strip out trailing whitespace.
+  return $shell_output;
+}
+
+sub f_sort {
+#
+# Sort is documented to remove duplicates as well as to sort the string.
+#
+  my @ret_words = sort split ' ', $_[0]; # Get the words.
+
+  my $idx = 1;			# Now remove duplicates:
+  while ($idx < @ret_words) {
+    if ($ret_words[$idx] eq $ret_words[$idx-1]) {
+      splice @ret_words, $idx, 1; # Remove duplicated word.
+    } else {
+      ++$idx;			# Skip unique word.
+    }
+  }
+
+  join(" ", @ret_words);
+}
+
+sub f_stem {
+  defined($Makesubs::rule) || die "\$(stem) or \$* used outside of rule\n";
+  defined($Makesubs::rule->{PATTERN_STEM}) and 
+    return $Makesubs::rule->{PATTERN_STEM};
+
+  return f_basename(&f_target);
+				# If there's no stem, just strip off the 
+				# target's suffix.  This is what GNU make
+				# does.
+}
+
+sub f_strip {
+  return join(" ", split(' ', $_[0]));
+}
+
+sub f_subst {
+  my ($from, $to, $text) = split(/,/, $_[0]);
+  $from = quotemeta($from);
+
+  my @ret_vals;
+  foreach (split(' ', $text)) {
+    (my $newval = $_) =~ s/$from/$to/g;
+    push(@ret_vals, $newval);
+  }
+
+  join(" ", @ret_vals);
+}
+
+sub f_suffix {
+  my @ret_vals;
+
+  foreach (split ' ', $_[0]) {
+    if (m@\.([^\./]*)$@) { push @ret_vals, $1; }
+  }
+
+  join(" ", @ret_vals);
+}
+
+
+sub f_wildcard {
+  my ($line, $makefile, $makefile_line) = @_; # Name the arguments.
+
+  my $cwd = $Makesubs::rule ? $Makesubs::rule->build_cwd : $makefile->{CWD};
+				# Get the default directory.
+
+  join(" ", map { Glob::zglob($_, $cwd) } split(' ', $line));
+}
+
+sub f_word {
+  my ($wordidx, $text) = split(/,\s*/, $_[0]);
+
+  return (split(' ', $text))[$wordidx-1] || '';
+}
+
+sub f_wordlist {
+  my ($startidx, $endidx, $text) = split(/,\s*/, $_[0]);
+  if ($startidx > $endidx) { my $temp = $startidx; $startidx = $endidx; $endidx = $temp; }
+  return join(" ", (split(' ', $text))[$startidx-1 .. $endidx-1]);
+}
+
+sub f_words {
+  my @wordlist = split(' ', $_[0]);
+  return scalar(@wordlist);
+}
 
 ###############################################################################
 #
@@ -747,41 +1278,55 @@ sub f_foreach {
 				# beginning.
 }
 
-sub f_stem {
-  defined($Makesubs::rule) || die "\$(stem) or \$* used outside of rule\n";
-  defined($Makesubs::rule->{PATTERN_STEM}) and 
-    return $Makesubs::rule->{PATTERN_STEM};
-
-  return f_basename(f_target);
-				# If there's no stem, just strip off the 
-				# target's suffix.  This is what GNU make
-				# does.
-}
-
 #
-# An internal subroutine that converts FileInfo structures to printable
-# names.  Takes either a single FileInfo structure, an array of FileInfo
-# structures, or a reference to an array of FileInfo structures.
+# $(MAKE) needs to expand to the name of the program we use to replace a
+# recursive make invocation.  We pretend it's a function with no arguments.
 #
-sub relative_filenames {
-  my @ret_vals;
+sub f_MAKE {
+  if ($main::traditional_recursive_make) { # Do it the bozo way?
+    unless ($Makesubs::make_name) { # Haven't figured it out yet?
+      $Makesubs::make_name = $0;	# Get the name of the program.
+      unless ($Makesubs::make_name =~ m@^/@) { # Not absolute?
+#
+# We have to search the path to figure out where we came from.
+#
+	foreach (split(/:/, $ENV{'PATH'}), '.') {
+	  my $finfo = file_info("$_/$0", $main::original_cwd);
+	  if ($finfo->file_exists) { # Is this our file?
+	    $Makesubs::make_name = $finfo->absolute_filename;
+	    last;
+	  }
+	}
+      }	
+    }	
+    return $Config{'bin'} . "/perl " . $Makesubs::make_name . " --recursive_makepp";
+				# All the rest of the info is passed in the
+				# MAKEFLAGS environment variable.
+				# The --recursive option is just a flag that
+				# helps the build subroutine identify this as
+				# a recursive make command.  It doesn't 
+				# actually do anything.
+  } else {
+    if (!$main::can_fork) {
+      die "makepp: recursive make without --traditional not supported on this platform\n";
+    }
 
-  my $cwd = $Makesubs::rule->build_cwd;
-  foreach (@_) {
-    next unless defined $_;	# Skip undef things--results in a blank.
-    if (ref($_) eq 'ARRAY') {
-      push @ret_vals, relative_filenames(@$_);
-    }
-    else {
-      push @ret_vals, $_->name($cwd);
-    }
+    my $makefile = $_[1];	# Get the makefile we're run from.
+
+    my $recursive_makepp = $Config{'bin'} . "/perl " .
+      file_info($main::datadir, $main::original_cwd)->absolute_filename .
+	"/recursive_makepp";
+				# Sometimes we can be run as ../makepp, and
+				# if we didn't hard code the paths into
+				# makepp, the directories may be relative.
+				# However, since recursive make is usually
+				# invoked in a separate directory, the
+				# path must be absolute.
+    return "$recursive_makepp " . join(" ", map { "$_=" . requote($makefile->{COMMAND_LINE_VARS}{$_}) } keys %{$makefile->{COMMAND_LINE_VARS}});
   }
-
-  return @ret_vals; 
 }
 
-sub f_dir_noslash;
-sub f_notdir;
+sub f_MAKE_COMMAND { return &f_MAKE; }
 
 #
 # Now define all the cryptic one-character symbols, and anything else that
@@ -791,7 +1336,7 @@ sub f_notdir;
   ("@" => \&f_target,
    "<" => \&f_dependency,
    "^" => \&f_dependencies,
-   "?" => \&f_dependencies,
+   "?" => \&f_sorted_dependencies,
    "+" => \&f_sorted_dependencies,
    "*" => \&f_stem,
    "&" => sub { "" },		# Perl makefiles use this for some reason, but
@@ -809,13 +1354,6 @@ sub f_notdir;
    '^F' => sub { f_notdir f_dependencies },
   );
 
-1;
-
-__DATA__
-#
-# These subroutines are seldom used and so are autoloaded only on demand.
-#
-
 ###############################################################################
 #
 # Makefile statements.  These are all called with the following arguments:
@@ -824,6 +1362,30 @@ __DATA__
 # c) A printable string describing which line of the makefile the statement
 #    was on.
 #
+
+#
+# Handle the no_implicit_load statement.  This statement marks some
+# directories not to be loaded by the implicit load mechanism, in case
+# there are makefiles there that you really don't want to load.
+#
+sub s_no_implicit_load {
+  my ($text_line, $makefile, $makefile_line) = @_; # Name the arguments.
+
+  my $cwd = $Makesubs::rule ? $Makesubs::rule->build_cwd : $makefile->{CWD};
+				# Get the default directory.
+
+  local $main::implicitly_load_makefiles = 0;
+				# Temporarily turn off makefile loading for
+				# the expansion of this wildcard.
+
+  my @dirs = map { Glob::zglob_fileinfo($_, $cwd) }
+    split(' ', $makefile->expand_text($text_line, $makefile_line));
+				# Get a list of things matching the wildcard.
+  foreach my $dir (@dirs) {
+    $dir->is_or_will_be_dir and $dir->{NO_IMPLICIT_LOAD} = 1;
+				# Tag them so they don't load later.
+  }
+}
 
 #
 # Export statement.
@@ -853,9 +1415,15 @@ sub s_include {
 
   my @files = split(' ', $makefile->expand_text($text_line, $makefile_line));
 				# Get a list of files.
+  my $this_dir_devid = ($makefile->{CWD}->stat_array)->[0];
+                                # Remember what device this is mounted on
+                                # so we can avoid crossing file system
+                                # boundaries.
+
   foreach my $file (@files) {
     my $finfo;
-    for (my $dirinfo = $makefile->{CWD}; $dirinfo;
+    for (my $dirinfo = $makefile->{CWD};
+         $dirinfo && ($dirinfo->stat_array)->[0] == $this_dir_devid;
 	 $dirinfo = $dirinfo->{".."}) { # Look in all directories above us.
       $finfo = file_info($file, $dirinfo);
       if ($finfo->exists_or_can_be_built) { # Found file in the path?
@@ -964,6 +1532,8 @@ sub s_perl_begin {
     $perl_code .= $line;
   }
 
+  chdir $makefile->{CWD};	# Make sure we're in the correct directory
+				# because some perl code will expect this.
   eval "no strict; package $makefile->{PACKAGE};\n$perl_code";
   if ($@) {			# Try to convert the line number into
 				# something that's more readable.
@@ -1062,7 +1632,7 @@ sub s_sub {			# Yes, we can actually have a function with
 # At this point, $subr_text contains the text of the subroutine.  Evaluate
 # it:
 #
-  eval "package $makefile->{PACKAGE}; sub $subr_text";
+  eval "no strict; package $makefile->{PACKAGE}; sub $subr_text";
   if ($@) {			# Try to convert the line number into
 				# something that's more readable.
     my ($starting_line, $makefile_name) = ('random subroutine', 1);
@@ -1095,744 +1665,29 @@ sub s_unexport {
 
 ###############################################################################
 #
-# Scanner subroutines:
+# Default values of various variables.  These are implemented as functions
+# with no arguments so that:
+# a) They are visible to all makefiles, yet are easily overridden.
+#    (If we just put them in makepp_builtin_rules.mk, then they are not
+#    visible in the makefile except in rules, because makepp_builtin_rules.mk
+#    is loaded after the makefile.  That's where they were for a while but
+#    that was discovered not to work well.)
+# b) The $(origin ) function can work with them.
 #
-
-#
-# Scanning libtool commands is a bit tricky.  Several things we need to do:
-# 1) If a file depends on a xyz.lo, it also depends on .libs/xya.o (or whatever
-#    is specified in the xyz.lo file).
-# 2) .la files cannot be linked in from repositories, because they have
-#    absolute pathnames encoded in them.  Thus we remove repository information
-#    for them.
-#
-sub scanner_libtool {
-  my ($action, $rule) = @_;	# Name the arguments.
-  &scanner_skip_word;		# Call the linker or C compiler scanner, to get
-				# all of the dependencies.
-#
-# Search the dependency list for .lo or .la files:
-#
-  my @handles;
-  my @lofiles;
-  foreach my $finfo (values %{$rule->{ALL_DEPENDENCIES}}) {
-    if ($finfo->{NAME} =~ /\.lo$/) { # Is it a libtool object flie?
-      my $handle = main::build($finfo); # Queue a build for it.
-      $handle and push @handles, $handle; # Remember to wait for it later.
-      push @lofiles, $finfo;	# Remember to look at this later.
-    }
-    elsif ($finfo->{NAME} =~ /\.la$/) {	# Is it a libtool library?
-      delete $finfo->{ALTERNATE_VERSIONS};
-				# Never link these in from repositories.
-    }
-  }
-
-#
-# Search the target list for any .la files:
-#
-  foreach my $finfo (values %{$rule->{ALL_TARGETS}}) {
-    if ($finfo->{NAME} =~ /\.la$/) {
-      delete $finfo->{ALTERNATE_VERSIONS};
-				# Never link these in from repositories.
-    }
-  }
-
-  if (@handles) {
-    my $status = main::wait_for(@handles); # Wait until all the .lo files we 
-				# need actually exist.
-    $status and return;		# Don't bother scanning them if they aren't
-				# correctly build.
-  }	
-  my $build_cwd = $rule->build_cwd; # We need this in several places.
-
-  foreach (@lofiles) {
-    local *LOFILE;		# Make a local file handle.
-    open(LOFILE, $_->absolute_filename) || next; # Read the file.
-    my $line;
-#
-# We're looking for a line in the file that looks like this:
-# pic_object='.libs/xyz.o'
-# or
-# non_pic_object='.libs/xyz.o'
-#
-    while (defined($line = <LOFILE>)) {	# Read a line.
-      if ($line =~ /^\s*(?:non_)?pic_object=\'([^\']+)\'/) { # Found line 
-				# specifying another object?
-	$rule->add_dependency(file_info($1, $build_cwd));
-				# Mark it as a dependency.
-      }
-    }
-    close LOFILE;		# Done with the file.
-  }
-
-#
-# The libtool command file itself is usually also a dependency (it has to be
-# linked in from a repository if it doesn't exist).
-#
-  $action =~ /^\s*(\S+)/;	# Extract the first word.  It's the libtool
-				# commnd.
-  $rule->add_dependency(file_info($1, $build_cwd));
-}
-
-###############################################################################
-#
-# Functions invoked as make expressions:
-#
-
-#
-# Return the absolute filename of all the arguments.
-#
-sub f_absolute_filename {
-  my @files = split_on_whitespace($_[0]); # Get a list of files.
-  my @ret_names;
-  my $cwd = $Makesubs::rule ? $Makesubs::rule->build_cwd : $FileInfo::CWD_INFO;
-  foreach (@files) {
-    push @ret_names, file_info(unquote($_), $cwd)->absolute_filename;
-  }	
-
-  return join(" ", @ret_names);
-}
-
-sub f_addprefix {
-  my ($prefix, $text) = split(/,\s+/, $_[0]); # Get the prefix.
-  return join(" ", map { "$prefix$_" } split(' ', $text));
-}
-
-sub f_addsuffix {
-  my ($suffix, $text) = split(/,\s+/, $_[0]); # Get the prefix.
-  return join(" ", map { "$_$suffix" } split(' ', $text));
-}
-
-sub f_basename {
-  my @ret_vals;
-  foreach (split ' ', $_[0]) {
-    if (m@(\.[^./\,]*)$@) {	# Match the extension, but don't look into the
-				# directory for a period.
-      push @ret_vals, substr($_, 0, length($_)-length($1)); # Take it off
-				# (without using $PRE or $POST or a regex
-				# that has lots and lots of backtracking).
-    } else {
-      push @ret_vals, $_;	# No extension.  Return the whole filename.
-    }
-  }
-
-  return join(" ", @ret_vals);
-}
-
-sub f_dir {
-  my @ret_vals;
-  foreach (split ' ', $_[0]) {
-    if (m@^(.*/)@) { push @ret_vals, $1; }
-    else           { push @ret_vals, './'; }
-  }
-
-  return join(" ", @ret_vals);
-}
-
-sub f_dir_noslash {		# An internal routine that does the same
-				# thing but doesn't return a trailing slash.
-  my @ret_vals;
-  foreach (split ' ', $_[0]) {
-    if (m@^(.*)/@) { push @ret_vals, $1; }
-    else           { push @ret_vals, '.'; }
-  }
-
-  return join(" ", @ret_vals);
-}
-
-sub f_filter {
-  my ($filters, $words) = split(/,\s*/, $_[0]);
-
-  my @filters = split(' ', $filters); # Can be more than one filter.
-  foreach (@filters) {		# Convert these into regular expressions.
-    s/\./\\./g;			# Protect all the periods.
-    s/\%/\.\*/g;		# Replace '%' with '.*'.
-    $_ = "^$_\$";		# Anchor the pattern.
-  }
-
-  my @ret_words;
- wordloop:
-  foreach (split(' ', $words)) { # Now look at each word.
-    foreach my $filter (@filters) {
-      if (/$filter/) {		# Does it match this filter?
-	push @ret_words, $_;
-	next wordloop;
-      }
-    }
-  }
-
-  return join(" ", @ret_words);
-}
-
-sub f_filter_out {
-  my ($filters, $words) = split(/,\s*/, $_[0]);
-
-  my @filters = split(' ', $filters); # Can be more than one filter.
-  foreach (@filters) {		# Convert these into regular expressions.
-    s/\./\\./g;			# Protect all the periods.
-    s/\%/\.\*/g;		# Replace '%' with '.*'.
-    $_ = "^$_\$";		# Anchor the pattern.
-  }
-
-  my @ret_words;
- wordloop:
-  foreach (split(' ', $words)) { # Now look at each word.
-    foreach my $filter (@filters) {
-      next wordloop if /$filter/; # Skip if it matches this filter.
-    }
-    push @ret_words, $_;
-  }
-
-  return join(" ", @ret_words);
-}
-
-#
-# Find one of several executables in PATH.
-#
-sub f_find_program {
-  my @names = split(' ', $_[0]); # Get the programs to look for.
-  my ($makefile, $makefile_line) = @_[1,2]; # Access the other arguments.
-
-  my @pathdirs = map { file_info($_, $makefile->{CWD}) }
-    split(/:/, $makefile->{EXPORTS}{PATH} || $ENV{'PATH'});
-				# Get the list of directories to search.
-  foreach my $name (@names) {	# Find it in the path:
-    foreach my $dir (@pathdirs) {
-      if (file_info($name, $dir)->is_executable) {
-	return $name;
-      }
-    }
-  }
-
-  return $names[0];		# None of the programs were executable.
-}
-
-#
-# Find a file in a specified path, or in the environment variable PATH if
-# nothing is specified.
-#
-sub f_findfile {
-  my ($name, $path) = split(/\,\s*/, $_[0]); # Get what to look for, and where
-				# to look for it.
-  my ($makefile, $makefile_line) = @_[1,2]; # Access the other arguments.
-  my @pathdirnames = split(/[:\s]+/, $path || $ENV{'PATH'});
-				# Get a separate list of directories.
-  my @names = split(' ', $name); # Get a list of names to find.
-  foreach $name (@names) {	# Look for each one in the path:
-    foreach my $dir (@pathdirnames) {
-      my $finfo = file_info($name, file_info($dir, $makefile->{CWD}));
-				# Get the finfo structure.
-      if ($finfo->file_exists) { # Found it?
-	$name = $finfo->absolute_filename; # Replace it with the full name.
-	last;			# Skip to the next thing to look for.
-      }
-    }
-  }
-
-  return join(" ", @names);
-}
-
-sub f_findstring {
-  my ($find, $in) = split(/,/, $_[0]);
-
-  return (index($in, $find) >= 0) ? $find : '';
-}
-
-sub f_firstword {
-  return (split(' ', $_[0]))[0] || '';
-}
-
-#
-# The if function is unusual, because its arguments have not
-# been expanded before we call it.  The if function is defined so that
-# only the expression that is actually used is expanded.  E.g., if the
-# if statement is true, then only the then expression is expanded, and
-# any side effects of the else expression do not happen.
-#
-sub f_if {
-  my ($text, $makefile, $makefile_line) = @_; # Name the arguments.
-  my $first_comma = index_ignoring_quotes($text, ',');
-				# Find the first comma.
-  $first_comma >= 0 or die "$makefile_line: $(if ) with only one argument\n";
-  my $cond = $makefile->expand_text(substr($text, 0, $first_comma), $makefile_line);
-				# Evaluate the condition.
-  $cond =~ s/^\s+//;		# Strip out whitespace on the response.
-  $cond =~ s/\s+$//;
-
-  $text = substr($text, $first_comma+1); # Get the text w/o the comma.
-
-  my $second_comma = index_ignoring_quotes($text, ',');
-				# Find the boundary between the then and the
-				# else clause.
-  if ($cond) {			# Is the condition true?
-    my $then;
-    if ($second_comma >= 0) {	# Was there an else clause?
-      $then = substr($text, 0, $second_comma);
-    } else {
-      $then = $text;		# No else clause, then clause is the rest.
-    }	
-    $then =~ s/^\s+//;		# Strip out leading whitespace.
-    $then =~ s/\s+$//;		# Strip out trailing whitespace.
-    return $makefile->expand_text($then, $makefile_line);
-    
-  } else {			# Condition was false.  Extract the else
-				# clause.
-    $second_comma >= 0 or return ''; # No else clause.
-    my $else = substr($text, $second_comma+1); # Get the text.
-    $else =~ s/^\s+//;		# Strip out leading whitespace.
-    $else =~ s/\s+$//;		# Strip out trailing whitespace.
-    return $makefile->expand_text($else, $makefile_line);
-  }	
-}
-
-#
-# Usage:
-#    target : $(infer_objs seed-list, list of possible objs)
-#
-sub f_infer_objects {
-  my ($text, $makefile, $makefile_line) = @_; # Name the arguments.
-  my ($seed_objs, $candidate_list) = split(/,\s*/, $text);
-				# Get the arguments.
-
-  $candidate_list or die "infer_objects called without a candidate list\n";
-  $Makesubs::rule or die "infer_objects called outside of a rule\n";
-
-  my $build_cwd = $Makesubs::rule->build_cwd;
-
-#
-# Build up a list of all the possibilities:
-#
-  my %candidate_objs;
-  foreach my $candidate_obj (map(Glob::zglob_fileinfo_atleastone($_, $build_cwd),
-				 split(' ', $candidate_list))) {
-				# Get a list of all the possible objs.
-    my $objname = $candidate_obj->{NAME};
-    $objname =~ s/\.[^\.]+$//;	# Strip off the extension.
-    if ($candidate_objs{$objname}) { # Already something by this name?
-      ref($candidate_objs{$objname}) eq 'ARRAY' or
-	$candidate_objs{$objname} = [ $candidate_objs{$objname} ];
-				# Make into an array as appropriate.
-      push @{$candidate_objs{$objname}}, $candidate_obj;
-    }
-    else {			# Just one obj?
-      $candidate_objs{$objname} = $candidate_obj;
-    }
-  }	
-#
-# Now look at the list of all the include files.  This is a little tricky
-# because we don't know the include files until we've actually built the
-# dependencies.
-#
-  my %source_names;		# These are the names of include files for
-				# which are look for the corresponding objects.
-
-  my @build_handles;		# Where we put the handles for building objects.
-  my @deps = map { Glob::zglob_fileinfo($_, $build_cwd) } split(' ', $seed_objs);
-				# Start with the seed files
-				# themselves.
-  $main::log_level and 
-    main::print_log("infer_objects called with seed objects ",
-		    join(" ", map { $_->name } @deps));
-  
-  foreach (@deps) {
-    my $name = $_->{NAME};
-    $name =~ s/\.[^\.]+$//;	# Strip off the extension.
-    $source_names{$name}++;	# Indicate that we already have this as a
-				# source file.
-  }	
-
-
-  my $dep_idx = 0;
-
-#
-# Build everything, so we know what everything's dependencies are.  Initially,
-# we'll only have a few objects to start from, so we build all of those, in
-# parallel if possible.  (That's why the loop structure is so complicated
-# here.)  Then we infer additional objects, build those in parallel, and
-# so on.
-#
-  for (;;) {
-    while ($dep_idx < @deps) {	# Look at each dependency currently available.
-      my $o_info = $deps[$dep_idx]; # Access the FileInfo for this object.
-      my $bh = main::build($o_info); # Start building it.
-      my $handle = when_done $bh, # Build this dependency.
-      sub {			# Called when the build is finished:
-	$bh->status and return $bh->status;
-				# Skip if an error occured.
-	my @this_sources = split(/\01/, $o_info->build_info_string("SORTED_DEPS") || '');
-				# Get the list of source files that went into
-				# it.
-	foreach (@this_sources) {
-	  my $name = $_;	# Make a copy of the file.
-	  $name =~ s@.*/@@;	# Strip off the path.
-	    $name =~ s/\.[^\.]+$//; # Strip off the extension.
-	  unless ($source_names{$name}++) { # Did we already know about that source?
-	    if (ref($candidate_objs{$name}) eq 'FileInfo') { # Found a file?
-	      $main::log_level and
-		main::print_log(0, "infer_objects: adding ",
-				$candidate_objs{$name}->name,
-				" to dependency list because of $_");
-	      push @deps, $candidate_objs{$name}; # Scan for its dependencies.
-	    }
-	    elsif (ref($candidate_objs{$name}) eq 'ARRAY') { # More than 1 match?
-	      main::print_error($Makesubs::rule->source, " in infer_objects: more than one possible object for include file $_:\n  ",
-				join("\n  ", map { $_->absolute_filename } @{$candidate_objs{$name}}),
-				"\n");
-	    }
-	  }
-	}	
-      };
-
-      defined($handle) and push @build_handles, $handle;
-				# Is this something we need to wait for?
-      ++$dep_idx;
-    }
-
-    last unless @build_handles;	# Quit if nothing to wait for.
-    my $status = wait_for @build_handles; # Wait for them all to build, and 
-				# try again.
-    @build_handles = ();	# We're done with those handles.
-    $status and last;		# Quit if there was an error.
-  }	
-
-#
-# At this point, we have built all the dependencies, and we also have a
-# complete list of all the objects.
-#
-  return join(" ", map { $_->relative_filename($build_cwd) } @deps);
-}
-
-sub f_join {
-  my ($words1, $words2) = split(/,/, $_[0]);
-				# Get the two lists of words.
-  defined($words2) or die "$_[2]: $(join ) called with < 2 arguments\n";
-  my @words1 = split(' ', $words1);
-  my @words2 = split(' ', $words2);
-
-  my $maxidx = @words1;		# Get the number of words in the output.
-  $maxidx < @words2 and $maxidx = @words2;
-
-  my @outwords;
-  for (my $idx = 0; $idx < $maxidx; ++$idx) {
-    push @outwords, ($words1[$idx] || '') . ($words2[$idx] || '');
-				# Do the concatenation.
-  }
-
-  return join(' ', @outwords);
-}
-
-sub f_notdir {
-  my @ret_vals;
-  foreach (split ' ', $_[0]) {
-    if (m@^.*/([^/]+)@) { push @ret_vals, $1; }
-    else                { push @ret_vals, $_; }
-  }
-
-  return join(" ", @ret_vals);
-}
-
-#
-# Return only the files in the list that are actually targets of some rule:
-#
-sub f_only_targets {
-  my ($text, $makefile, $makefile_line) = @_; # Name the arguments.
-  my @ret_files;
-
-  my $build_cwd = $makefile->{CWD};
-
-  foreach (split(' ', $_[0])) {
-    foreach my $finfo (Glob::zglob_fileinfo($_, $build_cwd)) {
-      $finfo->get_rule(1) and
-	push @ret_files, $finfo->name($build_cwd);
-    }
-  }
-
-  return join(" ", @ret_files);
-}
-
-#
-# Return only the files in the list that are not targets of some rule:
-#
-sub f_only_nontargets {
-  my ($text, $makefile, $makefile_line) = @_; # Name the arguments.
-  my @ret_files;
-
-  my $build_cwd = $makefile->{CWD};
-
-  foreach (split(' ', $_[0])) {
-    foreach my $finfo (Glob::zglob_fileinfo_atleastone($_, $build_cwd)) {
-      $finfo->get_rule(1) or
-	push @ret_files, $finfo->name($build_cwd);
-    }
-  }
-
-  return join(" ", @ret_files);
-}
-
-#
-# Perform a pattern substitution:
-#
-sub f_patsubst {
-  my ($src, $dest, $words) = split(/,\s*/, $_[0]);
-				# Get the arguments.
-  return join(" ", TextSubs::pattern_substitution($src, $dest,
-						  split_on_whitespace($words)));
-}
-
-sub f_print {
-  print $_[0], "\n";		# Print the text.
-  $_[0];			# Just return it verbatim.
-}
-
-sub f_shell {
-  my ($str, $makefile, $makefile_line) = @_; # Name the arguments.
-
-  chdir $makefile->{CWD};	# Make sure we're in the correct directory.
-  my $shell_output =`$str`;	# Run the shell command.
-  $? == 0 or
-    die "error $? running shell command `$str'\n";
-  $shell_output =~ s/\r?\n/ /g;	# Get rid of newlines.
-  $shell_output =~ s/\s+$//;	# Strip out trailing whitespace.
-  return $shell_output;
-}
-
-sub f_sort {
-#
-# Sort is documented to remove duplicates as well as to sort the string.
-#
-  my @ret_words = sort split ' ', $_[0]; # Get the words.
-
-  my $idx = 1;			# Now remove duplicates:
-  while ($idx < @ret_words) {
-    if ($ret_words[$idx] eq $ret_words[$idx-1]) {
-      splice @ret_words, $idx, 1; # Remove duplicated word.
-    } else {
-      ++$idx;			# Skip unique word.
-    }
-  }
-
-  join(" ", @ret_words);
-}
-
-sub f_strip {
-  return join(" ", split(' ', $_[0]));
-}
-
-sub f_subst {
-  my ($from, $to, $text) = split(/,/, $_[0]);
-  $from = quotemeta($from);
-
-  my @ret_vals;
-  foreach (split(' ', $text)) {
-    (my $newval = $_) =~ s/$from/$to/g;
-    push(@ret_vals, $newval);
-  }
-
-  join(" ", @ret_vals);
-}
-
-sub f_suffix {
-  my @ret_vals;
-
-  foreach (split ' ', $_[0]) {
-    if (m@\.([^\./]*)$@) { push @ret_vals, $1; }
-  }
-
-  join(" ", @ret_vals);
-}
-
-
-sub f_wildcard {
-  my ($line, $makefile, $makefile_line) = @_; # Name the arguments.
-
-  my $cwd = $Makesubs::rule ? $Makesubs::rule->build_cwd : $makefile->{CWD};
-				# Get the default directory.
-
-  join(" ", map { Glob::zglob($_, $cwd) } split(' ', $line));
-}
-
-sub f_word {
-  my ($wordidx, $text) = split(/,\s*/, $_[0]);
-
-  return (split(' ', $text))[$wordidx-1] || '';
-}
-
-sub f_wordlist {
-  my ($startidx, $endidx, $text) = split(/,\s*/, $_[0]);
-  if ($startidx > $endidx) { my $temp = $startidx; $startidx = $endidx; $endidx = $temp; }
-  return join(" ", (split(' ', $text))[$startidx-1 .. $endidx-1]);
-}
-
-sub f_words {
-  my @wordlist = split(' ', $_[0]);
-  return scalar(@wordlist);
-}
-
-###############################################################################
-# 
-# Special variables that are implemented as make functions.  (Implementing them
-# as functions with no arguments makes it possible to override them with
-# a variable assignment, yet by default they're available for every makefile.)
-#
-
-sub f_AR { return "ar"; }
-sub f_ARFLAGS { return "rv"; }
-
-sub f_AS { return "as"; }
-
-#
-# C compiler.  We look for a good C compiler to use.
-#
-sub f_CC {
-  my ($makefile, $makefile_line) = @_[1,2]; # Name the arguments.
-  my $ccname = f_find_program("gcc pgcc egcc c89 cc", @_[1,2]) 
-				# "gcc" is first so CFLAGS knows whether to
-				# add the special gcc flags.
-    || 'cc';			# If not found, we have to expand to something.
-  $ {$makefile->{PACKAGE} . "::CC"} = $ccname;
-				# Cache the value, so we can look at it when
-				# we have to expand CFLAGS.
-  return $ccname;
-}
-
-sub f_CFLAGS {
-  my ($makefile, $makefile_line) = @_[1,2]; # Name the arguments.
-
-  if (($ {$makefile->{PACKAGE} . "::CC"} || 'cc') =~ /gcc$/) {
-				# Is this the GNU compiler?
-    return "-g -Wall";		# Enable warnings.
-  }
-  else {
-    return "-g";		# Just enable debug.  (This is different
-				# from standard make, but I can't imagine
-				# why you wouldn't want it.)
-  }
-}
-
-sub f_COMPILE_dot_C { return &f_COMPILE_dot_cc; }
-sub f_COMPILE_dot_F { return $_[1]->expand_text('$(FC) $(FFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c', $_[2]); }
-sub f_COMPILE_dot_S { return $_[1]->expand_text('$(CC) $(ASFLAGS) $(CPPFLAGS) $(TARGET_MACH) -c', $_[2]); }
-sub f_COMPILE_dot_c { return $_[1]->expand_text('$(CC) $(CFLAGS) $(CPPFLAGS) $(INCLUDES) $(TARGET_ARCH) -c', $_[2]); }
-sub f_COMPILE_dot_cc { return $_[1]->expand_text('$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) $(TARGET_ARCH) -c', $_[2]); }
-sub f_COMPILE_dot_cpp { return &f_COMPILE_dot_cc; }
-sub f_COMPILE_dot_f { return $_[1]->expand_text('$(FC) $(FFLAGS) $(TARGET_ARCH) -c', $_[2]); }
-sub f_COMPILE_dot_s { return $_[1]->expand_text('$(AS) $(ASFLAGS) $(TARGET_MACH)', $_[2]); }
-
-
-#
-# C++ compiler.  We look for a good C++ compiler to use.
-#
-sub f_CXX {
-  my ($makefile, $makefile_line) = @_[1,2]; # Name the arguments.
-  my $cxxname = f_find_program("g++ c++ pg++ cxx CC", @_[1,2]) 
-    || 'c++';			# If not found, we have to expand to something.
-  $ {$makefile->{PACKAGE} . "::CXX"} = $cxxname;
-				# Cache the value, so we can look at it when
-				# we have to expand CFLAGS.
-  return $cxxname;
-}
-
-sub f_CXXFLAGS {
-  my ($makefile, $makefile_line) = @_[1,2]; # Name the arguments.
-
-  if (($ {$makefile->{PACKAGE} . "::CC"} || 'c++') =~ /[gc]\+\+$/) {
-				# Is this the GNU compiler?
-    return "-g -Wall";		# Enable warnings.
-  }
-  else {
-    return "-g";		# Just enable debug.  (This is different
-				# from standard make, but I can't imagine
-				# why you wouldn't want it.)
-  }
-}
-
-sub f_CPP { return &f_CC . " -E"; } # C preprocessor.
-
-sub f_FC { return &f_F77; }
-
-sub f_F77 {
-  my ($makefile, $makefile_line) = @_[1,2]; # Name the arguments.
-  my $f77name = f_find_program("f77 g77 fort77", @_[1,2]) 
-    || 'f77';			# If not found, we have to expand to something.
-  $ {$makefile->{PACKAGE} . "::F77"} = $f77name;
-				# Cache the value, so we can look at it when
-				# we have to expand CFLAGS.
-  return $f77name;
-}
-
-sub f_LD { return "ld"; }
-
-sub f_LEX { return f_find_program("lex flex", @_[1,2]); }
-sub f_LEX_dot_l { return $_[1]->expand_text('$(LEX) $(LFLAGS) -t', $_[2]); }
-
-sub f_LINK_dot_C { return &f_LINK_dot_cc; }
-sub f_LINK_dot_S { return $_[1]->expand_text('$(CC) $(ASFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)', $_[2]); }
-sub f_LINK_dot_c { return $_[1]->expand_text('$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)', $_[2]); }
-sub f_LINK_dot_cc { return $_[1]->expand_text('$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)', $_[2]); }
-sub f_LINK_dot_cpp { return &f_LINK_dot_cc; }
-sub f_LINK_dot_f { return $_[1]->expand_text('$(FC) $(FFLAGS) $(LDFLAGS) $(TARGET_ARCH)', $_[2]); }
-sub f_LINK_dot_o { return $_[1]->expand_text('$(CC) $(LDFLAGS) $(TARGET_ARCH)', $_[2]); }
-sub f_LINK_dot_s { return $_[1]->expand_text('$(CC) $(ASFLAGS) $(LDFLAGS) $(TARGET_ARCH)', $_[2]); }
-
-
-#
-# $(MAKE) needs to expand to the name of the program we use to replace a
-# recursive make invocation.  We pretend it's a function with no arguments.
-#
-sub f_MAKE {
-  if ($main::traditional_recursive_make) { # Do it the bozo way?
-    unless ($Makesubs::make_name) { # Haven't figured it out yet?
-      $Makesubs::make_name = $0;	# Get the name of the program.
-      unless ($Makesubs::make_name =~ m@^/@) { # Not absolute?
-#
-# We have to search the path to figure out where we came from.
-#
-	foreach (split(/:/, $ENV{'PATH'}), '.') {
-	  my $finfo = file_info("$_/$0", $main::original_cwd);
-	  if ($finfo->file_exists) { # Is this our file?
-	    $Makesubs::make_name = $finfo->absolute_filename;
-	    last;
-	  }
-	}
-      }	
-    }	
-    return $Config{'bin'} . "/perl " . $Makesubs::make_name . " --recursive_makepp";
-				# All the rest of the info is passed in the
-				# MAKEFLAGS environment variable.
-				# The --recursive option is just a flag that
-				# helps the build subroutine identify this as
-				# a recursive make command.  It doesn't 
-				# actually do anything.
-  } else {
-    my $makefile = $_[1];	# Get the makefile we're run from.
-
-    my $recursive_makepp = $Config{'bin'} . "/perl " .
-      file_info($main::datadir, $main::original_cwd)->absolute_filename .
-	"/recursive_makepp";
-				# Sometimes we can be run as ../makepp, and
-				# if we didn't hard code the paths into
-				# makepp, the directories may be relative.
-				# However, since recursive make is usually
-				# invoked in a separate directory, the
-				# path must be absolute.
-    return "$recursive_makepp " . join(" ", map { "$_=" . requote($makefile->{COMMAND_LINE_VARS}{$_}) } keys %{$makefile->{COMMAND_LINE_VARS}});
-  }
-}
-
-
-sub f_MAKE_COMMAND { return &f_MAKE; }
-
-sub f_MAKEINFO { return "makeinfo"; }
-
-sub f_RM { return "rm -f"; }
-
-sub f_YACC {
-  my $yacc = f_find_program("yacc bison", @_[1,2]);
-				# Pick yacc if available, otherwise bison.
-  $yacc eq "bison" and $yacc .= " -y"; # Go to yacc compatibility mode.
-  return $yacc;
-}
-
-sub f_YACC_dot_y {
-  return $_[1]->expand_text('$(YACC) $(YFLAGS)', $_[2]);
-}
+sub f_AR        { 'ar' }
+sub f_ARFLAGS   { 'rv' }
+sub f_AS        { 'as' }
+sub f_CC        { $_[1]->expand_text('$(find_program gcc egcc pgcc c89 cc)', $_[2]) }
+sub f_CFLAGS    { $_[1]->expand_text('$(if $(filter %gcc, $(CC)), -g -Wall, -g)', $_[2]) }
+sub f_CXX       { $_[1]->expand_text('$(find_program g++ c++ pg++ cxx CC)', $_[2]) }
+sub f_CXXFLAGS  { $_[1]->expand_text('$(if $(filter g++ c++, $(CXX)), -g -Wall, -g)', $_[2]) }
+sub f_F77       { $_[1]->expand_text('$(find_program f77 g77 fort77)', $_[2]) }
+sub f_FC        { $_[1]->expand_text('$(F77)', $_[2]) }
+sub f_LIBTOOL   { 'libtool' }
+sub f_LD        { 'ld' }
+sub f_MAKEINFO  { 'makeinfo' }
+sub f_LEX       { $_[1]->expand_text('$(find_program lex flex)', $_[2]) }
+sub f_RM        { 'rm -f' }
+sub f_YACC      { $_[1]->expand_text('$(if $(filter bison, $(find_program yacc bison)), bison -y, yacc)', $_[2]) }
+
+1;

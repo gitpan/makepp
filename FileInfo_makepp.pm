@@ -2,6 +2,7 @@ package FileInfo;
 
 use FileInfo;			# Override some subroutines from the
 				# generic FileInfo package.
+# $Id: FileInfo_makepp.pm,v 1.2.2.1 2003/07/25 03:32:50 grholt Exp $
 
 #
 # This file defines some additional subroutines for the FileInfo package that
@@ -76,12 +77,13 @@ sub get_rule {
 
   if ($finfo->exists_or_can_be_built) { ... }
 
-Returns true (actually, returns the FileInfo structure) if the file exists
-or does not yet exist but can be built.  This function determines whether
-a file exists by checking the build signature, not by actually looking in
-the file system, so if you set up a signature function that can return a valid
-build signature for a pseudofile (like a dataset inside an HDF file or a
-member of an archive) then this function will return true.
+Returns true (actually, returns the FileInfo structure) if the file
+exists and is readable, or does not yet exist but can be built.  This
+function determines whether a file exists by checking the build
+signature, not by actually looking in the file system, so if you set
+up a signature function that can return a valid build signature for a
+pseudofile (like a dataset inside an HDF file or a member of an
+archive) then this function will return true.
 
 If this is not what you want, then consider the function file_exists(), which
 looks in the file system to see whether the file exists or not.
@@ -91,6 +93,11 @@ looks in the file system to see whether the file exists or not.
 sub exists_or_can_be_built {
   my $finfo = $_[0];
   return undef if $finfo->{IS_PHONY}; # Never return phony targets.
+  if (!$finfo->is_readable) {	# File exists?
+    return undef if $finfo->{EXISTS}; # Can't be read--ignore it.  This is used
+				# to inhibit imports from repositories.
+  }
+
   return $finfo if $finfo->{EXISTS} || # We know it exists?
       $finfo->{ALTERNATE_VERSIONS} || # Exists in repository?
 	$finfo->{ADDITIONAL_DEPENDENCIES} ||
@@ -179,6 +186,11 @@ $FileInfo::made_temporary_link = 0; # True if we made any temporary links.
 
 sub move_or_link_target {
   my ($dest_finfo, $src_finfo) = @_;
+
+  if ($dest_finfo->{DIRCONTENTS}) { # Is this a directory?
+    $dest_finfo->mkdir;         # Just make it, don't soft link to it.
+    return;
+  }
 
   ++$FileInfo::made_temporary_link; # Remember to undo this temporary link.
 
@@ -444,58 +456,53 @@ sub set_rule {
 				# case to use a different rule.
       }
       else {
-	if (!$oldrule->{PATTERN_LEVEL}) {	# Old rule not a pattern rule?
+	if (!$oldrule->{PATTERN_LEVEL}) { # Old rule not a pattern rule?
 	  if ($rule->{PATTERN_LEVEL}) { # New rule is?
 	    $main::log_level and
 	      main::print_log(" Rule ", $rule->source, " ignored because it is a pattern rule");
 	    return;
-	  }
-	  else {
-	    main::print_error("warning: conflicting rules (", $rule->source,
-			      " and ", $oldrule->source, " for target ",
-			      $finfo->name) 
-	      unless $rule->source eq $oldrule->source;
-				# In the linux kernel, several different 
-				# makefiles load the same include file with a
-				# different cwd, and the include file has a
-				# bunch of commands to update files given
-				# their absolute path.
-	    return;
-	  }
-
-	}			# End if old rule was an explicit rule.
-      
-#
-# Apparently both are pattern rules.  Figure out which one should override.
-#
-	if ($rule->{MAKEFILE} != $oldrule->{MAKEFILE}) { # Skip comparing
-				# the cwds if they are from the same makefile.
-	  if (length($rule->build_cwd->relative_filename($finfo->{".."})) <
-	      length($oldrule->build_cwd->relative_filename($finfo->{".."}))) {
-	    $main::log_level and
-	      main::print_log(" Rule ", $rule->source,
-			      " chosen because it is from a nearer makefile");
 	  } else {
-	    $main::log_level and
-	      main::print_log(" Rule ", $oldrule->source,
-			      " kept because it is from a nearer makefile");
-	    return;
+            main::print_error("warning: conflicting rules (", $rule->source,
+                              " and ", $oldrule->source, " for target ",
+                              $finfo->name);
 	  }
-	}
-	else {			# If they're from the same makefile, use the
-				# one that has a shorter chain of inference.
-	  if (($rule->{PATTERN_LEVEL} || 0) < $oldrule->{PATTERN_LEVEL}) {
-	    $main::log_level and
-	      main::print_log(" Rule ", $rule->source,
-			      " chosen because it has a shorter chain of inference");
-	  }
-	  elsif (($rule->{PATTERN_LEVEL} || 0) > $oldrule->{PATTERN_LEVEL}) {
-	    $main::log_level and
-	      main::print_log(" Rule ", $oldrule->source,
-			      " chosen because it has a shorter chain of inference");
-	    return;
-	  }
-	}
+          
+	}			# End if old rule was an explicit rule.
+        else {
+          #
+          # Apparently both are pattern rules.  Figure out which one should override.
+          #
+          if ($rule->{MAKEFILE} != $oldrule->{MAKEFILE}) { # Skip comparing
+            # the cwds if they are from the same makefile.
+            if (length($rule->build_cwd->relative_filename($finfo->{".."})) <
+                length($oldrule->build_cwd->relative_filename($finfo->{".."}))) {
+              $main::log_level and
+                main::print_log(" Rule ", $rule->source,
+                                " chosen because it is from a nearer makefile");
+            } else {
+              $main::log_level and
+                main::print_log(" Rule ", $oldrule->source,
+                                " kept because it is from a nearer makefile");
+              return;
+            }
+          } else {              # If they're from the same makefile, use the
+                                # one that has a shorter chain of inference.
+            if (($rule->{PATTERN_LEVEL} || 0) < $oldrule->{PATTERN_LEVEL}) {
+              $main::log_level and
+                main::print_log(" Rule ", $rule->source,
+                                " chosen because it has a shorter chain of inference");
+            } elsif (($rule->{PATTERN_LEVEL} || 0) > $oldrule->{PATTERN_LEVEL}) {
+              $main::log_level and
+                main::print_log(" Rule ", $oldrule->source,
+                                " chosen because it has a shorter chain of inference");
+              return;
+            } else {
+              if ($rule->source eq $oldrule->source) {
+                main::print_error("warning: rule ", $rule->source, " produces ", $finfo->name, " in two different ways");
+              }
+            }
+          }
+        }
       }
     }
 
@@ -509,6 +516,8 @@ sub set_rule {
 #    main::print_log(0, $rule->source, " applies to target ", $finfo->name);
 
   $finfo->{RULE} = $rule;	# Store the new rule.
+  $rule->{LOAD_IDX} = $rule->{MAKEFILE}{LOAD_IDX};
+                                # Remember which makefile load it came from.
 
   if (exists $finfo->{BUILD_HANDLE} && !$finfo->{BUILT_WITH_NONDEFAULT}) {
     main::print_error("warning: I became aware of the rule ", $rule->source,
@@ -650,6 +659,7 @@ sub load_build_info_file {
 				# we know whether the build info has changed.
   my $line;
   while (defined($line = <BUILD_INFO>)) {	# Read another line.
+    $line =~ s/\r//;		# Strip out the silly windows-format lines.
     if ($line =~ /(.*?)=(.*)/) { # Check the format.
       my $key = $1;
       my $val = $2;

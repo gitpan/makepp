@@ -1,0 +1,70 @@
+=head1 NAME
+
+makepp_extending -- How to extend makepp using perl
+
+=head1 DESCRIPTION
+
+Makepp internally is flexible enough so that by writing a
+little bit of perl code, you can add functions or do a number of other
+operations.
+
+=head2 General notes on writing perl code to work with makepp
+
+Each makefile lives in its own package.  Thus definitions in one
+makefile do not affect definitions in another makefile.  A common set of
+functions including all the standard textual manipulation functions is
+imported into the package when it is created.
+
+Makefile variables are stored as perl scalars in that package.  (There
+is an exception to this: automatic variables and the default value of
+variables like CC are actually implemented as functions with no
+arguments.)  Thus any perl code you write has access to all makefile
+variables, and any global variables you set can be accessed from the
+makefile.
+
+Makepp cd's to the directory containing the makefile before executing
+any of your perl code.
+
+=head2 Adding new textual functions
+
+You can add a new function to makepp's repertoire by simply defining a
+perl subroutine of the same name but with a prefix of C<f_>.  For
+example:
+
+    sub f_myfunc {
+      my $argument = $_[0]; 	# Name the arguments.
+    
+      .. do something here
+    
+      return $return_value;
+    }
+    
+    XYZ := $(my_func my func arguments)
+
+The first argument to the function is the remaining text in the function
+invocation after the function name.  You'll have to split it into words
+yourself if that's what you want.  There are other arguments, but they
+are pretty specific to makepp's internals and for most applications you
+shouldn't need to use them.
+
+The function should return a scalar string (not an array) which is then
+inserted into the text at that point.
+
+If your function encounters an error, it should die using the usual perl
+die statement.  This will be trapped by makepp and an error message
+displaying the file name and the line number of the expression causing
+the error will be printed out.
+
+There are essentially no limits on what the function can do; you can
+access the file, run shell commands, etc.
+
+At present, expressions appearing in dependencies and in the rule
+actions are expanded once while expressions appearing in targets are
+expanded twice, so be careful if your function has side effects and is
+present in an expression for a target.
+
+=head2 Unfinished
+
+This document is not finished yet.  It will soon cover how to control
+makepp's signature mechanism and also how to write your own scanners for
+include files and things like that.

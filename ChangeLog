@@ -1,3 +1,165 @@
+2003-07-23  Gary Holt  <holt@gholt.net>
+
+	* makepp_builtin_rules.mk: support percent_subdirs for C++
+	compilation rules (bug reported by Chris van Engelen).
+
+2003-07-18  Gary Holt  <holt@gholt.net>
+
+	* Signature/c_compilation_md5.pm (signature): Scan files using
+	lexer even if they don't have typical C/C++ extensions, as long as
+	they aren't binary files.  This allows us to handle include files
+	with odd suffixes gracefully.
+
+	* Makesubs.pm (f_shell): Fix bug first reported by Chris van
+	Engelen where $(shell ) was returning a null string.
+
+2003-07-13  Gary Holt  <holt@gholt.net>
+
+	* Makesubs.pm (f_find_upwards, s_include): Add fix for problem
+	mentioned by mlovel, where going upwards indefinitely caused
+	problems with an automounter.
+
+2003-07-11  Gary Holt  <holt@gholt.net>
+
+	* makepp (parse_command_line): Fix wrong order of processing of -I
+	options.  (Fix submitted by Chris van Engelen.)
+
+2003-07-08  Gary Holt  <holt@gholt.net>
+
+	* Makefile.pm (parse_rule): Fix bug that caused an undefined
+	value message when expanding the :foreach clause.
+
+2003-07-07  Gary Holt  <holt@gholt.net>
+
+	* Makefile.pm (read_makefile_line_stripped): Improve compatibility
+	with GNU make, where ifdef on a variable set to a null string
+	is false, not true.
+
+2003-07-03  Gary Holt  <holt@gholt.net>
+
+	* Makesubs.pm (f_origin): Support this function--there's no reason
+	why we can't, and it simplifies using existing makefiles.
+
+	* makepp_builtin_rules.mk: Move the default values for variables
+	like CC, etc., back into Makesubs because they weren't accessible
+	until very late: makepp_builtin_rules.mk wasn't loaded until after
+	makefiles were parsed.
+
+2003-06-30  Gary Holt  <holt@gholt.net>
+
+	* config.pl, install.pl: Blow up if it's perl 5.005_02, since
+	there are still people out there running that broken version.
+
+2003-06-28  Gary Holt  <holt@gholt.net>
+
+	* makepp (load_repository): Fix bug where implicit loading of
+	makefiles gotten from repositories ceased to work.
+
+2003-06-25  Gary Holt  <gholt@holt-family.org>
+
+	* FileInfo_makepp.pm (exists_or_can_be_built): If a file is
+	unreadable, ignore it entirely.  This enables users to remove a
+	file and not have it copied in from the repository.
+
+	* makepp (load_repository and other places): if a directory is not
+	writable, don't attempt to link files into it from the repository.
+	Creating an unwritable directory enables users to disable the
+	repository for a specific directory.
+
+	* Makesubs.pm (s_sub): Add no_strict to prevent errors accessing 
+	variables.
+
+2003-06-21  Gary Holt  <gholt@holt-family.org>
+
+	* Makesubs.pm: Get rid of the SelfLoader, because it isn't working
+	under 5.8.0 on Cygwin, and I'm not really sure it saves anything 
+	anyway.  Reorganize file so it's easier to find things.
+
+2003-06-20  Gary Holt  <holt@gholt.net>
+
+	* makepp_builtin_rules.mk: move definitions of all these things
+	here so they can be seen and understood by other people more
+	easily.  Also cleans up the clutter in Makesubs.pm.
+
+2003-06-18  Gary Holt  <holt@gholt.net>
+
+	* Makesubs.pm (s_no_implicit_load): Expand variables in the
+	no_implicit_load statement.
+	(f_find_upwards, f_relative_filename, f_relative_to): New
+	functions from Matthew Lovell.
+
+	* Support target-specific assignments.
+
+2003-06-15  Gary Holt  <holt@gholt.net>
+
+	* makepp (print_error): Fix bug where --verbose output messages to a 
+	file called &STDOUT (reported by mlovell).
+
+	* Makefile.pm (expand_text): Minor change to expand_text to speed
+	up processing when there are no $.
+
+2003-06-14  Gary Holt  <holt@gholt.net>
+
+	* Signature/c_compilation_md5.pm: improve handling of whitespace
+	so that newlines do affect the signature but trailing whitespace
+	on a line does not.
+
+2003-06-13  Gary Holt  <holt@gholt.net>
+
+	* makepp_tests/run_tests.pl: Add an is_relevant script in the
+	tests so that we can easily skip tests on different platforms.
+	This was intended to be able to skip the C compilation test on
+	platforms where we can't find a C compiler.
+
+	* configure: New gnu-like configure command so that configuration
+	is more like other products.
+
+	* makepp: New system for updating the version number
+	automatically.  VERSION is the only file that actually contains
+	the number.
+
+2003-05-02  Gary Holt  <holt@gholt.net>
+
+	* Makesubs.pm ($?): Make it equal to $+, not $^, to match the
+	documentation.
+
+2003-05-01  Gary Holt  <holt@gholt.net>
+
+	* doc/incompat.html: Note that whitespace in variable names is not
+	supported.
+
+	* Makesubs.pm (scanner_c_compilation): Support -I and -L with
+	spaces after them in the c command line scanner.
+
+Version 1.18 released:
+	
+2002-01-09  Gary Holt  <gholt@barth.pulsent.com>
+
+	* Makesubs.pm (scanner_skip_word): Remove broken libtool scanner,
+	since libtool has changed and the current version didn't work
+	anyway.  More work is still needed for seemless libtool support.
+
+	* Clean up documentation and fix a few other minor things for the
+	next release.
+
+2001-10-08  Gary Holt  <gholt@barth.pulsent.com>
+
+	* FileInfo_makepp.pm (set_rule): Give a warning if the same
+	pattern rule makes the output file in two different ways.  (This
+	can happen if some funny things are done with the directory, for
+	example.)
+
+2001-03-01  Gary Holt  <holt@lnc.usc.edu>
+
+	* TextSubs.pm (pattern_substitution): Incorporated Roman
+	Levenstein's fix to copy words that don't match the pattern into
+	the output string unmodified.
+
+Version 1.10 released.
+	
+	Lots of changes I forgot to log to support signature methods
+	better.
+	
 2001-01-01  Gary Holt  <holt@lnc.usc.edu>
 
 	* FileInfo_makepp.pm (set_rule): Don't give a warning message

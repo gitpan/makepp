@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+# $Id: run_tests.pl,v 1.5 2003/07/07 15:24:01 grholt Exp $
 #
 # This script runs the specified tests and reports their result.
 # Usage:
@@ -7,9 +8,18 @@
 # If no arguments are specified, defaults to *.test.
 #
 # Each test is a tar file that contains the following:
-#   A makefile/makeppfile
+#   A makefile or makeppfile
 #   A subdirectory called "answers" which contains a copy of all target
 #     files.
+#   [Optional] A script called makepp_test_script which is run to do the
+#     test.  The script takes one argument which is the path to makepp.
+#     If this file does not exist, then we execute the statement
+#        perl /path/to/makepp
+#     so makepp picks up the default makefiles.
+#   [Optional] A script called "is_relevant" which returns true (0) if the test
+#     is relevant on this platform, and false (1) if not.  If absent, we assume
+#     the test is relevant.  The environment variable PERL contains the path
+#     to the perl distribution we are using.
 #
 # Makepp is run, and then each target file in the "answers" directory is
 # compared with the corresponding file in the top level directory.  If there
@@ -29,7 +39,6 @@ $old_cwd = cwd;			# Remember where we were so we can cd back
 
 @ARGV or @ARGV = <*.test>;	# Get a list of arguments.
 
-
 $n_failures = 0;
 
 test_loop:
@@ -42,13 +51,18 @@ foreach $tarfile (@ARGV) {
   chdir "tdir" || die "$0: can't cd into tdir--$!\n";
 
   eval {
+    $^O eq 'cygwin' && $testname =~ /_unix/ and die "skipped\n";
+                                # Skip things that will cause errors on cygwin.
     system("tar xf ../$tarfile") &&	# Extract the tar file.
       die "$0: can't extract testfile $tarfile\n";
+    if (-x "is_relevant") {
+      system("./is_relevant ../../makepp > /dev/null 2>&1") && die "skipped\n";
+    }
     if (-x "makepp_test_script") { # Shell script to execute?
       system("./makepp_test_script ../../makepp > ../$tarfile.log 2>&1") && # Run it.
 	die "$0: makepp returned error status\n";
     } else {
-      system("perl ../../makepp > ../$tarfile.log 2>&1") && # Run makepp.
+      system("\${PERL-perl} ../../makepp > ../$tarfile.log 2>&1") && # Run makepp.
 	die "$0: makepp returned error status\n";
     }
 #
@@ -65,11 +79,13 @@ foreach $tarfile (@ARGV) {
 	open(TFILE, "answers/$tfile") || die "$0: can't open tdir/$tfile--$!\n";
 	$tfile_contents = <TFILE>; # Read in the whole thing.
 	close TFILE;
+	$tfile_contents =~ s/\r//g; # For cygwin, strip out the extra CRs.
 
 	$mtfile = $tfile;		# Get the name of the actual file.
 	open(MTFILE, $mtfile) || die "$mtfile\n";
 	my $mtfile_contents = <MTFILE>; # Read in the whole file.
 	close MTFILE;
+	$mtfile_contents =~ s/\r//g; # For cygwin, strip out the extra CRs.
 	$mtfile_contents eq $tfile_contents or die "$mtfile\n";
       }	
       closedir DIR;
@@ -111,18 +127,22 @@ foreach $tarfile (@ARGV) {
   };
 
   if ($@) {
-    if ($@ =~ /^\S+$/) {	# Just one word?
+    if ($@ =~ /skipped/) {      # Skip this test?
+      print "skipped $testname\n";
+    } elsif ($@ =~ /^\S+$/) {	# Just one word?
       my $loc = $@;
       $loc =~ s/\n//;		# Strip off the trailing newline.
       print "FAILED $testname (at $loc)\n";
+      ++$n_failures;
     } else {
       print "FAILED $testname: $@";
+      ++$n_failures;
     }	
-    ++$n_failures;
   } else {
     print "passed $testname\n";
   }
 
+  -x "cleanup_script" and system("./cleanup_script");
   chdir $old_cwd;		# Get back to the old directory.
   system("rm -rf tdir");	# Get rid of the test directory.
 }

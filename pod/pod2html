@@ -1,0 +1,680 @@
+#!/usr/bin/perl -w
+=head1 NAME
+
+pod2html -- replacement for buggy pod2hmtl that comes with the perl distribution
+
+=head1 SYNOPSIS
+
+   pod2html *.pod
+
+=head1 DESCRIPTION
+
+I was sadly disappointed with the F<pod2html> program that came with the perl
+distribution.  (Try running it on the makepp pod files and compare the output
+with the output from this program!  It's full of bugs.)  This program fixes
+the bugs that I know of, and includes the following refinements:
+
+=over 4
+
+=item *
+
+Correctly handles links with special characters in them.
+
+=item *
+
+Correctly formats lists like 
+
+   =over 4
+
+   =item *
+
+   This is an item
+
+   =back
+
+=item *
+
+Finds a lot more candidate links, because it analyzes a group of related pod
+files all at once.
+
+=back
+
+This is a simple replacement that is designed to handle linking between
+different related pod files better.
+
+=cut
+
+=head2 parse_files
+
+Parse a group of related pod files.  For each F<.pod> file, writes out a
+corresponding F<.html> file in the same directory.
+
+    pod2html("html_output_dir", glob("*.pod"));
+
+=cut
+
+sub pod2html {
+  my $html_dir = shift @_;
+  -d $html_dir || mkdir($html_dir, 0777) or
+    die "$0: can't write to output directory $html_dir--$!\n";
+  #
+  # First scan all the .pod files, looking for anything which we can link to.
+  # This will accumulate a list of possible targets in the array %link_targets.
+  #
+  local %link_targets;
+  my (%title, %has_other_sections);
+
+  foreach my $file (@_) {
+    ($title{$file}, $has_other_sections{$file}) =
+      prescan($file, \%link_targets);
+
+    if ($file =~ /([^\/]+)\.[^\.\/]+$/) {
+      $link_targets{$1} = "$1.html"; # Put in a link target for each .pod file.
+    }
+  }
+
+  #
+  # Now parse each file and convert it to HTML:
+  #
+  foreach my $file (@_) {
+    my $html_file = $file;
+    $html_file =~ s@^.*/@@;     # Strip off the directory info.
+    $html_file =~ s/\.[^\.]+$/\.html/; # Change the suffix.
+    $html_file = "$html_dir/$html_file"; # Put it in the correct directory.
+
+    convert_pod_file($file, $html_file, $title{$file},
+                     $has_other_sections{$file}, \%link_targets);
+                                # Convert this file.
+  }
+}
+
+#
+# Convert a pod file into HTML.
+#
+# Arguments:
+# a) The pod file.
+# b) The HTML output file.
+# c) The title to put in the HTML output.
+# d) Whether to make the =head1 sections separate HTML sections or not.
+#    If there's only a DESCRIPTION, a NAME, and an AUTHOR, then there's no
+#    need to do so.
+# c) The %link_targets array.
+#
+sub convert_pod_file {
+  local $podfile = shift @_;
+  my ($htmlfile, $html_title, $head1_sections, $link_targets) = @_;
+
+  my $pod_sections = parse_pod_sections($podfile);
+
+  local *HTML;                  # Make local file handles.
+  open(HTML, "> $htmlfile") || die "$0: can't open $htmlfile--$!\n";
+
+  print HTML "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML//EN\">
+<html><head><title>$html_title</title></head>
+<body>\n";
+  if (!$head1_sections) {       # If we won't put a NAME section in, add a
+    print HTML "<h1>$html_title</h1>\n"; # title now.
+    $pod_sections = remove_head1($pod_sections);
+                                # Get rid of the sections we won't be 
+                                # writing out.
+  }
+  add_table_of_contents($pod_sections); 
+                                # Put an index at the beginning.
+  !$head1_sections and print HTML "<hr>";
+  format_to_html($pod_sections, 1, $link_targets); # Write each section.
+
+  print HTML "</body></html>\n";
+  close HTML;
+}
+
+#
+# Remove the =head1 sections since we aren't going to be using them.
+# Arguments:
+# a) The lists returned from parse_pod_sections.
+#
+# Returns a modified list with useless stuff removed.
+#
+sub remove_head1 {
+  my $paragraphs = $_[0];
+
+  my @ret_paragraphs;
+#
+# Remove everything but the DESCRIPTION section:
+#
+  my $in_description = 0;
+  foreach my $para (@$paragraphs) {
+    next if ref($para);         # Not a scalar;
+    if ($para =~ /^=head1\s+(\w+)/) {
+      $in_description = $1 eq 'DESCRIPTION';
+      $para = '';               # Suppress this field.
+    }
+  }
+  continue {
+    $in_description and push @ret_paragraphs, $para;
+  }
+    
+  return \@ret_paragraphs;    
+}
+
+#
+# Add a table of contents to the HTML file:
+#
+sub add_table_of_contents {
+  my $paragraphs = $_[0];
+
+  my $printed_anything = 0;
+  foreach my $para (@$paragraphs) {
+    if (ref($para)) {           # Nested structure?
+      add_table_of_contents($para);
+    }
+    elsif ($para =~ /^=head.\s+(.*?)\s*$/) { # New section?
+      print HTML "<ul>" unless $printed_anything++;
+      print HTML "<li><a href=\"\#", url_fragment($1), "\">", 
+        format_paragraph($1, {}), "</a>\n";
+    }
+  }
+  print HTML "</ul>" if $printed_anything;
+}
+
+#
+# Format one level of the output from parse_pod_sections().  Arguments:
+# a) A reference to a list of things at this level.
+# b) The number of the level we're at.
+# c) Whether =head1 sections go into <h2> sections or not.
+# d) The hash of valid link targets.
+#
+# Writes to the global file handle HTML.
+#
+sub format_to_html {
+  my ($paragraphs, $level, $link_targets) = @_;
+
+  my $end_section = '';
+  my $need_p = 0;
+  for (my $paridx = 0; $paridx < @$paragraphs; ++$paridx) {
+    my $paragraph = $paragraphs->[$paridx];
+    if (ref($paragraph)) {      # Nested level here?
+      format_to_html($paragraph, $level+1, $link_targets);
+    }
+    elsif ($paragraph =~ /^=head(.)\s+(.*?)\s*$/s) { # Heading line?
+      my $level = $1;
+      my $text = $2;
+      if ($level == 1) {        # Special handling for head1 sections:
+        if ($text eq 'AUTHOR') {
+          print "<br><hr>";
+          next;
+        }
+      }
+      print HTML "<br><hr>" if $level == 1;  # Make it look more dramatic.
+      print HTML "<h$level>", link_name($text), 
+         format_paragraph($text, $link_targets), "</a></h$level>\n";
+    }
+    elsif ($paragraph =~ /^=over\s+(\d+)\s*$/) { # Some sort of list?
+#
+# We have to figure out what kind of list it is.  If all the items are
+# =item *, then we should use a <ul> list.  Otherwise, we'll use a
+# <dd> <dt> list.
+#
+      if ($paragraphs->[$paridx+1] =~ /^=item\s+\*/) {
+        print HTML "<ul>";
+        $end_section = "</ul>";
+      } elsif ($paragraphs->[$paridx+1] =~ /^=item\s+\d+/) {
+        print HTML "<ol>";
+        $end_section = "</ol>";
+      } else {
+        print HTML "<dl>";
+        $end_section = "</dl>";
+      }
+      $need_p = 0;
+    }
+    elsif ($paragraph =~ /^=item\s+(.*?)\s*$/s) { # Element of a list?
+      if ($end_section ne "</dl>") { print HTML "\n<li>"; }
+      else {
+        print HTML "\n<dt>", link_name($1), "<strong>",
+          format_paragraph($1, $link_targets), "</strong></a>\n<dd>\n"; }
+      $need_p = 0;
+    }
+    elsif ($paragraph =~ /^=back\s*$/) {          # End of list?
+      print HTML $end_section;
+      $need_p = 0;
+    }
+    elsif ($paragraph =~ /^=/) {              # Something we don't recognize?
+      die "$0: unrecognized directive $paragraph";
+    }
+    else {                      # Just a regular text section?
+      $need_p and print HTML "\n<p>"; # Put paragraph delimeter.
+      print HTML format_paragraph($paragraph, $link_targets);
+      $need_p = 1;
+    }
+  }
+}
+
+#
+# Set up the HTML links for a given name:
+#
+sub link_name {
+  my $target_name = $_[0];
+  my $ret_str = '';
+
+  if ($target_name =~ s/\s*X<(.*?)>\s*//) { # Index entry?
+    $ret_str = qq[<a name="] . url_fragment($1) . qq["></a>];
+  }
+  $ret_str .= qq[<a name="] . url_fragment($target_name) . qq[">];
+  if ($target_name =~ /^C\<(\S+?)\>/) { # A program identifier word?
+    $ret_str .= qq[<a name="] . url_fragment($1) . qq["></a>];
+  }
+
+  return $ret_str;
+}
+
+#
+# Return a URL fragment (the part after the #) for a given string.
+#
+sub url_fragment {
+  my $str = $_[0];
+  $str =~ s/\s+/ /g;            # Convert multiple spaces to a single space.
+  $str =~ s/^\s//;              # Strip leading whitespace.
+  $str =~ s/\s$//;              # Strip trailing whitespace.
+  $str =~ s{(\W)}{sprintf("%%%02x", ord($1))}eg; # Protect special characters.
+  return $str;
+}
+
+#
+# Format a paragraph which is supposed to be straight text.
+# Returns the string (doesn't print it to the HTML filehandle).
+# Arguments:
+# a) The text string.
+# b) The hash of valid links.
+#
+sub format_paragraph {
+  local $_ = $_[0];             # Access the text.
+  my $link_targets = $_[1];     # Access hash of valid targets.
+
+  if (/^[ \t]/) {               # Indented text?  Treat as verbatim.
+    s/\</\&lt;/g;               # Protect some special symbols.
+    s/\>/\&gt;/g;
+    return "<pre>\n" . insert_crosslinks($_, $link_targets) . "</pre>";
+  }
+
+#
+# It's not verbatim text.  Parse it apart, handling the various different
+# kinds of attributes:
+#     B<text>
+#     C<text>
+#     E<charname>
+#     F<text>
+#     I<text>
+#     L<podfile>
+#     L<podfile/section>
+#     L<text|podfile/section>
+#     S<non breaking spaces>
+#     X<text>
+#     Z<>
+#  Also each of these has a << >> counterpart as well.
+#
+  s/\s+$//;                     # Strip trailing whitespace.
+  my @strings = ('');           # The strings available on each level of
+                                # angle bracket nesting.  $strings[0] will
+                                # be the final text.
+  my @pod_directive = ('');     # What character began this angle bracket
+                                # expression.
+  pos($_) = 0;
+  while (pos($_) < length($_)) {
+    if (!defined(pos($_))) {
+      warn "Something's wrong here!\n";
+    }
+    if (/\G([BCEFILSXZ])(<<+)\s+/gc) { # Multiple angle brackets?
+      my $open_char = $1;
+      my $opening_str = "$1$2";
+      my $closing_string = ">" x length($2);
+                                # Get the closing string.
+      if (/\G(.*?)\s+$closing_string/gc) { # Find the matching closing string.
+        $strings[-1] .= format_pod_directive($open_char, $1, $link_targets);
+                                # Do something with it.
+        next;
+      } else {
+        warn "Couldn't find match to $opening_str\n";
+      }
+    }
+    elsif (/\G([BCEFILSXZ])</gc) { # Regular angle bracket delimeter?
+      push @pod_directive, $1;  # Remember what to do when we find the closing
+                                # angle bracket.
+      push @strings, '';        # Go down another bracket level.
+    }
+    elsif (/\G>/gc) {           # Closing angle bracket?
+      if (@strings > 1) {       # Anything on the stack?
+        my $directive_text = pop @strings;
+        $strings[-1] .= format_pod_directive(pop @pod_directive, $directive_text, $link_targets);
+                                # Format that text.
+      }
+    }
+    elsif (/\G([^BCEFILSXZ<>]+)/gc) { # Chars we don't care about?
+      my $text = $1;
+      if (@strings == 1) {      # Not in a pod directive?
+        $text =~ s/\s\"/ &\#147;/g; # Try to make opening and closing quotes
+        $text =~ s/\"([\W])/&\#148;$1/g; # look nice.
+      }
+      $strings[-1] .= $text;
+    }
+    elsif (/\G([BCEFILSXZ])/gc){ # Must be one of these, not followed by .
+      $strings[-1] .= $1;
+    }
+    elsif (/\G\</gc) {
+      $strings[-1] .= "&lt;"
+    }
+    elsif (/\G\>/gc) {
+      $strings[-1] .= "&gt;"
+    }
+    else {
+      die "How did I get here?";
+    }
+  }
+
+  return $strings[0];
+}
+
+#
+# Format some text according to a particular pod directive character.
+# Arguments:
+# a) The directive char (B, C, E, F, I, L, S, X, or Z).
+# b) The text.
+# c) The hash of valid HTML link targets
+#
+# Returns the HTML string corresponding to that format.
+#
+sub format_pod_directive {
+  my ($dir_char, $text, $link_targets) = @_;
+
+  if ($dir_char eq 'B') {
+    return "<strong>$text</strong>";
+  }
+  elsif ($dir_char eq 'C') {
+    return "<code>" . insert_crosslinks($text, $link_targets) . "</code>";
+                                # Try to find linkable items if it's marked
+                                # as code.
+  }
+  elsif ($dir_char eq 'E') {
+    $text eq 'verbar' and return "|";
+    $text eq 'sol' and return '/';
+    if ($text =~ /^(?:0x[0-9A-Fa-f]+|\d+)$/) { # Numeric HTML code?
+      $text =~ /^0/ and return "&#" . oct($text) . ";";
+      return "&#$text;";
+    }
+    return "&$text;";           # HTML formatting code.
+  }
+  elsif ($dir_char eq 'F') {
+    return "<i>$text</i>";
+  }
+  elsif ($dir_char eq 'I') {
+    return "<i>$text</i>";
+  }
+  elsif ($dir_char eq 'L') {    # Direct link?
+    if ($text =~ /^(\w+):/) {   # Absolute URL?
+      return "<a href=\"$text\">$text</a>";
+    }
+
+    my $displayed_text = $text;
+    if ($text =~ /^([^\|]+)\|(.*)$/s) { # L<text | name>?
+      $displayed_text = $1;
+      $text = $2;               # $text is now what to link to.
+    }
+      
+    if ($text =~ m@^(\w*)/(.*)$@s) { # Section within another page?
+      my $fname = $1;
+      my $section = $2;
+      $section =~ s/\"//g;      # Strip out any quotes.
+      $section =~ s/\s+/ /g;    # Convert multiple spaces to single spaces.
+      $section =~ s/^\s//;      # Strip leading whitespace.
+      $section =~ s/\s$//;      # Strip trailing whitespace.
+      if ($fname =~ /^\s*$/) {  # No filename specified?
+        $fname = $podfile;      # Use the filename of the current file,
+        $fname =~ s/\.[^\.]+$//; # with the extension stripped off.
+      }
+
+      if ($link_targets->{$section}{"$fname.pod"} ||
+          $link_targets->{$section}{"$fname.pm"}) { # Recognized target?
+        my $url_fragment = url_fragment($section);
+        return "<a href=\"$fname.html\#$url_fragment\">$displayed_text</a>";
+      }
+      else {
+        warn "Unrecognized link target '$text'\n";
+        return $displayed_text;
+      }
+    }
+    else {                      # Refer to the whole page?
+      -f "$text.html" || -f "$text.pod" or warn "Unrecognized link target '$text'\n";
+      return "<a href=\"$text.html\">$displayed_text</a>";
+    }
+  }
+  elsif ($dir_char eq 'S') {    # Non-breaking text?
+    $text =~ s/\s/&nbsp;/g;
+    return $text;
+  }
+  elsif ($dir_char eq 'X') {    # Index entry?
+    return qq[<a name="] . url_fragment($text) . qq["></a>];
+  }
+  elsif ($dir_char eq 'Z') {    # Null formatting code?
+    return '';
+  }
+  else {
+    die "Invalid code $dir_char"; # Should never get here.
+  }
+}
+
+#
+# See if we can insert any cross-links into some text.  Looks for strings
+# which might be in the index of available things.
+#
+# Right now we only recognize whole words.
+# Arguments:
+# a) The text to format.
+# b) The hash of valid link targets.
+#
+sub insert_crosslinks {
+  my ($text, $link_targets) = @_;
+
+  $text =~ s{([\#\$\@\%]?[\w:]+)}{
+    if ($link_targets->{$1}) {  # Any possibility of linking?
+      my $word = $1;
+      if (ref($link_targets->{$word}) eq '') { # Not a hash, just an absolute?
+        qq[<a href="$link_targets->{$word}">$word</a>];
+      }
+      elsif (!defined($link_targets{$word}{$podfile})) { # Not known from this file?
+        my (@podfiles) = keys %{$link_targets{$word}}; # See how many other files
+                                # we could conceivably link to.
+        if (@podfiles == 1) {   # Only one candidate?
+          my $htmlfile = $podfiles[0];
+          $htmlfile =~ s/\.[^.]+$/.html/; # Get the correct filename.
+          $htmlfile =~ s@^.*/@@; # Strip out directory info.
+          qq[<a href="$htmlfile\#] . url_fragment($word) . qq[">] . $word . "</a>";
+        }
+        else {
+          $word;                # Multiple candidates, don't try to link.
+        }
+      } else {                  # Link to somewhere in this file:
+        qq[<a href="\#] . url_fragment($word) . qq[">$word</a>];
+      }
+    } else {
+      $1;
+    }
+  }eg;
+
+  return $text;
+}
+
+#
+# Read a pod file and return a hierarchical set of lists that describes
+# the structure of the file.
+# Argument: The name of the file.
+#
+# Returns a reference to an array of arrays, which is formatted like this:
+#
+# [ ["=head1 NAME", "perl - Practical Extraction and Report Language"],
+#   ["=head1 SYNOPSIS", "..."],
+#   ["=head1 DESCRIPTION", "...",
+#     ["=over 4", ["=item *", ...], ["=item *", ...], "=back"] ] ];
+#
+sub parse_pod_sections {
+  my $fname = $_[0];
+  local *POD;
+
+  open(POD, $fname) || die "$0: can't read $fname--$!\n";
+
+  my @level_stack;              # Where we build up the parsed file.
+
+  local $_;
+  my $in_pod = 0;
+  while (defined($_ = get_paragraph(\*POD))) {
+    if (/^=/) {                 # Beginning of pod section?
+      $in_pod = 1;
+    }
+
+    next unless $in_pod;        # Skip over any perl code.
+    if (/^=head(\d)/) {          # Heading of some level?
+      my $new_level = $1;
+      while (@level_stack > $new_level) { # At too high a level now?
+        my $last_level = pop @level_stack;
+        push @{$level_stack[-1]}, $last_level;
+      }
+      while (@level_stack < $new_level) { # At too low a level?
+        push @level_stack, [];  # Add a new level.
+      }
+    }
+    elsif (/^=over/) {          # Indent some more?
+      push @level_stack, [];    # Add a new level.
+    }
+    if (/^[ \t]/) {              # Try to coalesce separate verbatim sections:
+      if ($level_stack[-1][-1] =~ /^[ \t]/) {
+        $level_stack[-1][-1] .= $_;
+        next;
+      }
+    }
+    push @{$level_stack[-1]}, $_; # Save this text.
+
+    if (/^=back/) {             # Done with indent?
+      $level_stack[-1][0] =~ /^=over/ or
+        die "$0: misplaced =back directive in $fname\n";
+      my $last_level = pop @level_stack;
+      push @{$level_stack[-1]}, $last_level;
+                                # Go up one level.
+    }
+  }
+  close POD;
+
+  while (@level_stack > 1) {    # Do final cleanup:
+    my $last_level = pop @level_stack;
+    push @{$level_stack[-1]}, $last_level;
+  }
+  return $level_stack[0];
+}
+
+#
+# Scan a single pod file, looking for all possible link targets, and extracting
+# other useful information.  A link target
+# is anything after an =head or =item directive in the pod file.
+# Arguments:
+# a) The name of the file to scan.
+# b) The array to store the link targets in.  This is a 2D associative array
+#    which is indexed like this:
+#        $link_targets{$target_name}{$podfile_name} = 1;
+# Returns a list consisting of the following information:
+# 0: The title of the file (from the NAME section).
+# 1: Whether there are any level 1 sections beyond NAME and DESCRIPTION and
+#    AUTHOR.
+#
+sub prescan {
+  my ($fname, $link_targets) = @_;
+  local *FH;                    # Make a local file handle.
+
+  open(FH, $fname) || die "$0: can't read $fname--$!\n";
+
+  local $_;
+  my $in_pod = 0;
+  my $in_NAME = 0;
+  my $title;
+  my $other_top_level_sections = 0;
+  while (defined($_ = get_paragraph(\*FH))) {  # Read another paragraph?
+    if (/^=/) { $in_pod = 1; $in_NAME = 0; }  # Found a pod section?
+      
+    if ($in_pod) {
+      if (s/X<(.*?)>//) {         # Index entry specification?
+        $link_targets->{$1}{$fname} = 1; # Put into the index.
+      }
+
+      if (/^=head1\s+(.*?)\s*$/) {
+        if ($1 eq 'NAME') { # Top-level NAME section?
+          $in_NAME = 1;         # Remember to snag the name.
+          next;
+        }
+        elsif ($1 ne 'DESCRIPTION' && $1 ne 'AUTHOR') {
+          $other_top_level_sections = 1;
+        }
+      }
+      elsif (/^=(?:item|head[2-9])\s+(.*)$/s) { # A target of a link?
+        my $target_name = $1;   # Canonicalize the target name:
+        
+        next if length($target_name) <= 1; # Do not link to single characters.
+        
+        $target_name =~ s/\s+/ /; # Convert whitespace into single spaces.
+        $target_name =~ s/^\s//; # Strip leading whitespace.
+        $target_name =~ s/\s+$//; # Strip trailing whitespace.
+
+        $link_targets->{$target_name}{$fname} = 1;
+                                # Remember that this target exists.
+      } elsif (/^=cut/) {       # Leaving a pod section?
+        $in_pod = 0;
+        $in_NAME = 0;
+      }
+      elsif (! /^=/) {          # Not a pod directive?
+        if ($in_NAME) {         # Looking for the title?
+          $title = $_;          # Store the title for later.
+        }
+      }
+    }
+  }
+  close FH;
+  if (!$other_top_level_sections) { # If this isn't a real man page, but just
+                                # a continuation page (e.g., like perlvar
+                                # instead of perl), we might want to strip the 
+                                # man page name from the title.
+    if ($title =~ /^\s*(\w+)\s*-+\s*(.*)$/s) { # Follows typical format?
+      if (lc($1) eq lc(substr($fname, 0, length($1)))) {
+        $title = $2;            # Ignore the duplicated part of the file name.
+      }
+    }
+  }
+  $title =~ s/^\s+//;           # Strip leading whitespace.
+  $title =~ s/\s+$//;           # Strip trailng whitespace.
+
+  return ($title, $other_top_level_sections);
+}
+
+#
+# Return a paragraph from a file.
+# We don't simply set $/ = '' because then if there is extra trailing 
+# whitespace on the blank line between paragraphs, it doesn't see the
+# paragraph break.
+#
+sub get_paragraph {
+  my $fh = $_[0];
+
+  my $str;
+  my $line;
+  while (defined($line = <$fh>)) {
+    $str .= $line;
+    last if $line =~ /^\s*$/;  # Blank line.
+  }
+
+  return $str;
+}
+
+pod2html(@ARGV);
+
+
+=head1 AUTHOR
+
+Gary Holt (holt-makepp@gholt.net)
+
+29 June 2003
+
+=cut
+

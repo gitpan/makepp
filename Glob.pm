@@ -1,6 +1,7 @@
 package Glob;
 require 5.005;			# Needs the m//gc option, which appeared in
 				# 5.004, and the qr// syntax, which appeared
+# $Id: Glob.pm,v 1.2 2003/06/25 18:42:38 grholt Exp $
 				# in 5.005.
 use strict;
 
@@ -11,6 +12,8 @@ require Exporter;
 @Glob::EXPORT = qw(chdir);	# Force our caller to use our chdir sub that
 				# we inherit from FileInfo.
 @Glob::EXPORT_OK = qw(zglob zglob_fileinfo $allow_dot_files wildcard_action);
+
+my $is_windows = $^O eq 'cygwin'; # Case-insensitive filenames.
 use strict;
 
 =head1 NAME
@@ -65,6 +68,8 @@ You can force it to return these files by setting $Glob::allow_dot_files=1,
 or (as with the shell) by specifing a leading . in the wildcard pattern (e.g.,
 ".*").
 
+C<zglob> only returns files that exists and are readable, or can be built.
+
 C<zglob> returns a list of file names.  It uses an internal subroutine,
 C<zglob_fileinfo>, which returns a list of FileInfo structures.  See the
 FileInfo package for more details.
@@ -104,6 +109,13 @@ sub zglob_fileinfo {
   my $dont_follow_soft = $_[2];
 
   my $is_wildcard = 0;		# We haven't seen a wildcard yet.
+
+  if ($is_windows) {
+    s@^([A-Za-z]):@/$1:@;	# If on windows, transform C: into /C: so it
+				# looks like it's in the root directory.
+    $_ = lc($_);		# Switch to lower case to avoid problems with
+				# mixed case.
+  }
 
   s@^/@@ and $startdir = $FileInfo::root; # If this is a rooted wildcard,
 				# change to the top of the path.  Also,
@@ -293,6 +305,9 @@ sub find_real_subdirs {
   defined($dirstat->[3]) and	# If this directory doesn't exist, then it 
 				# doesn't have subdirectories.
     $expected_subdirs = $dirstat->[3]-2;
+				# Note that if we're on a samba-mounted
+				# file system, $expected_subdirs will be -1
+				# since it doesn't keep a link count.
 
   $expected_subdirs or return (); # Don't even bother looking if this is a
 				# leaf directory.
@@ -308,6 +323,9 @@ sub find_real_subdirs {
 # them are usually editor backups.  Similarly, files with alphabetic
 # extensions (e.g., ".c") are usually not directories.
 #
+# This heuristic doesn't work at all for windows, since it doesn't maintain
+# link counts.
+#
 # On other operating systems, this would be a lot easier since directories
 # often have an extension like ".dir" that uniquely identifies them.
 #
@@ -320,7 +338,7 @@ sub find_real_subdirs {
 #
 # First pass: look for files without extensions and ~ characters.
 #
-  while ($expected_subdirs > 0 &&
+  while ($expected_subdirs != 0 &&
 	 (($dirfilename, $dirfileinfo) = each %{$dirinfo->{DIRCONTENTS}})) {
 				# Look at each file in the directory.
     next if $dirfilename =~ /\~/; # Skip editor backups.
@@ -349,7 +367,7 @@ sub find_real_subdirs {
 # Second pass: look at all files (except the ones we looked at on the previous
 # pass).
 #
-  while ($expected_subdirs > 0 && 
+  while ($expected_subdirs != 0 && 
 	 (($dirfilename, $dirfileinfo) = each %{$dirinfo->{DIRCONTENTS}})) {
 				# Look at each file in the directory that we
 				# haven't looked at before.
@@ -438,6 +456,7 @@ sub wild_to_regex {
 				# parsing.
     my $is_wildcard = 0;	# Haven't seen a wildcard yet.
     my $file_regex = '';	# A regular expression to match this level.
+    $is_windows and $file_regex = '(?i)'; # Make it case insensitive.
     pos($fname) = 0;
       
   parseloop:
@@ -495,6 +514,7 @@ sub wild_to_regex {
   }
 
   $fname =~ s/\\(.)/$1/g;	# Unquote any backslashed characters.
+  $is_windows and return (0, lc($fname));
   return (0, $fname);		# Just return the filename.
 }
 

@@ -16,12 +16,14 @@ distribution into and type:
 
 	perl install.pl
 
+This will ask you where you want to put the various pieces, and will then
+install them as requested.
+
 Or you can also do:
 
+        configure --prefix=/usr/local
 	make install
 
 which will run the regression tests as well.
 
-(You must run this procedure with perl 5.005 or newer.)  This will ask
-you where you want to put the various pieces, and will then install them
-as requested.
+(You must run this procedure with perl 5.005 or newer.)  

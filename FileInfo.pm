@@ -2,6 +2,8 @@ package FileInfo;
 require Exporter;
 use Cwd;
 
+# $Id: FileInfo.pm,v 1.4 2003/07/15 00:50:38 grholt Exp $
+
 #use English;
 # Don't ever include this!  This turns out to slow down 
 # Signature::c_compilation_md5::md5sum_c_tokens by at least three orders
@@ -101,8 +103,8 @@ FileInfo is designed so it won't be confused by soft-linked directories.
 However, it will have problems if a soft link initially points to one
 directory and then is changed to point to a different directory, or if files
 are referred to thruogh a symbolic link to a directory before the symbolic
-link is actually created.  Generally speaking, it's not a good idea to create
-or modify soft links.
+link is actually created.  Generally speaking, it's not a good idea to modify
+existing soft links.
 
 FileInfo can be used alone.  Some supplemental routines useful only in the
 context of makepp are found in FileInfo_makepp.pm, and in fact that file
@@ -130,6 +132,9 @@ my $stat_blocks  = 12;
 my $S_IFLNK = 0120000;		# Bit in stat modes field that indicates this
 				# is a symbolic link.
 my $S_IFDIR = 040000;		# This is a directory.
+
+my $is_windows = $^O eq 'cygwin'; # If on windows NT, filenames are case 
+				# insensitive but case preserving.
 
 #
 # All of the information is stored in the structure below.  %file_info
@@ -232,6 +237,10 @@ sub absolute_filename {
   }
 
   my $retstr = join("/", $fileinfo->{SHORTEST_FULLNAME}, reverse @subdirs);
+  $is_windows and $retstr =~ s@^/([A-Za-z]:)@$1@;
+				# Convert /C: to C:.  We converted the other
+				# way so we could use unix file name syntax
+				# everywhere.
   $retstr;
 }
 
@@ -255,6 +264,10 @@ sub absolute_filename_nolink {
 				# Add another directory.
   }
 
+  $is_windows and $ret_str =~ s@^/([A-Za-z]:)@$1@;
+				# Convert /C: to C:.  We converted the other
+				# way so we could use unix file name syntax
+				# everywhere.
   return "/$ret_str";
 }
 
@@ -286,9 +299,15 @@ sub chdir {
     $status = CORE::chdir($_[0]);
   }
 
-  $status ||
-    die ("chdir: can't cd to directory " . $newdir->absolute_filename .
-	 "--$!\n");
+  unless ($status) {
+    if ($newdir->{ALTERNATE_VERSIONS}) { # Was it from a repository?
+      $newdir->mkdir;           # Make it.
+      $status = CORE::chdir($newdir->absolute_filename_nolink);
+    }
+    $status or
+      die ("chdir: can't cd to directory " . $newdir->absolute_filename .
+           "--$!\n");
+  }
 
   publish($newdir);		# Make sure we know about this directory.
 
@@ -400,6 +419,13 @@ sub file_info {
   return $file if ref($file) eq 'FileInfo'; # Don't do anything if we were
 				# already passed a FileInfo structure.
 
+  if ($is_windows) {
+    $file =~ s@^([A-Za-z]):@/$1:@; # If on windows, transform C: into /C: so it
+				# looks like it's in the root directory.
+    $file = lc($file);		# Switch to all lower case to avoid
+				# confounds with mix case.
+  }
+
   my $finfo = ($file =~ s@^/+@@ ? $FileInfo::root :
 		 ($_[1] || $FileInfo::CWD_INFO));
 				# Start at current directory or
@@ -503,6 +529,7 @@ exist, even if there are FileInfo structures for them.
 #
 sub find_file {
   my ($target_fname, $dirinfo) = @_; # Name the arguments.
+  $is_windows and $target_fname = lc($target_fname);
   $dirinfo ||= $FileInfo::root; # Default to root directory if not
 				# specified.
 
@@ -583,6 +610,41 @@ sub is_executable {
   return undef;
 }
 
+=head2 is_readable
+
+  if ($finfo->is_readable) { ... }
+
+Returns true if the given file or directory can be read.
+
+=cut
+
+sub is_readable {
+  my $finfo = $_[0];
+  if (exists($finfo->{IS_READABLE})) { # Use cached value.
+    return $finfo->{IS_READABLE};
+  }	
+
+  $finfo->{IS_READABLE} = 0;	# Assume it won't be readable.
+  my $stat = $finfo->stat_array; # Get stat info.
+  $stat && (($stat->[$stat_mode] || 0) & 0x444) or return undef;
+				# If no one can read the file, then it's
+				# definitely not readable.
+#
+# Checking for file permissions is very complicated and file-system
+# dependent, so we just try to open the file.
+#  
+  local *FH;			# Make a local file handle.
+  if ($stat->[$stat_mode] & $S_IFDIR) {	# A directory?
+    opendir(FH, $finfo->absolute_filename) or return undef;
+    closedir FH;
+  } else {
+    open(FH, $finfo->absolute_filename) or return undef;
+    close FH;
+  }
+
+  return $finfo->{IS_READABLE} = 1; # File is readable.
+}
+
 =head2 is_symbolic_link
 
   if ($finfo->is_symbolic_link) { ... }
@@ -605,15 +667,12 @@ sub is_symbolic_link {
 
   if ($dirinfo->is_writable) { ... }
 
-Returns true (actually, returns the fileinfo structure) if the given directory
-can be written to.  Because of the complexity of testing for permission, we
-test by actually trying to write a file to that directory.
+Returns true if the given directory can be written to.  Because of the
+complexity of testing for permission, we test by actually trying to
+write a file to that directory.
 
 =cut
 
-#
-# One complication with this process is that if 
-#
 sub is_writable {
   local *FH;			# Make a local file handle.
 
@@ -720,6 +779,7 @@ sub may_have_changed {
   delete $finfo->{LINK_DEREF};
   delete $finfo->{LSTAT};
   delete $finfo->{EXISTS};
+  delete $finfo->{IS_READABLE};
 #
 # Don't force rereading the build information if the file hasn't actually
 # changed.
@@ -729,6 +789,9 @@ sub may_have_changed {
     delete $finfo->{BUILD_INFO};
     delete $finfo->{NEEDS_BUILD_UPDATE};
 				# There's no build information to update.
+  } else {
+    delete $finfo->{IS_READABLE};
+    delete $finfo->{IS_WRITABLE};
   }
 }
 
@@ -748,8 +811,9 @@ sub mkdir {
   $dirinfo->{".."}->mkdir;	# Make sure the parent exists.
   CORE::mkdir($dirinfo->absolute_filename_nolink, 0777);
 				# Make the directory.
-  $dirinfo->{IS_WRITABLE} = 1;	# This directory is now writable.
   $dirinfo->may_have_changed;	# Restat it.
+  $dirinfo->{IS_WRITABLE} = 1;	# This directory is now writable.
+  $dirinfo->{IS_READABLE} = 1;
 }
 
 =head2 parent
@@ -779,15 +843,17 @@ sub read_directory {
   while (($fname, $fileinfo) = each %{$dirinfo->{DIRCONTENTS}}) {
     delete $fileinfo->{EXISTS};	# Forget what we used to know about which
 				# files exist.
+    delete $fileinfo->{IS_READABLE};
   }
 
   opendir(DIRHANDLE, $dirinfo->absolute_filename_nolink) || return;
 				# Just quit if we can't read the directory.
 				# This can happen for directories which don't
-				# exist yet.
+				# exist yet, or directories which are unreadable.
 
   foreach (readdir(DIRHANDLE)) {
     next if $_ eq '.' || $_ eq '..'; # Skip the standard subdirectories.
+    $is_windows and $_ = lc($_);
     my $finfo = ($dirinfo->{DIRCONTENTS}{$_} ||=
 		 bless { NAME => $_, ".." => $dirinfo });
 				# Get the file info structure, or make

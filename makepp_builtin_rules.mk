@@ -1,3 +1,5 @@
+# Please do NOT use this as an example of how to write a makefile.  This is
+# NOT A typical makefile.
 #
 # These are the rules that are built into makepp, that it can apply without
 # anything in the makefile.  Don't put too much junk in here!  One problem
@@ -5,24 +7,27 @@
 # dealing with very rare suffixes that I happened to use in a different
 # and incompatible way.
 #
-# This makefile is read in after reading all of each makefile.
-# Currently, it only contains rules; all default variable values are actually
-# stored as functions that take no arguments.  (See Makesubs.pm.)
-# However, if you want, you can put variable settings in this file.
-# If you put in any variable assignments, you must use the ?= assignment
-# syntax like this:
-#	variable ?= value
-# This means that variable assignments in this file will not override
-# variables assigned in the makefile.
+# This file is read in after reading all of each makefile.
+#
+# It's not a good idea to put definitions of standard variables like CC, etc.,
+# in here, because then (a) the $(origin ) function doesn't work; (b) the 
+# values won't be visible except in rules, because this file is loaded after
+# everything else in the makefile is processed.  Standard variables are 
+# implemented as functions that have no arguments (see Makesubs.pm).
+#
+
+#
+# Rules.  Special code in makepp makes it so these rules never override any 
+# kind of rule that is contained in a user makeppfile.
 #
 
 #
 # Link command:
 #
 $(basename $(foreach)) : $(infer_objects $(foreach), *.o) : foreach *.o
-	$(infer_linker $(inputs)) $(inputs) $(infer_libraries $(inputs)) $(LOADLIBES) $(LDLIBS) $(LIBS) -o $(output)
+	$(infer_linker $(inputs)) $(inputs) $(LDLIBS) $(LDFLAGS) $(LIBS) -o $(output)
 	noecho if [ "$(target)" = "test" ]; then \
-	  echo "Warning: on unix, to run a program called 'test', you must type"; \
+	  echo "Warning: on unix, to run a program called 'test', you usually must type"; \
 	  echo "  ./test"; \
 	  echo "rather than just 'test'."; \
 	fi
@@ -30,20 +35,25 @@ $(basename $(foreach)) : $(infer_objects $(foreach), *.o) : foreach *.o
 #
 # C++ compilation:
 #
+ifneq $(percent_subdirs)
+$(basename $(foreach)).o : $(foreach) : foreach **/*.cxx **/*.c++ **/*.cc **/*.cpp **/*.C
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
+else
 $(basename $(foreach)).o : $(foreach) : foreach *.cxx *.c++ *.cc *.cpp *.C
-	$(COMPILE.cc) $(input) -o $(output)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
+endif
 
 #
 # C compilation:
 #
 %.o: %.c
-	$(COMPILE.c) $(input) -o $(output)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
 
 #
 # Fortran compilation:
 #
 %.o: %.f
-	$(COMPILE.f) $(input) -o $(output)
+	$(FC) $(FFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
 
 #
 # The rules for yacc and lex are marked :signature target_newer because we
@@ -58,7 +68,7 @@ $(basename $(foreach)).o : $(foreach) : foreach *.cxx *.c++ *.cc *.cpp *.C
 #
 %.c: %.y
 	: signature target_newer
-	$(YACC.y) $(input)
+	$(YACC) $(YFLAGS) $(input)
 	mv -f y.tab.c $(output)
 
 #
@@ -66,5 +76,5 @@ $(basename $(foreach)).o : $(foreach) : foreach *.cxx *.c++ *.cc *.cpp *.C
 #
 %.c: %.l
 	: signature target_newer
-	@$(RM) $(output)
-	$(LEX.l) $(input) > $(output)
+	$(LEX) $(LFLAGS) -t $(input)
+	mv lex.yy.c $(output)

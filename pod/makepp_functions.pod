@@ -1,0 +1,364 @@
+=head1 NAME
+
+makepp_functions -- Functions in makepp
+
+=head1 DESCRIPTION
+
+Any expression of the format S<C<$(name arg1 arg2 arg3)>> or C<$(name)> where
+C<name> is not the name of a variable, is interpreted as a function call.  The
+name may contain letters, underscores, or hyphens; to avoid confusion, you may
+use hyphens or underscores interchangeably, since internally hyphens are
+converted to underscores.  Evaluating such an expression simply invokes a perl
+subroutine.  You can define perl subroutines to do whatever you like.  See the
+C<sub> statement and the section on L<extending makepp|makepp_extending> for
+more details.
+
+makepp has a number of builtin functions which may be useful.  It supports
+almost all of GNU make's textual functions (see GNU make's documentation for
+details), and some of its own.  The most useful functions are:
+
+=over 4
+
+=item absolute_filename files X<absolute_filename>
+
+Converts relative filenames into absolutes.  For example,
+S<C<$(absolute_filename xyz.c)>> might return
+C</usr/src/our_project/subdir/xyz.c>.
+
+=item addprefix prefix, words X<addprefix>
+
+Prepends the prefix string to each of the words.  This is mostly for GNU make
+compatibility; using rc-style expansion, this can be done in a more readable
+fashion like this:
+
+    MODULES := a b c d
+    X_OLD_STYLE := $(addsuffix $(OBJDIR)/, $(addsuffix .o, $(MODULES)))
+    X_NEW_STYLE := $(OBJDIR)/$(MODULES).o   # Isn't that easier to read?
+
+=item addsuffix suffix, words X<addsuffix>
+
+Appends the suffix string to each of the words.  This is mostly for GNU make
+compatibility; using rc-style expansion, this can be done in a more readable
+fashion like this:
+
+    X_OLD_STYLE := $(addsuffix .o, $(MODULES))
+    X_NEW_STYLE := $(MODULES).o
+
+=item basename filenames X<basename>
+
+The basename is the entire file name (with the directory), minus the text
+after the last period.  E.g., S<C<$(basename myfile/version-1.0-module.c)>> is
+C<myfile/version-1.0-module>
+
+=item dir filenames X<dir>
+
+Extracts the directory part of each file in the filename list, including the
+trailing slash.  Returns C<./> if there is no directory in the filename.
+
+=item filter patterns, words X<filter>
+
+Returns all words in the list that match the patterns.  Patterns may simply be
+other words, or filename wildcards (i.e., C<*>, C<?>, and C<[a-z]> are
+recognized), or they may have a C<%> character, which means to match any
+string at that point (same as C<*>).
+
+=item filter_out patterns, words X<filter_out>
+
+Returns all words in the list that do not match the patterns.  Patterns may
+simply be other words, or filename wildcards (i.e., C<*>, C<?>, and C<[a-z]>
+are recognized), or they may have a C<%> character, which means to match any
+string at that point (same as C<*>).
+
+For example:
+
+    libproduction.a: $(filter_out test_*, $(wildcard *.o))
+
+will put all F<.o> files which exist or can be built, except those beginning
+with F<test_>, into F<libproduction.a>.
+
+=item find_upwards filename X<find_upwards>
+
+Searches for a file of the given name in the directory ., .., ../..,
+../../.., etc., until the file is found or the root directory is reached
+or the directory is located on a different file system.  (This last
+requirement is to prevent problems with automounters or hung network
+filesystems.)
+
+For example, if you have a project with many levels of subdirectories, you
+could include this common fragment in all of the makefiles (e.g., by using the
+C<include> statement):
+
+   TOP_LEVEL_INCLUDE_DIR := $(find_upwards includes)
+                                # Searches for a directory that contains the
+                                # includes subdirectory.
+
+   %.o : %.c
+        $(CC) $(CFLAGS) -I$(TOP_LEVEL_INCLUDE_DIR) -c $(input) -o $(output)
+
+(Note that the C<include> statement automatically searches upwards for files,
+so there is no need to do something like this:
+
+    include $(find_upwards top_level_rules.mk)
+
+Instead, you can just do
+
+    include top_level_rules.mk
+
+and it will work just as well.)
+
+=item if string, result-if-string-not-blank, result-if-string-blank X<if>
+
+An alternative to the C<ifeq>, etc., statements.  If the string is not blank
+(i.e., the condition is true), the second argument (the "then" clause) is
+returned (after variable expansion); if the string is blank, the third
+argument (the "else" clause) is returned.
+
+For example,
+
+    CFLAGS := $(if $(filter gcc egcc, $(CC)), -g -Wall, -g)
+
+defines CFLAGS to be C<-g -Wall> if the variable CC is either C<gcc> or
+C<egcc>, and C<-g> otherwise.  (This is what the default build rules do.)
+
+=item infer_objects
+
+    $(infer_objects object1.o object2.o, *.o)
+
+If you use standard conventions regarding header file names, makepp is capable
+of guessing which C<.o> or C<.lo> files need to be linked with your program.
+I use this to pick out files from a library directory which contains modules
+used in many different programs.  Instead of making a library C<.a> file and
+having the linker pick out the relevant modules, makepp can pick out the
+relevant modules for you.  This way, only the relevant modules get compiled.
+
+Makepp's algorithm for inferring object dependencies depends on the convention
+that the implementation of all classes or functions defined in a header file
+C<xyz.h> are compiled into an object file called C<xyz.o> (or C<xyz.lo>).  So
+makepp's algorithm for inferring object dependencies starts with one or a few
+objects that we know have to be linked into the program.  It looks at which
+files were included with C<#include> in those sources, and tries to find
+corresponding object files for each of the include files.
+
+S<C<$(infer_objects )>> needs to be mentioned in the dependency list of a
+program, like this:
+
+    myprog: $(infer_objects main.o another_object.o, \
+    		**/*.o /other/library/dirs/**/*.o)
+    	$(CXX) $(inputs) -o $(output) $(LIBS)
+
+The C<infer_objects> function takes two arguments (separated by a comma, as
+shown).  The first is one or a few object files that are known to be required
+(wildcards are permissible here).  The second is a list of possible objects
+(normally you would use a wildcard here) that could be linked in if necessary.
+The return value from this function is a list that contains first all of the
+objects in the first argument, and then after those, all additional objects
+that were contained in the second argument that are required by the objects in
+the first argument.
+
+For example, suppose C<main.o> comes from C<main.cpp>, which includes
+C<my_class.h>.  C<infer_objects> looks for files with the name C<my_class.o>.
+If exactly one such file is found, it is added to the list.  (If two object
+files C<my_class.o> are found in different directories, a warning message is
+printed.)  C<infer_objects> also examines C<my_class.cpp> to see what it
+includes, and what additional object files are implied.
+
+=item notdir filenames X<notdir>
+
+Returns the non-directory portion of the filename(s), i.e., everything after
+the last slash if there is one, or the whole filename otherwise.
+
+=item only_targets filenames X<only_targets>
+
+Returns only those filenames in the list that are actually targets of
+some rule (either explicit or pattern rules).  You may specify wildcards
+(including makepp's special wildcard, C<**>) in the filenames.  (See the
+S<C<$(wildcard )>> function for more details.  This can be used for a
+clean target, for example:
+
+    .PHONY: clean
+    
+    clean:
+    	rm -f $(only_targets *)
+
+
+Now if you type S<C<makepp clean>>, it will delete everything it knows how to
+build.
+
+Another place where it may be useful is to avoid including stale F<.o> files
+in your build.  For example, if you build a library like this:
+
+    mylib.a: *.o
+        $(RM) -f $(output)
+        $(AR) cr $(output) $(inputs)
+
+and then you delete some source files but forget to delete the corresponding
+F<.o> files, the F<.o> files will still be around.  This means they will still
+be incorporated into the library despite the fact that they are not useful any
+more.  If you modify your rule like this:
+
+    mylib.a: $(only_targets *.o)
+        $(RM) -f $(output)
+        $(AR) cr $(output) $(inputs)
+
+then this problem won't occur.
+
+Note that this refers only to files that are known to be targets I<at
+the time you invoke> C<only-targets>.  If C<only_targets> appears in the
+dependencies or actions of a rule, then all possible targets will be
+known because dependencies and actions are not evaluated until the rule
+is executed.  However, if you evaluate try to evaluate it earlier in the
+makefile with a C<:=> variable like this:
+
+    ALL_TARGETS := $(only_targets *)
+    
+    target1: dependency1
+    	actions
+    
+    target2: dependency2
+    	actions
+
+then C<only_targets> will not know about the subsequent rules.
+
+Similarly, C<only_targets> doesn't know about targets produced in
+makefiles that are loaded with recursive make.  (But you shouldn't be
+using recursive make anyway; use use the C<load_makefile> statement, or
+L<implicit makefile loading|makepp_build_algorithm/Implicit loading>
+instead.)
+
+=item only_nontargets filenames X<only_nontargets>
+
+Returns only those filenames in the list that are not targets of any
+rule (either explicit or pattern rules).  You may specify a wildcard
+(see the S<C<$(wildcard )>> function for more details on makepp's
+wildcards).  This can be used for generating a distribution target, for
+example:
+
+    .PHONY: distribution
+    
+    distribution:
+    	mkdir our_product-$(VERSION)
+    	cp $(filter-out %~, $(only_nontargets *)) our_product-$(VERSION)
+    	tar cf - our_product-$(VERSION) | gzip -9c > our_product-$(VERSION).tar.gz
+
+
+In this case, the C<$(only_nontargets *)> returns every file in the current
+directory that is not a target of some rule.  The C<$(filter_out %~, ...)>
+removes editor backups.
+
+Similar to C<only_targets> (see above), C<only_nontargets> only knows about
+targets that have been defined already.  This is only a problem if you use it
+to define variables with the C<:=> assignment; if you use it in the
+dependency list or in the body of a rule, all other rules will already
+have been seen.
+
+=item relative_filename file1 file2 file3 X<relative_filename>
+
+Returns the name of those files relative to the current directory (the one the
+makefile is in).  This can also be used to clean unnecessary C<./> and other
+junk from the path:
+
+     DIR := .
+     SUBDIR := ..
+     FNAME := $(DIR)/../otherdir/$(SUBDIR)/files
+     X := $(relative_filename $(FNAME))
+
+=item relative_to file1 file2 file3, directory X<relative_to>
+
+Returns the name of those files relative to the specified directory.  This is
+typically useful when for whatever reason you have to execute a command from a
+different directory:
+
+    source_backup.tar:
+        cd .. && tar cf $(relative_to $(output), ..) $(relative_to ., ..)
+
+=item patsubst pattern, substitute, words X<patsubst>
+
+Performs a substitution on each word in the word list.  A
+C<%> character matches any string.  This is best
+illustrated by an example:
+
+    OBJS = $(patsubst %.c, object_dir/%.o, $(C_SOURCES))
+
+takes every file in C_SOURCES and returns the name of an object
+file in object_dir.  Sometimes it is more concise to use a
+L<substitution reference|makepp_variables/Substitution References>, e.g.,
+the above could have been written as
+
+    OBJS = $(C_SOURCES:%.c=object_dir/%.o)
+
+
+=item phony words X<phony>
+
+Indicates that the list of words are actually phony targets, and
+returns the list of targets.  It's intended to be used like
+this:
+    $(phony all): my_program
+    
+    $(phony clean):
+    	rm -f *.o my_program
+
+
+You can also declare one or more targets as phony with a line like 
+this anywhere in your makefile:
+
+    .PHONY: all clean
+
+=item print text X<print>
+
+Outputs the text and returns it.  This is mostly useful for
+debugging, when you don't understand why variable substitution
+has the result that it does.  For example,
+
+    XYZ := $(print $(patsubst %.c, %o, $(SOURCE_FILES)))
+
+will print out the result of the C<patsubst> call.
+
+    XYZ := $(patsubst %.c, %o, $(print $(SOURCE_FILES)))
+
+will print out the last argument to the C<patsubst>
+call.
+
+=item shell shell-command x<shell>
+
+Returns the output from the given shell command, with newlines
+replaced by spaces.
+
+For example:
+
+    ARCH := $(shell uname -m)
+
+=item sort word1 word2 word3 ... X<sort>
+
+Sorts the words in lexical order and removes duplicates.
+
+=item wildcard pattern X<wildcard>
+
+Returns the sorted names of all files matching the given pattern which exist,
+or those files which do not yet exist but can be built based on the rules that
+makepp knows about at the point when it evaluates the expression.  Ignores
+files and directories that are not readable.
+
+Makepp supports all the usual shell wildcards (C<*>, C<?>, and C<[]>).  It
+also has a wildcard C<**> which matches any number of intervening directories.
+(This idea was stolen from zsh.)  For example, C<**/*.c> matches all the F<.c>
+files in the entire source tree.  C<objects/**/*.o> matches all the F<.o>
+files contained anywhere in the subdirectory F<objects> or any of its
+subdirectories or any of their subdirectories.  The C<**> wildcard will not
+follow soft links to directories, nor will it attempt to enter directories
+which exist but cannot be read.  Also files which exist but cannot be read
+will not be returned by S<C<$(wildcard )>>.
+
+=back
+
+makepp also supports many other, less useful functions that GNU make has.  See
+the GNU make documentation for details, because I don't feel like typing it in
+now.  (To my knowledge, the only ones it does not support are C<call>,
+C<error>, and C<warning>.)  These are intended mainly to support existing
+makefiles; it's very easy to L<write your own functions in
+perl|makepp_extending>, or to use the C<perl_begin> or C<sub> statements to
+manipulate variables directly in perl inside your makefile, so you can do any
+kind of manipulation if one of these built-in functions isn't adequate.
+
+=head1 AUTHOR
+
+Gary Holt (holt-makepp@gholt.net)

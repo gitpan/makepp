@@ -1,0 +1,5 @@
+#!/bin/sh
+#
+# Make makepp install more like most packages.
+#
+perl config.pl $*

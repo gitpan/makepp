@@ -1,0 +1,235 @@
+=head1 NAME
+
+makepp_command -- Command line syntax for makepp
+
+=head1 DESCRIPTION
+
+    makepp [-options] [VAR=value] target1 target2 ...
+
+Makepp supports most of the command line options and syntax that other
+makes support.  You specify a list of targets to build on the
+command line.  If you do not specify any targets, the first explicit
+target in the makefile is built.
+
+You can assign variables on the command line which will override any
+assignment or environment variable in every Makefile loaded, e.g.,
+
+    makepp CFLAGS=-O2
+
+Options include most of the standard make options, plus a few new ones.
+
+=over 4
+
+=item -e
+
+=item --environment-overides
+
+Causes variables from the environment to override definitions in the
+makefile.  By default, assignments within the makefile override variable
+values which are imported from the environment.
+
+=item -C dirname X<-C>
+
+=item C<--directory>=dirname
+
+Cd to the given directory before trying to build the targets.  This is
+more or less equivalent to specifying a directory with C<-F>, except
+that if the directory does not exist yet but does exist in a repository,
+C<-F> will make the directory whereas C<-C> won't.
+
+=item -f Makefile X<-f>
+
+=item --file=Makefile
+
+=item --makefile=Makefile
+
+Uses the specified makefile.  If you do not specify the C<-f> option,
+makepp looks first for a file in the current directory called
+C<Makeppfile>, then C<makefile>, then C<Makefile>.</code>
+
+=item -F Makefile X<-F>
+
+=item --makeppfile=Makefile
+
+Uses the specified makefile, and cd's to the directory containing the
+Makefile before running the make command.  If you specify a directory
+instead of a Makefile, cd's to the directory and then searches for
+C<Makeppfile>, C<makefile>, and C<Makefile>.
+
+This option can be useful if you execute makepp from unpredictable
+directories.  For example, if you compile from within emacs and you have
+sources scattered all over your directory tree, the current working
+directory for the compilation command will be the directory the last
+source file you edited was in, which may or may not be the top level
+directory for your compilation.  However, you can specify your
+compilation command as
+
+    makepp -F /your/source/dir/top
+
+and this will work no matter what your current directory is.
+
+=item -h
+
+=item --help
+
+Print out a brief summary of the options.
+
+=item -j n X<-j>
+
+=item --jobs=n
+
+Interprets the next word as the number of shell commands that can be
+executed in parallel.  By default, C<makepp> does not execute commands
+in parallel.
+
+Unlike some other versions of make, when jobs are executed in parallel,
+makepp directs their output to a file and only displays the output when
+the commands have finished.  This prevents output from several different
+commands from being mixed together on the display, but it does mean that
+you might have to wait a little longer to see the output.
+
+=item -k
+
+=item --keep-going
+
+Build as many files as possible, even if some of them have errors.  By
+default, makepp stops when it encounters the first error, even if there
+are other files that need to be built that don't depend on the erroneous
+file.
+
+=item --log=logfilename
+
+Changes the name of the log file to the indicated name.  By default, the
+log file is called C<.makepp_log>.
+
+=item --noimplicit-load
+
+Don't automatically load makefiles from directories referenced (see
+L<makepp_build_algorithm/Implicit loading>).  By default, makepp automatically
+loads a makefile from any directory that contains a dependency of some target
+it needs to build, and from any directory that is scanned by a wildcard.
+Sometimes, however, this causes a problem, since makefiles need to be loaded
+with different command line varaibles or options, and if they are implicitly
+loaded before they are explicitly loaded by a recursive make invocation or the
+C<load_makefile> statement, makepp aborts with an error.  You can also turn
+off makefile loading on a directory-by-directory basis by using the
+C<no_implicit_load> statement in one of your makefiles.
+
+=item -m method X<-m>
+
+=item --signature-method>=method X<--signature-method>
+
+Specifies the default signature method to use for rules which do not
+have the C<:signature> modifier in makefiles which do not have a
+C<signature> statement.  Possible values are C<target_newer>,
+C<exact_match>, C<md5>, and C<c_compilation_md5>.  This option has no
+effect on the signature method for C/C++ compilation; you must use the
+C<signature> statement or the C<:signature> rule modifier to affect
+that.  For more details, see L<makepp_signatures>.
+
+=item --nolog
+
+Don't bother writing a detailed description of what was done to the log
+file.  By default, makepp writes out an explanation of every file that
+it tried to build, and why it built it or did not build it, to a file
+called C<.makepp_log>.  This can be extremely valuable for debugging a
+makefile--makepp tells you what it thought all of the dependencies were,
+and which one(s) it thought changed.  However, it does take some extra
+CPU time, and you might not want to bother.
+
+=item --norc-substitution
+
+Disables rc-style substitution of make variables (see
+L<makepp_variables/rc-style substitution> for details).  Ordinarily
+rc-style substitution is either harmless or beneficial, but occasionally
+you may find a case where it breaks an existing makefile.  Also,
+disabling rc-style expansion is necessary to prevent stripping of
+leading and trailing whitespace from variables.  See
+L<makepp_incompatibilities> for when this is important.  You can also
+disable rc-style substitution on a per-makefile basis by setting the
+variable C<rc_substitution=0> in your makefile.
+
+=item --noremake-makefiles X<--noremake-makefiles>
+
+Ordinarily, makepp loads each makefile in, then looks to see whether
+there is a rule that specifies how to update the makefile.  If there is,
+and the makefile needs to be rebuilt, the command is executed, and the
+makefile is reread.  This often causes problems with makefiles produced
+for the standard unix make utility, because (in my experience) often the
+make rules for updating makefiles are inaccurate--they frequently omit
+targets which are modified.  This can cause makepp to remake a lot of
+files unnecessarily.  You can often solve this problem by simply
+preventing makepp from updating the makefile automatically (but you have
+to remember to update it by hand).
+
+=item --nowarn
+
+Don't print any warning messages.  Most warning messages are about
+constructs that you might see in legacy makefiles that makepp considers
+dangerous, but a few of them concern possible errors in your makefile.
+
+=item --percent-subdirs
+
+By default, % in a pattern rule (not in the S<C<$(patsubst )>> function)
+matches only the filename, not a directory.  In other words, C<%.c>
+matches only F<*.c>.  If you want C<%.c> to match F<**/*.c>, specify
+this option.  You can also enable this in your makefile by the
+assignment C<percent_subdirs=1>.
+
+=item -q
+
+=item --quiet
+
+Don't print informational messages like "Scanning xyz.h" or "Loading
+makefile /users/src/bob/funproject/Makefile".
+
+=item -R dir X<-R>
+
+=item --repository=dir X<--repository>
+
+Specify the given directory as a repository (see L<makepp_repositories>
+for details).  Repositories are added in the order specified on the
+command line, so the first one you specify has precedence.  All files in
+the directory (and all its subdirectories) are automatically and
+temporarily linked to the current directory (and subdirectories) if they
+are needed.
+
+If you just specify a directory after C<-R>, its
+contents are linked into the current directory.  You can link
+its contents into any arbitrary place in the file system by
+specifying the location before an equals sign, e.g,
+S<C<-R subdir1/subdir2=/users/joe/joes_nifty_library>>.
+
+=item --traditional-recursive-make
+
+This option is present to allow makepp to work with old makefiles that
+use recursive make extensively.  By default, recursive make is
+implemented by a subprocess that communicates with the parent process;
+the build is actually done by the parent process.  This allows some of
+makepp's nice features like repositories to work with recursive make
+invocations.  However, this technique will not work if you load more
+than one makefile from the same directory, or if you use different
+command line options on different invocations of recursive make.  The
+C<--traditional-recursive-make> option makes makepp do recursive makes
+the same way as the traditional make, allowing more makefiles to work,
+but then repositories and parallel builds do not work properly.  This
+option is rarely needed any more, and makepp will tell you if it runs
+into a construct that requires it.
+
+=item -v
+
+=item --verbose
+
+Verbose mode.  Explains what it is trying to build, and why each file is
+being built.  This can be useful if you think a file is being rebuilt
+too often.
+
+This option actually takes what would be written to the log file and
+displays it on the screen.  It's usually easier to run makepp and then
+look at F<.makepp_log>.
+
+=item --version
+
+Print out the version number.
+
+=back

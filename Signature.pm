@@ -1,3 +1,4 @@
+# $Id: Signature.pm,v 1.1.1.1 2002/01/10 07:04:31 grholt Exp $
 package Signature;
 
 =head1 NAME

@@ -1,3 +1,4 @@
+# $Id: Rule.pm,v 1.2 2003/06/19 02:57:47 grholt Exp $
 use strict qw(vars subs);
 
 package Rule;
@@ -7,7 +8,6 @@ use FileInfo;
 use FileInfo_makepp;
 use TextSubs;
 use Signature::exact_match;
-
 
 =head1  NAME
 
@@ -145,9 +145,28 @@ sub find_all_targets_dependencies {
 # Now expand the command string.  This must be done last because it
 # can depend on both the explicit targets and the explicit dependencies.
 #
-  my $command_string = $makefile->expand_text($self->{COMMAND_STRING},
-					      $self->{RULE_SOURCE});
+  my $command_string;
+  if (@explicit_targets && $explicit_targets[0]->{TARGET_SPECIFIC_VARS})
+  {
+    local $Makefile::target_specific = $explicit_targets[0]->{TARGET_SPECIFIC_VARS};
+                                # Temporarily set up target-specific variables,
+                                # if there actually are any.
+    local $Makefile::target_specific_reexpand = $explicit_targets[0]->{TARGET_SPECIFIC_REEXPAND};
+                                # Remember the difference between = and :=
+                                # variables for target-specific vars too.
+    $command_string = $makefile->expand_text($self->{COMMAND_STRING},
+                                             $self->{RULE_SOURCE});
 				# Get the text of the command.
+  }                             # Turn off the target-specific variables.
+  else {
+    $command_string = $makefile->expand_text($self->{COMMAND_STRING},
+                                             $self->{RULE_SOURCE});
+				# Get the text of the command.
+  }
+
+  $command_string =~ s/^\s+//;  # Strip out leading and trailing whitespace
+  $command_string =~ s/\s+$//;  # so we don't trigger unnecessary rebuilds
+                                # quite as often.
 
   $self->scan_action($command_string);
 				# Look for any additional dependencies (or
@@ -353,6 +372,12 @@ sub execute_command {
 				# some reason.
     print "$action\n" unless $silent_flag;
     
+    if (!$main::can_fork) {	# Can't fork or exec on windows.
+      system(TextSubs::format_exec_args($action));
+      $? and return ($?/256) || 1; # Quit if an error.
+      next;			# Process the next action.
+    }
+
     if ($error_abort && $action_idx == @actions-1) { # Is this the last action?
       $SIG{__WARN__} = sub {};	# Suppress annyong warning message here if the
 				# exec fails.
@@ -389,6 +414,8 @@ sub execute_command {
 				# call failed for some reason, that may be 0.
     }	
   }
+
+  $main::can_fork or return 0;	# If we didn't fork, we'll always get here.
 
   exit 0;			# If we get here, it means that the last
 				# command in the series was executed with
@@ -532,7 +559,7 @@ or
 	    unless $scanner_warnings{$self->source}++;
 	}
       }
-    }	
+    }
   }
 }
 

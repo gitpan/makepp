@@ -1,0 +1,407 @@
+=head1 NAME
+
+makepp_statements -- Various statements in a makefile
+
+=head1 DESCRIPTION
+
+A statement is any line beginning with a word which does not have a C<:> in
+it.  (A colon implies that the line is a rule.)  For example, these are
+statements:
+
+    include extra_rules.mk
+    load_makefile subdir
+
+Makepp has a number of builtin statements which you may occasionally need to
+use.
+
+Note that wherever you see an underscore, you may also use a dash,
+because makepp converts dashes to underscores in statement names.
+
+=over 4
+
+=item include
+
+This inserts the contents of another makefile into the current makefile.  It
+can be useful if you have boilerplate files with a number of rules or
+variables, and each directory only needs to make a few modifications.  The
+C<include> statement also used to be commonly used in traditional makes in
+conjunction with automatic include file scanners, but this is no longer
+necessary with makepp.
+
+C<include> first considers the current directory, then the parent of the
+current directory, then its parent, etc.  It stops considering
+directories when it reaches the root of the file system or when the file
+system device ID changes.  (This means that it will not find files
+located in other NFS mounts.  This is to prevent problems with network
+file systems or automounters and dead servers.)  If it does not find a
+file of the given name by the time its search is stopped, then it looks
+in the makepp dadta directory (C</usr/local/share/makepp> if you
+installed makepp in C</usr/local>) for one of the include files that
+comes with makepp. 
+
+If you want to include a template file in every makefile in a whole
+directory hierarchy, you can place your makefile template at the top
+directory.  The makefiles do not have to know exactly where they are in
+the hierarchy; each makefile can contain a line like this:
+
+    include standard_definitions.mk
+
+instead of something more complicated, like this:
+
+    include ../../../standard_definitions.mk  # Is this the right number of ..?
+
+
+You can specify as many files as you want, and variables are allowed:
+
+    include file1 file2 file3 $(other_include_files)
+        
+=item _include
+
+A minor variant on C<include>, the C<_include> statement includes the file if
+it exists but doesn't generate a fatal error if it does not.  The C<_include>
+statement used to be important for include file scanning with GNU make, but is
+seldom useful for makepp.  (Makepp will not try to make the file and then
+reread it, unlike GNU make.)
+
+=item load_makefile
+
+    load_makefile /some/directory/somewhere/Makefile
+    load_makefile subdir
+    load_makefile VAR1=value1 VAR2=value2 subdir
+
+
+This statement causes makepp to cd to the directory containing the makefile
+and load its rules into makepp's internal database.  If you specify just a
+directory instead of a makefile, C<load_makefile> looks for C<Makeppfile>,
+C<makefile>, or C<Makefile> in that directory.
+
+Any variables you specify with the syntax C<VAR=value> (or S<C<VAR="value1
+value2">>) are passed to the loaded makefiles.  They override any settings in
+those makefiles, just as if you had typed them on the command line.
+
+Using C<load_makefile> is different from the command
+
+    include dir/makefile
+
+in two ways.  First, C<load_makefile> does not transfer any variables from the
+top-level makefile into the subordinate makefile; each makefile exists in its
+own namespace.  The subordinate makefile cannot influence the variables in the
+top-level makefile in any way.
+
+Second, each build command is tagged with the directory of the makefile that
+it came from.  When makepp executes a rule from a different makefile, it first
+cd's to the directory containing that makefile before executing the command.
+Makefiles which are seen with the C<include> statement are actually treated as
+part of the makefile that included them, and therefore their rules are not
+tagged with a different directory.
+
+You usually do not have to load a makefile explicitly, unless it has an
+unusual name, or it has targets which are not contained in the same
+directory as the makefile itself, or you have disabled implicit makefile
+loading.  By default, if makepp is trying to build a file and doesn't
+have a rule to build it, or if it is evaluating a wildcarded filename in
+a directory, it will automatically attempt to load a makefile from that
+directory.  See L<makepp_cookbook/Tips for multiple directories> for
+info on building with multiple directories.
+
+You cannot use C<load_makefile> to load several makefiles that apply to the
+same directory.  Use C<include> for several pieces of the makefile that apply
+to the same directory, and C<load_makefile> for makefiles that apply to
+different directories.
+
+=item no_implicit_load
+
+This statement turns off L<implicit loading|makepp_build_algorithm/Implicit
+loading> of makefiles from a set of directories.  This can be useful if you
+want to load makefiles automatically from most directories, but there are some
+directories which for various reasons you do not want makepp to attempt to
+update.  (E.g., maybe the directory has a makefile for some other version of
+make which makepp does not understand.)  For example,
+
+    no_implicit_load dir1 dir2/*
+
+The above statement will turn off implicit loading for makefiles
+in C<dir1> <b>and all of its subdirectories</b>.  It
+will also turn of implicit makefile loading for all subdirectories
+of C<dir2> (and all of their subdirectories), but not
+for C<dir2> itself.
+
+You may use wildcards in the statement.  Non-directory files that
+match the wildcard are ignored.  You can also use functions to further
+specify the directories that you are interested in, e.g.,
+
+    no_implicit_load $(filter-out dir1 dir2, *)
+
+will turn off implicit loading for all subdirectories except F<dir1> and
+F<dir2> and their subdirectories.
+
+=item perl_begin
+
+This statement introduces a block of code which is interpreted verbatim
+by perl.  It can be useful for defining functions, but you can do this
+more concisely with the C<sub> statement.  A block of perl code in your
+makefile can be useful to perform actions that are easier in perl than
+with makepp functions and rules.
+
+The remainder of the line following the C<perl_begin> statement is
+ignored.  All text up until a line that begins at the left margin with
+C<perl_end> is sent verbatim to the perl interpreter.
+
+One example that I use this for is to make directories that might not
+necessarily exist.  It's common in makefiles to put all the .o files in
+a subdirectory (e.g., a directory with a name F<i386>, or F<sparc>, or
+something that depends on the machine type).  But what if the directory
+does not exist yet?  You can make each .o file depend on the
+subdirectory, and put a rule in to build the subdirectory.  But it's a
+lot easier just to do this:
+
+   OBJDIR := $(ARCH)               # Where we put .o files.
+   perl_begin
+   -d $OBJDIR or mkdir $OBJDIR;    # Make sure the directory exists.
+   perl_end
+
+This way, every time the makefile is run, the subdirectory will be
+created if it does not exist.
+
+Some operations are better expressed in terms of regular expressions
+than makepp's text functions.  For example,
+    
+    perl_begin
+    if ($ARCH =~ /^i[56]86/) {
+      $CFLAGS = '-O6 -malign-double';	# On intel machines > 486, there
+    					# is a substantial speed penalty
+    					# for doubles that aren't quadword 
+                                        # aligned.
+    } else {
+      $CFLAGS = '-O6';
+    }
+    perl_end
+    
+    %.o: %.c
+    	$(CC) $(CFLAGS) -c $(input) -o $(output)
+
+Any make variable can be accessed directly as a perl scalar.
+In this case, we've set the value of C<CFLAGS>
+differently based on a regular expression match on the
+architecture flags.
+
+As a final example, some pieces of information are easier to access
+directly from perl than from makepp.  For example, you can access all of
+the configuration information that perl knows about your system,
+including how to build shared libraries, etc.  (Type
+S<C<perldoc Config>> if you want to see what configuration information
+perl has available.)
+
+    perl_begin
+    
+    use Config;
+    
+    $ARCH = $Config{'archname'};    # Use perl's knowledge of the architecture.
+    $CC = $Config{'cc'};	    # Use the same C compiler as perl did.
+    $SHARED_OBJ_CFLAGS = $Config{'cccdlflags'};
+    				# Flags needed to compile objects which will
+    				# go into a shared library.
+    $SHARED_OBJ_LDFLAGS = $Config{'ccdlflags'} . " " . $Config{'lddlflags'};
+    		      		# Linker flags to make a shared library.
+    $SHARED_CC_LINK = $Config{'ld'}; # Command to produce shared libraries.
+    
+    $SHARED_EXTENSION = $Config{'dlext'}; # Extension of shared libraries.
+    perl_end
+    
+    %.o: %.c
+    	$(CC) $(CFLAGS) $(SHARED_OBJ_CFLAGS) -c $(input) -o $(output)
+    
+    libmylib.$(DLEXT): *.o
+    	$(SHARED_CC_LINK) $(inputs) -o $(output) $(SHARED_OBJ_LDFLAGS)
+
+
+Note how we define a bunch of variables in the perl block, and then we
+use them afterwards in the rest of the makefile.  You can use the full
+power of the perl interpreter to set your variables in arbitrarily
+complicated ways.  You can run shell commands from your perl code,
+access a database, or whatever you want.
+
+=item repository
+
+    repository dirname
+    repostiory destdir=srcdir
+
+
+Specifies one or more L<repository directories|makepp_repositories>.
+The first repository specified has precedence over the others if the
+same file exists in multiple repositories and there is no build command
+for it.  See L<makepp_repositories> for more details about repositories.
+
+If you specify just a directory after C<repository>, its contents are
+linked into the current directory.  You can link its contents into any
+arbitrary place in the file system by specifying the location before an
+equals sign, e.g,
+
+    repository subdir1/subdir2=/users/joe/joes_nifty_library
+
+You should put the repository statement near the top of your makefile, before
+any rules that may need to use it.
+
+=item signature
+
+    signature exact_match
+    signature target_newer
+    signature md5
+    signature c_compilation_md5
+    signature default
+
+
+Overrides the default signature method for all rules following the
+C<signature> statement.  This overrides the signature method specified
+on the command line with C<-m> or C<--signature-method>, but does not
+override signature methods specified with the C<:signature> rule
+modifier.
+
+Specify S<C<signature default>> to return to makepp's default, either
+the builtin default or the default specified on the command line.
+
+For more information about signature methods, see L<makepp_signatures>.
+
+=item sub
+
+This statement provides a way to define a perl subroutine inside
+your makefile.  The syntax is identical to that of the perl sub
+statement, except that the closing brace must be at the left margin.
+
+A perl subroutine is invoked whenever a statement is seen, or when an
+expression like S<C<$(name words)>> is seen.  For example, suppose that
+for some reason you need to load the contents of a file into a make
+variable.  (You could do this by saying S<C<$(shell cat filename)>> but
+it's possible to do it without ever invoking the shell.)  This can be
+done by placing the following into your makefile:
+
+    sub f_file_contents {
+      my ($filename) = @_;		# Name the arguments.
+      my $file_contents;
+      open FILE, $filename || die "$!\n";
+      my $line;
+      while (defined($line = &lt;FILE&gt;)) {  # Read another line.
+        $file_contents .= $line;
+      }
+      close FILE;
+    
+      return $file_contents;
+    }
+
+
+Now, with this function defined, you can write
+
+    X = $(file_contents filename)
+
+and the variable C<$(X)> will contain the contents of the
+given file.
+
+See L<makepp_extending> for more details and examples.
+
+=item ifeq
+
+=item ifneq
+
+    ifeq ($(STR1),$(STR2))
+       makefile lines if true
+    else
+       makefile lines if false
+    endif
+
+If the two strings match exactly (except for leading or trailing
+whitespace), then the first set of lines is used; otherwise the second
+is used.  The else clause is optional.
+
+There are several different acceptable syntaxes for the C<ifeq> and
+C<ifneq> statements:
+
+    ifeq string1, string2
+    ifeq "string1", "string2"
+    ifeq 'string1', 'string2'
+    ifeq string1, string2
+
+are all equivalent.
+
+C<ifeq> and its friends C<ifneq>, C<ifdef>, and C<ifndef> are primarily
+useful when you have to build a program under several different
+conditions.  For example,
+
+    BUILD_TYPE := debug    # "debug" or "production"
+
+    ifeq ($(BUILD_TYPE), debug)
+     CFLAGS := -g
+    else
+     CFLAGS := -O2
+    endif
+
+    program : *.o
+        $(CC) $(CFLAGS) $(inputs) -o $(output) $(LIBS)
+    ifeq ($(BUILD_TYPE), production)
+        strip $(output)
+    endif
+
+    %.o : %.c
+        $(CC) $(CFLAGS) -c $(input) -o $(output)
+
+If this is a production build, all files are compiled with the C<-O2>
+option instead of the C<-g> option.  Furthermore, the program C<strip>
+is run on the resulting binary (in case you happened to link with some
+libraries that were compiled in debug mode).
+
+The C<ifeq> and related conditional statements are unique in that they
+may occur in the middle of rule actions, as in the above example,
+without disrupting the rule.
+
+Sometimes it is easier to use the S< C<$(if )>> function instead of a
+C<ifeq> statement; see the L<S<C<$(if )>> function|makepp_functions/if>
+for details.
+
+=item ifdef
+
+=item ifndef
+
+These statements work analogously to the C<ifeq> and C<ifneq>
+statements, except that they test whether a variable is defined or not.
+A variable is defined if:
+
+=over 4
+
+=item *
+
+It was given a value with an assignment earlier in the makefile.  See
+L<makepp_variables> for details.
+
+=item *
+
+It was given a value as a perl variable in a C<perl_begin> block.
+
+=item *
+
+The variable is present in the environment.
+
+=item *
+
+The variable is present on the command line, e.g., to invoke your
+makefile, you typed
+
+    makepp CFLAGS=-O2
+
+=back
+
+For example,
+
+    ifndef CFLAGS
+      CFLAGS := -g
+    endif
+
+In this case, C<CFLAGS> is set to C<-g> only if it wasn't already
+defined.  Note that this statement could just as easily have been
+written using the C<?=> assignment, like this:
+
+    CFLAGS ?= -g
+
+=back
+
+=head1 AUTHOR
+
+Gary Holt (holt-makepp@gholt.net)

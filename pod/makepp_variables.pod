@@ -1,0 +1,434 @@
+=head1 NAME
+
+makepp_variables -- How to use variables in makepp
+
+=head1 DESCRIPTION
+
+Makefiles typically use variables in many places.  One important reason for
+using variables is to ensure that information is contained in only one place
+in the makefile, so that if it changes, there is no danger of the two copies
+of the information getting out of sync.
+
+Variable names are case sensitive.  In theory, variable names can be made of
+any characters, but you will probably confuse the makefile parser if you do
+anything other than alphanumeric characters, C<_>, and C<->.
+
+Each makefile has its own set of variables, and setting a variable in one
+makefile will have no effect on its value in any other makefile.  If you want
+to have variables set in many makefiles, the best way to do it is to have each
+of them include a common definitions file (see the
+L<include statement|makepp_statements/include>).
+
+
+=head2 Variable Assignment
+
+A variable can assume a value in several different ways:
+
+=over 4
+
+=item *
+
+A variable may be set inside a makefile.  There are a number of different ways
+to do this; see below.
+
+=item *
+
+A variable's value may be specified on the command line, like this:
+
+    makepp CFLAGS=-O2 my_program
+
+If more than one makefile is loaded, the CFLAGS variable is propagated to all
+of the makefiles.  Variables set on the command line automatically override
+any setting of the variable in any of the makefiles.
+
+=item *
+
+If a variable is set in the environment, it can be referenced as a makepp
+variable.  Ordinarily assignments to variables inside a makefile override
+settings from the environment, but you can change this by using the C<-e> or
+C<--environment-overrides> command line option.
+
+=back
+
+=head3 Setting variables inside a makefile
+
+Variables are assigned with one of several assignment expressions, like this
+
+    X = 1
+    MODULES := a b c d
+    CC ?= gcc
+    CFLAGS += -Wall
+
+Leading and trailing whitespace around values is always stripped off.
+
+Variable values are always stored as ordinary perl scalars, so you can access
+them directly from perl code if you need to do any complicated manipulations
+with them; see L<makepp_extending> for details.
+
+The different assignment operators have somewhat different meanings.
+
+=over 4
+
+=item =
+
+    VARIABLE = text string
+
+This is the usual assignment statement that all implementations of make
+support.  The expression on the right hand side is not evaluated until the
+value of C<$(VARIABLE)> is actually used somewhere.  Thus, if you do the
+following:
+
+    X = 1
+    Y = $(X)
+    X = 2
+
+Then C<$(Y)> later in the makefile will evaluate to "2".
+
+=item :=
+
+    VARIABLE := expr
+
+This is the same as "VARIABLE = expr" except that the right hand
+side is evaluated at the time of the assignment.  Thus if
+
+    X := 1
+    Y := $(X)
+    X := 2
+
+then C<$(Y)> later in the makefile will evaluate to "1" since that's what
+C<$(X)> was when C<$(Y)> was defined.
+
+=item +=
+
+    VARIABLE += expr
+
+Appends the string to the previous contents of the variable, separated by a
+space.  If the variable was previously assigned with C<:=>, then the right
+hand side is evaluated before appending.
+
+=item ?=
+
+    VARIABLE ?= expr
+
+Sets the value of the variable, but only if the variable is not
+specified earlier in the makefile, on the command line, or in
+the environment.  The above assignment is exactly equivalent to
+
+    ifndef VARIABLE
+      VARIABLE = expr
+    endif
+
+=item !=
+
+    VARIABLE != shell command
+
+Runs the shell command and sets the variable to contain the command's
+standard output.  This is exactly equivalent to
+
+    VARIABLE := $(shell command)
+
+=back
+
+=head3 Target-specific assignments
+
+    target : VARIABLE = string
+    target : VARIABLE := string
+    target : VARIABLE += string
+
+Sets a target-specific value of the variable.  A target-specific value
+is in effect I<only> in an action which produces the given target.  This
+is primarily used for things like this:
+
+    CFLAGS := -O2
+    
+    my_prog: file1.o file2.o special_file.o
+    
+    special_file.o : CFLAGS := -g
+    
+    %.o: %.c
+          $(CC) $(CFLAGS) -c $(input) -o $(output)
+
+
+What happens here is that all C<.c> files will be compiled with
+optimization (C<-O2>) I<except> C<special_file.c>, which is compiled
+in debug mode (C<-g>).  This is a convenient way to specify different
+compilation options for only a few files.
+
+Target-specific variable assignments like this apply only to the actions
+of the rule; they are not in effect when evaluating the targets or the
+dependencies of a rule.  If a rule has more than one target,
+target-specific variable assignents are taken only from the I<first>
+target.  Also note that makepp's target-specific variables are slightly
+different from GNU make's in that they only apply to the rule for the
+one file mentioned, and not to any of its predecessors; see
+L<makepp_incompatibilities|makepp_incompatibilities/Target Specific Variables> for
+details.
+
+Wildcard expansion is performed on the target, so you can do something
+like this:
+
+    test_*.o : CFLAGS += -DTEST
+
+For compatibility with GNU make, C<%> may be used in place of C<*>.
+
+=head2 Variable Substitution
+
+Makepp's variable substitution rules are similar to those of other
+makes, but somewhat more powerful.  As in all makes, C<$(CC)> or
+C<${CC}> both represent the value of the variable CC.  If you need a
+literal dollar sign, put in a double dollar sign (C<$$>), like this:
+
+    target: dep1 dep2 dep3 dep4
+        $(RM) -f $(output)
+        for file in $(inputs); do cat $$file >> $(output); done
+
+=head3 rc-style substitution
+
+By default, makepp uses rc-style substitution (so called
+because it was pioneered by the rc shell).  This is best illustrated
+by an example:
+
+    MODULES = a b c d
+    
+    mylib.a : module_dir/$(MODULES).o $(OTHER_OBJECTS)
+    	$(CXX) $(dependencies) -o $(target)
+
+
+The prefix C<module_dir/> is prepended to each word in MODULES, and the suffix
+C<.o> is appended to each word.
+
+You can also use rc-style substitution without even putting the list of words
+into a variable; the syntax is S<C<$( word1 word2)>>.  Note the space between
+the parenthesis and the first word.  So the above example could have been
+written as:
+
+    mylib.a : module_dir/$( a b c d).o $(OTHER_OBJECTS)
+    	$(CXX) $(dependencies) -o $(target)
+
+
+If you put several variables in the same word which expand to arrays of
+words, rc-style substitution actually takes the cartesian product, so
+you can do something like this if you want:
+
+    DIRS = s1 s2
+    MODULES = a b c
+    SUFFIXES = .o .c
+    FILES := $(DIRS)/$(MODULES)$(SUFFIXES)
+
+and FILES will contain the string
+
+    s1/a.o s1/a.c s1/b.o s1/b.c s1/c.o s1/c.c s2/a.o s2/a.c s2/b.o s2/b.c s2/c.o s2/c.c
+
+If rc-style substitution gets in the way, or if you need to have leading or
+trailing whitespace in your make variables, then you can turn off rc-style
+substitution with the C<--norc-substitution> command line option.  You can
+also turn it off on a per-makefile basis by setting the variable
+C<rc_substitution=0> in your makefile.  You should do this near the top of the
+makefile, or else you may run into funny situations where rc-style
+substitution is used for some evaluations and not others.  (All expressions
+evaluated before the assignment will use rc-style substitutions, and all
+expressions evaluated after will not.  Since the time of evaluation of
+expressions in makefiles is complicated and not always obvious from the order
+of statements in the makefile, it's best to set C<rc_substitution> as early as
+possible.)
+
+=head3 Substitution References
+
+A substitution reference has the form C<$(VAR:A=B)>, where A is a pattern to
+match and B is a pattern to replace it with.  For example:
+
+    source_files = a.c b.c c.c d.c
+    object_files = $(source_files:%.c=%.o)
+
+
+will set C<$(object_files)> to S<C<a.o b.o c.o d.o>>.  The C<%> is a special
+character matches any arbitrary string.  Substitution references are an
+abbreviation fot the C<patsubst> function.
+
+=head3 Whitespace in variables
+
+If you need to control the whitespace in a variable, you must (currently)
+disable rc-style substitution (using the command line option
+C<--norc-substitution> or by setting C<rc_substitution:=0> in the makefile)
+and then use a syntax like this:
+
+    null =
+    T = -o $(null)
+
+When you do this, the variable C<T> contains C<-o> followed by a space.
+
+This kind of a technique to handle whitespace is not recommended.  If
+you need variables in your makefile to contain spaces, you should think
+seriously about what you're doing: you're probably using make for
+something it wasn't intended.  If you need to handle spaces, it is
+usually much better to put perl code into your makefile to take care of
+it (using the C<perl_begin> or C<sub> statements), or to handle it in
+shell statements in the actions of rules.
+
+Whitespace is never allowed in variable names, only in their values.  This is
+different from some make implementations.
+
+=head2 Automatic Variables
+
+Automatic variables are variables that assume different values depending
+on which rule they are evaluated in.  Makepp supports most of the
+automatic variables that other versions of make use.  In addition, it
+has less cryptic, longer names for most of them that you can use
+instead.  (For legacy makefiles that redefine these names, the
+definition in the makefile overrides the default meaning.  For example,
+if you say "C<target = abc>" in your makefile, then C<$(target)> will
+always expand to C<abc>, and will no longer be equivalent to C<$@>.)
+
+The following is a complete list of all the automatic variables that
+makepp supports:
+
+=over 4
+
+=item target
+
+=item output
+
+=item $@
+
+The target of the current rule.  Actually, since makepp supports multiple
+targets for any rule, this is the B<first> target.  For example, in the
+following rule
+
+    y.tab.c y.tab.h : parser.y
+        $(YACC) $(YFLAGS) $(input)
+
+C<$(output)> will contain the value F<y.tab.c>.
+
+=item targets
+
+=item outputs
+
+All targets of the current rule.  Same as C<$(target)> unless there is
+more than one target.  In the above example, C<$(outputs)> will be
+S<y.tab.c y.tab.h>.
+
+=item dependency
+
+=item input
+
+=item $E<lt>
+
+The first explicit dependency of the rule.  For example, in this rule
+
+    %.o : %.c
+        $(CC) $(CFLAGS) -c $(input) -o $(output)
+
+C<$(input)> will be the name of the F<.c> file, regardless of what F<.h>
+files makepp discovers.
+
+=item dependencies
+
+=item inputs
+
+=item $^
+
+All the explicit dependencies of the target, not including F<.h> files
+discovered by L<makepp_scanning> for includes.
+
+For example, in the rule
+
+    myprog.o : *.o
+        $(CC) $(CFLAGS) $(inputs) -o $(output)
+
+C<$(inputs)> will be all the .o files in the directory.
+
+=item sorted_dependencies
+
+=item sorted_inputs
+
+=item $+
+
+All the dependencies of the target, in sorted order, with duplicates
+removed.  Equivalent to S<C<$(sort $(inputs))>>.
+
+=item C<$?>
+
+In most make implementations, this is the dependencies of the target
+which have changed.  This does not fit into makepp's conceptual
+framework, because on the next build it will make sure the command is
+exactly identical to the previous build, or else it considers the file
+out of date.  So makepp attempts to support this variable for backward
+compatibility by making it equivalent to all dependencies (the same as
+C<$+>).
+
+This variable has no long name because its use is highly discouraged.
+Ordinarily it is used in commandsd like this:
+
+    libmine.a : $(MODULES)
+        $(AR) ru $@ $?
+
+i.e., F<ar> is told to replace only those modules that have changed.
+Makepp doesn't like this because it means that the command to build the
+library is different on each build, and makepp cannot guarantee that the
+builds are correct.  In fact, this can often lead to incorrect builds:
+if you delete a source file, for example, the F<.o> file will still be
+in the library.  It's better to build a library like this:
+
+    libmine.a : $(MODULES)
+        $(RM) -f $(output)
+        $(AR) cr $(output) $(inputs)
+
+because then it is guaranteed that there are no stale modules inside the
+library.
+
+=item stem
+
+=item $*
+
+The stem in a pattern rule (i.e., whatever the '%' matched).
+Alternatively, if this is not a pattern rule, returns the file name
+without the extension (i.e., it's equivalent to S<C<$(basename
+$(input))>>.
+
+This is mostly for backward compatibility.  For example, in old versions
+of make the only way to tell it how to compile any F<.c> file into the
+corresponding F<.o> file was like this:
+
+   .c.o:
+       $(CC) $(CFLAGS) -c $*.c -o $*.o
+
+This is a lousy way to write the rule.  It's much clearer to use
+GNU-make style pattern rules, like this:
+
+   %.o : %.c
+       $(CC) $(CFLAGS) -c $(input) -o $(output)
+
+=item foreach
+
+The current filename from the C<foreach> clause.  C<foreach> clauses are
+rarely used, but they are the most general-purpose kind of pattern rule
+that makepp supports.  For example,
+
+   #
+   # Build .c files with some sort of a special preprocessor:
+   #
+   %.c : %.k
+       $(preprocessor) $(input) > $(output)
+
+   #
+   # Compile .c files into .o files:
+   #
+   %.o : %.c
+       $(CC) $(CFLAGS) -c $(input) -o $(output)
+
+   #
+   # Special alternate compilation flags for .c files which are derived
+   # from .k files:
+   #
+   $(foreach:%.k=%.o) : $(foreach:%.k=%.c) : foreach *.k
+       $(CC) $(SPECIAL_K_FLAGS) -c $(input) -o $(output)
+
+See the documentation on L<the foreach clause in
+rules|makepp_rules/Foreach rules> for more details and examples.
+
+=back
+
+=head1 AUTHOR
+
+Gary Holt (holt-makepp@gholt.net)
+

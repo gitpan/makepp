@@ -1,9 +1,8 @@
 #!/usr/bin/perl -w
-    eval 'exec perl -S $0 ${1+"$@"}'
-        if 0; # $running_under_some_shell;
 #
 # This script asks the user the necessary questions for installing
 # makepp.
+# $Id: install.pl,v 1.7 2003/07/19 23:28:05 grholt Exp $
 #
 
 use Config;
@@ -12,16 +11,16 @@ use File::Copy;
 #
 # First make sure this version of perl is recent enough:
 #
-eval { require 5.005; };
+eval { require 5.00503; };
 if ($@) {			# Not recent enough?
-  print "I need perl version 5.005 or newer.  If you have it installed 
+  die "I need perl version 5.005_03 or newer.  If you have it installed 
 somewhere already, run this installation procedure with that perl binary, e.g.,
 
 	perl5.005 install.pl
 
-If you don't have it installed, get it from www.perl.com and install it.
+If you don't have a recent version of perl installed (what kind of system are
+you on?), get the latest from www.perl.com and install it.
 ";
-  exit 1;
 }
 
 $perlbin = $Config{'perlpath'};
@@ -29,11 +28,20 @@ $perlbin = $Config{'perlpath'};
 print "Using perl in $perlbin.\n";
 
 #
+# Load the version number so it can be automatically inserted into the
+# files.
+#
+open(VERSION, "VERSION") || die "You are missing the file VERSION.  This should be part of the standard distribution.\n";
+$VERSION = <VERSION>;
+chomp $VERSION;
+close VERSION;
+
+#
 # Now figure out where everything goes:
 #
 $prefix = "/usr/local";
 
-$bindir = shift(@_) ||
+$bindir = shift(@ARGV) ||
   read_with_prompt("
 Makepp needs to know where you want to install it and its data files.
 makepp is written in perl, but there is no particular reason to install
@@ -43,10 +51,10 @@ compiled binary which is completely independent of perl.
 Where should the makepp executable be installed [$prefix/bin]? ") ||
   "$prefix/bin";
 
-$bindir =~ m@(.*)/bin@ and $prefix = $1;
+$bindir =~ m@^(.*)/bin@ and $prefix = $1;
 				# See if a prefix was specified.
 
-$datadir = shift @_ || read_with_prompt("
+$datadir = shift @ARGV || read_with_prompt("
 Makepp has a number of library files that it needs to install somewhere.  Some
 of these are perl modules, but they can't be used by other perl programs, so
 there's no point in installing them in the perl modules hierarchy; they are
@@ -55,7 +63,13 @@ simply architecture-independent data that needs to be stored somewhere.
 Where should the library files be installed [$prefix/share/makepp]? ") ||
   "$prefix/share/makepp";
 
-$htmldir = shift @_ || read_with_prompt("
+$mandir = shift @ARGV || read_with_prompt("
+Where should the manual pages be installed?
+Enter \"none\" if you do not want the manual pages.
+Man directory [$prefix/man]: ") ||
+  "$prefix/man";
+
+$htmldir = shift @ARGV || read_with_prompt("
 Where should the HTML documentation be installed?
 Enter \"none\" if you do not want any documentation installed.
 HTML documentation directory [$prefix/share/makepp/html]: ") ||
@@ -80,15 +94,29 @@ foreach $include (qw(c_compilation_md5 infer_objects
 }
 
 #
+# Install the man pages:
+#
+if ($mandir ne 'none') {
+  make_dir("$mandir/man1");
+  foreach $file (glob("pod/*.pod")) {
+    my $manfile = $file;
+    $manfile =~ s/\.pod$/.1/;   # Get the name of the man file.
+    $manfile =~ s@^pod/@@;
+    system("pod2man $file > $mandir/man1/$manfile 2>/dev/null");
+                                # Ignore stderr because older versions of 
+                                # pod2man (e.g., perl 5.006) don't understand
+                                # =head3.
+    chmod 0644, "$mandir/man1/$manfile";
+  }
+}
+
+#
 # Now install the HTML pages.
 #
 if ($htmldir ne 'none') {
   make_dir($htmldir);
-  foreach $file (<doc/*.html>) {
-    ($outfile = $file) =~ s@^doc/@@; # Strip off the doc prefix.
-    copy($file, "$htmldir/$outfile");
-    chmod 0644, "$htmldir/$outfile";
-  }
+  system("cd pod; $Config{'perlpath'} ./pod2html $htmldir *.pod");
+  system("cd $htmldir; chmod 0644 *.html");
 }
 
 #
@@ -103,10 +131,11 @@ Makepp will work without it, however.
    If you would like this feature, you'll have to install this perl module.
 If you installed perl from a binary distribution (e.g., from a linux package),
 you can probably get a precompiled version of this module from the same place.
-Otherwise, a version of this module is included with makepp.  To install it,
-do the following:
-	tar xf Digest-MD5-2.11.tar
-	cd Digest-MD5-2.11
+Otherwise, you can get it from CPAN
+(http://www.cpan.org/authors/id/G/GA/GAAS/Digest-MD5-2.25.tar.gz).
+After you've downloaded it, do the following:
+	gzip -dc Digest-MD5-2.25.tar.gz | tar xf -
+	cd Digest-MD5-2.25
 	perl Makefile.PL
 	make
 	make test
@@ -138,7 +167,7 @@ sub substitute_file {
 
   while (defined($_ = <INFILE>)) {
     s@^\#!\s*(\S+?)/perl@\#!$perlbin@;    # Handle #!/usr/bin/perl.
-    s/\@(\w+)\@/$ {$1}/g;	# Substitute anything containg @xyz@.
+    s/\@(\w+)\@/${$1}/g;          # Substitute anything containg @xyz@.
 
     print OUTFILE $_;
   }
@@ -154,9 +183,12 @@ sub substitute_file {
 sub make_dir {
   my $dirname = '';
   foreach (split(/\//, $_[0])) {
-    $dirname .= "/" . $_;	# Make the new directory name.
-    -d $dirname or
-      mkdir($dirname, 0755);
+    if ($_ ne '') {		# Skip the top level / directory.
+      $dirname .= $_;		# Make the new directory name.
+      -d $dirname or
+	mkdir($dirname, 0755);
+    }
+    $dirname .= '/';
   }
 }
 
