@@ -26,16 +26,16 @@ install: our_program
     <i>makepp</i> first builds <code>our_program</code>, then runs the
     commands associated with the install target.  The
     <code>install</code> command simply copies its arguments to the
-    specified directory, setting the modes.  So it copies
-    <code>our_program</code> into <code>/usr/local/bin</code>, and some
-    associated data files into
+    specified directory, and sets the file's protection to the indicated
+    value.  So it copies <code>our_program</code> into
+    <code>/usr/local/bin</code>, and some associated data files into
     <code>/usr/local/share/our_program/icons</code>.  But this doesn't
     create a file called <code>install</code> in the current
     directory.</p>
 
     <p>The <code>install</code> target here is called a <i>phony
     target</i> because <i>makepp</i> treats it as if it were a real
-    file, but it is not actually a file, it's just a device for forcing
+    file, but it is not actually a file, it's just a trick for forcing
     <i>makepp</i> to build its dependencies and then run some
     commands.</p>
 
@@ -109,7 +109,7 @@ $(phony install): all
 	done
 # Note the use of the double dollar sign to pass a single dollar sign to
 # the shell.  Note also the backslashes at the end of a line to indicate
-# that a shell cmomand continues to the next line.
+# that a shell command continues to the next line.
 
 #
 # This target gets rid of all the junk that gets built during compiles.
@@ -161,7 +161,7 @@ $(phony test): $(PROGRAMS)
     <br>
 <!-- Created: Fri Aug 25 21:43:59 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Fri Oct 13 21:54:13 PDT 2000
+Last modified: Tue Dec 26 19:35:54 PST 2000
 <!-- hhmts end -->
   </body>
 </html>

@@ -90,11 +90,12 @@ $(OBJDIR)/my_program: $(OBJDIR)/*.o
     <h2>Repositories</h2>
 
     <p>Repositories are a magical way of using a makefile that is
-    written to put objects in the same directory, and having
+    written to put objects in the same directory, but having
     <i>makepp</i> automatically put the objects in a different
-    directory.  Suppose we start with the original makefile above, and
-    we've been working on linux so our source directory is filled with
-    linux binaries.  When we want to recompile our code on solaris
+    directory.  Suppose we start with the original makefile above
+    (before we modified it to put the objects in a different directory),
+    and we've been working on linux so our source directory is filled
+    with linux binaries.  When we want to recompile our code on solaris
     instead of linux, we use the following command instead of just
     typing <code>makepp</code>:</p>
 
@@ -111,7 +112,7 @@ $(OBJDIR)/my_program: $(OBJDIR)/*.o
     believing that all files in one directory tree are actually located
     in a different directory tree in the file system.  In the above
     example, <i>makepp</i> pretends that all the files in
-    <code>..</code> (and all subdirectories of <code>..</code>)are
+    <code>..</code> (and all subdirectories of <code>..</code>) are
     actually in the current directory (and corresponding
     subdirectories).</p>
 
@@ -184,7 +185,7 @@ $(OBJDIR)/my_program: $(OBJDIR)/*.o
     <br>
 <!-- Created: Fri Aug 25 23:04:23 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Fri Oct 13 22:03:24 PDT 2000
+Last modified: Tue Dec 26 21:08:53 PST 2000
 <!-- hhmts end -->
   </body>
 </html>

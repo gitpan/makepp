@@ -80,7 +80,7 @@ foreach $tarfile (@ARGV) {
     my $n_files_updated;
     open(LOGFILE, ".makepp_log") or die ".makepp_log\n";
     while (defined($_ = <LOGFILE>)) {
-      if (/^0: (\d+) files updated/) {
+      if (/^(\d+) files updated/) {
 	$n_files_updated = $1;	# Found the count of files changed.
 	last;
       }
@@ -104,6 +104,7 @@ foreach $tarfile (@ARGV) {
     if (open LOGFILE, "../$tarfile.log") {
       while (defined($_ = <LOGFILE>)) {
 	/at \S+ line \d+/ and die "../$tarfile.log\n";
+	/generated error/ and die "../$tarfile.log\n";
       }
     }
     close LOGFILE;

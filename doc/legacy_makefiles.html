@@ -31,15 +31,14 @@
       file has changed but the contents are the same except for
       whitespace and comments.
 
-      <li>If <i>makepp</i> aborts and tells you to remove the
-	<code>--noimplicit-load</code> command line option or the
-	<code>--traditional-make</code> option, then just rerun it with
-	those options.  These make <i>makepp</i>'s behavior emulate the
-	behavior of the traditional unix make more precisely.
+      <li>If <i>makepp</i> aborts and tells you to add the
+      <code>--traditional-make</code> option, then just rerun it with
+      that options.  These make <i>makepp</i>'s behavior emulate the
+      behavior of the traditional unix make more precisely.
 
       <li>If <i>makepp</i> does not appear to be finding build rules,
-	especially for files located in subdirectories, you may need to
-	add the <code>--percent-subdirs</code> option to the command line.
+      especially for files located in subdirectories, you may need to
+      add the <code>--percent-subdirs</code> option to the command line.
 
       <li>A common problem is some things that are produced by the
       configure script rebuild themselves unnecessarily.  This is
@@ -83,8 +82,10 @@
     warning messages by adding <code>--nowarn</code> to the command
     line.</p>
 
-    <p>Here are the compilation options that I needed to compile some
-      popular packages with makepp:</p>
+    <a name="compiled_packages"></a>
+
+    <p>Here are the compilation options that I needed to compile and
+    install some popular packages with makepp:</p>
 
     <table border>
       <tr>
@@ -93,33 +94,56 @@
 	<th width="50%">Notes</th>
       </tr>
       <tr>
+	<td>perl 5.6.0</td>
+	<td>(none)</td>
+	<td>Makefiles produced by MakeMaker cause lots of warning
+	  messages because of several different rules for the same
+	  target.  These can evidently be ignored.</td>
+      </tr>
+      <tr>
 	<td>KDE 2.0 (except kdemultimedia)</td>
-	<td><code>RM=rm</code></td>
-	<td>Earlier versions of KDE required no options. <i>makepp</i> does not
-	  predefine any symbols, which is why <code>RM</code> must be
-	  defined on the command line.  KDE makefiles are controlled by
-	  automake, so many packages are likely to work the same way.
-	  (kdemultimedia doesn't compile with makepp because of some very
-	  sloppy constructs in one makefile, and also
-	  incompatibilities in the use of wildcards.)</td>
+	<td>(none)</td>
+	<td>KDE makefiles are controlled by
+	  automake, so many packages are likely to work the same way.</td>
       </tr>
       <tr>
-	<td>perl</td>
-	<td><code>--noimplicit-load
-	    --traditional-recursive-make</code></td>
-	<td>Makefiles produced by MakeMaker cause many warnings because
-	  they often provide two rules to build the same target,
-	  something which <i>makepp</i> does not allow.</td>
+	<td>gcc 2.95.2</td>
+	<td>(none)</td>
+	<td>You must have all build utilities installed, including
+	  things like <code>gperf</code>, because <i>makepp</i> insists
+	  on rebuilding any files that were not built under its control,
+	  even if the target is newer than the dependency.  Because
+	  makepp by default insists on rebuilding if the command
+	  changes, rerunning makepp on a compiled gcc source tree will
+	  recompile a few additional things.</td>
       </tr>
       <tr>
-	<td>Qt 2.2.1</td>
-	<td><code>--noimplicit-load --traditional-recursive-make
-	    -m&nbsp;target_newer --percent-subdirs</code></td>
-	<td>Library compiles fine; compilation of <code>uic</code> fails
-	because of <a
-	href="incompat.html#pattern_rule_dirs">incompatible treatment of
-	directories in pattern rules</a> on three files.</td>
+	<td>Linux kernel (2.3.99-pre9)</td>
+	<td>(none)</code></td>
+	<td>Fails if you include the pcmcia modules because vpath is not
+	  yet supported by makepp.  Several things get recompiled if you
+	  run makepp a second time because the list of dependencies has
+	  changed (because of a problem in the makefiles), something
+	  which the traditional make doesn't care about.
+	  <p>The linux kernel makefiles are a nice example of incredibly
+	    complicated makefiles which could be greatly simplified by using
+	    the more advanced features of makepp.</td>
       </tr>
+
+      <tr>
+	<td><a href="www.freetype.org">Freetype</a> 2</td>
+	<td><code>--norc-substitution</code></td>
+	<td>Freetype version 1 did not require this option.</td>
+      </tr>
+<!--       <tr> -->
+<!-- 	<td>Qt 2.2.1</td> -->
+<!-- 	<td><code>--noimplicit-load --traditional-recursive-make -->
+<!-- 	    -m&nbsp;target_newer --percent-subdirs</code></td> -->
+<!-- 	<td>Library compiles fine; compilation of <code>uic</code> fails -->
+<!-- 	because of <a -->
+<!-- 	href="incompat.html#pattern_rule_dirs">incompatible treatment of -->
+<!-- 	directories in pattern rules</a> on three files.</td> -->
+<!--       </tr> -->
     </table>
 
     <h2>Common problems with legacy makefiles</h2>
@@ -130,49 +154,6 @@
     assume; <i>makepp</i> has higher standards for build correctness.
     There are also a couple of deliberate syntactical differences that
     could cause problems.</p>
-
-    <h3>Commands to rebuild the makefile</h3>
-
-    <p>In my experience, the biggest problem in using <i>makepp</i> on a
-    complicated existing makefile are commands which rebuild the
-    makefile or dependencies of the makefile.  In order to avoid
-    unnecessary rebuilds, <i>Makepp</i> uses the same signature checking
-    algorithm as make for updating makefiles (it only rebuilds if the
-    target is older than a dependency, and doesn't worry if the command
-    has changed).  For example, this allows you to create the makefile
-    with a configure procedure, and <i>makepp</i> in theory won't try to
-    rebuild it.</p>
-
-    <p>However, there are still a number of different problems which can
-    crop up related to rebuilding the makefile.  Commands to rebuild the
-    makefile often modify more targets than are explicitly listed, and
-    as a result, the makefile may be rebuilt unnecessarily.  The
-    solution to this is to change the makefile to explicitly list as
-    targets <b>all</b> files which are modified by a given action.</p>
-
-    <p>Another problem occurs when the makefile (or something that the
-    makefile depends on, e.g., a file output by the configure procedure
-    such as <code>config.status</code>) is a dependency of another file.
-    Although <i>makepp</i> initially does not rebuild the makefile, it
-    later tries to rebuild <code>config.status</code>.  The traditional
-    make would not bother to rebuild it, because it is newer than all of
-    its dependencies.  However, <i>makepp</i> rebuilds unless all the
-    dependencies and the build command are exactly the same, which will
-    never be true if it has never built the file before.  Consequently,
-      these files are unnecessarily rebuilt, which causes the makefile
-      to be rebuilt as well on the next iteration.</p>
-
-    <p>The solution to this problem is to tell <i>makepp</i> to use a <a
-    href="syntax_makefile.html#colon_signature">different signature
-    checking algorithm</a> for targets which are produced by the
-    configure command.</p>
-
-    <p>If rebuilding the makefile is causing problems, you may want to
-    run <i>makepp</i> with the <a
-    href="command_line.html#noremake_makefiles"><code>--noremake-makefiles</code></a>
-    option.  This won't suppress rebuilds of the makefile which are
-    triggered by some other file depending on the makefile, however.</p>
-
 
 
     <h3>Commands which assume make's signature checking algorithm</h3>
@@ -205,14 +186,57 @@ all: other-things .buildopts
 	@echo "You haven't run configure yet."
 	@exit 1
 </pre>
-    <p>Note that this will work with the traditional make, too, because
-      the <code>:&nbsp;signature</code> line is interpreted as a shell
-      command which does nothing.</p>
+    <p>Note that this rule is still compatible with the traditional
+    make, too, because it interprets the <code>:&nbsp;signature</code>
+    line as a shell command which does nothing.</p>
 
     <p>You can also specify the signature checking algorithm on the
     command line using the <a
     href="command_line.html#option_signature_method"><code>-m&nbsp;target_newer</code></a>
     option.</p>
+
+    <h3>Commands to rebuild the makefile</h3>
+
+    <p>In order to avoid unnecessary rebuilds, <i>Makepp</i> uses the
+    same signature checking algorithm as the tradtional make for
+    updating makefiles (it only rebuilds if the target is older than a
+    dependency, and doesn't worry if the command has changed).  For
+    example, this allows you to create the makefile with a configure
+    procedure, and <i>makepp</i> in theory won't try to rebuild it.</p>
+
+    <p>However, there are still a number of different problems which can
+    crop up related to rebuilding the makefile.  Commands to rebuild the
+    makefile often modify more targets than are explicitly listed, and
+    as a result, the makefile may be rebuilt unnecessarily.  The
+    solution to this is to change the makefile to explicitly list as
+    targets <b>all</b> files which are modified by a given action.</p>
+
+    <p>Another problem occurs when the makefile (or something that the
+    makefile depends on, e.g., a file output by the configure procedure
+    such as <code>config.status</code>) is a dependency of another file.
+    Although <i>makepp</i> initially does not rebuild the makefile, it
+    later tries to rebuild <code>config.status</code>.  The traditional
+    make would not bother to rebuild it, because it is newer than all of
+    its dependencies.  However, <i>makepp</i> rebuilds unless all the
+    dependencies and the build command are exactly the same, which will
+    never be true if it has never built the file before.  Consequently,
+      these files are unnecessarily rebuilt, which causes the makefile
+      to be rebuilt as well on the next iteration.</p>
+
+    <p>The solution to this problem is to tell <i>makepp</i> to use a <a
+    href="syntax_makefile.html#colon_signature">different signature
+    checking algorithm</a> for targets which are produced by the
+    configure command.  Usually it figures this out on its own, since it
+    applies the <code>target_newer</code> signature checking method to
+    any rule used when trying to rebuilt a makefile, but sometimes it
+    needs a little bit of help.</p>
+
+    <p>If rebuilding the makefile is causing problems, you may want to
+    run <i>makepp</i> with the <a
+    href="command_line.html#noremake_makefiles"><code>--noremake-makefiles</code></a>
+    option.  This won't suppress rebuilds of the makefile which are
+    triggered by some other file depending on the makefile, however.</p>
+
 
     <h3>Rules which use different names for the same target</h3>
 
@@ -303,11 +327,16 @@ my_program: subdir1/libxyz.so
 
     <p>Now isn't that much easier?</p>
     
-    <p>(You can also use the <a
+    <p>Note that if you do not remove ALL of the mentions of
+    <code>$(MAKE)</code> in your makefile, <i>makepp</i> will
+    automatically go into backward compatibility mode and turn off
+    implicit makefile loading.</p>
+
+    <p>You can also use the <a
     href="syntax_makefile.html#load_makefile_statement"><code>load_makefile</code></a>
     to tell <i>makepp</i> explicitly to load a makefile, if
     <i>makepp</i> for some reason can't find the right makefile to
-    load.)</p>
+    load.</p>
 
     <p>Basically, if you're using recursive make, don't.  Just discard
     all the complexity in your makefile with recursive make and use
@@ -376,18 +405,14 @@ y.tab.c: parse.y
 
     <p>Sometimes targets are deliberately not listed because they don't
     really change that often and cause unnecessary recompilation when
-    they do.  In the above exampel, it is true that <code>y.tab.h</code>
+    they do.  In the above example, it is true that <code>y.tab.h</code>
     could potentially be affected by changes to <code>parse.y</code>, in
     99.9% of the cases it will be unchanged.  And <code>y.tab.h</code>
-    is likely to be included in lots of other files.  With
-    <i>makepp</i>, you can avoid the recompilation without the risk of
-    an incorrect build.  Simply use the <a
-    href="syntax_makefile.html#signature_method_c_compilation_md5">MD5
-    signature checking</a> for your C sources.  This way, if the
-    contents of the file <code>y.tab.h</code> hasn't changed (except for
-    possibly comments), it won't trigger recompilation of anything that
-    depends on it, even if the file date has changed.</p>
-
+    is likely to be included in lots of other files.  <i>Makepp</i> is
+    smart enough to handle this situation gracefully.  By default, it
+    won't rerun C/C++ compilation commands unless the <b>contents</b> of the
+    file have changed (not counting the comments!), so it doesn't really
+    matter if the file date changes.</p>
 
 
 
@@ -506,18 +531,16 @@ Makefile: Makefile.pro
 
 
     <hr>
-
-    <hr>
     <a href="index.html">Table of contents</a>
     |
     <a href="incompat.html">Next (incompatibilities)</a>
     |
-    <a href="extending_makepp.html">Previous (extending makepp)</a>
+    <a href="builtin.html">Previous (builtin rules)</a>
     <br>
 
 <!-- Created: Thu Aug  3 16:27:45 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Fri Oct 27 13:07:16 PDT 2000
+Last modified: Mon Feb 19 20:20:32 PST 2001
 <!-- hhmts end -->
   </body>
 </html>

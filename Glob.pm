@@ -33,7 +33,7 @@ principle it may be faster than using the builtin perl glob.  It also
 supports some limited extended wildcards (ideas stolen from zsh).
 
 	*		Matches any text
-	?		Matches 0 or one characters
+	?		Matches one character
 	[range]		Matches a range just like the unix wildcards.
 	**		Matches an arbitrary list of directories.  This
 			is a shortcut to running "find" on the directory

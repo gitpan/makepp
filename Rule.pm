@@ -37,6 +37,7 @@ sub new {
 		 DEPENDENCY_STRING => $dependencies,
 		 COMMAND_STRING => $command,
 		 MAKEFILE => $makefile,
+		 LOAD_IDX => $makefile->{LOAD_IDX},
 		 RULE_SOURCE => $source_line }, $class;
 				# Make the rule object.
 }
@@ -153,6 +154,28 @@ sub find_all_targets_dependencies {
 				# targets) that we didn't know about.
 
 #
+# For some reason, the #@!$@#% linux kernel makefiles have a file that
+# depends on itself.  This looks like a simple mistake, but I want this
+# to work properly on the linux kernel, so we explicitly remove dependencies
+# that are equal to the target.
+#
+  my @bogus_dependencies;
+  foreach (values %all_targets) {
+    if ($all_dependencies{$_}) {
+      delete $all_dependencies{$_}; # Remove it from the dependency list.
+      my $warn_flag = 0;
+      for (my $idx = 0; $idx < @explicit_dependencies; ++$idx) {
+	if ($explicit_dependencies[$idx] == $_) { # Was it an explicit dependency?
+	  splice(@explicit_dependencies, $idx, 1); # Remove it.
+	  $warn_flag++ or
+	    main::print_error("warning: " . $_->name . " depends on itself; circular dependency removed");
+	}
+      }
+      
+    }
+  }
+
+#
 # Make a list of the targets and the dependencies, first listing the explicitly
 # specified ones, and then listing the implicit ones later.  It's confusing
 # (and breaks some makefiles) if dependencies are built in a different order
@@ -201,7 +224,7 @@ sub execute {
 				# directories.
     return wait_for new MakeEvent::Process sub {
       execute_command($build_cwd, $actions,
-		      $self->{MAKEFILE}{EXPORTS}); # Execute the command.
+		      $self->{MAKEFILE}{EXPORTS}, $self->{MAKEFILE}{ENVIRONMENT}); # Execute the command.
     };
 				# Wait for the process, because we don't want
 				# to get ahead and start scanning files we
@@ -237,7 +260,7 @@ sub execute {
       open(STDERR, ">&STDOUT") || die "can't dup STDOUT\n";
 				# Make stderr go to the same place.
       execute_command($build_cwd, $actions,
-		      $self->{MAKEFILE}{EXPORTS});
+		      $self->{MAKEFILE}{EXPORTS}, $self->{MAKEFILE}{ENVIRONMENT});
 				# Execute the action(s).
     };
 
@@ -279,14 +302,16 @@ sub execute {
 # b) The lines of actions to execute.
 # c) A hash of variables that must be exported to the environment, and their
 #    values.
+# d) The environment to use (not including the exports).
 #
 # At this point, STDOUT and STDERR should be set up to wherever the command
 # is supposed to output to.
 #
 sub execute_command {
-  my ($build_cwd, $actions, $exports) = @_; # Name the arguments.
+  my ($build_cwd, $actions, $exports, $environment) = @_; # Name the arguments.
 
   chdir $build_cwd;		# Move to the correct directory.
+  %ENV = %$environment;		# Set the environment.
 #
 # Handle any exported variables. 
 #
@@ -296,6 +321,8 @@ sub execute_command {
       $ENV{$var} = $val;
     }	
   }	
+  $main::recursive_make_socket_name and	# Pass info about recursive make.
+    $ENV{'MAKEPP_SOCKET'} = $main::recursive_make_socket_name;
 
 #
 # Now execute each action.  We exec the action if it is the last in the series

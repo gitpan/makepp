@@ -16,14 +16,15 @@
     <p>However, it's too error-prone to allow a human to tell the
     computer which files need to be recompiled.  Forgetting to recompile
     a file can mean hours of frustrating debugging.  A reliable
-    automatic tool for determining exactly which modules need
-    recompilation is necessary.</p>
+    automatic tool is necessary for determining exactly which modules
+    need recompilation.</p>
 
     <p><i>Makepp</i> (short for Make-plus-plus, or <b>make++</b>) is a
     tool for solving exactly this problem.  It is an improvement on the
     <b>make</b> program, a standard tool that has been around for many
-    years.  It reads a file called a <i>makefile</i> that contains the
-    commands necessary for building output files from input files.</p>
+    years.  It relies either on its own builtin knowledge (in very
+    simple cases), or on a file called a <i>makefile</i> that contains a
+    detailed recipe for building the program.</p>
 
     <p>Usually, the input files are program source code, and the output
     files are executables, but <i>makepp</i> doesn't care what they are.
@@ -34,13 +35,13 @@
     programs, and your output files are processed data or graphs or
     whatever.  <i>Makepp</i> will figure out which of the processed data
     files need to be updated whenever some of the data files or analysis
-    programs change.  The examples in introduction will assume you are
-    building an executable program from source code, but you can do a
-    lot more with <i>makepp</i> than just that if you use your
+    programs change.  The examples in this introduction will assume you
+    are building an executable program from source code, but you can do
+    a lot more with <i>makepp</i> than just that if you use your
     imagination.</p>
 
-    <p>If your program consists of a single module, you really don't
-    need a makefile, because you know that any change that you make
+    <p>If your program consists of a single module, you probably don't
+    need <i>makepp</i>, because you know that any change that you make
     requires recompiling that module.  However, if your program consists
     of even just two modules, then you will definitely want to use a
     program like <i>makepp</i>.</p>
@@ -49,11 +50,11 @@
     <hr>
     <a href="t_index.html">Tutorial index</a>
     |
-    <a href="t_simplest.html">Next (a simple makefile)</a>
+    <a href="t_builtin.html">Next (Do I need a makefile?)</a>
     <br>
 <!-- Created: Sat Aug 19 18:22:51 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Thu Aug 24 08:57:53 PDT 2000
+Last modified: Wed Dec 27 11:14:44 PST 2000
 <!-- hhmts end -->
   </body>
 </html>

@@ -6,11 +6,11 @@
 #
 require 5.005;
 
-$version = 1.05;
+$version = 1.10;
 use Config;
 
-use IO::Socket;
-
+#use SelfLoader;
+				# SelfLoader doesn't seem to work right here.
 #
 # Find the location of our data directory that contains the auxiliary files.
 # This is normally built into the program by install.pl, but if makepp hasn't
@@ -20,7 +20,7 @@ BEGIN {
   $datadir = '@datadir@';	# Where our library files go.  This line is
 				# substituted by the install procedure.
 
-  if ($datadir =~ /\@/) {	# Haven't run configure?
+  if ($datadir =~ /\@/) {	# Not installed.
     $datadir = $0;		# Assume it's running from the same place that
 				# we're running from.
     unless ($datadir =~ s@/[^/]+$@@) { # No path specified?
@@ -50,6 +50,9 @@ use FileInfo_makepp;
 use Rule;
 use Signature::exact_match;
 use Signature::target_newer;
+eval 'use Signature::c_compilation_md5'; # Try to use MD5 signature checking.
+$has_md5_signatures = ($@ eq '');
+$has_md5_signatures and eval 'use Signature::md5';
 use MakeEvent qw(when_done wait_for read_wait);
 use TextSubs;
 
@@ -59,9 +62,12 @@ sub print_log;
 
 ($progname = $0) =~ s@.*/@@;	# Get the program name w/o directories.
 
-$architecture = $Config{'archname'}; # Get a tag for the architectu.
+$architecture = $Config{'archname'}; # Get a tag for the architecture.
 
 $ENV{'SHELL'} = "/bin/sh";	# Always use the Bourne shell.
+
+%global_ENV = %ENV;		# Make a copy of the environment, because
+				# we're going to change the environment a lot.
 
 $MakeEvent::max_proc = 1;	# Default to running only one process at a
 				# time, unless we know better.
@@ -75,12 +81,14 @@ $n_files_changed = 0;		# Keep track of the number of files that
 				# we actually changed.
 
 $original_cwd = $FileInfo::CWD_INFO; # Remember the directory we started from.
-$rebuilding_makefile = 0;	# 1 if we're currently tring to rebuild the
-				# makefile, 0 if we're not.
 
+$n_phony_messages = 0;		# Number of times we've had to warn about
+				# phony targets.
 #
 # Default settings for various command line options:
 #
+$builtin_rules = 1;		# Use the builtin rules.
+
 $default_signature_method = $Signature::exact_match::exact_match;
 				# Default to requiring an exact match for
 				# building.  This gets overridden when
@@ -93,22 +101,37 @@ $implicitly_load_makefiles = 1; # Load a makefile from every directory
 $keep_going = 0;		# -k specified.
 $logfile = ".makepp_log";	# Default to logging to this file.
 $log_level = 1;			# Default to logging.
+@makepp_include_path = (file_info("$main::datadir", $main::original_cwd));
+				# The default directories to search for 
+				# include files supplied with makepp.
 $parallel_make = 0;		# True if we're in parallel make mode.
 $percent_subdirs = 0;		# True if "%.c" turns into **/*.c.  False if
 				# it turns into *.c.
 $quiet_flag = 0;		# Default to printing informational messages.
 $rc_substitution = 1;		# Default to doing rc-style substitution.
-$remake_makefiles = eval '!defined($DB::OUT)';
-				# Default to making the makefiles automatically
-				# unless we are running under the debugger
-				# (since forking under the debugger causes
-				# confusion).  (In an eval to prevent a
-				# warning message.)
+$remake_makefiles = 1;		# Default to making the makefiles automatically.
 $sigmethod_name = '';		# No -m option seen yet.
 $traditional_recursive_make = 0; # 1 if we invoke makepp recursively, 0 if
 				# we call the recursive_makepp stub and do
 				# the build in the parent process.
 $warn_level = 1;		# Default to warning.
+
+#
+# Because automake/autoconfig is so #@%!(#%&!)#$&(^)$(^&!( hacked up, there
+# doesn't seem to be any way to support repositories without simply putting
+# the files in automatically.  Automake simply does not properly list
+# dependencies in the makefile, and there's no way around it except to
+# list special cases.  These are the files that automake/autoconf appear
+# to need that might not be correctly linked in based on instructions in
+# the makefile.
+#
+
+foreach (qw(Makefile.in Makefile.am acconfig.h acinclude.m4 aclocal.m4
+config.h config.h.in config.status configure configure.in configure.files
+libtool stamp-h stamp-h.in install.sh install-sh missing mkinstalldirs)) {
+
+  $automake_garbage{$_} = 1;
+}
 
 =head2 build
 
@@ -135,22 +158,21 @@ sub build {
 # Find a rule for this object.
 #
   my $oinfo = $_[0];		# Name the arguments.
-  $oinfo->{BUILD_HANDLE} = undef; # Indicate that we're trying to build.
-				# This will be replaced later by a real
-				# build handle.
+
   $log_level and
     print_log("Trying to build ", $oinfo->name);
 
-#  if ($oinfo->build_info_string("FROM_REPOSITORY")) {
-#    $oinfo->unlink;		# If it's from a repository, get rid of it.
+  if ($oinfo->build_info_string("FROM_REPOSITORY")) {
+    $oinfo->unlink;		# If it's from a repository, get rid of it.
 				# It might be a bogus file from the past.
-#    delete $oinfo->{BUILD_INFO}; # Any existing build info is invalid.
-#  }
+    delete $oinfo->{BUILD_INFO}; # Any existing build info is invalid.
+  }
 
   my $rule = $oinfo->get_rule(1) || # Do we already have a rule for it?
     find_backward_inference_rule($oinfo) ||
 				# If no forward inference rule, try to go
 				# backwards.
+
 #
 # Make up a dummy rule if there is no rule.  This makes it much easier to
 # handle the case where there is a target with no action but some
@@ -170,6 +192,36 @@ sub build {
 #
       new DefaultRule($oinfo);
 
+#
+# If a makefile contains $(MAKE), then we turn off implicit loading of other
+# makefiles, assuming that the makefile is constructed to load them
+# manually.  This is a bit tricky, since the implicit loading flag must be
+# passed in a global variable.
+#
+  my $local_implicit_load_flag = $implicitly_load_makefiles;
+				# Save the status of implicit loading, and pass
+				# it to our wildcard action routines via a
+				# closure.
+  $rule->{MAKEFILE} && $rule->{MAKEFILE}->{RECURSIVE_MAKE} and
+    $local_implicit_load_flag = 0; # Turn off implicit loading of makefiles
+				# for dependencies of this target if 
+				# recursive make was invoked anywhere in this
+				# makefile.
+  local $implicitly_load_makefiles = $local_implicit_load_flag;
+				# Make a locally modifiable version of the
+				# global flag.  This local modification will
+				# not apply, however, to the routines activated
+				# by when_done.
+
+  $oinfo->{BUILD_HANDLE} = undef; # Indicate that we're trying to build.
+				# This will be replaced later by a real
+				# build handle.  This must be done after
+				# get_rule because we may attempt to load a
+				# makefile in get_rule, and we don't want
+				# to print out a warning mssage about
+				# encountering the rule after we already tried
+				# to build the file.
+
   my ($all_targets, $all_dependencies, $command_string);
 
   $log_level and
@@ -183,25 +235,6 @@ sub build {
   $log_level and
     print_log(" Targets ", join(" ", map { $_->name } @$all_targets),
 	      " depend on ", join(" ", map { $_->name } @$all_dependencies));
-#
-# If this is some stage in rebuilding the makefile, then we need to mark all
-# the targets so that if they are mentioned again in the makefile, we use
-# the proper signature method.
-#
-  if ($rebuilding_makefile) {
-    foreach (@$all_targets) { $_->set_build_info_string("SIGNATURE_METHOD", "target_newer"); }
-  }
-  else {			# Use that signature method if appropriate.
-    foreach (@$all_targets) {
-      my $method = $_->build_info_string("SIGNATURE_METHOD");
-      if (defined($method)) {	# Was a method specified?
-	$rule->{SIGNATURE_METHOD} ||= $ {"Signature::${method}::$method"};
-				# Set the method.
-	last;			# Quit looking.
-      }
-    }
-  }
-
 
 #
 # Build each of the dependencies:
@@ -279,12 +312,20 @@ sub build {
 
     my @targets_to_copy;
 
+    my $not_default_rule = ref($rule) ne 'DefaultRule' &&
+      $rule->source !~ /\bmakepp_builtin_rules\.mk:/;
+				# True if this is built with an explicit rule
+				# in some makefile.
+
     foreach my $target (@$all_targets) {
       if ($target->{IS_PHONY}) { # If this is a phony target, then we always
 				# rebuild.
 	++$rebuild_needed;
 	last;			# Don't bother to keep on checking.
       }
+
+      $target->{BUILT_WITH_NONDEFAULT} = 1 if $not_default_rule;
+
 
       my $rebuild_code =	# Figure out whether we need to rebuild.
 	$sig_method->build_check($target,
@@ -309,17 +350,30 @@ sub build {
     }
 
     if ($rebuild_needed) {	# Do we actually need to rebuild something?
-      foreach (@$all_targets) {
-	if (ref($_) eq 'FileInfo' && $_->is_symbolic_link &&
-	    !$automake_garbage{$_->{NAME}}) {
-	  $_->unlink;		# Get rid of soft links (they're probably
+# This causes problems if the files were deliberately linked in.  
+#      foreach (@$all_targets) {
+#	if (ref($_) eq 'FileInfo' && $_->is_symbolic_link &&
+#	    !$automake_garbage{$_->{NAME}}) {
+#	  $_->unlink;		# Get rid of soft links (they're probably
 				# to an old repository file, and the presence
 				# of the soft link might make the build
 				# command try to alter the repository).
 				# However, we can't do this for the junk we
-				# link in from automake.
-	}
-      }
+#				# link in from automake.
+#	}
+#      }
+      my $is_recursive_make = ($command_string =~ /\brecursive_makepp\b/);
+				# Note that the above will catch invocations
+				# of the recursive_makepp program, and also
+				# invocations of makepp when 
+				# --traditional-recursive-make is in effect,
+				# because the latter adds a bogus
+				# --recursive_makepp option to the command
+				# line.
+      $is_recursive_make and	# If this is a recursive make invocation,
+	delete $oinfo->{BUILD_HANDLE}; # we'll have to reexecute a build 
+				# command for it, so don't inhibit that.
+
       my $handle = when_done $rule->execute($command_string), sub {
 				# Execute the build command.  If there was
 				# an error, this subroutine won't be called;
@@ -332,30 +386,43 @@ sub build {
 	foreach my $tinfo (@$all_targets) {
 	  next if $tinfo->{IS_PHONY}; # Skip phony targets.
 	  $tinfo->may_have_changed; # Invalidate cached info.
-	  my $tsig = $sig_method->signature($tinfo);
-	  if ($tsig) {		# File actually exists now:
+	  if (!$is_recursive_make) {
+				# Never store build information on recursive
+				# makes.  They always need to be rerun every
+				# time we run through the makefile.
+	    my $tsig = $sig_method->signature($tinfo);
+	    if ($tsig) {	# File actually exists now:
 				# Store the information on how we built it.
-	    $tinfo->set_build_info_string(SORTED_DEPS => $sorted_dep_str,
-					  DEP_SIGS => $dep_sig_str,
-					  BUILD_SIGNATURE => $tsig,
-					  COMMAND => $command_string,
-					  CWD => $build_cwd->name($tinfo),
-					  ARCH => $architecture);
+	      $tinfo->set_build_info_string(SORTED_DEPS => $sorted_dep_str,
+					    DEP_SIGS => $dep_sig_str,
+					    BUILD_SIGNATURE => $tsig,
+					    COMMAND => $command_string,
+					    CWD => $build_cwd->name($tinfo),
+					    ARCH => $architecture);
 				# Tag the build with the architecture, too.
-	  } else {
-	    $warn_level and
-	      print_error("warning: I attempted to build " . $tinfo->name . ",
+	    } else {
+	      if ($warn_level) {
+		if ($n_phony_messages++ == 0) {
+		  print_error("warning: I attempted to build " . $tinfo->name . ",
   but after successfully executing the commands, the target does not exist.
   Perhaps it is a phony target?  If so, the rule defining it should be modified
   like this:
   \$(phony ", $tinfo->relative_filename($build_cwd), "): dependencies
-	actions");
-	    $tinfo->{IS_PHONY} = 1;
-	    $tinfo->{SIGNATURE} = 9e99;	# Give it a very recent time to force
-				# rebuilding of everything that depends on it,
-				# even if -m target_newer is in effect.
+	actions
+
+  or you could also declare it as phony like this:
+  .PHONY: ", $tinfo->relative_filename($build_cwd));
+		} else {		# Give a shorter message on other instances.
+		  print_error("warning: target " . $tinfo->name . " is probably also phony");
+		}
+		$tinfo->{IS_PHONY} = 1;
+		$tinfo->{SIGNATURE} = 9e99; # Give it a very recent time to 
+				# force rebuilding of everything that depends 
+				# on it even if -m target_newer is in effect.
+	      }
+	    }
 	  }
-	  $tinfo->{BUILD_HANDLE} = undef;
+	  $tinfo->{BUILD_HANDLE} = undef unless $is_recursive_make;
 				# No need to keep the handle around since
 				# the build was successful.  Just leave a
 				# flag that we tried to build.
@@ -365,17 +432,6 @@ sub build {
 	  unless ref($rule) eq 'DefaultRule';
 				# Don't count targets for which there was no rule.
 	FileInfo::update_build_infos(); # Flush the build info to disk.
-
-#
-# The following works, but seems to cause perl to segfault occasionally for
-# reasons I don't understand.
-#
-#	foreach my $tinfo (@$all_targets) {
-#	  delete $tinfo->{BUILD_INFO}; # Flush out the build information.
-				# It's been written to disk, and it's in the
-				# file system cache if we need it again.  This
-				# can take a lot of memory.
-#	}	
 
 	$rule = undef;		# Don't keep a reference to the rule around.
 				# Hopefully this will break the circular
@@ -482,104 +538,21 @@ based entirely on the extension of the file.
 =cut
 
 sub is_cpp_source_name {
-  return $_[0] =~ /\.(?:c|h|cc|hh|hxx|cxx|hpp|cpp|h\+\+|c\+\+|moc|x[bp]m)$/i;
-}
-
-=head2 load_repository
-
-  load_repository($dir, $destdir);
-
-For every file in the repository directory, this sets up a build command for a
-corresponding file in the destination directory.  If the file isn't available
-in the destination directory, then when it is needed, makepp will check
-whether it is in the repository or not.  If so, a soft link is temporarily
-made in the destination directory to the repository directory.
-
-=cut
-
-#
-# Because automake/autoconfig is so #@%!(#%&!)#$&(^)$(^&!( hacked up, there
-# doesn't seem to be any way to support repositories without simply putting
-# the files in automatically.  Automake simply does not properly list
-# dependencies in the makefile, and there's no way around it except to
-# list special cases.  These are the files that automake/autoconf appear
-# to need that might not be correctly linked in based on instructions in
-# the makefile.
-#
-
-foreach (qw(Makefile.in Makefile.am acconfig.h acinclude.m4 aclocal.m4
-config.h config.h.in config.status configure configure.in configure.files
-libtool stamp-h stamp-h.in install.sh install-sh missing mkinstalldirs)) {
-
-  $automake_garbage{$_} = 1;
-}
-
-sub load_repository {
-  my ($dirinfo, $destdirinfo) = @_; # Name the arguments.
-
-  if ($traditional_recursive_make) {
-    print_error("warning: repositories are ignored by make subprocesses when --traditional-recursive-make is in effect");
-  }	
-
-  local $Glob::allow_dot_files = 1; # Temporarily allow dot files, because
-				# we need to look into .libs directories
-				# for libtool support.
-#
-# Scan the directory.  For speed reasons, this depends on some internals of
-# the FileInfo package.
-#
-  $dirinfo->{READDIR} or $dirinfo->read_directory;
-				# Load all the files in the directory.
-  $dirinfo->{IS_REPOSITORY} = 1; # Mark this directory as a repository, so we
-				# can give a warning message if user tries to
-				# change anything in it.
-
-  my @subdirs = Glob::find_real_subdirs($dirinfo);
-				# Find out what its subdirectories are.  Note
-				# that this will also mark them as directories
-				# by at least making a DIRCONTENTS entry.
-				# (See FileInfo::mark_as_directory.)
-  my $using_autoconf = exists $dirinfo->{DIRCONTENTS}{"Makefile.in"};
-				# True if we're using autoconf.  This means
-				# we have to copy a lot of other garbage that
-				# wasn't explicitly requested.
-
-  foreach (values %{$dirinfo->{DIRCONTENTS}}) {
-    next if $_->{DIRCONTENTS};	# Do not link directories to directories in the
-				# repository; directories need to be created.
-    my $dest_finfo = file_info($_->{NAME}, $destdirinfo);
-				# Where the file will be linked to.
-    if ($using_autoconf && $automake_garbage{$_->{NAME}} || # Is this automake's crap?
-	$_->{".."}{NAME} eq "admin" && exists $_->{".."}{".."}{DIRCONTENTS}{"Makefile.in"}) {
-				# Admin directory contains a number of vital
-				# files.
-      unless ($dest_finfo->file_exists) { # Link it in if it's not already there.
-	$dest_finfo->{".."}->mkdir; # Make the destination directory.
-	$dest_finfo->symlink($_); # Add the symbolic link.
-	$dest_finfo->may_have_changed; # File exists now.
-      }
-    }
-    else {
-      push @{$dest_finfo->{ALTERNATE_VERSIONS}}, $_;
-				# Mark this as a possible source.
-    }
-    $dest_finfo->publish;	# This thing exists now, so wildcards can match
-				# it.
-  }
-
-  foreach (@subdirs) {		# Now apply this recursively to all subdirectories.
-    load_repository($_, file_info($_->{NAME}, $destdirinfo));
-  }
+  return $_[0] =~ /\.(?:[ch]|cc|hh|[ch]xx|[ch]pp|[ch]\+\+|moc|x[bp]m)$/i;
 }
 
 =head2 parse_command_line
 
-  parse_command_line(@ARGV);
+  parse_command_line(@ARGV, \%environment_hash);
 
 Parses and executes the given command line.  Loads whatever makefiles are
 necessary and builds the appropriate targets, or at least starts off the
 build.  (It doesn't wait until the build is finished.)  Returns a list of
 build handles.
+
+The environment must be provided as a reference to a hash.  Any rules which
+are executed have the environment set to this value before the shell is
+invoked.
 
 This parser only accepts options which are valid during recursive makes or
 from the load_makefile command.  There are other options which are handled
@@ -592,8 +565,12 @@ for executing the command.
 sub parse_command_line {
   local $_;			# Don't mess up caller's $_.
 
+  my $this_ENV = pop @_;	# Last argument is the environment hash.
   my @targets;			# Targets we need to make.
   my @makefiles;
+  my (@include_path) = @makepp_include_path;
+				# Make a copy of the include path so we can
+				# add to it.
   
 #
 # First go through and pull out any command line variable settings.  These
@@ -601,14 +578,16 @@ sub parse_command_line {
 # command line.
 #
   my %command_line_vars;	# Variables specified on the command line.
-  foreach (@_) {
-    /^(\w+)=(.*)/ and $command_line_vars{$1} = $2;
-  }
 
   while (defined($_ = shift @_)) { # Get the next option.
-    if (/^-f$/ || /^-(?:make)?file(?:=(.*))?$/) {
+    if (/^([\w\.\-]+)=(.*)$/) {	# Command line variable setting?
+      $command_line_vars{$1} = $2;
+    }
+    elsif (/^-f$/ || /^-(?:make)?file(?:=(.*))?$/) {
 				# Load a makefile without changing directory?
-      push @makefiles, &Makefile::load($1 || shift(@_) || die("no makefile specified after -f\n"), $FileInfo::CWD_INFO, \%command_line_vars);
+      my $mfile = file_info($1 || shift(@_) || die "no makefile specified after -f\n");
+      push @makefiles, [$mfile, $FileInfo::CWD_INFO]; # Load makefile later
+				# when we can specify MAKECMDGOALS.
     }
     elsif (/^-F(.*)$/ || /^--makeppfile(?:=(.*))?$/) {
       my $mfile = file_info($1 || shift(@_) || die("no makefile specified after -F\n")); # Get info on the file.
@@ -616,11 +595,20 @@ sub parse_command_line {
       $mfile->is_or_will_be_dir or $mdir = $mfile->{".."};
 				# Default directory is the directory the
 				# makefile is in.
-      push @makefiles, &Makefile::load($mfile, $mdir, \%command_line_vars);
-				# Load the makefile.
+      push @makefiles, [$mfile, $mdir];	# Load the makefile later.
+      $mdir->is_dir or $mdir->mkdir; # Make sure the directory exists, so we
+				# can cd into it.
+      chdir $mdir;		# Switch to the specified directory.
     }
     elsif (/^-C$/ || /^--directory(?:=(.*))?$/) {
-      chdir($1 || shift @_ || die "no directory specified after -C\n");
+      my $mdir = file_info($1 || shift(@_) || die "no directory specified after -C\n");
+      $mdir->is_dir or $mdir->mkdir; # Make sure the directory exists.
+      chdir($mdir);		# Switch to that directory.
+    }
+
+    elsif (/^-I(.*)$/) {	# Specify more directories for the include
+				# path?
+      unshift(@include_path, file_info($1 || shift(@_)));
     }
 
     elsif (/^-R$/ || /^--repository(?:=(.*))?$/) {
@@ -654,23 +642,31 @@ sub parse_command_line {
 # 1) If none, try to find one in the current directory.  
 # 2) If none, try all the directories containing targets.
 #
+  my $makecmdgoals = join(" ", map { $_->relative_filename } @targets);
+				# Format MAKECMDGOALS.
+
   unless (@makefiles) {		# Look in the current directory.
     my $finfo = Makefile::find_makefile_in($FileInfo::CWD_INFO);
-    $finfo and push @makefiles, Makefile::load($finfo, $FileInfo::CWD_INFO,
-					       \%command_line_vars);
+    $finfo and push @makefiles, [$finfo, $FileInfo::CWD_INFO];
   }
 
   unless (@makefiles) {
     foreach my $target (@targets) {
       my $finfo = Makefile::find_makefile_in($target->{".."});
       if ($finfo) {		# Did we find one in this directory?
-	push @makefiles, Makefile::load($finfo, $target->{".."},
-					\%command_line_vars);
+	push @makefiles, [ $finfo, $finfo->{".."} ];
       }
     }
   }
 
-  @makefiles or die "no makefile found in directory " . $FileInfo::CWD_INFO->absolute_filename . "\n";
+  @makefiles or push @makefiles, [ $FileInfo::CWD_INFO, $FileInfo::CWD_INFO ];
+				# Load the default makefile if we still haven't
+				# found one.
+  foreach (@makefiles) {
+    $_ = Makefile::load($_->[0], $_->[1], \%command_line_vars, $makecmdgoals, 
+			\@include_path, $this_ENV); # Load all the makefiles, and store
+				# the makeinfo structure back in @makefiles.
+  }
 
   my @handles;
   unless (@targets) {		# No targets specified?
@@ -706,7 +702,7 @@ be printing to the log file.
 sub print_log {
   $log_level or return;
 
-  print LOG_FILE "$MakeEvent::fork_level: ", " " x $indent_level, @_, "\n";
+  print LOG_FILE " " x $indent_level, @_, "\n";
 }
 
 =head2 print_error
@@ -731,88 +727,6 @@ sub print_error {
     }
   }
 }
-
-#
-# Set up our socket for listening to recursive make requests.  We don't do
-# this unless we actually detect the use of the $(MAKE) variable.
-#
-sub setup_recursive_make_socket {
-  return if $recursive_make_socket_name; # Don't do anything if we've already
-				# made the socket.
-  $recursive_make_socket_name = "/tmp/makepp.$$";
-				# Name of socket for listening to recursive
-				# make requests.
-  $ENV{'MAKEPP_SOCKET'} = $recursive_make_socket_name;
-				# Pass the socket name to all commands we
-				# execute.
-  $recursive_make_socket =
-    IO::Socket::UNIX->new(Local => $recursive_make_socket_name,
-			  Type => SOCK_STREAM,
-			  Listen => 2);
-				# Make the socket.
-  $recursive_make_socket or
-    die "$progname: can't create socket $recursive_make_socket_name\n";
-  chmod(0600, $recursive_make_socket_name);
-				# Don't let other people access it.
-  read_wait $recursive_make_socket, \&recursive_make_connection;
-}
-
-#
-# Make sure the socket goes away at the end, so we don't clutter up /tmp.
-#
-END { $recursive_make_socket_name && # Did we make a socket?
-	$recursive_make_socket_name eq "/tmp/makepp.$$" and
-				# Is it our socket (and not our parent's)?
-	  unlink $recursive_make_socket_name; # Delete it.
-    }
-
-#
-# This subroutine is called whenever a connection is made to the recursive
-# make socket.
-#
-sub recursive_make_connection {
-  my $connected_socket = $_[0]->accept(); # Make the connection.
-  return unless $connected_socket; # Skip failed accepts.  I guess this might
-				# happen if the other process has already
-				# exited.
-  read_wait $connected_socket, \&recursive_make_command;
-  read_wait $_[0], \&recursive_make_connection;	# Requeue listening.
-}
-
-#
-# This subroutine is called whenever we get a line of text through our
-# recursive make socket.
-#
-sub recursive_make_command {
-  my $fh = $_[0];		# Access the file handle.
-  my $line;
-  if (sysread($fh, $line, 4096) == 0) {	# Try to read.
-    $fh->close;			# If we got 0 bytes, it means the other end
-				# closed the socket.
-    return;
-  }
-
-#  local $MakeEvent::exit_on_error = 0;
-				# We can't exit immediately on error,
-				# because it will hang waiting for the 
-				# recursive make process to finish.
-  MakeEvent::Process::adjust_max_processes(1); # Allow one more process to run
-				# simultaneously.
-  my @words = map { unquote($_) } split_on_whitespace($line);
-				# Access the words.
-  next unless @words;		# Something went wrong?
-  chdir shift @words;		# Go to the appropriate directory.
-  $status = wait_for(parse_command_line(@words)); #, # Build all the targets.
-  MakeEvent::Process::adjust_max_processes(-1); # Undo our increment above.
-
-#  print "Sending status " . ($status || 0) . " to recursive make\n";
-
-  print $fh ($status || "0") . "\n"; # Send the result to the recursive make
-				# process.
-
-  read_wait $fh, \&recursive_make_command; # Prepare to read another line.
-}
-
 
 ###############################################################################
 #
@@ -888,6 +802,12 @@ while (defined($_ = shift @ARGV)) { # Get the next argument.
   elsif (/^-q$/ || /^--quiet$/) {
     $quiet_flag = 1;
   }
+  elsif (/^--recursive_makepp$/) {
+				# This is a dummy option simply used to make
+				# recursive invocations easily identifiable by
+				# searching the action string.  It does 
+				# nothing.
+  }
   elsif (/^-R/) {		# We need to pass the second argument
 				# unmodified to -R, even if it looks like
 				# a variable assignment.
@@ -929,7 +849,7 @@ END {
     print "$progname: Leaving directory `" . $Rule::last_build_cwd->absolute_filename. "'\n";
 }
 
-my @handles = eval { parse_command_line(@other_args); };
+my @handles = eval { parse_command_line(@other_args, \%global_ENV); };
 				# Now parse the rest of the command line,
 				# and handle the targets.
 
@@ -953,6 +873,184 @@ print_log "$n_files_changed files updated";
 $n_files_changed || $error_found or print "$progname: no update necessary\n";
 
 exit 0;				# No errors.
+
+#__END__
+###############################################################################
+#
+# Autoloaded subroutines below this point:
+# (Currently, autoloading is turned off because it is unaccountably flaky.
+# I have no idea what the problem is.)
+#
+
+#
+#  load_repository($dir, $destdir); 
+#
+# For every file in the repository directory, this sets up a build command for
+# a corresponding file in the destination directory.  If the file isn't
+# available in the destination directory, then when it is needed, makepp will
+# check whether it is in the repository or not.  If so, a soft link is
+# temporarily made in the destination directory to the repository directory.
+#
+sub load_repository {
+  my ($dirinfo, $destdirinfo) = @_; # Name the arguments.
+
+  if ($traditional_recursive_make) {
+    print_error("warning: repositories are ignored by make subprocesses when --traditional-recursive-make is in effect");
+  }	
+
+  local $Glob::allow_dot_files = 1; # Temporarily allow dot files, because
+				# we need to look into .libs directories
+				# for libtool support.
+#
+# Scan the directory.  For speed reasons, this depends on some internals of
+# the FileInfo package.
+#
+  $dirinfo->{READDIR} or $dirinfo->read_directory;
+				# Load all the files in the directory.
+  $dirinfo->{IS_REPOSITORY} = 1; # Mark this directory as a repository, so we
+				# can give a warning message if user tries to
+				# change anything in it.
+
+  my @subdirs = Glob::find_real_subdirs($dirinfo);
+				# Find out what its subdirectories are.  Note
+				# that this will also mark them as directories
+				# by at least making a DIRCONTENTS entry.
+				# (See FileInfo::mark_as_directory.)
+  my $using_autoconf = exists $dirinfo->{DIRCONTENTS}{"Makefile.in"};
+				# True if we're using autoconf.  This means
+				# we have to copy a lot of other garbage that
+				# wasn't explicitly requested.
+
+  foreach (values %{$dirinfo->{DIRCONTENTS}}) {
+    next if $_->{DIRCONTENTS};	# Do not link directories to directories in the
+				# repository; directories need to be created.
+    my $dest_finfo = file_info($_->{NAME}, $destdirinfo);
+				# Where the file will be linked to.
+    if ($using_autoconf && $automake_garbage{$_->{NAME}} || # Is this automake's crap?
+	$_->{".."}{NAME} eq "admin" && exists $_->{".."}{".."}{DIRCONTENTS}{"Makefile.in"}) {
+				# Admin directory contains a number of vital
+				# files.
+      unless ($dest_finfo->file_exists) { # Link it in if it's not already there.
+	$dest_finfo->{".."}->mkdir; # Make the destination directory.
+	$dest_finfo->symlink($_); # Add the symbolic link.
+	$dest_finfo->may_have_changed; # File exists now.
+      }
+    }
+    else {
+      push @{$dest_finfo->{ALTERNATE_VERSIONS}}, $_;
+				# Mark this as a possible source.
+    }
+    $dest_finfo->publish;	# This thing exists now, so wildcards can match
+				# it.
+  }
+
+  foreach (@subdirs) {		# Now apply this recursively to all subdirectories.
+    load_repository($_, file_info($_->{NAME}, $destdirinfo));
+  }
+}
+
+
+#
+# Set up our socket for listening to recursive make requests.  We don't do
+# this unless we actually detect the use of the $(MAKE) variable.
+#
+sub setup_recursive_make_socket {
+  return if $recursive_make_socket_name; # Don't do anything if we've already
+				# made the socket.
+  use IO::Socket;		# Since this routine is autoloaded, IO::Socket
+				# won't be loaded until we are.
+#
+# Make sure the socket goes away at the end, so we don't clutter up /tmp.
+#
+  END { $recursive_make_socket_name && # Did we make a socket?
+	  $recursive_make_socket_name eq "/tmp/makepp.$$" and
+				# Is it our socket (and not our parent's)?
+	    unlink $recursive_make_socket_name; # Delete it.
+      };
+
+  $recursive_make_socket_name = "/tmp/makepp.$$";
+				# Name of socket for listening to recursive
+				# make requests.  This is exported to the
+				# environment by Rule::execute.
+
+  $recursive_make_socket =
+    IO::Socket::UNIX->new(Local => $recursive_make_socket_name,
+			  Type => SOCK_STREAM,
+			  Listen => 2);
+				# Make the socket.
+  $recursive_make_socket or
+    die "$progname: can't create socket $recursive_make_socket_name\n";
+  chmod(0600, $recursive_make_socket_name);
+				# Don't let other people access it.
+  read_wait $recursive_make_socket, \&recursive_make_connection;
+}
+
+
+#
+# This subroutine is called whenever a connection is made to the recursive
+# make socket.
+#
+sub recursive_make_connection {
+  my $connected_socket = $_[0]->accept(); # Make the connection.
+  return unless $connected_socket; # Skip failed accepts.  I guess this might
+				# happen if the other process has already
+				# exited.
+#
+# Set up a few data items about this stream.  These will be passed thruogh
+# the closure to the actual read routine.
+#
+  my $whole_command = '';	# Where we accumulate the whole command
+				# from the recursive make process.
+  my $read_sub;
+  $read_sub = sub {
+#
+# This subroutine is called whenever we get a line of text through our
+# recursive make socket.
+    my $fh = $_[0];		# Access the file handle.
+    my $line;
+    if (sysread($fh, $line, 8192) == 0) {	# Try to read.
+      $fh->close;		# If we got 0 bytes, it means the other end
+				# closed the socket.
+      return;
+    }
+    $whole_command .= $line;	# Append the line.
+    if ($whole_command =~ s/^(.*)\01END\01//s) {
+				# Do we have the whole command
+				# now?
+      my @lines = split(/\n/, $1); # Access each of the pieces.
+      my @words = map { unquote($_) } split_on_whitespace(shift @lines);
+				# First one is the set of arguments to
+				# parse_command.
+      my %this_ENV;		# Remaining lines are environment variables.
+      foreach (@lines) {
+	if (s/^([^=]+)=(.*)$//) { # Correct format?
+	  $this_ENV{$1} = unquote($2); # Store it.
+	}
+	else {
+	  die "illegal command received from recursive make process:\n$_\n";
+	}	
+      }
+#
+# We've now got all of the environment and command words.  Start executing
+# them.
+#
+      chdir shift @words;	# Move to the appropriate directory.
+      MakeEvent::Process::adjust_max_processes(1); # Allow one more process to 
+				# run simultaneously.
+      $status = wait_for(parse_command_line(@words, \%this_ENV));
+				# Build all the targets.
+      MakeEvent::Process::adjust_max_processes(-1); # Undo our increment above.
+      print $fh ($status || "0") . "\n"; 
+				# Send the result to the recursive make
+				# process.
+    }
+    
+    read_wait $fh, $read_sub; # Prepare to read another line.
+  };
+
+  read_wait $connected_socket, $read_sub; # Start the initial read.
+  read_wait $_[0], \&recursive_make_connection;	# Requeue listening.
+}
 
 #
 # Print out a summary of usage:
@@ -990,7 +1088,8 @@ Valid options include:
 	Sets the default signature method for any rules which don't specify
 	a signature method.  At present, the possible values are target_newer
 	(the method that traditional make uses) and exact_match (the default
-        for makepp).
+        for makepp), md5 (checksumming the file contents), and
+	c_compilation_md5 (the default method for C/C++ compilations).
 --nolog
 	Don't bother to write a log file.
 --noimplicit-load
@@ -1026,6 +1125,5 @@ Look at @htmldir@/index.html for more details.
 END_OF_USAGE
   
 }
-
 
 #SDG

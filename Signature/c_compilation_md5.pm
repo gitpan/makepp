@@ -53,8 +53,8 @@ sub md5sum_c_tokens {
 
   local *INFILE;		# Make a local file handle.
 
-  $main::warn_level and
-    print "Computing MD5 sum of $fname\n";
+#  $main::warn_level and
+#    print "Computing commentless MD5 sum of $fname\n";
 
   if (open(INFILE, $fname)) {	# File exists?
     local $/ = undef;		# Slurp in the whole file at once.

@@ -32,8 +32,9 @@
 </pre>
 
     <p>(This assumes that you have the variables <code>CC</code>,
-      <code>CFLAGS</code>, and <code>INCLUDES</code> defined to be
-      something suitable.)</p>
+    <code>CFLAGS</code>, and <code>INCLUDES</code> defined to be
+    something suitable.  <i>Makepp</i> will guess a value for
+    <code>CC</code> and <code>CFLAGS</code>.)</p>
 
     <p>The first line of the rule says that it applies to every possible
     input file that matches the pattern <code>%.c</code>.  These
@@ -145,8 +146,17 @@ time_critical_subs.o: time_critical_subs.cpp
     isn't expressed easily using the <code>%</code> wildcard,
     <i>makepp</i> has another syntax which is somewhat harder to read,
     but considerably more powerful.  See the <a
-    href="syntax_makefile.html#foreach_rules">:foreach</code> clause for
+    href="syntax_makefile.html#foreach_rules">:foreach</code></a> clause for
     more details.</p>
+
+    <br>
+
+    <p><i>Makepp</i> actually has <a href="builtin.html">builtin
+    rules</a> for compiling C or C++ or Fortran code, which are
+    available if you don't override them with your own rules.  The
+    builtin rules are almost identical to the examples above.  Most
+    makefiles contain pattern rules for compilation, but you can depend
+    on the builtin rules if you want.</p>
 
     <hr>
     <a href="t_index.html">Tutorial index</a>
@@ -157,7 +167,7 @@ time_critical_subs.o: time_critical_subs.cpp
     <br>
 <!-- Created: Sat Aug 19 19:41:10 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Fri Aug 25 22:18:39 PDT 2000
+Last modified: Tue Dec 26 19:34:43 PST 2000
 <!-- hhmts end -->
   </body>
 </html>

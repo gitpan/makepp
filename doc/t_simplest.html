@@ -36,7 +36,7 @@ c++ processing.cxx gui.cxx -o my_program
     <p>When you omit the <code>-c</code> option to the compiler, it
     combines the compilation and linking step.  This is often quite
     convenient when you are not writing a makefile.  However, it's not a
-    good idea to use this in a makefile, because it always recompiles
+    good idea to do this in a makefile, because it always recompiles
     both modules even if one of them hasn't changed, and this can take a
     significant amount of extra time.)</p>
 
@@ -66,7 +66,7 @@ output_filenames : input_filenames
     <i>targets</i>, and the input files are also called
     <i>dependencies</i>; one says that the target file(s) depends on the
     dependencies, because if any of the dependencies change, the target
-    must be rebuilt.
+    must be rebuilt.</p>
 
     <p>The remaining lines of the rule (the "actions") are shell
     commands to be executed.  Each action must be indented with at least
@@ -153,11 +153,9 @@ gui.o: gui.cxx
     your build is correct, according to the commands in the makefile.
     If you go and modify the file yourself, then <i>makepp</i> can't
     guarantee that the modified file is actually correct, so it insists
-    on rebuilding.</p>
-
-    <p>(For more information on how <i>makepp</i> decides whether to
-    rebuild, and how you can control this, see the section in the
-    reference manual on <a href="signature_checking.html">signature
+    on rebuilding.  (For more information on how <i>makepp</i> decides
+    whether to rebuild, and how you can control this, see the section in
+    the reference manual on <a href="signature_checking.html">signature
     checking</a>.)</p>
 
     <p>Now <code>processing.o</code> might not depend only on
@@ -168,6 +166,7 @@ gui.o: gui.cxx
       modify the rule like this:</p>
 
 <pre>
+# Unnecessary listing of .h files
 processing.o: processing.cxx processing.h simple_vector.h list.h
 	c++ -c processing.cxx -o processing.o
 </pre>
@@ -176,7 +175,7 @@ processing.o: processing.cxx processing.h simple_vector.h list.h
     you change the list of files that are included, and it is also
     extremely error prone.  You would not only have to list the files
     that <code>processing.cxx</code> includes, but also all the files
-    that those files include, etc.  You don't have to do this.
+    that those files include, etc.  <b>You don't have to do this.</b>
     <i>Makepp</i> is smart enough to check for include files
     automatically.  Any time it sees a command that looks like a C or
     C++ compilation (by looking at the first word of the action), it
@@ -196,18 +195,18 @@ processing.o: processing.cxx processing.h simple_vector.h list.h
 
     <p>The above makefile will work, but even for this simple problem,
     an experienced user is not likely to write his makefile this way.
-    Several improvements are discussed in the next several pages.</p>
+    Several improvements are discussed in the next pages.</p>
 
     <hr>
     <a href="t_index.html">Tutorial index</a>
     |
     <a href="t_variables.html">Next (using variables)</a>
     |
-    <a href="t_whatsin.html">Previous (what's in a makefile)</a>
+    <a href="t_unix_compilation.html">Previous (unix compilation commands)</a>
     <br>
 <!-- Created: Sat Aug 19 18:53:13 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Thu Nov  2 15:55:52 PST 2000
+Last modified: Wed Dec 27 13:11:16 PST 2000
 <!-- hhmts end -->
   </body>
 </html>

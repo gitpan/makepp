@@ -47,7 +47,7 @@ $Makefile::global_command_line_vars = undef;
 #
 # Targets that we ignore:
 #
-foreach (qw(.SUFFIXES .DEFAULT .PRECIOUS .INTERMEDIATE .SECONDARY
+foreach (qw(.DEFAULT .PRECIOUS .INTERMEDIATE .SECONDARY
 	    .DELETE_ON_ERROR .IGNORE .SILENT .EXPORT_ALL_VARIABLES 
 	    .NOEXPORT .POSIX)) {
   $Makefile::ignored_targets{$_} = 1;
@@ -119,16 +119,21 @@ sub expand_text {
 	&TextSubs::skip_over_make_expression; # Find the end of it.
 	my $newpos = pos($_);	# For some obscure reason, the following
 				# messes up pos($_).
-	my $expr = $self->expand_text(substr($_, $oldpos, $newpos-$oldpos),
-				      $makefile_line);
-				# Get the string to expand, and expand any
-				# nested make expressions.
+	my $expr = substr($_, $oldpos, $newpos-$oldpos);
+				# Get the expression to expand.
 	if ($expr =~ s/^\(//) {
 	  $expr =~ s/\)$//;
 	}			# Strip off the surrounding
 	elsif ($expr =~ s/^\{//) {
 	  $expr =~ s/\}$//;
 	}			# braces or parentheses.
+
+	if ($expr !~ /^\s*(?:if|foreach)\b/) { # Not one of the special
+				# expressions that can't be expanded
+				# immediately?
+	  $expr = $self->expand_text($expr, $makefile_line);
+				# Expand any nested make expressions.
+	}
 	
 	my @exp_words = split_on_whitespace($self->expand_expression($expr, $makefile_line));
 	
@@ -175,16 +180,22 @@ sub expand_text {
 	&TextSubs::skip_over_make_expression; # Find the end of it.
 	my $newpos = pos($_);	# For some obscure reason, the following
 				# messes up pos($_).
-	my $expr = $self->expand_text(substr($_, $oldpos, $newpos-$oldpos),
-				      $makefile_line);
-				# Get the string to expand, and expand any
-				# nested make expressions.
+	my $expr = substr($_, $oldpos, $newpos-$oldpos);
+				# Get the expression.
+
 	if ($expr =~ s/^\(//) {
 	  $expr =~ s/\)$//;
 	}			# Strip off the surrounding
 	elsif ($expr =~ s/^\{//) {
 	  $expr =~ s/\}$//;
 	}			# braces or parentheses.
+
+	if ($expr !~ /^\s*(?:if|foreach)\b/) { # Not one of the special
+				# expressions that can't be expanded
+				# immediately?
+	  $expr = $self->expand_text($expr, $makefile_line);
+				# Expand any nested make expressions.
+	}
 
 	$ret_str .= $self->expand_expression($expr, $makefile_line);
 				# Do the expansion.
@@ -220,8 +231,18 @@ sub expand_expression {
 				# makefile.
     my ($rtn, $rest_of_line) = ($1, $2);
     $rtn =~ s/-/_/g;		# Convert - into _ so it's more perl friendly.
-    $result = eval { local $_;	# Prevent really strange head-scratching errors.
-		     &{$self->{PACKAGE} . "::f_$rtn"}($rest_of_line, $self, $makefile_line); };
+    $rtn =~ s/\./_dot_/g;
+    my $code = *{$self->{PACKAGE} . "::f_$rtn"}{CODE};
+				# See if it's a known function.
+    if ($code) {
+      $result = eval {		# Evaluate the function.
+	local $_;		# Prevent really strange head-scratching errors.
+	&$code($rest_of_line, $self, $makefile_line); 
+      };
+    } else {
+      die "$makefile_line: unknown function $rtn\n";
+    }
+
 				# Call the function.
     $@ and die "$makefile_line: error expanding \"$expr\":\n$@\n";
   }
@@ -253,8 +274,12 @@ sub expand_expression {
 
       $result = $self->{COMMAND_LINE_VARS}{$expr};
 				# Try to get it from the command line.
+      $result and $result = $self->expand_text($result, $makefile_line);
+				# Evidently GNU make expands the variables
+				# after fetching them from the command line.
+				# gcc 2.95.2's build procedure depends on this.
       !defined($result) && $main::environment_override and
-	$result = $ENV{$expr};
+	$result = $self->{ENVIRONMENT}{$expr};
 				# Get from environment if that's supposed to
 				# override what's in the makefile.
 				# (Don't use ||= since that will wipe out
@@ -267,7 +292,7 @@ sub expand_expression {
 				# expand the variable's text.
       }
       !defined($result) && !$main::environment_override and
-	$result = $ENV{$expr};
+	$result = $self->{ENVIRONMENT}{$expr};
 				# Get from environment if we didn't already
 				# try to do that.
 #
@@ -275,13 +300,14 @@ sub expand_expression {
 # there are any such functions.
 #
       if (!defined($result)) {	# No result yet?
-	my $rtn = $self->{PACKAGE} . "::f_$expr"; # The name of the routine.
-	if (defined(*{$rtn}{CODE})) { # Defined in the makefile?
-	  $perl_vname =~ s/-/_/g; # Convert - to _ so it's more perl friendly.
-	  eval { local $_; $result = &{$rtn}('', $self, $makefile_line); };
-				# Call the function.
-				# Protect $_ so a careless function writer
-				# won't have headscratching errors.
+	$perl_vname = $self->{PACKAGE} . "::f_$expr"; # Name of the function.
+	$perl_vname =~ s/-/_/g;	# Convert - to _ so it's more perl friendly.
+	$perl_vname =~ s/\./_dot_/g;
+	if (defined(*{$perl_vname}{CODE})) { # Defined in the makefile?
+	  eval { 
+	    local $_;		# Causes very weird errors if $_ is messed up.
+	    $result = &{$perl_vname}('', $self, $makefile_line); 
+	  };
 	  $@ and die "$makefile_line: $@\n"; # Forward any errors after tagging
 				# them with the line.
 	}
@@ -328,7 +354,7 @@ sub implicitly_load {
 
   my $dirinfo = $_[0];
 
-  exists($dirinfo->{ALREADY_LOADED}) and return;
+  exists($dirinfo->{MAKEINFO}) and return;
 				# Already tried to load something.
   $dirinfo->{ALTERNATE_VERSIONS} ||
     $dirinfo->is_writable or
@@ -338,9 +364,12 @@ sub implicitly_load {
 				# we're going to create them.)
 
   eval { Makefile::load($dirinfo, $dirinfo,
-			$Makefile::global_command_line_vars); };
+			$Makefile::global_command_line_vars,
+			"",
+			\@main::makepp_include_path,
+			\%main::global_ENV); };
 				# Try to load the makefile.
-  $dirinfo->{ALREADY_LOADED} ||= undef;
+  $dirinfo->{MAKEINFO} ||= undef;
 				# Remember that we tried to load something,
 				# even if we failed.
   if ($@ &&			# Some error?
@@ -349,7 +378,7 @@ sub implicitly_load {
   }
 }
 
-=head2 load("makefile", $default_dir, $command_line_vars)
+=head2 load("makefile", $default_dir, $command_line_vars, $makecmdgoals, $include_path, $environment)
 
 Makes a new makefile object.  The argument is the makefile to load, or else
 a directory that may contain the makefile.  Exits with die if no such
@@ -365,6 +394,14 @@ makefile; it returns the old makefile object.
 $command_line_vars is a reference to a hash containing the names and values of
 all variables which were specified on the command line.
 
+$makecmdgoals is the value of $(MAKECMDGOALS) for this makefile.
+
+include_path is an array of FileInfo structures for directories that the
+include statement should search.
+
+$environment is a hash containing the environment for this particular
+makefile.
+
 If there is a target in the Makefile for the Makefile itself, the makefile is
 remade and then reread.  Makefile::load does not return until the makefile
 has been rebuilt.
@@ -374,8 +411,21 @@ has been rebuilt.
 sub load {
   my $minfo = &file_info;	# Get the FileInfo struct for the
 				# makefile.
-  my $mdinfo = $_[1];		# Get the directory, if specified.
-  my $command_line_vars = $_[2]; # Get any extra command line variables.
+  my ($mdinfo, $command_line_vars, $makecmdgoals, $include_path, $env) =
+    @_[1..5];			# Name the other arguments.
+  my %this_ENV = %$env;		# Make a modifiable copy of the environment.
+  delete $this_ENV{'MAKEPP_SOCKET'}; # Get rid of our special variables.
+				# (This gets put back into the environment
+				# later by Rule::execute, but we don't want
+				# it here when we're making comparisons.)
+  delete $this_ENV{'SHLVL'};	# This variable gets incremented by the
+				# shell and can cause unnecessary makefile
+				# reloads.
+  delete $this_ENV{'OLDPWD'};	# Another variable that can cause unnecessary
+				# reloads.
+  delete $this_ENV{'_'};	# Don't know what this one does, but it too
+				# seems to cause problems.
+
   $Makefile::global_command_line_vars ||= $command_line_vars;
 				# If these are the top level variables,
 				# remember them in case we have to load
@@ -384,68 +434,109 @@ sub load {
   if ($minfo->is_or_will_be_dir) { # Is this a directory rather than a file?
     $mdinfo ||= $minfo;		# Save pointer to the directory.
     $mdinfo = $mdinfo->dereference; # Resolve a soft link on the directory.
-    $mdinfo->{ALREADY_LOADED} ||= undef; # Indicate that we're trying to load a
+    $mdinfo->{MAKEINFO} ||= undef; # Indicate that we're trying to load a
 				# makefile from this directory.
 				# This prevents recursion with implicitly
 				# loading a makefile.
     my $makefile_candidate = find_makefile_in($minfo);	# Find a makefile.
+#
+# If there's no makefile, then load the default makefile from that
+# directory.
+#
     $makefile_candidate or
-      die "can't find a makefile in directory " . $minfo->absolute_filename . "\n";
+      $makefile_candidate = file_info("$main::datadir/makepp_default_makefile.mk");
+#    $makefile_candidate or
+#      die "can't find a makefile in directory " . $minfo->absolute_filename . "\n";
     $minfo = $makefile_candidate;
-  } else {
+  }
+  else {
     $mdinfo ||= $minfo->{".."};	# Default directory is what contains the makefile.
     $mdinfo = $mdinfo->dereference; # Resolve a soft link on the directory.
-    $mdinfo->{ALREADY_LOADED} ||= undef; # Indicate that we're trying to load a
+    $mdinfo->{MAKEINFO} ||= undef; # Indicate that we're trying to load a
 				# makefile from this directory.
+				# This prevents recursion with implicitly
+				# loading a makefile.
   }
 
-  if ($minfo->{ALREADY_LOADED}) { # Did we already read this makefile?
-#
-# Make sure we're loaded with exactly the same commands:
-#
-    $minfo->{ALREADY_LOADED}{CWD} != $mdinfo and
-      die "makefile " . $minfo->absolute_filename . " loaded with two different default directories:\n  " . $minfo->{ALREADY_LOADED}{CWD}->absolute_filename . "\n  " . $mdinfo->absolute_filename . "\n";
-
-#
-# Check the command line variable overrides:
-#
-    if (join("\01", %$command_line_vars) ne
-	join("\01", %{$minfo->{ALREADY_LOADED}{COMMAND_LINE_VARS}})) {
-      die "makefile " . $minfo->absolute_filename . " loaded with two different sets of
-  command line variables.  You may have invoked make recursively with two
-  different sets of command line variables.  If this is not a mistake, then
-  add --traditional-recursive-make to the command line.
-  Or, it may be that the makefile was implicitly loaded when it should not
-  have been.  In this case, add an explicit load_makefile statement with the
-  correct variable settings, or else disable implicit loading with the
-  --noimplicit-load option on the command line.\n";
-    }
-
-    return $minfo->{ALREADY_LOADED}; # Just reuse the old definition, and 
-				# do not reload.
-  }
-
-  
-
-  $mdinfo->{MAKEFILE} and
-    die "attempt to load two makefiles (" . $mdinfo->{MAKEFILE}->absolute_filename . " and " . $minfo->absolute_filename . ")
+  my $mpackage;
+  my $self;
+  if ($mdinfo->{MAKEINFO}) {	# Was there a previous makefile?
+    $self = $mdinfo->{MAKEINFO}; # Access the old structure.
+    my $var_changed;		# What actually changed to cause a reload.
+    if ($self->{MAKEFILE} == $minfo) {
+				# Attempt to reload the same makefile?
+				# If the variables and include path are the
+				# same, no need to reload.  Otherwise, we'll
+				# have to reload.
+      $var_changed = hash_neq($command_line_vars, $self->{COMMAND_LINE_VARS}) ||
+	hash_neq(\%this_ENV, $self->{ENVIRONMENT});
+				# Did any variables change?
+      unless ($var_changed) {
+	join(' ', @$include_path) eq join(' ', @{$self->{INCLUDE_PATH}}) or
+	  $var_changed = 'include path';
+      }
+      $var_changed or return $mdinfo->{MAKEINFO};
+				# No need to reload the makefile--just reuse
+				# what we've got.
+    }	
+    else {
+      die "attempt to load two makefiles (" . $mdinfo->{MAKEINFO}{MAKEFILE}->absolute_filename . " and " . $minfo->absolute_filename . ")
   with the same default directory.  This is not supported unless you add
   the --traditional-recursive-make option to the command line.\n";
 
+    }      
+#
+# We're reloading this makefile.  Clean out all the old definitions, and set
+# up a few variables:
+#
+    $self->{ENVIRONMENT} = \%this_ENV; # Store the new environment.
+    $self->{COMMAND_LINE_VARS} = $command_line_vars;
+    $self->{INCLUDE_PATH} = [ @$include_path ];
+    ++$self->{LOAD_IDX};	# Invalidate all the rules from the last time 
+				# we loaded this makefile.  (See code in
+				# FileInfo::set_rule.)
 
-  print "Loading makefile ", $minfo->name, "\n"
-    unless $main::quiet_flag;
-  $main::log_level and
-    main::print_log("Loading makefile ", $minfo->name,
-		    " with default directory ", $mdinfo->name);
+    $mpackage = $self->{PACKAGE};
+    foreach (keys %{$mpackage . "::"}) { delete $ {$mpackage . "::"}{$_}; }
+				# Wipe the whole package.
 
-  my $mpackage = "makefile_" . $Makefile::package_seed++;
+    my $msg = "Reloading makefile " . $minfo->name;
+    print "$msg\n" unless $main::quiet_flag;
+    $main::log_level and
+      main::print_log($msg, " (because of $var_changed) with default directory ", $mdinfo->name);
+  }
+  else {			# Loading a new makefile:
+    if ($minfo->{NAME} eq 'makepp_default_makefile.mk') {
+#    print "Loading default makefile for directory ", $mdinfo->name, "\n"
+#      unless $main::quiet_flag;
+      $main::log_level and
+	main::print_log("Loading default makefile for directory ", $mdinfo->name);
+    }
+    else {
+      my $msg = "Loading makefile " . $minfo->name;
+      print "$msg\n" unless $main::quiet_flag;
+      $main::log_level and
+	main::print_log($msg, " with default directory ", $mdinfo->name);
+    }
+
+    $mpackage = "makefile_" . $Makefile::package_seed++;
 				# Make a unique package to store variables and
 				# functions from this makefile.
 
+    $self = bless { MAKEFILE => $minfo,
+		    PACKAGE => $mpackage,
+		    CWD => $mdinfo,
+		    COMMAND_LINE_VARS => $command_line_vars,
+		    INCLUDE_PATH => [ @$include_path ],
+		    ENVIRONMENT => \%this_ENV,
+		    LOAD_IDX => 0 # First time this has been loaded.
+		  };
+				# Allocate our info structure.
+  }
+
 #
 # Export all subroutines from the Makesubs package into the given package, so 
-# the subroutines can be used directly.  This does not export data variables.
+# the subroutines can be used directly.
 #
   foreach my $makesub (keys %Makesubs::) {
     my $coderef = *{"Makesubs::$makesub"}{CODE}; # Is this a subroutine?
@@ -453,14 +544,10 @@ sub load {
   }
   *{$mpackage . "::rule"} = *Makesubs::rule;
 				# Also pass in the $rule symbol.
+  $ {$mpackage . "::MAKECMDGOALS"} = $makecmdgoals; # Set up the special
+				# MAKECMDGOALS variable.
 
-  my $self = bless { MAKEFILE => $minfo,
-		     PACKAGE => $mpackage,
-		     CWD => $mdinfo,
-		     COMMAND_LINE_VARS => $command_line_vars,
-		   };
-				# Allocate our info structure.
-  $minfo->{ALREADY_LOADED} = $self; # Don't try to load this file again.
+  $mdinfo->{MAKEINFO} = $self;	# Remember for later what the makefile is.
 
   %{$mpackage . "::scanners"} = %Makesubs::scanners;
 				# Make a copy of the scanners array (so we can
@@ -469,26 +556,18 @@ sub load {
   $ {$mpackage . "::makefile"} = $self;	# Tell the makefile subroutines
 				# about it.
 
-
 #
-# Now make sure the makefile itself is up to date.  This is actually fairly
-# difficult to do cleanly, because loading the makefile to see whether there
-# is a command to rebuild the makefile also pollutes the FileInfo hierarchy
-# with a bunch of rules that might not be valid any more, and there's no
-# really clean way to remove them.
-#
-# So we resort to an elegant hack, possible only on unix: we load the makefile
-# in a subprocess, rebuild the makefile if necessary, and then have the
-# parent process load the makefile.  This way, the parent's FileInfo hierarchy
-# doesn't contain any possible bogus rules.
-#
-# If this code gets ported to windows, well, we'll have to figure out 
-# something else.  Probably rerun the whole perl script as a subprocess.
+# We used to fork here, load the makefile once, rebuild the makefile if
+# necessary, and then finally load the makefile in the parent process.  This
+# avoids polluting the FileInfo hierarchy with old rules that don't exist in
+# the up-to-date makefile.  It's a bit slow, however, and since we now allow
+# makefiles to be reloaded and overwritten if the command line arguments or
+# environment variables change, it seemed unnecessarily conservative to allow
+# it to do it the old way.
 #
   wait_for main::build($minfo, 0); # Build the makefile, using what rules we
 				# know from outside the makefile.  This may
 				# also load it from a repository.
-
   delete $minfo->{BUILD_HANDLE}; # Get rid of the build handle, so we avoid
 				# the error message that we built the file
 				# before we saw the rule.
@@ -496,54 +575,52 @@ sub load {
   chdir $mdinfo;		# Get in the correct directory for wildcard
 				# action routines.
 
-  if ($main::remake_makefiles && # This often causes problems, so we provide
+#
+# Read in the makefile:
+#
+  if ($this_ENV{'MAKEFILES'}) {	# Supposed to pre-load some files?
+    foreach (split(' ', $this_ENV{'MAKEFILES'})) {
+      my $finfo = file_info($_, $mdinfo);
+      eval {$self->read_makefile($finfo); };
+      if ($@) {
+	main::print_error("warning: error reading ", $finfo->name, " (listed in \$MAKEFILES):\n$@");
+      }	
+    }
+  }
+  $self->read_makefile($minfo); # Read this makefile again.
+  $self->read_makefile(file_info("$main::datadir/makepp_builtin_rules.mk"))
+    unless $ {$mpackage . "::makepp_no_builtin"} ||
+      !$main::builtin_rules;
+
+#
+# Now see if the makefile is up to date.  If it's not, we just wipe it out
+# and reload.  This may leave some bogus rules lying around.  Oh well.
+#
+
+  if ($main::remake_makefiles) { # This often causes problems, so we provide
 				# a way of turning it off.
-      !$minfo->build_info_string("DOES_NOT_REMAKE_SELF")) {
-				# If we don't already know (from the last
-				# time we read this makefile) that it doesn't
-				# rebuild itself.
-    wait_for new MakeEvent::Process sub { # Execute in a child process:
-      $main::quiet_flag = 1;	# Don't print anything about loading makefiles,
-				# because we load them twice and that could
-				# be confusing.
-      $main::default_signature_method = $Signature::target_newer::target_newer;
+    my $old_n_files = $main::n_files_changed;
+    {
+      local $main::default_signature_method = $Signature::target_newer::target_newer;
 				# Use the target_newer technique for rebuilding
 				# makefiles, since makefiles are often modified
 				# by programs like configure which aren't
 				# under the control of make.
-      $main::rebuilding_makefile = 1;
-				# Remember that we're rebuilding the makefile.
-				# This marks all targets that are actually
-				# built, so that if we try to rebuild them
-				# later we also use the target_newer signature
-				# method.
-      $main::recursive_make_socket = undef;
-      $main::recursive_make_socket_name = undef;
-      delete $ENV{'MAKEPP_SOCKET'};
-				# We'll need a new recursive make socket.
-
-      $self->read_makefile($minfo);
-				# Read the makefile.
-      wait_for main::build($minfo, 0); # Try to rebuild the makefile.
-      $FileInfo::made_temporary_link = 0; # Don't delete files we've linked
-				# in from the repository.
-      exit 0;			# No error.
-    } and			# Something went wrong?
-      die "can't find or build " . $minfo->absolute_filename . "\n";
+      wait_for main::build($minfo) and # Try to rebuild the makefile.
+	die "can't find or build " . $minfo->absolute_filename . "\n";
+    }
+    if ($old_n_files != $main::n_files_changed) {
+				# Did we change anything?
+      $self->{ENVIRONMENT} = { I_rebuilt_it => "FORCE RELOAD"};
+				# Wipe out the environment, so we force a
+				# reload.
+      local $main::remake_makefiles = 0; # Don't try to keep on remaking the
+				# makefile.
+      return load(@_);		# Call ourselves with the same arguments to
+				# force rereading the makefile.
+    }
   }
 
-#
-# At this point, we have an up-to-date makefile.  Read it in:
-#
-  $self->read_makefile($minfo); # Read this makefile again.
-
-  $minfo->{BUILD_HANDLE} = undef; # Don't try to rebuild this makefile again.
-				# This can cause oodles of problems.  Often
-				# there are missing targets for commands that
-				# rebuild the makefile, and this causes lots of
-				# unnecessary rebuilds because a target changes
-				# on one rebuild but we don't notice it again
-				# until the next time around.
 #  print "Finished loading ", $minfo->name, "\n"
 #    unless $main::quiet_flag;
 
@@ -561,6 +638,8 @@ sub load {
       push @words, "--noimplicit-load";
     $main::log_level or
       push @words, "--nolog";
+    $main::rc_substitution or
+      push @words, "--norc-substitution";
     $main::percent_subdirs and
       push @words, "--percent-subdirs";
     $main::quiet_flag and
@@ -584,21 +663,72 @@ sub load {
     }	
   }
 
-
-#
-# Remember for later whether this makefile remakes itself, so that if it
-# doesn't, we don't have to bother checking when we load it.
-#
-  my $self_build_rule = $minfo->get_rule; # Does this makefile have a rule for
-				# building itself?
-  if ($self_build_rule && $self_build_rule->makefile == $self) {
-    $minfo->set_build_info_string("DOES_NOT_REMAKE_SELF", "0");
-  }
-  else {
-    $minfo->set_build_info_string("DOES_NOT_REMAKE_SELF", "1");
-  }
-
   return $self;
+}
+
+#
+# Parse a potential assignment statement.  Arguments:
+# a) The makefile.
+# b) The text of the assignment up to but not including the '='.  If it was
+#    a += assignment, this text will end with a '+', and similarly for
+#    := and ?= and !=.
+# c) The text of the assignment after the =.
+# d) The makefile line number (for error messages).
+#
+# Returns true if this is actually an assignment, false otherwise.
+#
+sub parse_assignment {
+  my ($self, $var_name, $var_value, $makefile_line) = @_;
+				# Name the arguments.
+  my $assignment_type = '';	# Assume it's just an ordinary =.
+  $var_name =~ s/([\+\:\?\!])$// and $assignment_type = $1;
+				# Pull off the character before the equals
+				# sign.
+  $var_name = $self->expand_text($var_name, $makefile_line);
+				# Make sure we can handle indirect assignments 
+				# like x$(var) = value.
+  $var_name =~ s/^\s+//;	# Strip leading whitespace.
+  $var_name =~ s/\s+$//;	# Strip trailing whitespace.
+  $var_name =~ /[\s:\#]/ and return undef; # More than one word on the LHS
+				# implies it's not an assignment.
+
+  $var_name eq "MAKE" && $main::warn_level and
+    main::print_error("warning: MAKE redefined at $makefile_line, recursive make won't work as expected");
+
+  my $mpackage = $self->{PACKAGE}; # Get the package name conveniently.
+
+  $var_value =~ s/^\s+//;	# Strip out leading whitespace.
+  $var_value =~ s/\s+$//;	# Strip out trailing whitespace.
+
+  if ($assignment_type eq '+') { # Append?
+    $ {$mpackage . "::$var_name"} .= ' ' . 
+      (exists($self->{VAR_REEXPAND}{$var_name}) ? $var_value : # Was it a regular =?
+       $self->expand_text($var_value, $makefile_line));
+				# Expand the RHS if it was set with := 
+				# previously.
+  }
+  elsif ($assignment_type eq ':') { # Immediate evaluation?
+    $ {$mpackage . "::$var_name"} = $self->expand_text($var_value, $makefile_line);
+    delete $self->{VAR_REEXPAND}{$var_name}; # Don't expand this text again.
+  }
+  elsif ($assignment_type eq '!') { # Run through shell to evaluate?
+    $ {$mpackage . "::$var_name"} = Makesubs::f_shell($self->expand_text($var_value, $makefile_line), $self, $makefile_line);
+  }
+  elsif ($assignment_type eq '?') { # Assign only if not defined?
+    if (!defined($ {$mpackage . "::$var_name"}) &&
+	!defined($self->{COMMAND_LINE_VARS}{$var_name}) &&
+	!defined($self->{ENVIRONMENT}{$var_name})) {
+      $ {$mpackage . "::$var_name"} = $var_value;
+      $self->{VAR_REEXPAND}{$var_name} = 1; # Reexpand when invoked.
+    }
+  }
+  else {			# Ordinary, vanilla assignment?
+    $ {$mpackage . "::$var_name"} = $var_value;
+    $self->{VAR_REEXPAND}{$var_name} = 1; # Remember to expand this variable's
+				# contents when it's invoked.
+  }
+
+  return $self;			# Return a true value.
 }
 
 #
@@ -613,6 +743,13 @@ sub load {
 sub parse_rule {
   my ($self, $makefile_line, $target_string, @after_colon) = @_;
 				# Name the arguments.
+
+  local $main::implicitly_load_makefiles = ($self->{RECURSIVE_MAKE} ? 0 :
+					    $main::implicitly_load_makefiles);
+				# Turn off implicit makefile loading if there
+				# is an invocation of recursive make in this
+				# file.  (This is not passed to the wildcard
+				# action routine.)
 
   $target_string =~ s/^(\s*)//;	# Strip out leading whitespace in the target.
   my $target_whitespace_len = whitespace_len($1);
@@ -704,7 +841,9 @@ sub parse_rule {
     if ($whitespace_len < 8 &&
 	($whitespace_len <= $target_whitespace_len ||
 	 defined($first_action_indent) && $whitespace_len < $first_action_indent ||
-	 $last_line_was_blank)) {
+	 $last_line_was_blank) ||
+	($whitespace_len >= 8 &&
+	 $whitespace_len <= $target_whitespace_len)) {
       $_ = $1 . $_;		# Put the whitespace back (in case it's the
 				# next target).
       last;			# We've found the end of this rule.
@@ -821,7 +960,7 @@ sub parse_rule {
 #
   if (index_ignoring_quotes($expanded_target_string, "%") >= 0) { # Pattern rule?
     index_ignoring_quotes($deps[0], "%") >= 0 or
-      die "$makefile_line: target has % wildcard but no dependencies.
+      die "$makefile_line: target has % wildcard but no % dependencies.
   This is currently not supported.\n";
 
     unless ($foreach) {		# No foreach explicitly specified?
@@ -861,6 +1000,11 @@ sub parse_rule {
 #
       my ($finfo, $was_wildcard_flag) = @_;
 				# Get the arguments.
+      local $main::implicitly_load_makefiles = ($self->{RECURSIVE_MAKE} ? 0 :
+						$main::implicitly_load_makefiles);
+				# Turn off implicit makefile loading if there
+				# is an invocation of recursive make in this
+				# file.  (This is not passed to the wildcard
 
       my $pattern_level = $was_wildcard_flag ?
 	($finfo->{PATTERN_LEVEL} || 0) + 1 : 0;
@@ -872,7 +1016,13 @@ sub parse_rule {
       my $rule = new Rule($target_string, $after_colon[0], $action, $self, $makefile_line);
 				# Make the rule.
       local $Makesubs::rule = $rule; # Put it so $(FOREACH) can properly expand.
+      $self->{DEFAULT_SIGNATURE_METHOD} and
+	$rule->set_signature_method_default($self->{DEFAULT_SIGNATURE_METHOD});
+				# Get the signature method from the signature
+				# statement.
       $signature and $rule->set_signature_method($signature);
+				# Override that with the method from the
+				# :signature clause, if any.
       $scanner and $rule->{ACTION_SCANNER} = $scanner;
       $rule->{FOREACH} = $finfo; # Remember what to expand $(FOREACH) as.
       $rule->{PATTERN_LEVEL} = $pattern_level if $was_wildcard_flag;
@@ -887,6 +1037,9 @@ sub parse_rule {
 	$tinfo->set_rule($rule); # Update its rule.  This will be ignored if
 				# it is overriding something we shouldn't
 				# override.
+	$tinfo->{PATTERN_LEVEL} = $pattern_level if $was_wildcard_flag;
+				# Remember the pattern level, so we can prevent
+				# infinite loops on patterns.
 	$was_wildcard_flag or	# If there was no wildcard involved, this is
 				# a candidate for the first target in the file.
 	  $self->{FIRST_TARGET} ||= $tinfo;
@@ -938,6 +1091,10 @@ sub parse_rule {
       foreach my $tstring (@target_exprs) {
 	my $rule = new Rule($tstring, $after_colon[0], $action, $self, $makefile_line);
       
+	$self->{DEFAULT_SIGNATURE_METHOD} and
+	  $rule->set_signature_method_default($self->{DEFAULT_SIGNATURE_METHOD});
+				# Get the signature method from the signature
+				# statement.
 	$signature and $rule->set_signature_method($signature);
 	$scanner and $rule->{ACTION_SCANNER} = $scanner;
 	foreach (split_on_whitespace($tstring)) {
@@ -956,12 +1113,22 @@ sub parse_rule {
       my @dependencies = map(main::find_makepp_info(unquote($_), $self->{CWD}),
 			     split_on_whitespace($self->expand_text($after_colon[0], $makefile_line)));
 
-      if (@targets == 1 and $targets[0] =~ /^\s*\.PHONY\s*$/) {
+      if (@targets == 1) {
+	if ($targets[0] =~ /^\s*\.PHONY\s*$/) {
 				# Mark other targets as phony?
-	foreach (@dependencies) {
-	  $_->{IS_PHONY} = 1; # Mark as phony.
+	  foreach (@dependencies) {
+	    $_->{IS_PHONY} = 1; # Mark as phony.
+	  }	
+	  return;
 	}	
-	return;
+	if ($targets[0] =~ /^\s*\.SUFFIXES\s*$/) {
+				# Control the default rules?
+	  if ($after_colon[0] !~ /\S/) { # Turn off all suffixes?
+	    $ {$self->{PACKAGE} . "::makepp_no_builtin"} = 1;
+				# Suppress loading of all builtin rules.
+	  }
+	  return;
+	}
       }
       foreach (@targets) {
 	my $tinfo = main::find_makepp_info(unquote($_), $self->{CWD});
@@ -996,10 +1163,26 @@ sub read_makefile {
 				# Get the name of the file (and pass this
 				# to all subroutines we call).
 
-  local $Makefile::makefile_fh = new IO::File $Makefile::makefile_name;
-				# Open up the file.  Using local makes this
-				# handle temporarily accessible to every
-				# subroutine we call.
+  local $Makefile::makefile_contents;
+  {
+    local $/ = undef;		# Read in the whole file with one slurp.
+    local *MAKEFILE_FH;		# Make a local file handle.
+    open(MAKEFILE_FH, $Makefile::makefile_name) || 
+      die "can't read makefile $Makefile::makefile_name--$!\n";
+    $Makefile::makefile_contents = <MAKEFILE_FH>; # Read the whole makefile.
+    close MAKEFILE_FH;		# Done with the makefile.
+  }
+
+  $Makefile::makefile_contents =~ /\$[\(\{]MAKE[\}\)]/ and
+    $self->{RECURSIVE_MAKE} = 1;
+				# If there's a recursive invocation of make,
+				# remember this so we can turn off implicit
+				# makefile loading.  We have to know this
+				# before we process any rules or anything
+				# else from the makefile.
+
+  local $Makefile::makefile_lineno = 0;	# We're on the first line.
+
   local $Makefile::hold_line;	# Nothing in the hold area yet.
 
   local $Makefile::last_conditional_start;
@@ -1007,45 +1190,24 @@ sub read_makefile {
 				# makefile.
   my $mpackage = $self->{PACKAGE}; # Access the package.
 
-  defined $Makefile::makefile_fh or
-    die "can't open makefile " . $minfo->absolute_filename . "--$!\n";
-
  makefile_line:
   while (defined($_ = read_makefile_line_stripped())) { # Read a line at a time.
     next if /^\s*$/;		# Skip blank lines.
 
-    my $makefile_line = $Makefile::makefile_name . ":$.";
+    my $makefile_line = $Makefile::makefile_name . ":$Makefile::makefile_lineno";
 				# The line name to use for error messages.
 
-    if (/^\s*([^\s:\#\=]+)\s*([:+?!]?)=\s*(.*?)\s*$/) { # Variable assignment?
-      $1 eq "MAKE" && $main::warn_level and
-	main::print_error("warning: MAKE redefined, recursive make won't work as expected");
-      if ($2 eq "+") {		# Append?
-	$ {$mpackage . "::$1"} .= ' ' . 
-	  (exists($self->{VAR_REEXPAND}{$1}) ? $3 : # Was it a regular =?
-	   $self->expand_text($3, $makefile_line));
-				# Expand the RHS if it was set with := 
-				# previously.
-      } elsif ($2 eq ":") {	# Assignment with immediate evaluation of rhs?
-	$ {$mpackage . "::$1"} = $self->expand_text($3, $makefile_line);
-	delete $self->{VAR_REEXPAND}{$1}; # Don't expand this text again.
-      } elsif ($2 eq "!") {	# Run command through shell to evaluate?
-	$ {$mpackage . "::$1"} = Makesubs::f_shell($self->expand_text($3, $makefile_line), $self, $makefile_line);
-      } elsif ($2 eq "?") {	# Assign only if not previously assigned?
-	if (!defined($ {$mpackage . "::$1"}) &&
-	    !defined($main::command_line_variables{$1}) &&
-	    !defined($ENV{$1})) {
-	  $ {$mpackage . "::$1"} = $3;
-	  $self->{VAR_REEXPAND}{$1} = 1; # Reexpand when invoked.
-	}
-      } else {
-	$ {$mpackage . "::$1"} = $3;
-	$self->{VAR_REEXPAND}{$1} = 1; # Remember to expand this variable's
-				# contents when it's invoked.
-      }
-      next;
-      
+    my $equals = index_ignoring_quotes($_, '=');
+				# Search for the equals of an assignment.
+				# We use index_ignoring_quotes to skip over
+				# equals signs that happen to be in quotes or
+				# inside other make expressions.
+    if ($equals >= 0) {
+      parse_assignment($self, substr($_, 0, $equals),
+		       substr($_, $equals+1), $makefile_line)
+	and next;		# If it's a real assignment, then we're done.
     }
+
 #
 # It's not an assignment. Check for a rule of some sort.  Basically, we just
 # look for a colon, but this is somewhat tricky because there may be extra
@@ -1064,7 +1226,8 @@ sub read_makefile {
     if (/^\s*([-\w]+)(.*)$/) {	# Statement at beginning of line?
       my ($rtn, $rest_of_line) = ($1, $2);
       $rtn =~ s/-/_/g;		# Make routine names more perl friendly.
-      if (defined(*{$self->{PACKAGE} . "::s_$rtn"})) { # Function from makefile?
+      $rtn =~ s/\./_dot_/g;
+      if (defined(*{$self->{PACKAGE} . "::s_$rtn"}{CODE})) { # Function from makefile?
 	eval { &{$self->{PACKAGE} . "::s_$rtn"}($rest_of_line, $self, $makefile_line); };
 				# Try to call it as a subroutine.
 	$@ and die "$makefile_line: error handling $rtn statement\n$@\n";
@@ -1105,7 +1268,14 @@ sub read_makefile_line {
     return $ret;
   }
 
-  return scalar <$Makefile::makefile_fh>; # Read another line.
+  ++$Makefile::makefile_lineno;	# Keep the line counter accurate.
+  length($Makefile::makefile_contents) == 0 and return undef;
+				# End of file.
+  $Makefile::makefile_contents =~ s/^(.*\n?)//;
+				# Strip off the next line.  (Using pos() and
+				# /\G/gc doesn't work, apparently because the
+				# position gets lost when local() is executed.)
+  return $1;			# Return the next line.
 }
 
 #
@@ -1136,27 +1306,28 @@ sub read_makefile_line_stripped {
 				# some makefiles I have seen.
   }
 
+  defined($line) or return undef; # No point checking at end of file.
+
 #
 # Handle GNU make's conditionals:
 #
-  defined($line) or return undef; # No point checking at end of file.
 
   if ($line =~ s/^\s*if(eq|neq|def|ndef)\b//) {
 				# Looks like an if statement?
-    $Makefile::last_conditional_start = $.;
+    $Makefile::last_conditional_start = $Makefile::makefile_lineno;
 				# Remember what line this was on so we can
 				# give better error messages.
     my $cond = $1;		# Remember what the condition was.
-    $line = $Makefile::makefile->expand_text($line, $.);
+    $line = $Makefile::makefile->expand_text($line, $Makefile::makefile_name . ":$Makefile::makefile_lineno");
 				# Expand away all the variables.
     $line =~ s/^\s+//;		# Strip leading whitespace.
     $line =~ s/\s+$//;		# Strip trailing whitespace.
 
     my $truthval;
     if ($cond =~ /def$/) {	# See whether something is defined?
-      $truthval = exists $main::command_line_variables{$line} ||
+      $truthval = exists $Makefile::makefile->{COMMAND_LINE_VARS}{$line} ||
 	exists $ {$Makefile::makefile->{PACKAGE} . "::"}{$line} ||
-	  exists $ENV{$line};
+	  exists $Makefile::makefile->{ENVIRONMENT}{$line};
 				# See if it was defined on the command line,
 				# in the makefile, or in the environment.
     }	
@@ -1205,11 +1376,11 @@ sub skip_makefile_until_else_or_endif {
 				# a nested if in the mean time.
 
   for (;;) {
-    my $line = <$Makefile::makefile_fh>; # Read another line.
+    my $line = &read_makefile_line; # Read another line.
     !defined($line) and
       die "$Makefile::makefile_name:$Makefile::last_conditional_start: end of makefile inside conditional\n";
     while ($line =~ s/\\\s*$/ /) {
-      my $nextline = <$Makefile::makefile_fh>; # Handle continuations, because
+      my $nextline = &read_makefile_line; # Handle continuations, because
 				# we don't want to find an else inside an
 				# action.
       last if !defined($nextline);

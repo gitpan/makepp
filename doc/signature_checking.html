@@ -10,27 +10,36 @@
     <p>Each file is associated with a <i>signature</i>, which is a
     number or string that changes if the file has changed.
     <i>Makepp</i> compares signatures to see whether it needs to rebuild
-    anything.  The default signature is the file's modification time.
-    However, if you want you can change this to be a cryptographic
-    checksum on the file's contents, or you can even define your own
-    signature functions.  You can also change how <i>makepp</i> compares
-    signatures.</p>
+    anything.  The default signature for files is the file's
+    modification time, unless you're executing a C/C++ compilation
+    command, in which case the default signature is a cryptographic
+    checksum on the file's contents, ignoring comments and whitespace.
+    If you want, you can switch to a different method, or you can define
+    your own signature functions.</p>
 
     <p>In addition to the file's signature, it is also possible to
     control how <i>makepp</i> compares these signature values.  For
     example, the <code>exact_match</code> method requires that file
-    signatures be exactly the same as on the last build, wheresa the
+    signatures be exactly the same as on the last build, whereas the
     <code>target_newer</code> method only requires that all dependencies
     be older than the target.</p>
 
     <p>If <i>makepp</i> is building a file, and you don't think it
     should be, you might want to check the build log
     (<code>.makepp_log</code>).  <i>Makepp</i> writes an explanation of
-    what it thought each file dependended on, and why it chose to
+    what it thought each file depended on, and why it chose to
     rebuild.</p>
 
-    <p>At present, there are three signature checking methods included
-    in <i>makepp</i>.</p>
+    <p>At present, there are four signature checking methods included in
+    <i>makepp</i>.  These methods may be selected on a rule-by-rule
+    basis by using the <a
+    href="syntax_makefile.html#colon_signature"><code>:signature</code>
+    modifier</a>, or on a makefile-by-makefile basis by using the <a
+    href="syntax_makefile.html#statement_signature"><code>signature</code></a>
+    statement, or for all makefiles at once by using the <a
+    href="command_line.html#option_signature_method"><code>-m</code> or
+    <code>--signature-method</code> command line option</a>.  Usually,
+    <i>makepp</i>'s default is fine.</p>
 
     <h2>exact_match</h2>
 
@@ -53,9 +62,9 @@
       command from the last build, so that it can do these comparisons.</p>
 
     <p>This is <i>makepp</i>'s default algorithm unless it is trying to
-    rebuild a makefile.  This is a highly reliable way of ensuring
-    correct builds, and is almost always what you want.  However, it
-    does have a few side effects that may be surprising:</p>
+    rebuild a makefile or compile C/C++ code.  This is a highly reliable
+    way of ensuring correct builds, and is almost always what you want.
+    However, it does have a few side effects that may be surprising:</p>
 
     <ul>
       <li>If you've been compiling with the traditional make, and then
@@ -104,22 +113,61 @@
     itself.</p>
 
 
+    <p>Using <code>target_newer</code> compared to
+    <code>exact_match</code> has the following disadvantages:</p>
+
+    <ul>
+      <li><i>makepp</i> can be confused by clock synchronization
+	or by bogus dates.   For example, if a file somehow gets a date
+	in the far future, anything that depends on it will always be
+	rebuilt, no matter what.
+
+      <li>Replacing a file with an older version of the same file won't
+	trigger a rebuild.
+
+      <li>Changing the build command (e.g., changing compilation
+      options) won't trigger a rebuild.b
+
+      <li>Changing the architecture (e.g., switching from linux to
+      solaris) won't trigger a rebuild.
+    </ul>
+
+    <a name="md5"></a>
+    <h2>md5</h2>
+
+    <p>This is the same as <code>exact_match</code>, except that instead
+    of using the file date as the signature, an MD5 checksum of the
+    files contents is used.  This means that if you change the date on
+    the file but don't change its contents, <i>makepp</i> won't try to
+    rebuild anything that depends on it.</p>
+
+    <p>This is particularly useful if you have some file which is often
+    regenerated during the build process that other files depend on, but
+    which usually doesn't change.  This will not work properly for
+    libraries or other files which have compilation times contained in
+    the file itself.</p>
+
+    <p>For C/C++ source code, you should use
+      <code>c_compilation_md5</code> instead.</p>
+
     <a name="c_compilation_md5"></a>
 
     <h2>c_compilation_md5</h2>
 
-    <p>This is the same as <code>exact_match</code>, except that
-    signatures for files which look like C or C++ source files are
-    computed by an MD5 checksum of the file, ignoring comments and
-    whitespace.  Ordinary file times are still used for signatures for
-    object files, or any files that don't have an extension typical of a
-    C or C++ source file.  (A file is considered to be source code if it
-    has an extension of <code>c</code>, <code>h</code>, <code>cc</code>,
-    <code>hh</code>, <code>cxx</code>, <code>hxx</code>,
-    <code>hpp</code>, <code>cpp</code>, <code>h++</code>,
-    <code>c++</code>, <code>moc</code>, or upper case versions of
-    these.)  If you use this, you can reindent your code or add or
-    change comments without triggering a rebuild.</p>
+    <p>This is the same as <code>md5</code>, except that signatures for
+    files which look like C or C++ source files are computed by an MD5
+    checksum of the file, ignoring comments and whitespace.
+    (Technically, comments are replaced by a single space, and multiple
+    whitespace is collapsed to a single space, before computing the MD5
+    checksum.)  Ordinary file times are still used for signatures for
+    object files, and any other files that don't have an extension
+    typical of a C or C++ source file.  (A file is considered to be
+    source code if it has an extension of <code>c</code>,
+    <code>h</code>, <code>cc</code>, <code>hh</code>, <code>cxx</code>,
+    <code>hxx</code>, <code>hpp</code>, <code>cpp</code>,
+    <code>h++</code>, <code>c++</code>, <code>moc</code>, or upper case
+    versions of these.)  If you use this, you can reindent your code or
+    add or change comments without triggering a rebuild.</p>
 
     <p>This method is particularly useful for the following situations:</p>
     <ul>
@@ -131,8 +179,8 @@
       several hours of rebuilds.
 
       <li>You like to save your files often, and your editor (unlike
-	emacs) will happily write a new copy out even if nothing has
-	changed.
+      emacs) will happily write a new copy out even if nothing has
+      changed.
 
       <li>You have C/C++ source files which are generated automatically
       by other build commands (e.g., yacc or some other preprocessor).
@@ -144,32 +192,25 @@
 	$(HLIB)/Qt/qt_dialog_generator $(input)
 </pre>
 	<p>However, most of the time when the input file changes, the
-	  resulting <code>.h</code> file contents are unchanged (except
-	  for a comment about the build time written by the preprocessor),
-	  although its date will change.  This could trigger unnecessary
-	  rebuilds of many modules without this kind of cryptographic
-	  signature checking.</p>
+	resulting <code>.h</code> file contents are unchanged (except
+	for a comment about the build time written by the preprocessor),
+	although its date will change.  This could trigger unnecessary
+	rebuilds of many modules without this kind of cryptographic
+	signature checking.</p>
     </ul>
 
-
-    <p>This is the default signature method for C or C++ compilation if
-    you have the following line somewhere in your makefile:</p>
-
-<pre>
-<a href="#statement_include">include</a> c_compilation_md5.mk
-</pre>
-
-    <p>Without the above statement, this method is not available at all
-    for build commands in that makefile.  (You must put this statement
-    in each makefile that has a compilation command.)  If you want to
-    use an explicit <code>:signature&nbsp;c_compilation_md5</code>
-    clause, then the above statement must be before the rule containing
-    the clause.</p>
-
-    <p>This method is not included by default because (a) it's slightly
-    slower than checking file times; (b) not everyone has the
-    appropriate perl module (Digest::MD5) to do the signature
-    calculation.</p>
+    <p>This is the default signature method for C or C++ compilation.
+    It overrides any default specified with the <a
+    href="command_line.html#option_signature_method"><code>-m</code> or
+    <code>--signature-method</code> command line option</a>, but is
+    overridden by any signature method specified by the <a
+    href="syntax_makefile.html#statement_signature"><code>signature</code></a>
+    statement or the <a
+    href="syntax_makefile.html#colon_signature"><code>:signature</code>
+    rule modifier</a>.  <i>Makepp</i> determines that you are doing a
+    C/C++ compilation if it recognizes your command line as an
+    invocation of a C/C++ compiler (see on <a
+    href="scanning.html">scanning</a>).
 
     <h2>Custom methods</h2>
 
@@ -189,7 +230,7 @@
     <br>
 <!-- Created: Sat Oct 14 17:21:19 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Sat Oct 14 22:40:59 PDT 2000
+Last modified: Mon Feb 19 14:52:08 PST 2001
 <!-- hhmts end -->
   </body>
 </html>

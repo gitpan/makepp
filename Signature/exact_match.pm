@@ -72,11 +72,23 @@ sub build_check {
     return 1;
   }
 
-  if ($cwd ne ($tinfo->build_info_string("CWD") || '')) {
-    $main::log_level and
-      main::print_log("Rebuild ", $tinfo->name, " because build cwd changed\n");
-    return 1;
-  }
+#
+# We used to make sure the build cwd is the same.  We don't check this any
+# more, because there are evidently a lot of programs (the linux kernel is
+# a horrifying example of this) where the same file can be built from multiple
+# makefiles, with different CWDs.  Usually this is for files whose actions
+# are just "echo" or "touch", things which don't care about the current
+# directory.
+#
+# Generally speaking, if the build cwd changes, so does the command, so 
+# it's probably ok not to bother checking the build cwd.
+#
+
+#  if ($cwd ne ($tinfo->build_info_string("CWD") || '')) {
+#    $main::log_level and
+#      main::print_log("Rebuild ", $tinfo->name, " because build cwd changed\n");
+#    return 1;
+#  }
 
   if ($main::architecture ne ($tinfo->build_info_string("ARCH") || '')) {
 #

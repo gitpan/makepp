@@ -35,13 +35,23 @@ $prefix = "/usr/local";
 
 $bindir = shift(@_) ||
   read_with_prompt("
-Where should the makepp binary be installed [$prefix/bin]? ") ||
+Makepp needs to know where you want to install it and its data files.
+makepp is written in perl, but there is no particular reason to install
+any part of it in the perl hierarchy; you can treat it as you would a
+compiled binary which is completely independent of perl.
+
+Where should the makepp executable be installed [$prefix/bin]? ") ||
   "$prefix/bin";
 
 $bindir =~ m@(.*)/bin@ and $prefix = $1;
 				# See if a prefix was specified.
 
 $datadir = shift @_ || read_with_prompt("
+Makepp has a number of library files that it needs to install somewhere.  Some
+of these are perl modules, but they can't be used by other perl programs, so
+there's no point in installing them in the perl modules hierarchy; they are
+simply architecture-independent data that needs to be stored somewhere.
+
 Where should the library files be installed [$prefix/share/makepp]? ") ||
   "$prefix/share/makepp";
 
@@ -52,18 +62,19 @@ HTML documentation directory [$prefix/share/makepp/html]: ") ||
   "$prefix/share/makepp/html";
 
 substitute_file("makepp", $bindir, 0755);
-substitute_file("recursive_makepp", $datadir, 0755);
+substitute_file("recursive_makepp", $datadir, 0644);
 
 make_dir("$datadir/Signature");
 foreach $module (qw(FileInfo FileInfo_makepp MakeEvent Glob Makefile Makesubs Rule
 		    Signature TextSubs
 		    Signature/exact_match Signature/target_newer
-		    Signature/c_compilation_md5)) {
+		    Signature/c_compilation_md5 Signature/md5)) {
   copy("$module.pm", "$datadir/$module.pm");
   chmod 0644, "$datadir/$module.pm";
 }
 
-foreach $include (qw(c_compilation_md5 infer_objects)) {
+foreach $include (qw(c_compilation_md5 infer_objects 
+		     makepp_builtin_rules makepp_default_makefile)) {
   copy("$include.mk", "$datadir/$include.mk");
   chmod 0644, "$datadir/$include.mk";
 }
@@ -80,32 +91,32 @@ if ($htmldir ne 'none') {
   }
 }
 
-print "makepp successfully installed.\n";
-
 #
 # Figure out whether we need to do anything about Digest::MD5.
 #
 eval "use Digest::MD5";		# See if it's already installed.
 if ($@) {
   print "\nIt looks like you don't have the perl module Digest::MD5 installed.
-
-This means that you won't be able to tell makepp not to rebuild if the source
-file contents (excluding comments or whitespace) have not changed, even if the
-date has.  If you would like this feature, you'll have to install this perl
-module.  If you installed perl from a binary distribution, you can probably
-get a precompiled version of this module from the same place.  Otherwise, a
-version of this module is included with makepp.  To install it, do the
-following:
-
-	tar xf Digest-MD5-2.09.tar
-	cd Digest-MD5-2.09
+Makepp likes to have Digest::MD5 installed because it is a better technique
+for checking whether files have changed than just looking at the dates.
+Makepp will work without it, however.
+   If you would like this feature, you'll have to install this perl module.
+If you installed perl from a binary distribution (e.g., from a linux package),
+you can probably get a precompiled version of this module from the same place.
+Otherwise, a version of this module is included with makepp.  To install it,
+do the following:
+	tar xf Digest-MD5-2.11.tar
+	cd Digest-MD5-2.11
 	perl Makefile.PL
 	make
 	make test
 	make install
+There is no need to reinstall makepp after installing Digest::MD5.
+
 ";
 }
 
+print "makepp successfully installed.\n";
 
 #
 # This subroutine makes a copy of an input file, substituting all occurences
@@ -155,5 +166,22 @@ sub read_with_prompt {
   print @_;			# Print the prompt.
   $_ = <STDIN>;			# Read a line.
   chomp $_;
+#
+# Expand environment variables and home directories.
+#
+  s/\$(\w+)/$ENV{$1}/g;		# Expand environment variables.
+  if (s/^~(\w*)//) {		# Is there a ~ expansion to do?
+    if ($1 eq '') {
+      $_ = "$ENV{HOME}$_";
+    } else {
+      my ($name, $passwd, $uid, $gid, $quota, $comment, $gcos, $dir, $shell) = getpwnam($1);
+				# Expand from the passwd file.
+      if ($dir) {		# Found it?
+	$_ = "$dir$_";
+      } else {
+	$_ = "~$1";		# Not found.  Just put the ~ back.
+      }
+    }
+  }
   return $_;
 }

@@ -53,21 +53,15 @@
 	not supported.
 
       <li>
-	No pattern rules are loaded by default.  In my experience, these
-	always do the wrong thing unless your build procedure is so
-	simple that you don't need a makefile.  In fact, I've tried
-	running makepp on lots of different makefiles from many
-	different projects, and the lack of builtin rules has never yet
-	caused a problem, so evidently most people do not rely on the
-	builtin rules.  If you have a set of standard pattern rules that
-	you want, you can include them in all of your makefiles by
-	putting an <a
-	href="syntax_makefile.html#statement_include"><code>include</code></a>
-	statement in each one of them.
-
-	<p>I am working on a better design for makepp to figure out how
-	to compile various things if no rule is
-	supplied.  If you have any suggestions, please let me know.</p>
+	The set of <a href="builtin.html">builtin implicit rules</a> is
+	somewhat different from those for GNU make, though the variable
+	names are largely compatible.  The builtin rules should
+	successfully compile C/C++/Fortran programs, and in fact may be
+	able to guess the proper libraries in some cases too.  Support
+	for Modula-2 and RatFor and other rare languages is deliberately
+	not present, because I kept running into problems with GNU
+	make's rules when I accidently reused the extensions for those
+	languages.
 
       <li>
 	Archive members are not supported, and neither are the
@@ -75,13 +69,6 @@
 	<code>$(%D)</code>, and <code>$(%F)</code>.
 
 	<a name="function_if">
-      <li>The function
-      <code>$(if&nbsp;cond,&nbsp;then,&nbsp;else)</code> evaluates both
-      the then and the else clause in all cases.  (GNU make evaluates
-      the then clause only if the condition is true, and the else clause
-      only if the condition is false.)  This only makes a difference if
-      your clauses call functions with side effects, e.g.,
-      <code>$(shell&nbsp;)</code>.
 
       <li>Leading and trailing whitespace in variable assignments is
       ignored (even if the whitespace is followed by a comment).  For
@@ -136,11 +123,14 @@
 	<dl>
 	 <dt><code>.SUFFIXES</code>
 	  <dd>
-	    Suffix rules (e.g., <code>.c.o</code>) are automatically
-	    converted into pattern rules (<code>%.o: %.c</code>).  No
-	    pattern rules are loaded by default, so you do not need to
-	    have a line <code>.SUFFIXES:</code> to remove any suffix
-	    rules.
+	    <i>Makepp</i> ignores <code>.SUFFIXES</code> except for the
+	    special case of <code>.SUFFIXES</code> with no dependencies,
+	    like this:
+<pre>
+.SUFFIXES:
+</pre>
+	    <p>which tells it not to load any of its <a
+	    href="builtin.html">default rules</a>.</p>
 
 	  <dt><code>.INTERMEDIATE</code>, <code>.SECONDARY</code>, <code>.PRECIOUS</code>
 	  <dd>
@@ -171,8 +161,7 @@
 
       <li>
 	Several GNU make functions are not currently supported.  These
-	are <code>join</code>, <code>foreach</code>,
-	<code>origin</code>, <code>call</code>,
+	are <code>origin</code>, <code>call</code>,
 	<code>error</code>, and <code>warning</code>.
 
       <li>The <code>$(wildcard&nbsp;)</code> function matches not only
@@ -203,8 +192,14 @@
 	"Canned command sequences" (strings defined with the
 	<code>define</code> statement) are not supported.
 
-      <li>The environment variables <code>MAKEOVERRIDES</code> and
-      <code>MFLAGS</code> not set up, and are ignored.
+      <li><i>Makepp</i> does not support the following environment
+	variables (it does not set them up, and it just ignores them):
+	<ul>
+	  <li><code>MAKEOVERRIDES</code>
+	  <li><code>MFLAGS</code>
+	  <li><code>MAKELEVEL</code>
+	  <li><code>MAKEFILES</code>
+	</ul>
 
       <li>
     </ul>
@@ -277,15 +272,6 @@ target: dependencies
     option to the command line.)</p>
 
     <ul>
-      <li>You cannot invoke the same makefile with several different
-	command line variable settings, e.g., the following will not
-	work:
-<pre>
-target: dependencies
-	$(MAKE) VAR=value1 target1
-	$(MAKE) VAR=value2 target2
-</pre>
-
       <li>You may not invoke several makefiles from the same directory,
 	e.g., the following will not work:
 <pre>
@@ -346,7 +332,7 @@ INCLUDES := $(INCLUDE_PREFIX)/other/include/dir
 </pre>
 
     <p>will set <code>INCLUDES</code> to
-    <pre>-I/some/include/dir/other/include/dir-I/other/include/dir</pre>
+    <pre>-I/some/include/dir/other/include/dir&nbsp;-I/other/include/dir</pre>
     if rc-style substitution is enabled, whereas GNU make would set it
     to <pre>-I/some/include/dir&nbsp;-I/other/include/dir</pre>
 
@@ -436,7 +422,7 @@ T := -o # Don't delete this comment.
 
 <!-- Created: Wed Aug  9 21:44:55 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Sun Nov 26 17:48:33 PST 2000
+Last modified: Mon Feb 19 20:23:56 PST 2001
 <!-- hhmts end -->
   </body>
 </html>

@@ -1,3 +1,115 @@
+2001-01-01  Gary Holt  <holt@lnc.usc.edu>
+
+	* FileInfo_makepp.pm (set_rule): Don't give a warning message
+	that the new rule was seen after the target was rebuilt, if the
+	target was rebuilt in order to rebuild the makefile.
+
+	* Makefile.pm (read_makefile_line and friends): Read the whole
+	makefile in at once, so we can know before parsing any rule
+	whether there is a $(MAKE) anywhere in the makefile.
+	(parse_rule): If the makefile contained $(MAKE), turn off implicit
+	loading.
+	(parse_rule): Support .SUFFIXES: with a blank target to suppress
+	loading of builtin rules.
+
+	* makepp (build): Don't save build information for targets which
+	invoke recursive make.
+	(build): If the makefile contained $(MAKE), turn off implicit loading.
+
+	* Makefile.pm (read_makefile_line_stripped): Look for $(MAKE) and
+	set the RECURSIVE_MAKE flag if true
+
+2000-12-29  Gary Holt  <holt@lnc.usc.edu>
+
+	* Makesubs.pm (f_MAKE): If --traditional-recursive-make, put the
+	path to the perl binary into $(MAKE) in case the #!/usr/bin/perl
+	path isn't what we were run with.
+	(scanner_c_compilation): Use c_compilation_md5 for C compilation,
+	if the Digest::MD5 module is actually available.
+
+2000-12-27  Gary Holt  <holt@lnc.usc.edu>
+
+	* makepp (build): Shorten the phony target warning message so
+	it's not so overwhelming, at least after the first warning.
+
+	* Rule.pm (find_all_targets_dependencies): remove any dependencies
+	where a file depends on itself.  The linux kernel has a couple of
+	examples of this (which I assume are mistakes).  Later we'll have
+	to handle these differently when we implement iteration to a fixed
+	point.
+
+	* Makefile.pm (parse_rule): Fix a bug where we weren't properly
+	keeping track of the depth of pattern rule inference.
+	(parse_assignment): Broke out code to parse
+	assignments into a separate function so it was easier to modify.
+	Support indirect assignments (e.g., $(xyz) = value instead of 
+	xyz=value), which are needed for the linux kernel.
+	(expand_expression): Expand variable values that were set on the
+	command line again, so if they contain '$(var)' it is set
+	properly.  The gcc makefiles actually depended o this.
+
+	* Makesubs.pm (f_foreach): Support the GNU make foreach function.
+	We need this to compile the linux kernel.
+	(f_if): Support partial evaluation on the operands.
+	(f_join): New function needed for linux kernel.
+	
+2000-12-26  Gary Holt  <holt@lnc.usc.edu>
+
+	* Makesubs.pm (s_include): Look in the makefile structure for the
+	include path.
+	(s_load_makefile): Support -I on the line.
+
+	* makepp (parse_command_line): Added support for the -Idir option.
+
+	* Makefile.pm (load): load in a default rules makefile before
+	reading in each makefile.  Also, if there's no makefile in a
+	directory, read in only the default rules makefile.  This is the
+	way we support builtin rules.
+	Keep the include path in the makefile structure, so it can be
+	different for different makefiles.
+	Allow the same makefile to apply to multiple directories--there's
+	no reason to disallow that, and it's getting in the way of loading
+	the default makefile.
+	Support the MAKEFILES environment variable.
+	
+2000-12-25  Gary Holt  <holt@lnc.usc.edu>
+
+	* Makesubs.pm: autoload a larger fraction of the subroutines.  Put
+	infer_objects into Makesubs so it doesn't have to be activated
+	with that silly "include infer_objects.mk" statement.
+
+	Also, added support for infer_libraries and infer_linker.  Added
+	support for all the various variables that GNU make has default
+	values for.
+
+2000-12-06  Gary Holt  <holt@lnc.usc.edu>
+
+	* Makefile.pm (expand_expression): Fixed strange error message
+	when an unknown function was called.
+
+Version 1.06 released.
+
+2000-12-05  Gary Holt  <holt@lnc.usc.edu>
+
+	* makepp (parse_command_line): Set up the variable MAKECMDGOALS.
+
+	* Makefile.pm (parse_rule): Fixed another bug with indented rules
+	that cropped up in Werner Lemberg's freetype2 CVS sources.
+
+2000-12-03  Gary Holt  <holt@lnc.usc.edu>
+
+	* FileInfo.pm (is_writable): Fixed bug where a file called
+	.testfile was left around because of a trailing space on the
+	filename.  Also changed the filename to .makepp_testfile so it's
+	less likely to collide with any other file.
+
+	* Makefile.pm (load): fixed bug where makefiles loaded with -f
+	were also implicitly loaded while trying to build the makefile,
+	causing problems if the makefile was in a different directory.
+
+Version 1.05 released.
+
+
 2000-11-26  Gary Holt  <holt@lnc.usc.edu>
 
 	* Makefile.pm (expand_text): Support the --norc_substitution

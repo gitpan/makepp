@@ -47,7 +47,14 @@ foreach (@ARGV) {
   push @words, qq["$_"];	# Append this word, keeping spaces intact.
 }
 
-print($socket join(" ", @words) . "\n") or # Send to makepp.
+my $message = join(" ", @words) . "\n"; # Send the command first.
+while (($var, $val) = each %ENV) { # Send the environment back too.
+  $val =~ s{([\0-\037])}{sprintf("\\%o", ord($1))}eg;
+				# Protect any binary characters.
+  $message .= "$var=$val\n";
+}
+
+print($socket $message . "\01END\01") or # Send to makepp.
   die "recursive makepp: error writing to socket--$!\n";
 
 sysread($socket, $_, 100);	# Wait for a response before we proceed.

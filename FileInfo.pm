@@ -66,6 +66,7 @@ FileInfo -- cached information about files and directories
 
   if ($finfo->is_dir) { ... }
   if ($finfo->is_writable) { ... }
+  if ($finfo->is_executable) { ... }
   if ($finfo->is_symbolic_link) { ... }
 
   $finfo->unlink;		# Deletes the file.
@@ -156,7 +157,7 @@ $FileInfo::root = bless {NAME => '',
 # BUILD_INFO	If build information has been loaded, this hash contains the
 #		key/value pairs.  See build_info_string() and
 #		set_build_info_string().
-# BUILD_RULE	The rule object for the file, if known.
+# RULE		The rule object for the file, if known.
 # DIRCONTENTS	If this is a directory, this contains a reference to another
 #		hash of the files in the directory.  The key for the hash
 #		is the filename.  Sometimes files which aren't directories
@@ -195,10 +196,6 @@ $FileInfo::root = bless {NAME => '',
 #		automounter.  When we form absolute filenames, we use the
 #		shortest name so it's more portable to different machines
 #		on the network.
-# USE_REPOSITORY
-#		True if the file exists in the repository and doesn't exist
-#		in the specified directory.  This is set up when we try to get
-#		the build signature.
 # WILDCARD_ROUTINES
 #		For a directory, this is a list of subroutines to be called
 #		whenever a new file springs into existence in this directory
@@ -248,9 +245,11 @@ sub absolute_filename_nolink {
 
   my $ret_str = $fileinfo->{NAME};
 
+  return "/" if $fileinfo == $FileInfo::root;
+				# Special case this one.
   for (;;) {
-    last if $fileinfo == $FileInfo::root; # Quit when we reached the top.
     $fileinfo = $fileinfo->{".."};
+    last if $fileinfo == $FileInfo::root; # Quit when we reached the top.
 
     $ret_str = $fileinfo->{NAME} . "/$ret_str";
 				# Add another directory.
@@ -563,6 +562,27 @@ sub is_or_will_be_dir {
 }
 
 
+=head2 is_executable
+
+  if ($finfo->is_executable) { ... }
+
+Returns true (actually, returns the FileInfo structure) if the given file is
+executable by this user.  We don't actually handle the group executable
+bit correctly right now, since it's a pain to find out what groups this
+user is actually in.
+
+=cut
+
+sub is_executable {
+  my $stat = $_[0]->stat_array;	# Get the status info.
+  @$stat or return undef;	# File doesn't exist.
+  ($stat->[$stat_mode] & (011)) || # User or group executable?
+    (($stat->[$stat_mode] & 0100) && # User executable?
+      $stat->[$stat_uid] == $>) and return $_[0]; # We're the owner?
+				# It's executable.
+  return undef;
+}
+
 =head2 is_symbolic_link
 
   if ($finfo->is_symbolic_link) { ... }
@@ -614,7 +634,7 @@ sub is_writable {
     return $retval;
   }
 
-  my $test_fname = $dirinfo->absolute_filename_nolink . "/.testfile ";
+  my $test_fname = $dirinfo->absolute_filename_nolink . "/.makepp_testfile";
 				# Try to create a file with an unlikely
 				# name.  (I hope this cause no problems
 				# on unusual file systems.)

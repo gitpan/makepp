@@ -109,6 +109,61 @@ sub exists_or_can_be_built {
   return undef;
 };
 
+=head2 flush_build_info
+
+  clean_fileinfos($dirinfo)
+
+Discards all the build information for all files in the given directory
+after making sure they've been written out to disk.  Also discards all
+FileInfos for files which we haven't tried to build and don't have a
+build rule.
+
+=cut
+sub clean_fileinfos {
+#
+# For some reason, the code below doesn't actually save very much memory at
+# all, and it occasionally causes problems like extra rebuilds or 
+# forgetting about rules for some targets.  I don't understand how this
+# is possible, but it happened.
+#
+
+#   my $dirinfo = $_[0];		# Get the directory.
+
+#   &update_build_infos;		# Make sure everything's written out.
+#   my ($fname, $finfo);
+
+#   my @deletable;
+
+#   while (($fname, $finfo) = each %{$dirinfo->{DIRCONTENTS}}) {
+# 				# Look at each file:
+#     delete $finfo->{BUILD_INFO}; # Build info can get pretty large.
+#     delete $finfo->{LSTAT};	# Toss this too, because we probably won't need
+# 				# it again.
+#     $finfo->{DIRCONTENTS} and clean_fileinfos($finfo);
+# 				# Recursively clean the whole tree.
+#     next if exists $finfo->{BUILD_HANDLE}; # Don't forget the files we tried to build.
+#     next if $finfo->{RULE};	# Don't delete something with a rule.
+#     next if $finfo->{DIRCONTENTS}; # Don't delete directories.
+#     next if $finfo->{ALTERNATE_VERSIONS}; # Don't delete repository info.
+#     next if $finfo->{IS_PHONY};
+#     next if $finfo->{ADDITIONAL_DEPENDENCIES}; # Don't forget info about
+# 				# extra dependencies, either.
+#     next if $finfo->{TRIGGERED_WILD}; # We can't delete it if reading it back
+# 				# in will trigger a wildcard routine again.
+#     if ($fname eq 'all') {
+#       warn("I'm deleting all now!!!\n");
+#     }
+#     push @deletable, $fname;	# No reason to keep this finfo structure
+# 				# around.  (Can't delete it, though, while
+# 				# we're in the middle of iterating.)
+#   }
+#   if (@deletable) {		# Something to delete?
+#     delete @{$dirinfo->{DIRCONTENTS}}{@deletable}; # Get rid of all the unnecessary FileInfos.
+#     delete $dirinfo->{READDIR};	# We might need to reread this dir.
+#   }
+}
+
+
 =head2 move_or_link_target
 
   $status = $finfo->move_or_link_target($repository_file);
@@ -320,6 +375,11 @@ name of the target compared to the makefile's cwd.
 A pattern rule seen later overrides one seen earlier.  Thus more specific
 pattern rules should be placed after the more general pattern rules.
 
+=item 6.
+
+A builtin rule is always overridden by any other kind of rule, and never
+overrides anything.
+
 =back
 
 =cut
@@ -333,67 +393,108 @@ sub set_rule {
     return;
   }	
 
-  my $oldrule = $finfo->{RULE};	# Is there a previous rule?
-  if ($oldrule) {
-    $main::log_level and
-      main::print_log(0, "Alternate rules (", $rule->source, " and ",
-		      $oldrule->source, ") for target ",
-		      $finfo->name);
+  my $rule_is_default = ($rule->source =~ /\bmakepp_builtin_rules\.mk:/);
 
-    my $new_rule_recursive = ($rule->{COMMAND_STRING} || '') =~ /\$[\(\{]MAKE[\)\}]/;
-    my $old_rule_recursive = ($oldrule->{COMMAND_STRING} || '') =~ /\$[\(\{]MAKE[\)\}]/;
+  $finfo->{IS_PHONY} &&		# If we know this is a phony target, don't
+    $rule_is_default and	# ever let a default rule attempt to build it.
+      return;
+
+  my $oldrule = $finfo->{RULE};	# Is there a previous rule?
+
+  if ($oldrule && $oldrule->{LOAD_IDX} < $oldrule->{MAKEFILE}{LOAD_IDX}) {
+    $oldrule = undef;		# If the old rule is from a previous load
+				# of a makefile, discard it without comment.
+    delete $finfo->{BUILD_HANDLE}; # Avoid the warning message below.  Also,
+				# if the rule has genuinely changed, we may
+				# need to rebuild.
+  }
+
+  if ($oldrule) {
+    my $oldrule_is_default = ($oldrule->source =~ /\bmakepp_builtin_rules\.mk:/);
+    if ($rule_is_default) {	# Never let a builtin rule override a rule
+      return;			# in the makefile.
+    }
+    elsif (!$oldrule_is_default) { # If the old rule isn't a default rule:
+      $main::log_level and
+	main::print_log("Alternate rules (", $rule->source, " and ",
+			$oldrule->source, ") for target ",
+			$finfo->name);
+
+      my $new_rule_recursive = ($rule->{COMMAND_STRING} || '') =~ /\$[\(\{]MAKE[\)\}]/;
+      my $old_rule_recursive = ($oldrule->{COMMAND_STRING} || '') =~ /\$[\(\{]MAKE[\)\}]/;
 				# Get whether the rules are recursive.
 
-    if ($new_rule_recursive && !$old_rule_recursive) {
+      if ($new_rule_recursive && !$old_rule_recursive) {
 				# This rule does not override anything if
 				# it invokes a recursive make.
-      $main::log_level and 
-	main::print_log(1, "Rule ", $rule->source,
-			" ignored because it invokes \$(MAKE)");
-      return;
-    }
+	$main::log_level and 
+	  main::print_log(" Rule ", $rule->source,
+			  " ignored because it invokes \$(MAKE)");
+	return;
+      }
 
-    if ($old_rule_recursive && !$new_rule_recursive) {
-      $main::log_level and 
-	main::print_log(1, "Rule ", $oldrule->source,
-			" discarded because it invokes \$(MAKE)");
+      if ($old_rule_recursive && !$new_rule_recursive) {
+	$main::log_level and 
+	  main::print_log(" Rule ", $oldrule->source,
+			  " discarded because it invokes \$(MAKE)");
 
-      delete $finfo->{BUILD_HANDLE};
+	delete $finfo->{BUILD_HANDLE};
 				# Don't give a warning message about a rule
 				# which was replaced, because it's ok in this
 				# case to use a different rule.
-    }
-    else {
-      if (!$oldrule->{PATTERN_LEVEL}) {	# Old rule not a pattern rule?
-	if ($rule->{PATTERN_LEVEL}) { # New rule is?
-	  $main::log_level and
-	    main::print_log(0, " Rule ", $rule->source, " ignored because it is a pattern rule");
-	  return;
-	}
-	else {
-	  main::print_error("warning: conflicting rules (", $rule->source,
-			  " and ", $oldrule->source, " for target ",
-			  $finfo->name);
-	  return;
-	}
+      }
+      else {
+	if (!$oldrule->{PATTERN_LEVEL}) {	# Old rule not a pattern rule?
+	  if ($rule->{PATTERN_LEVEL}) { # New rule is?
+	    $main::log_level and
+	      main::print_log(" Rule ", $rule->source, " ignored because it is a pattern rule");
+	    return;
+	  }
+	  else {
+	    main::print_error("warning: conflicting rules (", $rule->source,
+			      " and ", $oldrule->source, " for target ",
+			      $finfo->name) 
+	      unless $rule->source eq $oldrule->source;
+				# In the linux kernel, several different 
+				# makefiles load the same include file with a
+				# different cwd, and the include file has a
+				# bunch of commands to update files given
+				# their absolute path.
+	    return;
+	  }
 
-      }				# End if old rule was an explicit rule.
+	}			# End if old rule was an explicit rule.
       
 #
 # Apparently both are pattern rules.  Figure out which one should override.
 #
-      if ($rule->{MAKEFILE} != $oldrule->{MAKEFILE}) { # Skip comparing
+	if ($rule->{MAKEFILE} != $oldrule->{MAKEFILE}) { # Skip comparing
 				# the cwds if they are from the same makefile.
-	if (length($rule->build_cwd->relative_filename($finfo->{".."})) <
-	    length($oldrule->build_cwd->relative_filename($finfo->{".."}))) {
-	  $main::log_level and
-	    main::print_log(0, " Rule ", $rule->source,
-			  " chosen because it is from a nearer makefile\n");
-	} else {
-	  $main::log_level and
-	    main::print_log(0, " Rule ", $oldrule->source,
-			    " kept because it is from a nearer makefile\n");
-	  return;
+	  if (length($rule->build_cwd->relative_filename($finfo->{".."})) <
+	      length($oldrule->build_cwd->relative_filename($finfo->{".."}))) {
+	    $main::log_level and
+	      main::print_log(" Rule ", $rule->source,
+			      " chosen because it is from a nearer makefile");
+	  } else {
+	    $main::log_level and
+	      main::print_log(" Rule ", $oldrule->source,
+			      " kept because it is from a nearer makefile");
+	    return;
+	  }
+	}
+	else {			# If they're from the same makefile, use the
+				# one that has a shorter chain of inference.
+	  if (($rule->{PATTERN_LEVEL} || 0) < $oldrule->{PATTERN_LEVEL}) {
+	    $main::log_level and
+	      main::print_log(" Rule ", $rule->source,
+			      " chosen because it has a shorter chain of inference");
+	  }
+	  elsif (($rule->{PATTERN_LEVEL} || 0) > $oldrule->{PATTERN_LEVEL}) {
+	    $main::log_level and
+	      main::print_log(" Rule ", $oldrule->source,
+			      " chosen because it has a shorter chain of inference");
+	    return;
+	  }
 	}
       }
     }
@@ -408,10 +509,11 @@ sub set_rule {
 #    main::print_log(0, $rule->source, " applies to target ", $finfo->name);
 
   $finfo->{RULE} = $rule;	# Store the new rule.
-  if (exists $finfo->{BUILD_HANDLE}) {
+
+  if (exists $finfo->{BUILD_HANDLE} && !$finfo->{BUILT_WITH_NONDEFAULT}) {
     main::print_error("warning: I became aware of the rule ", $rule->source,
 		      " for target ", $finfo->name,
-		      " after I had already tried to build it.");
+		      " after I had already tried to build it using the default rules");
   }
   publish($finfo);		# Now we can build this file; we might not have
 				# been able to before.
@@ -491,8 +593,8 @@ sub update_build_infos {
     my ($key, $val);
 
     while (($key, $val) = each %$build_info) {
-      $val =~ s/([=\\\0- \177-\255])/"\\" . sprintf("%03o", ord($1))/eg;
-      $key =~ s/([=\\\0- \177-\255])/"\\" . sprintf("%03o", ord($1))/eg;
+      $val =~ s/([=\\\0-\037\177-\255])/"\\" . sprintf("%03o", ord($1))/eg;
+      $key =~ s/([=\\\0-\037\177-\255])/"\\" . sprintf("%03o", ord($1))/eg;
 				# Protect any special characters.
 				# (This does not modify the value inside the
 				# BUILD_INFO hash.)
@@ -538,12 +640,11 @@ sub load_build_info_file {
 
   my %build_info;
   
-  my $build_info_file = file_info("$FileInfo::build_info_subdir/$finfo->{NAME}",
-				  $finfo->{".."});
+  my $build_info_fname = $finfo->{".."}->absolute_filename . "/$FileInfo::build_info_subdir/" . $finfo->{NAME};
 				# Form the name of the info file.
 
   local *BUILD_INFO;	# Make a local file handle.
-  return undef unless open(BUILD_INFO, $build_info_file->absolute_filename_nolink);
+  return undef unless open(BUILD_INFO, $build_info_fname);
 				# Access the file.
   my $sig = $finfo->signature || ''; # Calculate the signature for the file, so
 				# we know whether the build info has changed.
@@ -558,7 +659,7 @@ sub load_build_info_file {
       $build_info{$key} = $val;
     }
     else {
-      warn $build_info_file->absolute_filename . ": build info file corrupted\n";
+      warn $build_info_fname . ": build info file corrupted\n";
       last;
     }
   }
@@ -566,7 +667,7 @@ sub load_build_info_file {
 
   if (($build_info{SIGNATURE} || '') ne $sig) {
 				# Exists but has the wrong signature?
-    $build_info_file->unlink;	# Get rid of bogus file.
+    CORE::unlink($build_info_fname); # Get rid of bogus file.
     return undef;
   }
 

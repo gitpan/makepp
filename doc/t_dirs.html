@@ -11,15 +11,21 @@
     libraries that need to be built but should be kept separate, it is
     quite likely that you have split up your sources into several
     directories.  One of the main motivations for writing <i>makepp</i>
-    was to make dealing with several directories much easier than the
-    standard make utility.</p>
+    was to make dealing with several directories much easier than with
+    the standard make utility.  If you're familiar with the standard
+    unix make, you'll notice that with <i>makepp</i>, you don't have to
+    mess around with ugly complexities like recursive invocations of
+    make.</p>
 
-    <p>Usually, all you have to do is to put a separate makefile in each
-    directory that builds the relevant files in that directory.  All
-    actions in each makefile are executed with the current directory set
-    to be the directory containing the makefile, so each makefile can be
-    written independently of all the others.  No makefile has to know
-    anything about the other makefiles; it does not even have to tell
+    <p>With <i>makepp</i>, you simply put a separate makefile in each
+    directory that builds the relevant files in that directory.  When a
+    makefile refers to files whose build commands are in different
+    makefiles, <i>makepp</i> automatically finds the appropriate build
+    rules in the other makefiles.  All actions in each makefile are
+    executed with the current directory set to be the directory
+    containing the makefile, so each makefile can be written
+    independently of all the others.  No makefile has to know anything
+    about the other makefiles; it does not even have to tell
     <i>makepp</i> to load the rules from those other makefiles.</p>
 
     <p>When you've written your makefiles, cd to the directory that
@@ -99,6 +105,10 @@ libgoodies.so: $(MODULES)
     href="dirs.html">the section on directories in the reference
     manual</a>.</p>
 
+    <p>One caveat: if you reference the variable <code>$(MAKE)</code> in
+    your makefile, <i>makepp</i> automatically goes into backward
+    compatibility mode and turns off automatic loading.</p>
+
     <h2>Template or boilerplate files</h2>
 
     <p><i>Makepp</i> has several other features which make life slightly
@@ -151,8 +161,8 @@ CXXFLAGS := -O2
 
     <p>Note that since the included file is actually inserted into each
     makefile, rules in the included file are applied with the default
-    directory of the makefile that included it, not the directory
-    containing the include file.</p>
+    directory set to the directory containing the makefile that included
+    the file, not the directory containing the include file.</p>
 
     <p>The top level <code>Makefile</code> might look like this:</p>
 
@@ -196,7 +206,7 @@ libgoodies.so: $(MODULES)
 
     <p>What you can do to ensure that <i>makepp</i> always loads the
       correct makefile(s), no matter what directory happens to be your
-      current directory, is to use the <code>-F</code> command line
+      current directory, is to use the <a href="command_line.html#option_F"><code>-F</code></a> command line
       option, like this:</p>
 
 <pre>
@@ -216,7 +226,7 @@ makepp -F ~/src/my_program
     <br>
 <!-- Created: Wed Aug 23 23:00:24 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Sat Oct 14 22:37:30 PDT 2000
+Last modified: Mon Feb 19 15:51:33 PST 2001
 <!-- hhmts end -->
   </body>
 </html>

@@ -1,4 +1,4 @@
-VERSION	= 1.05
+VERSION	= 1.10
 
 all: test
 

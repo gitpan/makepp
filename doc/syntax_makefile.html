@@ -426,10 +426,9 @@ XYZ := $(patsubst %.c, %o, $(print $(SOURCE_FILES)))
     <p><i>makepp</i> also supports many other, less useful functions
     that GNU make has (see the GNU make documentation for details,
     because I don't feel like typing it in now).  (The only ones it does
-    not support are <code>join</code>, <code>foreach</code>,
-    <code>origin</code>, <code>call</code>, <code>error</code>, and
-    <code>warning</code>.)  These are intended mainly to support
-    existing makefiles; it's very easy to <a
+    not support are <code>origin</code>, <code>call</code>,
+    <code>error</code>, and <code>warning</code>.)  These are intended
+    mainly to support existing makefiles; it's very easy to <a
     href="extending_makepp.html">write your own functions in perl</a>,
     or to put <a href="#statement_perl_begin">perl code to manipulate
     variables directly</a> in your makefile, so you can do any kind of
@@ -572,7 +571,7 @@ libmine.a: *.o
 
 <pre>
 %.o: %.cxx
-      noecho $(LIBTOOL) -c $(input)
+      noecho $(LIBTOOL) --mode=compile $(CC) -c $(input)
 </pre>
 
     <p>This means that when the libtool command is executed, it is not
@@ -657,7 +656,7 @@ $(phony distribution):
     the <code>:foreach</code> clause for the rule.</p>
 
 <pre>
-target-expression : depedency-expression : foreach file-list
+target-expression : dependency-expression : foreach file-list
 	actions
 </pre>
 
@@ -738,6 +737,27 @@ $(foreach:%.h=%.o) : $(foreach:%.h=%.cpp) : foreach *.h
       shorter).  If this doesn't distinguish the makefiles, then the
       rule from the makefile which is loaded latest is used.
 
+      <li>Pattern rules that have a shorter chain of inference are
+	preferred over other pattern rules.  For example, if you had the
+	following rules (based on an example from the linux kernel):
+<pre>
+%.s: %.c
+	$(CC) -s $(input) -o $(output)
+
+%.o: %.s
+	$(AS) $(input) -o $(output)
+
+%.o: %.c
+	$(CC) -c $(input) -o $(output)
+</pre>
+
+	<p>If we need to build <code>xyz.o</code>, we could either build
+	the intermediate <code>.s</code> file and then run that through
+	the assembler using the first two rules, or we could go directly
+	to a <code>.o</code> file using the last rule.  The last rule is
+	preferred because there are fewer steps in the chain of
+	inference (one instead of two).</p>
+
       <li>Rules later in a makefile override rules that are earlier.
       (This is backwards from GNU make.)  This means that you should put
       your more general rules earlier, and your more specific rules
@@ -778,21 +798,14 @@ target : dependencies
       <dd>
 	<p>This tells <i>makepp</i> what algorithm to use to determine
 	if the file is out of date.  See the section on <a
-	    href="signature_checking.html">signature checking</a> for
-	  more details.  Legal values for this option are
-	  (currently):</p>
-	<dl>
-	  <dt><code>exact_match</code>
-	  <dd><i>Makepp</i>'s default algorithm.  Insists that all
-	    dependencies have the same signature as on the last build,
-	    and the build command is the same.
-
-	  <dt><code>target_newer</code>
-	  <dd>Insists that dependencies be older than the target, but
-	    does not check the build command or whether the signatures
-	    are the same.  This is <i>makepp</i>'s default algorithm for
-	    all files involved in rebuilding the makefile.
-	</dl>
+	href="signature_checking.html">signature checking</a> for more
+	details.  Legal values for this option are
+	<code>exact_match</code>, <code>target_newer</code>,
+	<code>md5</code>, and <code>c_compilation_md5</code>.  This
+	overrides any signature method specified with the <a
+	href="command_line.html#option_signature_method"><code>-m</code>
+	or <code>--signature-method</code> command line options</a>, or
+	with the <code>signature</code> statement.
 
       <a name="colon_scanner"></a>
       <dt><code>:scanner</code> <i>name</i>
@@ -826,21 +839,19 @@ target : dependencies
 
 	  <dt><code>c_compilation</code>
 	  <dd>
-	    Uses thes scanner for C/C++ compilation.  See the section on
-	    <a href="scanning.html">scanning for includes</a> for
-	    details on what this does.
+	    Uses thes scanner for C/C++ compilation, which looks for
+	    include files.  See the section on <a
+	    href="scanning.html">scanning for includes</a> for details.
 	</dl>
 
 	<p>The default scanner depends on the command.  If you do not
-	  specify a <code>:scanner</code> option, then the first word of
-	  the command is examined.  If it looks like a compile command,
-	  then <i>makepp</i> will use the <code>c_compilation</code>
-	  scanner; otherwise it usese the <code>none</code> scanner.</p>
-
-	<p>You can <a href="scanning.html">write new scanners or change
-	<i>makepp</i>'s default scanner</a> by writing your own perl
-	subroutines.</p>
-
+	specify a <code>:scanner</code> option, then the first word of
+	the command is examined.  If it looks like a compile command,
+	then <i>makepp</i> will use the <code>c_compilation</code>
+	scanner; otherwise it usese the <code>none</code> scanner.  For
+	more details on this, or if you want to write your own scanner
+	or change <i>makepp</i>'s default scanners, see the section on
+	<a href="scanning.html">scanning</a>.</p>
     </dl>
 
 
@@ -1036,6 +1047,11 @@ libmylib.$(DLEXT): *.o
     <a name="statement_repository"></a>
     <h3>repository</h3>
 
+    <pre>
+repository dirname
+repostiory destdir=srcdir
+</pre>
+
     <p>Specifies one or more <a href="repositories.html">repository
     directories</a>.  The first repository specified has precedence over
     the others if the same file exists in multiple repositories and
@@ -1052,7 +1068,33 @@ repository subdir1/subdir2=/users/joe/joes_nifty_library
 
 
 
-    <a name="statement_sub"></a>
+    <a name="statement_signature"></a>
+    <h3>signature</h3>
+
+<pre>
+signature exact_match
+signature target_newer
+signature md5
+signature c_compilation_md5
+signature default
+</pre>
+
+    <p>Overrides the default signature method for all
+      rules following the <code>signature</code> statement.  This
+      overrides the signature method specified on the command line with
+      <code>-m</code> or <code>--signature-method</code>, but does not
+      override signature methods specified with the
+      <code>:signature</code> rule modifier.</p>
+
+    <p>Specify <code>signature&nbsp;default</code> to return to
+      <i>makepp</i>'s default, either the builtin default or the default
+      specified on the command line.</p>
+
+    <p>For more information about signature methods, see the section on
+    <a href="signature_checking.html">signature checking</a>.</p> <a
+    name="statement_sub"></a>
+
+
     <h3>sub</h3>
 
     <p>This statement provides a way to define a perl subroutine inside
@@ -1073,7 +1115,7 @@ sub f_file_contents {
   my $file_contents;
   open FILE, $filename || die "$!\n";
   my $line;
-  while (defined($line = <FILE>)) {  # Read another line.
+  while (defined($line = &lt;FILE&gt;)) {  # Read another line.
     $file_contents .= $line;
   }
   close FILE;
@@ -1268,7 +1310,7 @@ echo "Special contents" > a file name with spaces
     <br>
 <!-- Created: Thu Aug  3 15:19:01 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Fri Nov 24 19:16:21 PST 2000
+Last modified: Mon Feb 19 14:52:15 PST 2001
 <!-- hhmts end -->
   </body>
 </html>

@@ -117,6 +117,14 @@
     href="command_line.html#option_no_implicit_load"><code>-noimplicit-load</code></a>
     option to the command line.</p>
 
+    <p>Implicit makefile loading is automatically turned off if
+    <i>makepp</i> sees a reference to <code>$(MAKE)</code> anywhere in
+    your makefile.  <code>$(MAKE)</code> is used for recursive make
+    invocations in old makefiles.  If <i>makepp</i> sees
+    <code>$(MAKE)</code>, it assumes that directories are taken care of
+    explicitly by recursive invocations of make; implicit loading often
+    gets in the way in that case, and so it turns it off.</p>
+
     <h2>The load_makefile statement</h2>
 
 <pre>
@@ -156,7 +164,7 @@ load_makefile VAR=value dir1 dir2
     <br>
 <!-- Created: Sat Oct 14 21:09:39 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Sat Oct 14 22:37:30 PDT 2000
+Last modified: Mon Feb 19 15:51:00 PST 2001
 <!-- hhmts end -->
   </body>
 </html>

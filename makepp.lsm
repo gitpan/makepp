@@ -1,7 +1,7 @@
 Begin4
 Title: makepp
-Version: 1.03
-Entered-date: 2000-11-14
+Version: 1.05
+Entered-date: 2000-11-27
 Description: A syntax-compatible replacement for GNU make with numerous
    enhancements for build reliability.  Remembers last build command and
    rebuilds if build command or any file changed.  Vastly improved

@@ -44,6 +44,7 @@ makepp CFLAGS=-O2
 	the current directory called <code>Makeppfile</code>, then
 	<code>makefile</code>, then <code>Makefile</code>.</code>
 
+	<a name="option_F"></a>
       <dt><code>-F</code>&nbsp;<i>Makefile</i> or <code>--makeppfile=Makefile</code>
       <dd>
 	Uses the specified makefile, and cd's to the directory
@@ -114,13 +115,17 @@ makepp -F /your/source/dir/top
       <dt><code>-m</code> or <code>--signature-method=</code>value
       <dd>
 	Specifies the default signature method to use for rules which do
-	not have the <code>:signature</code> modifier.  Possible values
-	are <code>target_newer</code> (only requires that the target be
-	newer than the dependencies; this is the default for the
-	traditional make program) and <code>exact_match</code> (requires
-	that the build command and signatures of all dependencies be
-	exactly the same as on the last build; this is the default for
-	<i>makepp</i>).
+	not have the <code>:signature</code> modifier in makefiles which
+	do not have a <code>signature</code> statement.  Possible values
+	are <code>target_newer</code>, <code>exact_match</code>,
+	<code>md5</code>, and <code>c_compilation_md5</code>.  This
+	option has no effect on the signature method for C/C++
+	compilation; you must use the <a
+	href="syntax_makefile.html#statement_signature"><code>signature</code></a>
+	statement or the <a
+	href="syntax_makefile.html#colon_signature"><code>:signature</code></a>
+	rule modifier to affect that.  For more details, see the section
+	on <a href="signature_checking.html">signature checking</a>.
 
 	<a name="option_nolog"></a>
       <dt><code>--nolog</code>
@@ -241,7 +246,7 @@ makepp -F /your/source/dir/top
 
 <!-- Created: Tue Aug  8 18:07:56 PDT 2000 -->
 <!-- hhmts start -->
-Last modified: Fri Nov 24 19:03:19 PST 2000
+Last modified: Mon Feb 19 14:51:59 PST 2001
 <!-- hhmts end -->
   </body>
 </html>

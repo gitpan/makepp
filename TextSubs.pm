@@ -3,7 +3,7 @@ require Exporter;
 @ISA = qw(Exporter);
 
 @EXPORT = qw(index_ignoring_quotes split_on_whitespace split_on_colon unquote
-	     requote format_exec_args whitespace_len);
+	     requote format_exec_args whitespace_len hash_neq);
 
 #
 # This module contains a few subroutines for manipulating text, mostly for
@@ -449,6 +449,9 @@ sub unquote {
       }
     }
 
+    elsif (/\G\\([0-7]{1,3})/gc) { # Octal character code?
+      $ret_str .= chr(oct($1));	# Convert the character to binary.
+    }
     elsif (/\G\\([^\*\[\]\?])/sgc) { # Character escaped with backslash?
 				# Don't weed out backslashed wildcards here,
 				# because they're recognized separately in
@@ -484,6 +487,7 @@ sub requote {
   local $_ = $_[0];		# Get the string.
   s/\\/\\\\/g;			# Protect all backslashes.
   s/\"/\\\"/g;			# Escape any double quotes.
+  s{([\0-\037])}{sprintf("\\%o", ord($1))}eg; # Protect any binary characters.
   qq["$_"];			# Return the quoted string.
 }
 
@@ -539,6 +543,36 @@ sub whitespace_len {
   }
 
   return $white_len;
+}
+
+=head2 hash_equal
+
+  if (hash_neq(\%a, \%b)) { ... }
+
+Returns true (actually, returns the first key encountered that's different) if
+the two associative arrays are unequal, and '' if not.
+
+=cut
+
+sub hash_neq {
+  my ($a, $b) = @_;
+#
+# This can't be done simply by stringifying the associative arrays and
+# comparing the strings (e.g., join(' ', %a) eq join(' ', %b)) because
+# the order of the key/value pairs in the list returned by %a may differ
+# even for identical hashes (if two keys happen to land in the same bucket).
+#
+  my %a_not_b = %$a;		# Make a modifiable copy of one of them.
+  foreach (keys %$b) {
+    !exists($a_not_b{$_}) and return $_ || '0_'; # Must return a true value.
+    $a_not_b{$_} eq $b->{$_} or return $_ || '0_';
+    delete $a_not_b{$_};	# Remember which things we've compared.
+  }
+
+  if (scalar %a_not_b) {	# Anything left over?
+    return (%a_not_b)[0] || '0_'; # Return the first key value.
+  }
+  return '';			# No difference.
 }
 
 1;
