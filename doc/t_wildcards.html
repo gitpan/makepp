@@ -1,0 +1,110 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Using Wildcards</title>
+  </head>
+
+  <body>
+    <h1>Using Wildcards</h1>
+
+    <p>Up until this point, we've had to explicitly list all of the
+      modules that go into a program or a library.  The previous
+      makefile, for example, contained this line:</p>
+
+<pre>
+MODULES = candy.o chips.o licorice.o cookies.o popcorn.o spinach.o
+
+libgoodies.so: $(MODULES)
+	$(CXX) -shared $(inputs) -o $(output)
+</pre>
+
+    <p>In this case, listing all of the modules that go into
+    <code>libgoodies.so</code> is not such a big deal since there aren't
+    very many of them.  But sometimes it can be a real nuisance to list
+    all of the object files, especially if this list is changing rapidly
+    during development.  Frequently, you want every single module in the
+    whole directory to be compiled into your program or library.  It
+    would be a lot easier if you could just tell <i>makepp</i> to do
+    that without listing them all.</p>
+
+    <p>Well, you can.  The above lines could be rewritten as:</p>
+
+<pre>
+libgoodies.so: *.o
+	$(CXX) -shared $(inputs) -o $(output)
+</pre>
+
+    <p>The <code>*.o</code> wildcard matches any existing
+    <code>.o</code> files, or any <code>.o</code> files which do not yet
+    exist but can be made by any of the rules that <i>makepp</i> knows
+    about from any makefiles that it has read.  So the wildcard will
+    return the same list of files, no matter whether you haven't
+    compiled anything yet, or whether all the modules have been compiled
+    before.</p>
+
+    <p>Of course, if you contaminate your directories with extra files
+    that shouldn't be compiled directly into your library, (e.g., if you
+    write little test programs and leave them in same directory as the
+    library source files), then these modules will be incorrectly
+    included into your library.  If you choose to use wildcards, it's up
+    to you to keep the directory clean enough.</p>
+
+    <p><i>Makepp</i> supports the usual unix wildcards and one
+      additional one:</p>
+
+    <dl>
+      <dt><code>*</code>
+
+      <dd>Matches any string of 0 or more characters.  It will not match
+	the <code>/</code> character.  For example, <code>a*c</code>
+	matches <code>ac</code>, <code>abc</code>, and <code>aaaaabc</code>,
+	but not <code>aa/bc</code>.
+
+      <dt><code>?</code>
+
+      <dd>Matches exactly one character (not including <code>/</code>).
+      For example, <code>???.o</code> matches all filenames that have 3
+      characters before the <code>.o</code> extension.
+
+
+      <dt><code>[]</code>
+
+      <dd>Matches any of a list of characters at that position.  For
+      example, <code>[abc].o</code> matches <code>a.o</code>,
+      <code>b.o</code>, <code>c.o</code>, but not <code>abc.o</code> or
+      <code>d.o</code>.  You can also specify a range of characters,
+      e.g., <code>data_[0-9]</code> will match <code>data_0</code>,
+      <code>data_1</code>, etc.
+
+      <dt><code>**</code>
+
+      <dd>This is a special wildcard, found only in makepp (and the zsh
+      shell, from which I stole the idea).  It matches any number of
+      intervening directories.  For example, <code>**/*.o</code> matches
+      <code>xyz.o</code>, <code>test_programs/abc.o</code>, and
+      <code>a/deeply/nested/subdirectory/def.o</code>.
+
+	<p>If your sources are contained in several subdirectories, and
+	you want to link all the object modules together, you could
+	write it like this:</p>
+
+<pre>
+liboodles.so: **/*.o
+	$(CXX) -shared $(inputs) -o $(output)
+</pre>
+
+    </dl>
+
+    <hr>
+    <a href="t_index.html">Tutorial index</a>
+    |
+    <a href="t_functions.html">Next (functions and variables)</a>
+    |
+    <a href="t_dirs.html">Previous (directories)</a>
+    <br>
+<!-- Created: Fri Aug 25 21:16:52 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Fri Aug 25 22:57:09 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

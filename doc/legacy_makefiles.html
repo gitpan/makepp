@@ -1,0 +1,523 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Using and Improving Your Old Makefiles</title>
+  </head>
+
+  <body>
+    <h1>Using and Improving Your Old Makefiles</h1>
+
+    <p><i>Makepp</i> is designed to work without modification with
+    existing makefiles.  Its syntax is almost a strict superset of
+    make's syntax, and although it uses <a
+    href="build_algorithm.html">different algorithms</a>, almost all
+    build rules defined by makefiles work without modification.</p>
+
+    <p>My suggestion for converting makefiles is to do the
+      following:</p>
+    <ol>
+      <li>Try your makefiles as they are.  They will probably work without
+      modification if you haven't been using any of the ugly hacks that
+      people sometimes do to get around limitations of the traditional
+      make.  And you'll get <a href="scanning.html">automatic scanning
+      for include files</a> for free (provided your compiler command
+      isn't too bizarre).  (Note that <i>makepp</i> will insist on
+      recompiling everything the first time you run it, because it
+      doesn't know whether the files that are already there were made
+      correctly.)  Of course, you may want to make minor modifications
+      like <a
+      href="syntax_makefile.html#signature_method_c_compilation_md5">using
+      cryptographic signature checking</a> to avoid recompiling when a
+      file has changed but the contents are the same except for
+      whitespace and comments.
+
+      <li>If <i>makepp</i> aborts and tells you to remove the
+	<code>--noimplicit-load</code> command line option or the
+	<code>--traditional-make</code> option, then just rerun it with
+	those options.  These make <i>makepp</i>'s behavior emulate the
+	behavior of the traditional unix make more precisely.
+
+      <li>If <i>makepp</i> does not appear to be finding build rules,
+	especially for files located in subdirectories, you may need to
+	add the <code>--percent-subdirs</code> option to the command line.
+
+      <li>A common problem is some things that are produced by the
+      configure script rebuild themselves unnecessarily.  This is
+      because <i>makepp</i> is not willing to make the same assumptions
+      as the standard make about whether a file is up to date (see the
+      section on <a
+      href="syntax_makefile.html#colon_signature">signature checking</a>
+      for details), except for things that it knows are involved in
+      building makefiles.  The proper way to get around this is to add
+      the <a
+      href="syntax_makefiles.html#colon_signature"><code>:&nbsp;signature&nbsp;target_newer</code></a>
+      to all rules that involve a configure procedure.
+
+      <li>If things still do not work, you should probably look through
+      the rest of this page, and at the list of <a
+      href="incompat.html">incompatibilities with standard make</a>.
+      Even if your makefiles do work, there may be better ways to do
+      some things; see <a href="#deprecated">below</a> for some
+      examples.
+
+      <li>There are often a lot of things in legacy makefiles that don't
+      cause a problem for <i>makepp</i> but aren't useful any more.  You
+      might want to discard anything in your makefile that attempts to
+      determine include files automatically.  Also discard any manual
+      lists of include files.  Such things are usually unnecessary since
+      <i>makepp</i> can scan for include files automatically.  This will
+      probably get rid of a good part of the complexity of your
+      makefile.  You can also get rid of most invocations of recursive
+      make, since <i>makepp</i> can usually figure out on its own which
+      makefiles it needs to load.  Again, this will probably reduce the
+      complexity of your makefile substantially.
+    </ol>
+
+    <p><i>Makepp</i> usually gives many warnings when using makefiles
+    designed for the traditional unix make.  This is because there are
+    many unsafe practices in makefiles which I would like to discourage.
+    The most common is not marking phony targets as such.  Most
+    makefiles (including makefiles produced by automake) don't bother to
+    do this properly, even though GNU make does provide a mechanism (the
+    dummy <code>.PHONY</code> target).  You can disable most of these
+    warning messages by adding <code>--nowarn</code> to the command
+    line.</p>
+
+    <p>Here are the compilation options that I needed to compile some
+      popular packages with makepp:</p>
+
+    <table border>
+      <tr>
+	<th>Package</th>
+	<th>Options</th>
+	<th width="50%">Notes</th>
+      </tr>
+      <tr>
+	<td>KDE 2.0 (except kdemultimedia)</td>
+	<td><code>RM=rm</code></td>
+	<td>Earlier versions of KDE required no options. <i>makepp</i> does not
+	  predefine any symbols, which is why <code>RM</code> must be
+	  defined on the command line.  KDE makefiles are controlled by
+	  automake, so many packages are likely to work the same way.
+	  (kdemultimedia doesn't compile with makepp because of some very
+	  sloppy constructs in one makefile, and also
+	  incompatibilities in the use of wildcards.)</td>
+      </tr>
+      <tr>
+	<td>perl</td>
+	<td><code>--noimplicit-load
+	    --traditional-recursive-make</code></td>
+	<td>Makefiles produced by MakeMaker cause many warnings because
+	  they often provide two rules to build the same target,
+	  something which <i>makepp</i> does not allow.</td>
+      </tr>
+      <tr>
+	<td>Qt 2.2.1</td>
+	<td><code>--noimplicit-load --traditional-recursive-make
+	    -m&nbsp;target_newer --percent-subdirs</code></td>
+	<td>Library compiles fine; compilation of <code>uic</code> fails
+	because of <a
+	href="incompat.html#pattern_rule_dirs">incompatible treatment of
+	directories in pattern rules</a> on three files.</td>
+      </tr>
+    </table>
+
+    <h2>Common problems with legacy makefiles</h2>
+
+    <p><i>makepp</i> is designed to work with almost any makefile.  In
+    practice, it often doesn't work with complicated makefiles because
+    they frequently assume something that <i>makepp</i> isn't willing to
+    assume; <i>makepp</i> has higher standards for build correctness.
+    There are also a couple of deliberate syntactical differences that
+    could cause problems.</p>
+
+    <h3>Commands to rebuild the makefile</h3>
+
+    <p>In my experience, the biggest problem in using <i>makepp</i> on a
+    complicated existing makefile are commands which rebuild the
+    makefile or dependencies of the makefile.  In order to avoid
+    unnecessary rebuilds, <i>Makepp</i> uses the same signature checking
+    algorithm as make for updating makefiles (it only rebuilds if the
+    target is older than a dependency, and doesn't worry if the command
+    has changed).  For example, this allows you to create the makefile
+    with a configure procedure, and <i>makepp</i> in theory won't try to
+    rebuild it.</p>
+
+    <p>However, there are still a number of different problems which can
+    crop up related to rebuilding the makefile.  Commands to rebuild the
+    makefile often modify more targets than are explicitly listed, and
+    as a result, the makefile may be rebuilt unnecessarily.  The
+    solution to this is to change the makefile to explicitly list as
+    targets <b>all</b> files which are modified by a given action.</p>
+
+    <p>Another problem occurs when the makefile (or something that the
+    makefile depends on, e.g., a file output by the configure procedure
+    such as <code>config.status</code>) is a dependency of another file.
+    Although <i>makepp</i> initially does not rebuild the makefile, it
+    later tries to rebuild <code>config.status</code>.  The traditional
+    make would not bother to rebuild it, because it is newer than all of
+    its dependencies.  However, <i>makepp</i> rebuilds unless all the
+    dependencies and the build command are exactly the same, which will
+    never be true if it has never built the file before.  Consequently,
+      these files are unnecessarily rebuilt, which causes the makefile
+      to be rebuilt as well on the next iteration.</p>
+
+    <p>The solution to this problem is to tell <i>makepp</i> to use a <a
+    href="syntax_makefile.html#colon_signature">different signature
+    checking algorithm</a> for targets which are produced by the
+    configure command.</p>
+
+    <p>If rebuilding the makefile is causing problems, you may want to
+    run <i>makepp</i> with the <a
+    href="command_line.html#noremake_makefiles"><code>--noremake-makefiles</code></a>
+    option.  This won't suppress rebuilds of the makefile which are
+    triggered by some other file depending on the makefile, however.</p>
+
+
+
+    <h3>Commands which assume make's signature checking algorithm</h3>
+
+    <p>Since by default, <i>makepp</i> requires that the dependencies
+    and targets and build command be exactly the same as on the last
+    build, it will force a rebuild of anything that was not built under
+    the control of make itself.  This can cause a problem for a makefile
+    which is assuming that the user has run some external program, or is
+    testing for it.  This is especially a problem with configure
+    procedures which are expected to be run by the user.  For example,
+    Qt 2.1's configure procedure creates a file called
+    <code>.buildopts</code>, and their makefile has a line that reads:
+<pre>
+all: other-things .buildopts
+
+.buildopts:
+	@echo "You haven't run configure yet."
+	@exit 1
+</pre>
+
+    <p><i>makepp</i> always tries to remake <code>.buildopts</code>,
+    even if it was generated by the configure procedure, because
+    <i>makepp</i> doesn't know for sure that it was properly made.  As a
+    result, the build always fails.  To fix this, specify the signature
+    checking algorithm like this:</p>
+<pre>
+.buildopts:
+	: signature target_newer
+	@echo "You haven't run configure yet."
+	@exit 1
+</pre>
+    <p>Note that this will work with the traditional make, too, because
+      the <code>:&nbsp;signature</code> line is interpreted as a shell
+      command which does nothing.</p>
+
+    <p>You can also specify the signature checking algorithm on the
+    command line using the <a
+    href="command_line.html#option_signature_method"><code>-m&nbsp;target_newer</code></a>
+    option.</p>
+
+    <h3>Rules which use different names for the same target</h3>
+
+    <p><i>makepp</i> recognizes any name for a file, though whatever
+    tortuous path involving directories with symbolic, "..", ".", etc.
+    For example, it will treat "./xyz" and "xyz" as identical.  This is
+    normally what you want to do, but other versions of make do not do
+    this because they depend on matching the file name rather than
+    matching the actual file.  I have seen some makefiles that depend on
+    this difference.  There is no simple cure for this; you must rewrite
+    the makefile so it doesn't make this assumption.</p>
+
+    <h3>Warning messages</h3>
+
+    <p><i>makepp</i> may give lots of annoying warning messages when run
+    with a makefile that was designed for other implementations of make.
+    You can turn these off using the <a
+    href="command_line.html"><code>--nowarn</code></a> option.  Some of
+    these warning may be helpful, though, so you may want to look
+    through them before turning them all off.</p>
+    
+
+    <hr>
+
+    <a name="deprecated"></a>
+
+    <h2>Deprecated makefile idioms</h2>
+
+    <p>There are a number of confusing or unsafe practices that I have
+    seen in existing makefiles that are no longer necessary because
+    there are better ways to achieve the same result with <i>makepp</i>.
+    Here are some examples:</p>
+
+    <a name="recursive_make"></a>
+
+    <h3>Recursive make</h3>
+
+    <p>Although <i>makepp</i> supports most recursive invocations of
+    make, use of <code>$(MAKE)</code> is not recommended because there
+    is <a href="dirs.html">a much better way to do it</a>.  Recursive
+    invocations of make are dangerous because it is difficult and
+    complex to specify accurately dependencies that span makefiles.  For
+    example, suppose <code>my_program</code> depends on
+    <code>subdir1/libxyz.so</code>.  It is usually the case that
+    <code>subdir/libxyz.a</code> is produced by a different makefile
+    than <code>my_program</code>.  With the traditional make it is quite
+    difficult to tell make that when it needs to build
+    <code>subdir/libxyz.a</code> in order to make
+    <code>my_program</code>, it should look in the other makefile for
+    the rule.  As a result, the usual procedure is to build everything
+    in the subdirectories, and only then to build the targets at the top
+    level.  Thus a typical makefile looks something like this:</p>
+
+<pre>
+SUBDIRS = subdir1 subdir2
+all: all-recursive my_program
+
+all-recursive:
+	for dir in $(SUBDIRS); do cd $$dir; $(MAKE) all; cd ..; done
+
+my_program: subdir1/libxyz.so
+	...
+</pre>
+
+    <p>Although this is common, it is dangerous, because if someone
+    types <code>make&nbsp;my_program</code>, then the libraries won't
+    get rebuilt.  There are ways to ensure that the libraries get
+    rebuilt, but they greatly complicate the makefile and are not often
+    used.</p>
+
+    <p>With <i>makepp</i>, you don't even need to worry about the
+    problem at all.  Simply take out the silly
+    <code>all-recursive</code> phony target, and it will work fine.  As
+    soon as <i>makepp</i> sees that it needs to build
+    <code>subdir1/libxyz.so</code>, it automatically looks in
+    <code>subdir1</code> to see if a makefile is available.  If there is
+    one, it is <a href="dirs.html">automatically loaded</a>, and
+    therefore <i>makepp</i> will know about the rules for making
+    <code>subdir1/libxyz.so</code>.  So your makefile will just look
+    like this:</p>
+
+<pre>
+all: my_program
+
+my_program: subdir1/libxyz.so
+	...
+</pre>
+
+    <p>Now isn't that much easier?</p>
+    
+    <p>(You can also use the <a
+    href="syntax_makefile.html#load_makefile_statement"><code>load_makefile</code></a>
+    to tell <i>makepp</i> explicitly to load a makefile, if
+    <i>makepp</i> for some reason can't find the right makefile to
+    load.)</p>
+
+    <p>Basically, if you're using recursive make, don't.  Just discard
+    all the complexity in your makefile with recursive make and use
+    implicit makefile loading or <code>load_makefile</code> instead.</p>
+
+    <p>If you really don't want to modify your makefiles to avoid using
+    recursive make, <i>makepp</i> will grudgingly accept recursive make
+    invocations, but there are some caveats.  See the section on <a
+    href="incompat.html#traditional_recursive_make">incompatibilities</a>
+    for details.</p>
+
+
+
+
+    <h3>Multiple targets for a rule</h3>
+
+    <p>It's fairly common for a single shell command to modify more than
+      just one file.  However, the traditional make does not provide any
+      clean way of expressing this.  For example, a yacc command
+      frequently produces two output files at once.  It would be natural
+      to write the command this way:</p>
+
+<pre>
+y.tab.c y.tab.h: parse.y
+	yacc -d parse.y
+</pre>
+    <p>The problem is that the traditional make interprets this to mean
+    that if it wants to build <code>y.tab.c</code>, it should invoke the
+    yacc command, and if it wants to build <code>y.tab.h</code>, it
+    should invoke it again.  While this doesn't cause a real problem in
+      this case, it can in some others.</p>
+
+    <p>So makefile writers have resorted to many devious hacks to get
+    around this.  One of them is the following:</p>
+
+<pre>
+y.tab.c: y.tab.h
+
+y.tab.h: parse.y
+	yacc -d parse.y
+</pre>
+
+    <p>It is not necessary to use such obfuscated rules (though they
+    will work) with <i>makepp</i>.  Just use the natural syntax above.
+    <i>Makepp</i> interprets rules with multiple targets differently
+    than the standard make.  (An <a
+    href="syntax_makefile.html#explicit_rules">exception</a> to this is
+    if the rule has no dependencies; then the action is executed for
+    each target, in order to conform with very common practice in
+    makefiles.)</p>
+
+    <p>Another, even worse solution which is quite common in makefiles
+      is simply not to list all of the targets of a given action.  For
+      example, the above could be written as:</p>
+
+<pre>
+y.tab.c: parse.y
+	yacc -d parse.y
+</pre>
+    <p>without even mentioning <code>y.tab.h</code>.  This will cause
+    problems.  For example, <i>makepp</i> won't realize that the
+    <code>yacc</code> command must be rerun in order to generate
+    <code>y.tab.h</code>, so it may compile some files using the old
+    <code>y.tab.h</code> before it gets around to running the yacc
+    command.  <b>Always list all targets!!!!</b></p>
+
+    <p>Sometimes targets are deliberately not listed because they don't
+    really change that often and cause unnecessary recompilation when
+    they do.  In the above exampel, it is true that <code>y.tab.h</code>
+    could potentially be affected by changes to <code>parse.y</code>, in
+    99.9% of the cases it will be unchanged.  And <code>y.tab.h</code>
+    is likely to be included in lots of other files.  With
+    <i>makepp</i>, you can avoid the recompilation without the risk of
+    an incorrect build.  Simply use the <a
+    href="syntax_makefile.html#signature_method_c_compilation_md5">MD5
+    signature checking</a> for your C sources.  This way, if the
+    contents of the file <code>y.tab.h</code> hasn't changed (except for
+    possibly comments), it won't trigger recompilation of anything that
+    depends on it, even if the file date has changed.</p>
+
+
+
+
+    <h3>Repeated execution of one rule for many targets</h3>
+
+    <p>This problem is the inverse of the one just described.
+      For example, consider the following command (modified from the perl
+      distribution):</p>
+<pre>
+B.so ByteLoader.so $(other_targets) : miniperl $(other_dependencies)
+	sh ext/util/make_ext dynamic $@
+</pre>
+
+    <p>Traditional make executes the command
+    <code>sh&nbsp;ext/util/make_ext&nbsp;dynamic&nbsp;$@</code> twice,
+    once each for <code>B.so</code> and <code>ByteLoader.so</code> (and
+    once for each of the other dependencies).  <i>Makepp</i> will in
+    fact do this, because it is <a
+    href="syntax_makefile.html#legacy_multiple_targets">smart enough to
+    realize that the shell command will only rebuild one of the
+    targets</a>.  But generally speaking, for clarity and consistency,
+    you should specify multiple targets for a rule only if a single
+    invocation of the shell commands builds all the targets.
+    <i>Makepp</i> has a different idiom for using the same rule for
+    multiple targets:</p>
+<pre>
+$(foreach) : miniperl $(other_dependencies)
+	: foreach B.so ByteLoader.so $(other_targets)
+	sh ext/util/make_ext dynamic $@
+</pre>
+
+    <p>This idiom makes it clearer that the same rule is being applied
+      to multiple targets.</p>
+
+
+
+
+    <h3>Depending on the makefile</h3>
+
+    <p>The standard make does not remember what the commands were to
+    build a target.  Thus if you change the build command, it may be
+    that the target needs to be rebuilt even if it's not out of date
+    with respect to its dependencies.  Sometimes people attempt to get
+      around this by specifying the makefile itself as a dependency:</p>
+
+<pre>
+CFLAGS = -g
+
+%.o: %.c Makefile
+	$(CC) $(CFLAGS) -c $< -o $@
+</pre>
+
+    <p>This means that if you go and edit the makefile and change the
+      value of <code>CFLAGS</code>, make will recompile every single
+      C source file.  However, this isn't a very effective way of doing
+      it, because if at the shell prompt you simply type:
+<pre>
+make CFLAGS=-O
+</pre>
+    then the makefile will not have changed, but the build command still
+    needs to be reexecuted.  Furthermore, if you make some irrelevant
+    change in the makefile, make will still recompile every single
+    source file.</p>
+
+    <i>Makepp</i> has a much better solution to this problem: it
+    remembers the whole build command.  Thus it will notice that
+    compilation options are different, no matter whether you change them
+    by editing the makefile or by specifying variables on the command
+    line.  It also will only recompile files where the command has
+    changed.  There should be no reason to make a file depend on the
+    makefile any more.</i>
+
+
+
+
+
+
+    <a name="environment"></a>
+    <h3>Using the environment</h3>
+
+    <p>Some makefiles use the environment to communicate things to
+    commands.  This is a very bad idea, because <i>makepp</i> does not
+    record what the environment was when it executes the build command,
+    so if you change the environment, it will not know that the build
+    command needs to be reexecuted.  (Neither will the traditional make,
+    but it has much lower standards for correct builds.)</p>
+
+    <p>For example,</p>
+
+<pre>
+TMAKEPATH = /somewhere/over/the/rainbow
+
+export TMAKEPATH
+
+Makefile: Makefile.pro
+	perl $(TMAKE) $< > $@
+</pre>
+
+    <p>This command runs the tmake utility (from Troll Tech, the
+      makers of Qt) to rebuild the makefile.  There's nothing wrong with
+      this in principle.  But tmake gets an important input from
+      the environment variable <code>TMAKEPATH</code>.  If you change
+      the line containing <code>TMAKEPATH</code>, <i>makepp</i> will not
+      know to rerun the tmake command.</p>
+
+    <p>However, if you write the rule this way:</p>
+<pre>
+TMAKEPATH = /somewhere/over/the/rainbow
+
+Makefile: Makefile.pro
+	TMAKEPATH=$(TMAKEPATH) perl $(TMAKE) $< > $@
+</pre>
+    i.e., you set the environment variable in the action, then if
+    <code>TMAKEPATH</code> changes, <i>makepp</i> will realize that the
+    build command needs to be redone.</p>
+
+
+    <hr>
+
+    <hr>
+    <a href="index.html">Table of contents</a>
+    |
+    <a href="incompat.html">Next (incompatibilities)</a>
+    |
+    <a href="extending_makepp.html">Previous (extending makepp)</a>
+    <br>
+
+<!-- Created: Thu Aug  3 16:27:45 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Fri Oct 27 13:07:16 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Pattern Rules</title>
+  </head>
+
+  <body>
+    <h1>Pattern Rules</h1>
+
+    <p>Having one rule for each compilation command is fine when there
+    are only a few files, but what if your program consists of dozens of
+    source files?  Most of them have to be compiled with very similar
+    commands.  It is tedious to type in a separate rule for each source
+    file, and then if you decide to change the rules, you have to change
+    the makefile in a dozen places.  A better solution to this problem
+    is to use a <i>pattern rule</i>.</p>
+
+    <p>A pattern rule is a concise way of specifying a rule for many
+    files at once.  The rule will depend on the file names, but usually
+    it depends on them in a simple way.  You specify a pattern by using
+    the <code>%</code> wildcard.  When present in the dependency list,
+    <code>%</code> matches any string of any length; when present in the
+    list of targets, <code>%</code> stands for the string that
+    <code>%</code> in the dependency list matched.</p>
+      
+    <p>The following pattern rule will take any <code>.c</code> file and
+      compile it into a <code>.o</code> file:</p>
+
+<pre>
+%.o: %.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $(input) -o $(output)
+</pre>
+
+    <p>(This assumes that you have the variables <code>CC</code>,
+      <code>CFLAGS</code>, and <code>INCLUDES</code> defined to be
+      something suitable.)</p>
+
+    <p>The first line of the rule says that it applies to every possible
+    input file that matches the pattern <code>%.c</code>.  These
+    <code>.c</code> files can be transformed into the corresponding
+    <code>.o</code> file using the specified actions.</p>
+
+    <p>The action of rule is quite similar to the other actions we've
+    seen previously, except that it uses <i>automatic variables</i>.  An
+    automatic variable is a variable whose value is automatically set by
+    <i>makepp</i> depending on the rule that it appears in.  Some useful
+    automatic variables are:</p>
+
+    <dl>
+      <dt><code>$(input)</code>
+      <dd>The name of the first input file.  In this rule, this would be
+	the file that matches the <code>%.c</code> pattern.
+	<code>$(dependency)</code> is a synonymn for
+	<code>$(input)</code>.  In older makefiles, you will also see
+	the cryptic symbol <code>$&lt;</code> used as well.
+
+      <dt><code>$(output)</code>
+      <dd>The name of the first output file.  In this rule, this would
+	be the file that matches the <code>%.o</code> pattern.
+	<code>$(target)</code> and <code>$@</code> are synonymns.
+
+      <dt><code>$(inputs)</code>
+      <dd>The name of all explicitly listed input files.  In this case,
+	since there is only one, <code>$(inputs)</code> is equivalent to
+	<code>$(input)</code>.  <code>$(dependencies)</code> and
+	<code>$^</code> are synonymns.
+
+      <dt><code>$(outputs)</code>
+      <dd>The name of all explicitly listed targets.  In this case,
+	since there is only one, <code>$(outputs)</code> is equivalent
+	to <code>$(output)</code>.  <code>$(targets)</code> is a
+	synonymn for <code>$(outputs)</code>.
+
+    </dl>
+
+    <p>Note that these variables are lower case.</p>
+
+    <p>You can use these automatic variables even for non-pattern
+      rules.  This avoids repeating target filenames.</p>
+
+    <p>You can actually do considerably more complicated things with
+      pattern rules.  For example,</p>
+
+<pre>
+# Put the object files into a separate directory:
+objects/%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
+
+# Run a preprocessor to make source files:
+moc_%.cxx: %.h
+	$(MOC) $(input) -o $(output)
+</pre>
+
+    <p>Using pattern rules and automatic variables, we'd probably
+      rewrite our makefile for our simple program like this:</p>
+
+<pre>
+CXX	:= c++
+CXXFLAGS := -g
+INCLUDES := -I.			# This would contain any -I options to the
+				# compiler, if there are any.
+LIBS	:= -L/usr/X11R6/lib -lX11 # Contains libraries we need to link in.
+OBJECTS	:= processing.o gui.o
+
+my_program: $(OBJECTS)
+	$(CXX) $(inputs) -o $(output) $(LIBS)
+
+%.o: %.cxx
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c $(input) -o $(output)
+</pre>
+
+    <p>Now we don't have to have an explicit rule for each object file
+    we need to produce.  If we want to add another module to our
+    program, we only have to change the one line that defines the
+    <code>OBJECTS</code> variable.  Note that this makefile is now much
+    more concise than our original makefile.  Each piece of information
+    occurs only once so there is no possibility of making a mistake by
+    changing information in one place and forgetting to change it in
+    others.</p>
+
+    <br>
+
+    <p>When you use pattern rules, it's not uncommon for there to be two
+      different rules that can produce the same file.  If both rules are
+      pattern rules, then the one that occurs later in the makefile is
+      actually used.  If one rule is a pattern rule, and the other is an
+      explicit rule (one that actually names the target file
+      explicitly), then the explicit rule is used.  This is often
+      helpful if you want to compile most modules with the same command,
+      but there is one module that needs slightly different compilation
+      options, as shown in this makefile fragment:</p>
+
+<pre>
+CXXFLAGS := -g -O2
+FAST_CXXFLAGS := -DNO_DEBUG -O6 -malign-double -funroll-all-loops
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
+
+time_critical_subs.o: time_critical_subs.cpp
+	$(CXX) $(FAST_CXXFLAGS) -c $(input) -o $(output)
+</pre>
+
+    <p>If you find yourself wanting to do something with patterns that
+    isn't expressed easily using the <code>%</code> wildcard,
+    <i>makepp</i> has another syntax which is somewhat harder to read,
+    but considerably more powerful.  See the <a
+    href="syntax_makefile.html#foreach_rules">:foreach</code> clause for
+    more details.</p>
+
+    <hr>
+    <a href="t_index.html">Tutorial index</a>
+    |
+    <a href="t_phony.html">Next (phony targets)</a>
+    |
+    <a href="t_variables.html">Previous (using variables)</a>
+    <br>
+<!-- Created: Sat Aug 19 19:41:10 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Fri Aug 25 22:18:39 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

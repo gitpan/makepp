@@ -1,0 +1,63 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Makepp manual</title>
+  </head>
+
+  <body>
+    <h1>Makepp manual</h1>
+
+    <p><i>Makepp</i> is a drop-in replacement for GNU make which has a
+    number of features that allow for more reliable builds and simpler
+    build files.  It supports almost all of the syntax that GNU make
+    supports, and can be used with makefiles produced by utilities such
+    as automake.  It is called <i>makepp</i> (or <b>make++</b>) because
+    (1) it was designed for building C++ programs; (2) its relationship
+    to <b>make</b> is analogous to C++'s relationship to C.  For
+    backward compatibility, it will work with input files designed for
+    <b>make</b>, but there are much better ways to do things.</p>
+
+    <p><i>Makepp</i> currently runs only on unix, because I do not
+    develop on Windows at the moment.  It could be ported, but this has
+    not happened yet.</p>
+
+    <ul>
+      <li><a href="features.html">Features</a> that <i>makepp</i> has that
+	  are not found in the standard make utility.  If you don't know
+	anything about make, you will want to start with the tutorial
+	instead.
+      <li><a href="t_index.html">Tutorial</a> on writing makefiles for
+	<i>makepp</i>.  Even if you already know make, you might want to glance
+	through this to see the preferred way to do things with <i>makepp</i>.
+      <li><a href="signature_checking.html">Signature checking</a>, or
+	how <i>makepp</i> decides when to rebuild a file
+      <li><a href="syntax_makefile.html">Makefile syntax</a> for <i>makepp</i>
+      <li><a href="command_line.html">Command line</a> options and
+	syntax
+      <li><a href="dirs.html">Builds involving multiple directories</a>
+	and other issues about how <i>makepp</i> finds and loads makefiles
+      <li><a href="repositories.html">Repositories and variant builds</a>
+      <li><a href="scanning.html">Scanning command lines and include files</a>
+      <li><a href="inferring.html">Automatically inferring object files</a>
+      <li><a href="build_algorithm.html">The build algorithm</a> that
+	<i>makepp</i> uses
+      <li><a href="extending_makepp.html">Extending makepp</a> with your
+	own perl subroutines
+<!--       <li><a href="non_files.html">Building objects other than files</a> -->
+      <li><a href="legacy_makefiles.html">Using and improving your old
+	  makefiles</a>
+      <li><a href="incompat.html">Incompatibilities</a> between
+	<i>makepp</i> and other makes (especially GNU make)
+      <li><a href="bugs.html">Unexpected features and limitations</a>
+      <li><a href="release_notes_100.html">Release notes for version 1.00</a>
+    </ul>
+
+    <hr>
+    <a href="http://lnc.usc.edu/~holt/makepp">Makepp home page</a> <br>
+    <address><a href="mailto:holt@lnc.usc.edu">Gary Holt</a></address>
+<!-- Created: Thu Aug  3 14:47:28 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Thu Oct 19 09:26:04 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Makepp's build algorithm</title>
+  </head>
+
+  <body>
+    <h1>Makepp's build algorithm</h1>
+
+    <p><i>Makepp</i> differs from the standard unix make in 
+      fundamental ways.</p>
+
+
+    <h2>Reverse vs. forward inference</h2>
+
+    <p><i>Makepp</i> has a different philosophy from the standard make.
+    The usual unix make is given a target to build, and then it finds a
+    rule which matches the characters in the target filename.  If the
+    target is older than any of its dependencies of the rule, then it is
+    rebuilt.</p>
+
+    <p>For example, consider this pattern rule:</p>
+<pre>
+%.o: %.cxx
+	$(CXX) $(CXXFLAGS) -c <a href="syntax_makefile.html#input">$(input)</a> -o <a href="syntax_makefile.html#target">$(output)</a>
+</pre>
+    
+    <p>When make realizes it needs to make a file called
+      <code>xyz.o</code>, it searches through its list of pattern rules
+      until it sees that <code>xyz.o</code> matches the pattern
+      <code>%.o</code>, and then it applies this rule.</p>
+
+    <p><i>Makepp</i> works in the opposite direction.  It first computes
+    all files that it can possibly build by applying rules that match
+    the characters in the dependency filenames.  Then when it needs to
+    build a file, it simply looks to see if it's one of the files that
+    it knows how to build.</p>
+
+    <p>When <i>makepp</i> encounters the above pattern rule, it searches
+    for all files in the directory matching the pattern
+    <code>%.cxx</code> (i.e., <code>**/*.cxx</code>, where the <a
+    href="syntax_makefile.html#wildcards">wildcard</a> <code>**</code>
+    means to match any number of intervening directories).  For each of
+    these files, it then remembers that it can produce the corresponding
+    <code>.o</code> file.  If subsequently <i>makepp</i> discovers that
+    it can make another <code>.cxx</code> file that doesn't currently
+    exist, this rule will also be applied and the corresponding
+    <code>.o</code> file will be marked.</p>
+
+    <p>This might seem somewhat inefficient, but it turns out not to be
+    that slow in most cases, and it is often true that virtually all the
+    files that can be built are in fact built.  And knowing the complete
+    list of files that can be built has several advantages:</p>
+
+    <ul>
+      <li>
+	Header files which have been detected by the automatic
+	dependency scanner don't have to exist; <i>makepp</i> knows
+	where they will be.  (Most other solutions to this problem
+	assume that any headers which don't exist yet are in the current
+	directory.)
+
+      <li>
+	Wildcards can match files which don't exist yet but can be built.
+
+      <li>
+	A complete list of all buildable files is available via the <a
+	  href="syntax_makefile.html#function_only_targets"><code>$(only-targets&nbsp;)</code></a> function.
+    </ul>
+
+
+    <h2>Files vs. textual patterns</h2>
+
+    <p><i>Makepp</i> associates build commands with a target file, not
+    to a textual pattern for a filename.  It is therefore not confused
+    by different names for the same file.  Thus, for example,
+    <i>makepp</i> will know that <code>./xyz</code> and and
+    <code>xyz</code> are the same file, whereas other make utilities may
+    not.</p>
+
+    <p>This is particularly important because (unlike the standard make)
+    <i>makepp</i> loads makefiles from different directories.  In order
+    for the makefiles to be relatively independent, with no special
+    position given to a top-level makefile, each makefile refers to all
+    files relative to its own directory.</p> Thus if you load a makefile
+    from the subdirectory <code>other_stuff</code>, and that makefile
+    refers to <code>../xyz</code>, <i>makepp</i> will again realize that
+    it's the same file referred to above.  (It also won't be confused by
+    soft-linked directory names.)</p>
+
+    
+    <h2>Stored build information</h2>
+
+    <p><i>makepp</i> stores much more information about each file that
+    it builds beyond just the date stamp (which is all that the standard
+    make cares about).  This information includes:</p>
+    <ul>
+      <li>The signature of this file on the last build, so we know if
+	the file itself has changed.
+
+      <li>The names of each dependency file, including include files and
+	other files inferred automatically.  If this list changes, then
+	<i>makepp</i> assumes it needs to rebuild.
+
+      <li>The signature of each dependency.  This way,
+	<i>makepp</i> knows to rebuild not only when the dependencies
+	are newer than the target, but when they change at all.  This
+	also makes it possible to use other kinds of signatures, such as
+	cryptographic checksums, rather than the file date.
+
+      <li>The entire build command (and its cwd).  This way if you
+      change the build options, <i>makepp</i> knows to rebuild even if
+      the files themselves haven't changed.
+
+      <li>The architecture.  If you have compiled your program on linux
+	and then switch to solaris, <i>makepp</i> automatically knows to
+	recompile everything.
+    </ul>
+
+
+    <p><i>Makepp</i> makes a subdirectory in every directory that it
+    touches called <code>.makepp</code>.  The build information for a
+    file <i>filename</i> in a directory is stored in
+    <code>.makepp</code><i>filename</i>.  If you delete this
+    subdirectory or alter the files, <i>makepp</i> will rebuild all
+    affected files.</p>
+
+
+    <hr>
+    <a href="index.html">Table of contents</a>
+    |
+    <a href="extending_makepp.html">Next (extending makepp)</a>
+    |
+    <a href="inferring.html">Previous (automatic dependency inferences)</a>
+    <br>
+<!-- Created: Thu Aug  3 15:03:16 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Sat Aug 19 14:30:20 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

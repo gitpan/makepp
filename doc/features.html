@@ -1,0 +1,345 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Makepp's features</title>
+  </head>
+
+  <body>
+    <h1>Makepp's features</h1>
+
+    <p><i>Makepp</i> supports essentially all the useful features that a
+    good traditional make program such as GNU make has.  This includes
+    parallel builds and an extensive set of text manipulation functions.
+    But <i>makepp</i> has many additional features not found in GNU
+    make.</p>
+
+    <h2>Automatic scanning for include files</h2>
+
+    <p><i>makepp</i> scans automatically for include files.  This obviates
+    the need for tools like makedepend.  <i>makepp</i>'s scanner works
+    even if the included files don't exist yet but have to be built.
+    (This is true no matter where on the include path they come from,
+    unlike programs that depend on gcc's <code>-MM&nbsp;-MG</code>
+    option.)  <i>makepp</i> has a flexible system for doing this which
+    is based on <a href="scanning.html">examining the build command</a>;
+    you can adapt it for other languages or build commands.</p>
+
+
+
+
+    <h2>Better system for hierarchical builds</h2>
+
+    <p><i>makepp</i> has a <a href="dirs.html">better system for
+    handling builds involving multiple directories and multiple
+    makefiles</a>.  The traditional technique is to have make invoke
+    itself recursively in each directory.  Depending on the build
+    procedure, several recursive passes are sometimes needed.  This
+    makes the makefiles somewhat more complicated if they guarantee a
+    correct build.  The real problem is that unless dependencies are
+    trivial (e.g., just one library file), it is almost impossible to
+    express accurately dependencies of targets in one makefile in terms
+    of targets from the other makefile.  Unix make isn't smart enough to
+    realize that a target in one makefile depends on a file that is a
+    target in a lower-level makefile; it can't take build commands from
+    the lower-level makefile while it is trying to build the target in
+    the upper-level makefile.  So the usual solution is to build
+    everything that can be built with the lower-level makefiles, hoping
+    that that's adequate to build everything that's needed for the
+    upper-level makefile.</p>
+
+    <p><i>Makepp</i> loads all the makefiles in at once, so it has no
+    problem dealing with situations where a file in one makefile depends
+    on a file produced by a different makefile.  <i>Makepp</i> cd's
+    automatically to the directory containing the makefile before
+    executing a command from a makefile, so each makefile may be written
+    independently without knowledge of the top-level build
+    directory.</p>
+
+
+
+    <h2>Reliable wildcards</h2>
+
+    <p>Makefiles can <a href="syntax_makefile.html#wildcards">use
+    wildcards reliably</a>.  Wild cards match either files that exist,
+    <b>or</b> files that <i>makepp</i> knows how to build, so even for a
+    program with dozens of modules, your entire makefile could simply
+    read something like this:</p>
+
+<pre>
+CXX = g++
+CXXFLAGS = -g
+
+%.o : %.c
+	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
+
+my_program: *.o
+	$(CXX) $(inputs) -o $(output)
+</pre>
+
+    <p>and this will work even if none of the <code>.o</code> files have
+    been built yet.</p>
+
+
+
+    <h2>Reliable builds: remembers build command</h2>
+
+    <p><i>makepp</i> keeps track of the build commands, so that if
+    compilation options change, files are automatically rebuilt.  This
+    is important to guarantee correct builds.  (This idea was taken from
+    Bob Sidebothem's "cons" utility, which was described in the Perl
+    Journal in 1998 and is available from CPAN.)</p>
+
+    <p>To illustrate why this is important, consider the following
+    structure definition: </p>
+<pre>
+class ABC {
+  int x;
+#ifndef SPECIAL_OPTION
+  int y;
+#endif
+  int z;
+};
+</pre>
+    <p>Now suppose you decide to turn on the <code>SPECIAL_OPTION</code>
+    option by adding <code>-DSPECIAL_OPTION</code> to the command line.
+    A recompilation of everything is needed, but a traditional unix make
+    will not detect this.  After a very frustrating debugging session,
+    you will discover that all that needs to be done is to rebuild
+    everything, and then you will switch to using <i>makepp</i> instead
+    of a traditional make.  At least, that's what I did.</p>
+
+    <p>As another example, suppose that you are working on a project
+    which is pretty well debugged, so it's usually compiled with C<-O2>.
+    Now you run into a bug which you need to look at in the debugger.
+    Code compiled with optimization is difficult to examine in the
+    debugger, so you want to recompile your code so that you can look at
+    it.  If your makefile is set up to store the compiler options in the
+    usual variables, you can just do this:</p>
+<pre>
+makepp CFLAGS=-g CXXFLAGS=-g
+</pre>
+
+    <p> and <i>makepp</i> will know that the command line has changed
+    for all the modules.  Then when you've found your bug, just type</p>
+
+<pre>
+makepp
+</pre>
+
+    <p>and it will be recompiled with optimization.  You don't need to
+    type <code>make clean</code> when you change build options.</p>
+
+    <p>(You can even avoid recompiling modules that haven't changed by
+      using <a href="#repositories">repositories</a>.
+
+
+    <h2>Reliable builds: exact matching of signatures</h2>
+
+    <p>By default, <i>makepp</i> doesn't merely ensure that all targets
+    are newer than all dependencies; if you replace a dependency with an
+    older file, <i>makepp</i> knows that it has to rebuild the target,
+    simply because the input file has changed.  This is another
+    important feature to guarantee correct builds which was taken from
+    the "cons" utility.</p>
+
+
+
+    <h2>Smart signature calculation</h2>
+
+    <p>Many modifications to source files do not actually require a
+    rebuild.  For example, if you just change a comment line, or if you
+    reindent some code, there is no particular reason to force a
+    compilation.  If you want, you can tell <i>makepp</i> to check
+    whether a file needs recompilation by looking at a cryptographic
+    checksum, ignoring comments and whitespace, instead of looking at
+    the file time.</p>
+
+    <p>This may be particularly useful if you have include files that
+    are generated by files that change, and yet the generated include
+    files themselves seldom change.  Suppose you have a complicated yacc
+    grammar in your program, with a build rule like this:</p>
+
+<pre>
+y.tab.c y.tab.h:
+	yacc -d parser.y
+</pre>
+    
+    <p>Ordinarily, every time you make even a tiny change to
+    <code>parser.y</code>, every file that depends on
+    <code>y.tab.h</code> must be rebuilt since the file time of
+    <code>y.tab.h</code> has changed.  However, most changes to
+    <code>parser.y</code> won't actually change the contents of
+    <code>y.tab.h</code> (except possibly a comment), so all that
+    recompilation is unnecessary.</p>
+
+    <p>If you include this line in your makefile:</p>
+<pre>
+<a href="syntax_makefile.html#statement_include">include</a>&nbsp;<a href="syntax_makefile.html#signature_methods">c_compilation_md5</a>.mk
+</pre>
+    <p>then <i>makepp</i> will use the checksums instead of file times
+    for source files, and changing comments or whitespace will not cause
+    a rebuild.</p>
+
+
+
+
+
+    <a name="repositories"></a>
+    <h2>Repositories</h2>
+
+    <p><i>Makepp</i> can automatically incorporate files from a
+    different directory tree (the "<a
+    href="repositories.html">repository</a>") as needed into the current
+    build tree.  (This idea was also taken from the "cons" program.)
+    This has a several interesting uses:</p>
+
+    <dl>
+      <dt>Variant builds
+      <dd>Repositories are quite useful to isolated developers, too.
+	Suppose you have been compiling your program with optimization
+	on and debugging off.  Now a bug crops up and you have to
+	recompile everything with debugging enabled.  Once you find the
+	bug, however, you're going to turn debugging off and
+	optimization back on, and with most make programs you would have
+	to recompile all the sources again, even the ones that did not
+	change.  The procedure would look like this:</p>
+
+<pre>
+% makepp CFLAGS=-O2			# Compile everything.
+</pre>
+<i>Ooops, bug discovered.</i>
+<pre>
+makepp CFLAGS=-g			# Recompiles everything again.
+gdb my_program
+</pre>
+<i>Find the bug...</i>
+<pre>
+makepp CFLAGS=-O2			# Recompiles everything a third time.
+</pre>	
+
+	<p>With <i>makepp</i>, you can simply cd to an empty directory,
+	  and specify your original directory as a repository.  This
+	  will create new object files in the empty directory, while
+	  leaving your old object files intact.  Now you can find the
+	  bug in the directory compiled with debug, fix it in your
+	  original sources, and then go back to your original
+	  directory.  Now only the few files that you changed actually
+	  need to be recompiled.</p>
+
+	<p>The entire procedure would look like this:</p>
+
+<pre>
+% makepp CFLAGS=-O2			# Compile everything.
+</pre>
+<i>Ooops, bug discovered.</i>
+<pre>
+% mkdir debugging
+% cd debugging
+% makepp -R .. CFLAGS=-g		# Compile with debugging enabled, but
+					# put objects in debugging subdir.
+% gdb my_program
+</pre>
+<i>Find and fix the bug....</i>
+<pre>
+% cd ..					# Back to original directory.
+% makepp CFLAGS=-O2			# Recompiles only those files
+					# that you changed.
+</pre>
+
+	<p>This can be a tremendous savings in time if there are many
+	modules.</p>
+	<br>
+
+      <dt>Development team with common sources
+      <dd>
+	Suppose you have a team of developers working on a standard set
+	of sources.  Each developer is making independent changes, but
+	doesn't need to have a copy of the whole source tree.  Using
+	<i>makepp</i>'s repositories, you can have each developer have
+	copies only of the files he has changed.  <i>Makepp</i> will
+	automatically and temporarily create symbolic links for the
+	other files that have not been changed to the corresponding
+	files in the repository.  It can even do this for object files
+	which exist in the repository and do not need to be recompiled
+	in the developer's individual directory.
+    </dl>
+	
+
+
+
+
+    <h2>Automatic inference of needed <code>.o</code> files</h2>
+
+    <p><i>makepp</i> can often <a href="inferring.html">infer exactly
+    which objects are actually necessary</a> without being explicitly
+    told.  If you enable this feature, then if one of your source file
+    includes <code>xx.h</code>, and there is a file called
+    <code>xx.o</code> that <i>makepp</i> knows how to make, then
+    <i>makepp</i> adds <code>xx.o</code> to the link command line.  I
+    don't use non-shared libraries now in many places where I used to,
+    because <i>makepp</i> can automatically pick out the modules I
+    need.</p>
+
+
+
+    <h2>Correct handling of aliases for directories</h2>
+
+    <p><i>makepp</i> won't be confused by soft links to a directory or
+    by different relative filenames that refer to the same file.  All
+    directory paths to a file are recognized, including
+    <code>foo</code>, <code>./foo</code>, <code>../src/foo</code>,
+    <code>/auto_mnt/somedisk/bob/src/foo</code>, and
+    <code>/users/bob/src/foo</code>.</p>
+
+
+
+    <h2>Filenames with special characters</h2>
+
+    <p><i>makepp</i> can support filenames with colons or spaces or
+    other special characters that cause trouble for the traditional
+    make.  Just <a href="syntax_makefile.html#special_chars">surround
+    the filename with quotes</a>.</p>
+
+
+
+    <h2>Extensible repertoire of textual substutition functions</h2>
+
+    <p><i>Makepp</i> can use arbitrary perl subroutines for textual
+    substitution in the makefile.  If you know perl, you are not
+    constrained at all by the set of <i>makepp</i>'s builtin textual
+    manipulation functions.</p>
+
+    <p>You can also simply write perl code in your makefile.  Make
+    variables are actually simply stored as perl variables, so you can
+    manipulate them with the full power of the entire perl language.</p>
+
+    <h2>Logging of build decisions</h2>
+
+    <p>By default, <i>makepp</i> makes a file called
+    <code>.makepp_log</code> that contains a description of every file
+    that it tried to build, what rule was used to build it, what it
+    depended on, and (if the file was rebuilt) which dependency was
+    different.  This can be extremely useful for debugging a
+    makefile--if you're wondering why <i>makepp</i> decided to rebuild a
+    file, or why it didn't, you can just look in the log file where it
+    explains the decisions.</p>
+
+
+
+    <hr>
+    See the discussion on <a href="legacy_makefiles.html">using and
+    improving old makefiles</a> for more examples of <i>makepp</i>'s
+    powerful features.
+
+    <hr>
+    <a href="index.html">Table of contents</a>
+    |
+    <a href="t_index.html">Next (tutorial)</a>
+    <br>
+<!-- Created: Thu Aug  3 14:53:55 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Sat Oct 14 22:33:10 PDT 2000
+<!-- hhmts end -->
+
+  </body>
+</html>

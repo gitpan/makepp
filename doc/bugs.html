@@ -1,0 +1,113 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Unexpected Features and Limitations</title>
+  </head>
+
+  <body>
+    <h1>Unexpected Features and Limitations</h1>
+
+    <h2>Known bugs</h2>
+
+    <p>As soon as I find these bugs, I'll fix them. :-)</p>
+
+    <ul>
+      <li>Occasionally perl (5.005 and 5.6.0) dumps core when running
+      <i>makepp</i>.  This is a perl bug, not a <i>makepp</i> bug, since
+      no pure perl script should ever dump core.  At this point I don't
+      know what's causing it.  Just rerun <i>makepp</i> and it will pick
+      up where it left off.
+
+      <li>There are a few occasional bugs that crop up when you are
+      building makefiles that invoke make recursively.  Occasionally
+      <i>makepp</i> simply hangs.  The best workaround for this problem
+      is to get rid of recursive make invocations in your makefiles.
+      The next best workaround is simply to stop <i>makepp</i> and rerun
+      it, and it will pick up where it left off.
+    </ul>
+
+    <p>You may also want to look through the section on <a
+    href="incompat.html">incompatibilities</a> for more unexpected
+    features.  If you find a bug or an undesirable feature, please feel
+    free to send <a href="mailto:holt@lnc.usc.edu">me</a> a note.</p>
+
+    <p><i>Makepp</i> also has a few quirks that might be a bit surprising.</p>
+
+    <ul>
+      <li>
+	<i>Makepp</i>'s implementation of repositories has
+	some limitations that might not be obvious.  See the
+	<a href="repositories.html#caveats">discussion about
+	  repositories</a> for more details.
+
+      <li>
+	<i>Makepp</i>'s <code>**</code> wildcard won't see directories
+	that begin with a period (e.g., <code>.libs</code>).  This is
+	normally what you want, but might be occasionally surprising.
+
+      <li>
+	<p><i>makepp</i>'s automatic dependency scanner does not know
+	about preprocessor conditionals.  Thus if you do something like
+	this:
+<pre>
+#ifdef VAR
+#include "file1.h"
+#else
+#include "file2.h"
+#endif
+</pre>
+	<p><i>makepp</i> will assume both <code>file1.h</code> and
+	<code>file2.h</code> are dependencies.  This will usually not be
+	a problem--it will just trigger rebuilds more often than
+	necessary--unless one of the files doesn't exist.  In this case,
+	<i>makepp</i> will give a warning message (but will still
+	compile as usual).  If, however, you use the system include
+	format, i.e.,
+<pre>
+#include &lt;xyz.h&gt;
+</pre>
+	instead of
+<pre>
+#include "xyz.h"
+</pre>
+	then <i>makepp</i> won't complain about a missing file because
+	it assumes it's buried in some system include directory that it
+	doesn't know about.</p>
+
+      <li>
+	<i>Makepp</i> does not like it if you create new soft links to
+	existing directories during the course of the build.  It
+	shouldn't get confused if you create new directories, just don't
+	create new soft links to existing directories.
+
+      <li>
+	<i>Makepp</i> is slower than make.  This is mostly because it's
+	doing a lot more work.  You can speed it up somewhat by <a
+	href="command_line.html#option_nolog">turning off logging</a>,
+	but because it is doing a lot more comparisons, it will always
+	be slower.
+
+      <li>
+	<i>Makepp</i> can use a surprisingly large amount of memory.
+	This is (a) because it's written in perl, and perl is a memory
+	hog; (b) because of <i>makepp</i>'s algorithm, it simply has to
+	store a lot more information about many more files than make
+	does.  But if someone wants to pay to have the core of it
+	rewritten in C++, then it could be somewhat faster and a lot
+	smaller....
+    </ul>
+
+    <hr>
+    <a href="index.html">Table of contents</a>
+    |
+    <a href="release_notes_100.html">Next (release notes)</a>
+    |
+    <a href="incompat.html">Previous (incompatibilities)</a>
+    <br>
+
+<!-- Created: Tue Aug  8 18:35:07 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Thu Oct 19 09:26:11 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Functions and Advanced Variable Usage</title>
+  </head>
+
+  <body>
+    <h1>Functions and Advanced Variable Usage</h1>
+
+    <p><i>Makepp</i> has a number of extremely powerful ways of
+    manipulating text. This tutorial shows a few of the more useful
+    ways, but you might want to glance through the section in the
+    reference manual on <a
+    href="syntax_makefile.html#variable_syntax">variables</a> and <a
+    href="syntax_makefile.html#functions">functions</a> for a complete
+    list of the things you can do.</p>
+
+    <h2>Lists of corresponding files</h2>
+
+    <p>A common problem in makefiles is the maintenance of two lists of
+    files which correspond.  Consider the following two variables:</p>
+
+<pre>
+SOURCES := a.cpp bc.cpp def.cpp
+OBJS := a.o bc.o def.o
+</pre>
+
+    <p>We might want to have a list of sources if the makefile can build
+    source distributions, and we might need a list of objects for the
+    link command.  It's tedious to change both lines whenever a new
+    module is added, and it's not unlikely that a programmer will change
+    one line and forget to change the other.  Here we will show four
+    different ways to avoid the duplication.</p>
+
+    <h3>The patsubst function</h3>
+
+    <p>The first is to use <i>makepp</i>'s functions to convert one list
+    into another.  A function invocation looks a little like a variable,
+    except that a function can take arguments:</p>
+
+<pre>
+$(function arg1 arg2 arg3 ...)
+</pre>
+
+    <p><i>Makepp</i> supplies many powerful functions, but probably the
+    most useful of them is the <code>patsubst</code> function.  You
+    could write the above lines like this:</p>
+<pre>
+SOURCES = a.cpp bc.cpp def.cpp
+OBJS = $(patsubst %.cpp, %.o, $(SOURCES))
+</pre>
+    <p>The <code>patsubst</code> function applies a pattern to every
+    word in a list of words, and performs a simple textual substitution.
+    Any words in the list that match the pattern in the first argument
+    are put into the output after making the substitution indicated by
+    the second argument.  The <code>%</code> wildcard matches any string
+    of 0 or more characters.  In this example, the pattern
+    <code>%.cpp</code> is applied to every word in
+    <code>$(SOURCES)</code>.  The first word, <code>a.cpp</code> matches
+    the pattern, and the <code>%</code> wildcard matches the string
+    <code>a</code>.  The <code>%</code> in the second argument is then
+    replaced by <code>a</code>, and the result is <code>a.o</code>.  For
+    the second argument, <code>%</code> matches <code>bc</code>, so the
+    result is <code>bc.o</code>.</p>
+
+    <p><i>Makepp</i>'s <a href="syntax_makefile.html#functions">builtin
+    functions</a> can strip directory names, remove extensions, filter
+    out matching words, return the output from shell commands, and other
+    useful tricks.  In addition, you can also <a
+    href="extending_makepp.html#new_functions">write your own functions
+    in perl</a> that can be called from other parts of the makefile.
+
+    <h3>Substitution references</h3>
+
+    <p>Since the <code>patsubst</code> function is so common, there is
+    an abbreviated syntax for it called a <i>substitution reference</i>.
+    We could have written the above lines like this:</p>
+
+<pre>
+SOURCES = a.cpp bc.cpp def.cpp
+OBJS = $(SOURCES:%.cpp=%.o)
+</pre>
+
+    <h3>rc-style substitution</h3>
+
+    <p>Sometimes invocations of <code>patsubst</code> or the equivalent
+    substitution references can be somewhat cryptic.  <i>Makepp</i>
+    provides another option which is sometimes more convenient:
+    <i>rc-style substitution</i> (so called because it was pioneered by
+    the rc shell).</p>
+
+<pre>
+MODULES := a bc def
+SOURCES := $(MODULES).cpp
+OBJS := $(MODULES).o
+</pre>
+
+    <p>What happened here is that when it evaluated
+    <code>$(MODULES).cpp</code>, <i>makepp</i> appended
+    <code>.cpp</code> to every word in <code>$(MODULES)</code>, and
+    similarly for <code>$(MODULES).o</code>.  In general, any characters
+    preceding the <code>$(variable)</code> (up to a word delimiter) are
+    placed before each word in <code>$(variable)</code>, and any
+    characters following <code>$(variable)</code> are placed after each
+    word in <code>$(variable)</code>.  Thus the result of evaluating
+    <code>x$(MODULES)y</code> would be
+    <code>xay&nbsp;xbcy&nbsp;xdefy</code>.</p>
+
+    <h3>In-line perl code</h3>
+
+    <p>If you know perl, you can insert perl code to perform arbitrary
+      manipulations on variables into your makefile.  This is best
+      illustrated by an example:</p>
+
+<pre>
+SOURCES := a.cpp bc.cpp def.cpp
+begin_perl
+($OBJS = $SOURCES) =~ s/\.cpp/.o/g;
+end_perl
+</pre>
+
+    <p>Any text between the <code>begin_perl</code> statement and the
+    <code>end_perl</code> statement is passed off to the perl
+    interpreter.  All variables in the makefile (except automatic
+    variables) are accessible as perl scalars.  Any variables you set
+    with perl code will be accessible in the makefile.</p>
+
+    <p>So what the above example does is to copy the text from
+    <code>$SOURCES</code> to <code>$OBJS</code>, then substitute each
+    occurence of <code>.cpp</code> with <code>.o</code>.</p>
+
+    <p>In this example, using inline perl code is probably unnecessary
+    since there are easier and clearer ways of doing the same
+    manipulation.  But the full power of the perl interpreter is
+    available if you need it.</p>
+
+
+    <hr>
+    <a href="t_index.html">Tutorial index</a>
+    |
+    <a href="t_variant.html">Next (source/binary separation)</a>
+    |
+    <a href="t_wildcards.html">Previous (wildcards)</a>
+    <br>
+<!-- Created: Fri Aug 25 22:21:39 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Fri Aug 25 23:48:38 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

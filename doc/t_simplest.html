@@ -1,0 +1,213 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>A simple makefile</title>
+  </head>
+
+  <body>
+    <h1>A simple makefile</h1>
+
+    <p>Suppose you are writing a C++ program which has two source
+    modules, <code>processing.cxx</code> and <code>gui.cxx</code>, along
+    with numerous include files.  If you were to build your program from
+    scratch, you would need to execute something like these
+    commands:</p>
+
+<pre>
+c++ -c processing.cxx -o processing.o
+c++ -c gui.cxx -o gui.o
+c++ processing.o gui.o -o my_program
+</pre>
+
+    <p>The first two commands are compilation commands, and the third
+    invokes the linker to combine the two object files into a single
+    executable.  If you make changes to <code>gui.cxx</code> but not to
+    <code>processing.cxx</code>, then you don't need to reexecute the
+    first command, but you do need to execute the last two commands.
+    <i>makepp</i> can figure this out for you automatically.</p>
+
+    <p>(If you've never worked with make before, you may be thinking
+    that you could combine the above three commands into a single
+    command, like this:</p>
+<pre>
+c++ processing.cxx gui.cxx -o my_program
+</pre>
+
+    <p>When you omit the <code>-c</code> option to the compiler, it
+    combines the compilation and linking step.  This is often quite
+    convenient when you are not writing a makefile.  However, it's not a
+    good idea to use this in a makefile, because it always recompiles
+    both modules even if one of them hasn't changed, and this can take a
+    significant amount of extra time.)</p>
+
+    <p>In order to use <i>makepp</i> to control the build process,
+    you'll need to write a <i>makefile</i>.  The makefile is a text file
+    that contains the recipe for building your program.  It usually
+    resides in the same directory as the sources, and it is usually
+    called <code>Makefile</code>.</p>
+
+    <p>Each one of these commands should be a separate <i>rule</i> in a
+    makefile.  A rule is an instruction for building one or more output
+    files from one or more input files.  <i>Makepp</i> determines which
+    rules need to be reexecuted by determining whether any of the input
+    files for a rule have changed since the last time the rule was
+    executed.</p>
+
+    <p>A rule has a syntax like this:</p>
+
+<pre>
+output_filenames : input_filenames
+	actions
+</pre>
+
+    <p>The first line of the rule contains a space-separated list of
+    output files, followed by a colon, followed by a space-separated
+    list of input files.  The output files are also called
+    <i>targets</i>, and the input files are also called
+    <i>dependencies</i>; one says that the target file(s) depends on the
+    dependencies, because if any of the dependencies change, the target
+    must be rebuilt.
+
+    <p>The remaining lines of the rule (the "actions") are shell
+    commands to be executed.  Each action must be indented with at least
+    one space (traditional make requires a tab character).  Usually,
+    there's just one action line, but there can be as many as you want;
+    each line is executed sequentially, and if any one of them fails,
+    the remainder are not executed.  The rule ends at the first line
+    which is not indented.</p>
+
+    <p>You can place the rules in any order in the makefile, but it is
+    traditional to write the rule that links the program first, followed
+    by the compilation rules.  One reason for this is that if you simply
+    type "<code>makepp</code>", then <i>makepp</i> attempts to build the
+    first target in the file, which means that it will build your whole
+    program and not just a piece of it.  (If you want to build something
+    other than the first target, you have to specify the name of the
+    target on the command line, e.g.,
+    "<code>makepp&nbsp;processing.o</code>".)</p>
+
+    <p>The above compilation commands should be written as three
+      separate rules.  A makefile for building this program could look
+      like this:</p>
+
+<pre>
+# Link command:
+my_program: processing.o gui.o
+	c++ processing.o gui.o -o my_program
+
+# Compilation commands:
+processing.o: processing.cxx
+	c++ -c processing.cxx -o processing.o
+
+gui.o: gui.cxx
+	c++ -c gui.cxx -o gui.o
+</pre>
+
+    <p>(Characters on a line following a <code>#</code> are ignored;
+    they are just comments.  You do not need the
+    "<code>#&nbsp;Link&nbsp;command:</code>" comment in the makefile at
+    all.)</p>
+
+    <p>To use this makefile, simply cd to the directory and type
+    "<code>makepp</code>".  <i>Makepp</i> will attempt to build the
+    first target in the makefile, which is <code>my_program</code>.  (If
+    you don't want it to build the first target, then you have to supply
+    a the name of the target you actually want to build on the command
+    line.)</p>
+
+    <p>When <i>makepp</i> attempts to build <code>my_program</code>, it
+    realizes that it first must build <code>processing.o</code> and
+    <code>gui.o</code> before it can execute the link command.  So it
+    looks at the other rules in the makefile to determine how to build
+    these.</p>
+    
+    <p>In order to build <code>processing.o</code>, <i>makepp</i> uses
+    the second rule.  Since <code>processing.o</code> depends on
+    <code>processing.cxx</code>, makepp will also try to make
+    <code>processing.cxx</code>.  There is no rule to make
+    <code>processing.cxx</code>; it must already exist.</p>
+
+    <p><i>Makepp</i> checks whether <code>processing.cxx</code> has
+    changed since the last time <code>processing.o</code> was built.  By
+    default, it determines this by looking at the dates on the file.
+    <i>Makepp</i> remembers what the date of <code>processing.cxx</code>
+    was the last time <code>processing.o</code> was made by storing it
+    in a separate file (in a subdirectory called <code>.makepp</code>).
+    <i>Makepp</i> will execute the actions to build the target if any of
+    the following is true:</p>
+
+    <ul>
+      <li>The target does not exist.
+      <li>The target exists, but <i>makepp</i> does not have any
+	information about the last build.
+      <li>The date on any input file has changed since the last build.
+      <li>The date on any target has changed since the last build.
+      <li>The actions have changed since the last build.
+      <li>The last build occured on a different architecture (different
+	CPU type or operating system type).
+    </ul>
+
+    <p>It might seem a little funny that <i>makepp</i> executes the
+    action if either the output file or the input files have changed
+    since the last build.  <i>Makepp</i> is designed to guarantee that
+    your build is correct, according to the commands in the makefile.
+    If you go and modify the file yourself, then <i>makepp</i> can't
+    guarantee that the modified file is actually correct, so it insists
+    on rebuilding.</p>
+
+    <p>(For more information on how <i>makepp</i> decides whether to
+    rebuild, and how you can control this, see the section in the
+    reference manual on <a href="signature_checking.html">signature
+    checking</a>.)</p>
+
+    <p>Now <code>processing.o</code> might not depend only on
+      <code>processing.cxx</code>; if <code>processing.cxx</code>
+      includes any <code>.h</code> files, then it needs to be recompiled
+      if any of those <code>.h</code> files has changed, even if
+      <code>processing.cxx</code> itself has not changed.  You could
+      modify the rule like this:</p>
+
+<pre>
+processing.o: processing.cxx processing.h simple_vector.h list.h
+	c++ -c processing.cxx -o processing.o
+</pre>
+
+    <p>However, it is a real nuisance to modify the makefile every time
+    you change the list of files that are included, and it is also
+    extremely error prone.  You would not only have to list the files
+    that <code>processing.cxx</code> includes, but also all the files
+    that those files include, etc.  You don't have to do this.
+    <i>Makepp</i> is smart enough to check for include files
+    automatically.  Any time it sees a command that looks like a C or
+    C++ compilation (by looking at the first word of the action), it
+    reads in the source files looking for <code>#include</code>
+    directives.  It knows where to look for include files by scanning
+    for <code>-I</code> options on your compiler command line.  Any
+    files which are included are automatically added to the dependency
+    list, and any files which those include.  If any of them has
+    changed, the file will be recompiled.</p>
+
+    <p>Once <i>makepp</i> knows that <code>processing.o</code> is up to
+    date, it then determines whether <code>gui.o</code> needs to be
+    rebuilt by applying the same procedure to the third rule.  When both
+    <code>processing.o</code> and <code>gui.o</code> are known to be
+    built correctly, then <i>makepp</i> applies the same procedure to
+    see if the link command needs to be reexecuted.</p>
+
+    <p>The above makefile will work, but even for this simple problem,
+    an experienced user is not likely to write his makefile this way.
+    Several improvements are discussed in the next several pages.</p>
+
+    <hr>
+    <a href="t_index.html">Tutorial index</a>
+    |
+    <a href="t_variables.html">Next (using variables)</a>
+    |
+    <a href="t_whatsin.html">Previous (what's in a makefile)</a>
+    <br>
+<!-- Created: Sat Aug 19 18:53:13 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Thu Nov  2 15:55:52 PST 2000
+<!-- hhmts end -->
+  </body>
+</html>

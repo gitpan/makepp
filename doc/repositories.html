@@ -1,0 +1,375 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Repositories</title>
+  </head>
+
+  <body>
+    <h1>Repositories</h1>
+
+    <p>A <b>repository</b> is a directory or directory hierarchy outside
+    of the default directory that contains files which the makefile
+    needs in the current directory tree.  <i>Makepp</i> can
+    automatically and temporarily link files from the repository into
+    the current directory tree if they are needed.  Repositories provide
+    similar functionality to the VPATH variable in some versions of
+    make, but (unlike VPATH) you do not have to do anything special to
+    your makefile to get them to work.</p>
+
+    <p>Repositories are specified with the <a
+    href="command_line.html#option_R"><code>-R</code> option</a> on the
+    command line, or with the <a
+    href="syntax_makefile.html#statement_repository"><code>repository</code>
+    statement</a> in the makefile.</p>
+
+    <p>Repositories are useful in several different situations:</p>
+
+    <ul>
+      <li>When you want to place your object and executable files in a
+	separate directory, but the makefile is written to place them in
+	the same directory as the sources.
+
+      <li>When you want to build the same program two different ways
+	(e.g., with two different sets of compilation options, or for
+	two different architectures).
+
+      <li>When you don't have write access to all or part of the source tree.
+
+      <li>When several developers are working on the same project, and
+      there is a common source repository containing all the sources for
+      the project.  Each developer can modify only the files he needs to
+      change in his local directory without affecting the other
+      developers, and <i>makepp</i> will automatically fetch the
+      unmodified files from the source repository.
+    </ul>
+
+    <p><i>Makepp</i>'s implementation of repositories does not require
+    rewriting of the commands at all, unlike (for example) repositories
+    in cons.  <i>Makepp</i> puts a symbolic link into the directory
+    where the command is expecting it.  As long as the command does not
+    refer to absolute directories, the exact same shell command will
+    work with files from a repository.  This means that it works not
+    only for compilation commands, but any kind of command you can think
+    to put in your makefile.</p>
+
+    <h2>Repository examples</h2>
+
+    <p>Repositories are best explained by several examples of what you
+    can do.  Suppose you have a simple program with a makefile that
+    looks something like this:</p>
+<pre>
+CFLAGS	= -O2
+OBJECTS = a.o b.o c.o
+my_program: $(OBJECTS)
+	cc $(inputs) -o $(output)
+
+%.o: %.c
+	cc $(CFLAGS) -c $(input) -o $(output)
+</pre>
+
+    <p>This makefile places the files <code>a.o</code>,
+    <code>b.o</code>, <code>c.o</code>, and <code>my_program</code> in
+    the same directory as the source files.</p>
+
+    <p>Sometimes you want to place the binary files into a separate
+    directory.  For example, you might build your program on several
+    different architectures, and you don't want the binary files on one
+    architecture to be replaced with the binary files on the other.  Or
+    you might want to make a temporary change and recompile without
+    wiping out the previous compilation results.  Without repositories,
+    you would have to modify your makefile to place the objects
+    elsewhere.</p>
+
+    <p>With a repository, however, you don't have to touch your makefile
+    at all.  Consider the following sequence of commands:</code>
+<pre>
+% cd my_program_source
+% makepp			# Builds using the above makefile, and
+				# object files go into the directory
+				# my_program_source.
+% cd ..
+% mkdir binary-debug		# Make a clean directory for building the
+% cd binary-debug		# same program with different options.
+% makepp -R ../my_program_source CFLAGS=-g
+				# Now objects go into binary-debug.
+</pre>
+
+    <p>The first <i>makepp</i> commnd compiles the source files with
+    optimization and puts the objects into the directory
+    <code>my_program_source</code>, because that's what the makefile is
+    supposed to do.  Now we want to rebuild the program, but we want to
+    change the value of <code>CFLAGS</code> to compile for debug.  We
+    specify the new value of <code>CFLAGS</code> on the command line,
+    and we also tell <i>makepp</i> that the
+    <code>my_program_source</code> directory is a repository using the
+    <a href="command_line.html#option_R"><code>-R</code></a> option.</p>
+
+    <p>Every time <i>makepp</i> realizes that it needs a file that it
+    doesn't already have in current directory, it looks in the
+    repository.  In this case, it first looks for the makefile, which
+    doesn't exist in the <code>binary-debug</code> subdirectory.  So it
+    creats a symbolic link to it from the makefile in
+    <code>my_program_source</code>, and then reads in the makefile.
+    Then it notices that it needs the file <code>a.c</code> in order to
+    build <code>a.o</code>, and so it links in <code>a.c</code> from the
+    repository.  If <code>a.c</code> includes any files contained in
+    <code>my_program_source</code>, then these will be automatically
+    linked in as well.  The soft links are deleted at the end of the
+    compilation (unless you interrupt <i>makepp</i>).</p>
+
+    <p>Running the build command in <code>binary-debug</code> won't
+    touch any of the files in <code>my_program_source</code>.  Thus from
+    the same set of source files, you now have two different copies of
+    the program, one compiled with optimization and one compiled for
+    debug.  And this happened without touching the makefile at all.</p>
+
+    <p>The advantage of using repositories instead of simply recompiling
+    and overwriting the original binaries is that now if we fix our bugs
+    and want to go back to the optimized version, we don't have to
+    recompile everything.  Since the original object files are still
+    around, and most of them are still valid, we can save a lot of time
+    on recompilation.  This does not make a big difference when only
+    three source files are involved, but for a larger build that takes
+    minutes or hours to complete, the savings in programmer time and
+    frustration can be significant.</p>
+
+    <br>
+
+    <p><i>Makepp</i> doesn't fetch only source files from the
+    repository.  If the object files in the repository don't need
+    rebuilding, it will use them.  For example, consider a slight
+    modification to the above makefile:</p>
+<pre>
+CFLAGS	= -O2
+A_CFLAGS= -O6 -funroll-loops
+
+OBJECTS = a.o b.o c.o
+
+my_program: $(OBJECTS)
+	cc $(inputs) -o $(output)
+
+%.o: %.c
+	cc $(CFLAGS) -c $(input) -o $(output)
+
+a.o: a.c
+	cc $(A_CFLAGS) -c $(input) -o $(output)
+</pre>
+
+    <p>The idea is that <code>a.o</code> contains the time-critical
+    code, so it is compiled with higher optimization than the rest of
+    the objects.  Now suppose we want to test just how different the
+    timing is with different compile options.  A repository can help
+      with this, too:</p>
+<pre>
+% cd my_program_source
+% makepp			# Builds using the above makefile, and
+				# object files go into the directory
+				# my_program_source.
+% cd ..
+% mkdir no-unrolling		# Make a clean directory for building the
+% cd no-unrolling		# same program with different options.
+% makepp -R ../my_program_source A_CFLAGS=-O2
+% cd ..
+% time no-unrolling/my_program	# Benchmark the two versions of the program.
+% time my_program_source/my_program
+</pre>
+
+    <p><i>Makepp</i> proceeds as before, linking in a copy of the
+    makefile and then examining the object files.  Now only the
+    <code>a.o</code> module needs recompiling, since the options for
+    <code>b.o</code> and <code>c.o</code> haven't changed.
+    <i>Makepp</i> notices that it can use <code>b.o</code> and
+    <code>c.o</code> from the repository, so it just links those in.
+    However, it will recompile <code>a.o</code> in the
+    <code>no-unrolling</code> directory.  Once the compilation is
+    finished, the two different versions of the program can be
+    benchmarked.</p>
+
+    <br>
+
+    <p>Now suppose we want to make a change to <code>a.c</code> and
+    benchmark the program before and after the change.  Repositories can
+    help again.  Consider this sequence of commands:</p>
+
+<pre>
+% mkdir modified-a
+% cp my_program_source/a.c modified-a
+% cd modified-a
+% emacs a.c			# Make some modifications just to this module.
+% makepp -R ../my_program_source
+</pre>
+
+    <p>Here we have created a new directory that just contains the
+    single source file we want to modify.  <i>Makepp</i> now takes
+    <code>a.c</code> from the <code>modified-a</code> subdirectory, but
+    uses the copies of <code>b</code> and <code>c</code> from the
+    <code>my_program_source</code> directory.  Without changing any of
+    the binary files in <code>my_program_source</code>, we have created
+    a separate copy of the program that incorporates our changes to
+    <code>a.c</code>.  If there are other developers using the sources
+    in <code>my_program_source</code>, they will be unaffected by our
+    changes.</p>
+
+    <p>Repositories can thus be used as a quick way to build variants of
+    a program, without adding complicated conditions to the makefile.
+    None of the files in the original directory are modified; they are
+      used as needed.</p>
+
+    <hr>
+
+    <p>A repository is actually not just a single directory, it's a
+    whole directory hierarchy.  Suppose you use
+    <code>/our/library</code> as a repository.  Now
+    <code>/our/library</code> may well contain many subdirectories,
+    e.g., <code>/our/library/gui</code> and
+    <code>/our/library/network</code>.  Consider this command:</p>
+<pre>
+% makepp -R /our/library
+</pre>
+    <p>Any commands in the makefile that refer to files in the directory
+    <code>./network</code> will actually get files from
+    <code>/our/library/network</code>, and similarly for
+    <code>./gui</code>.  <i>Makepp</i> automatically creates any
+    directories that exist in the repository but not in the current
+    directory.</p>
+
+    <br>
+
+    <p>All of the above examples show files from a repository being
+    linked into the current directory or its subdirectories, but you can
+    actually have <i>makepp</i> link them into any place in the file
+    system that you have write access to.  This is useful for more
+    complicated builds, where there may be several library
+    subdirectories.  For example, here's a command I have used to build
+    variants of one of my programs:</p>
+<pre>
+% makepp -R test-build/seescape=/src/seescape \
+	 -R test-build/HLib=/src/HLib \
+	 -R test-build/H5pp=/src/H5pp \
+	 -R qwt=/src/external_libraries/qwt \
+	 -F test-build/seescape
+</pre>
+    <p>This command loads in files from four different repositories, and
+    then cds to the <code>./test-build/seescape</code> directory and
+    executes the makefile there.  Files contained in the directory tree
+    beginning with <code>/src/seescape</code> are linked into
+    <code>./test-build/seescape</code>.  In other words, <i>makepp</i>
+    will temporarily link the file
+    <code>/src/seescape/gui/image_canvas.cxx</code> to
+    <code>./test-build/seescape/gui/image_canvas.cxx</code> when it is
+    needed.  This command will work even if the <code>test-build</code>
+    directory doesn't exist yet; <i>makepp</i> will create it for you.
+    (But you must specify the <code>-R</code> options before the
+    <code>-F</code> option on the command line.)</p>
+
+
+    <a name="caveats"></a>
+    <h2>Caveats with repositories</h2>
+
+
+    <p>Repositories work completely transparently <i>if the makefiles
+    use only relative filenames</i>.  In the above example, it's ok if
+    the makefile in <code>/src/seescape</code> refers to
+    <code>../HLib</code>, but the above command will not work as
+    expected if it refers to <code>/src/HLib</code>.  If you need to use
+    absolute file names, you can put them into make variables and then
+    override them on the command line, like this:</p>
+<pre>
+% makepp -R test-build/seescape=/src/seescape SEESCAPE=/home/holt/test-build/seescape \
+	 -R test-build/HLib=/src/HLib HLIB=/home/holt/test-build/HLib \
+	 -R test-build/H5pp=/src/H5pp H5pp=/home/holt/test-build/H5pp \
+	 -R qwt=/src/external_libraries/qwt QWT=/home/holt/test-build/qwt \
+	 -F test-build/seescape
+</pre>
+
+    <p>The above will work as long as the <code>HLib</code> directory is
+    referred to as <code>$(HLIB)</code> in all the makefiles.  Note that
+    you have to specify absolute paths for the directories, because
+    <i>makepp</i> cd's to <code>test-build/seescape</code> before
+    reading the makefile.  This leads to long and complicated make
+    commands; use relative paths when possible.</p>
+
+    <br>
+
+    <p>Repositories will not work if there are hidden dependencies that
+    <i>makepp</i> doesn't know about.  (In fact, doing a build using
+    repositories is one way of checking for forgotten dependencies.)
+    Sometimes these dependencies can be fairly subtle.  For example, the
+    <i>libtool</i> command will not only create <code>.lo</code> and
+    <code>.la</code> files as listed on the command line, but it also
+    may create a subdirectory called <code>.libs</code> which contains
+    the actual object files.  Because <i>libtool</i> is so widely used,
+    <i>makepp</i> <a href="scanning.html#libtool">recognizes this
+    special case</a> and handles it appropriately by <a
+    href="scanning.html#libtool">scanning the command</a>.  However, the
+    scanner may not find all dependencies properly because the command
+    is too obscure.  For example, consider this command from the KDE
+    distribution:</p>
+<pre>
+# This command checks to make sure all global symbols in the library are 
+# properly defined, by linking a dummy program.
+
+libkdecore.la.closure: $(libkdecore_la_OBJECTS) $(libkdecore_la_DEPENDENCIES)
+	echo "int main() {return 0;}" > libkdecore_la_closure.cpp
+	libtool --mode=compile $(CXX) $(CXXFLAGS) -c libkdecore_la_closure.cpp
+	libtool --mode=link $(CXX) libkdecore_la_closure.lo $(libkdecore_la_LDFLAGS) $(libkdecore_la_OBJECTS) $(libkdecore_la_LIBADD) $(LIBS)
+</pre>
+
+    <p>The <code>libtool</code> statement isn't the first in the list,
+    so the scanner misses it.  (And it doesn't properly handle multiple
+    libtool statements anyway.)  As a result, this makefile will not
+    work with repositories.</p>
+
+    <p>Note that it would work fine if this multi-line action were
+      broken up into several single-line rules:</p>
+<pre>
+libkdecore_la_closure.cpp:
+	echo "int main() {return 0;}" > libkdecore_la_closure.cpp
+
+libkdecore.la.closure: $(libkdecore_la_OBJECTS) $(libkdecore_la_DEPENDENCIES) \
+	libkdecore_la_closure.lo
+	libtool -mode=link $(CXX) -o $(output) $(inputs) $(libkdecore_la_LIBADD) $(LIBS)
+</pre>
+
+    <p>You may have to be careful if you have any homegrown scripts that
+    create files that <i>makepp</i> doesn't know about.  For correct
+    builds, it is vitally important to list <b>all</b> targets and
+    dependencies (or determine them automatically by scanning).</p>
+      
+
+    <br>
+
+    <p>Repositories will also not work if any of the files built contain
+    absolute file names in them (e.g., if any of your build commands
+    write out an absolute filename).  For example, it turns out that the
+    <code>.la</code> files produced by <i>libtool</i> have this
+    property.  (If you look at the contents of the <code>.la</code> file
+    you'll see that the dependency list contains absolute filenames.)
+    In order to solve this particular problem, <i>makepp</i> will not
+    link <code>.la</code> files from a repository; it will insist on
+    rebuilding them.</p>
+
+    <br>
+
+    <p>Repositories can be slow on startup and use a lot of memory if
+    there are a lot of unnecessary files in the repository.  For
+    example, if you use an automatic HTML documentation generator which
+    makes thousands of <code>.html</code> files from your source code,
+    you may not want to put them in a subdirectory of a directory that's
+    used as a repository.  It's better to put them in a different
+    directory tree entirely, so the repository mechanism won't load in
+    their names.</p>
+
+    <hr>
+    <a href="index.html">Table of contents</a>
+    |
+    <a href="scanning.html">Next (scanning for includes)</a>
+    |
+    <a href="dirs.html">Previous (multi-directory builds)</a>
+    <br>
+<!-- Created: Mon Aug 14 14:15:01 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Tue Oct 17 09:59:54 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

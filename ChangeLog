@@ -1,0 +1,32 @@
+Version 1.03 released.
+	
+2000-11-11  Gary Holt  <holt@lnc.usc.edu>
+
+	* MakeEvent.pm: simply increment a value in the signal handler,
+	rather than pushing something onto an array.  This seems to fix
+	the erratic perl core dumps that we were having.
+	
+	* Makefile.pm (parse_rule): use filesubst instead of patsubst for
+	pattern rules, so we handle directory aliases properly.
+	
+	* Makesubs.pm (f_filesubst): new function to handle directory
+	names like "./src" which were making patsubst fail when used with 
+	GNU make style pattern rules.
+
+2000-11-02  Gary Holt  <holt@lnc.usc.edu>
+
+	* Makefile.pm (parse_rule): Attempt to fix problems with indented
+	rules using a much more complicated heuristic.
+
+	* Makesubs.pm (scanner_c_compilation): fixed bug where indented
+	#includes were not found.
+
+2000-10-27  Gary Holt  <holt@lnc.usc.edu>
+
+	* Glob.pm (find_real_subdirs): avoid usage of undefined value
+	warning if the directory doesn't exist.
+
+	* Rule.pm (find_all_targets_dependencies): return the explicitly
+	targets and dependencies in the order they were specified, so they
+	are built in a predictable order.  Previously, they were returned
+	in a random order.

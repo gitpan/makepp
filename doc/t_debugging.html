@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Debugging Makefiles</title>
+  </head>
+
+  <body>
+    <h1>Debugging Makefiles</h1>
+
+    <h2>.makepp_log</h2>
+
+    <p>If you have a complicated build procedure, you find that
+    <i>makepp</i> is rebuilding things more often than you think they
+    need to be rebuilt.  Or (hopefully this is rarer) you may find that
+    it is not rebuilding things when it should.  You don't have to keep
+    staring at your makefiles until you see the problem.  On every
+    build, <i>makepp</i> produces a log file that explains which rule it
+    thought it was supposed to use to build each target, what files it
+    thought each target depended on, and (if it did decide to rebuild)
+    why it thought a rebuild was necessary.  This file is called
+    <code>.makepp_log</code> and it is placed in the directory you
+    actually ran <i>makepp</i> from.  (Of course, the filename has a
+    leading period, which means that you won't see it there unless you
+    specifically look for it.  It's designed to be unobtrusive.)</p>
+
+    <p>The log file is more or less self-explanatory.  The only thing
+    that might be a little obscure is the leading number on each line;
+    this means the fork level of <i>makepp</i>.  This will always be 0
+    unless <i>makepp</i> is trying to rebuild a makefile, in which case
+    it will be 1.  If a makefile contains instructions for rebuilding
+    itself, <i>makepp</i> forks, rebuilds the makefile if necessary, and
+    then reads the makefile and builds the other targets.</p>
+
+    <p>Indentation conveys depth in <i>makepp</i>'s inference tree.
+    Suppose the target is <code>all</code>, and <code>all</code> depends
+    on <code>my_program</code>, and <code>my_program</code> depends on
+    <code>*.o</code>, which depend on the corresponding <code>.c</code>
+    files.  Log messages related to <code>all</code> will not be
+    indented, log messages related to building the target
+    <code>my_program</code> will be indented two spaces, log messages
+    related to building any of the object files will be indented 4
+    spaces, and log messages related to building any of the source files
+    will be indented 6 spaces.</p>
+
+    <p>If you're doing a parallel make (using the <a
+    href="command_line.html#option_j"><code>-j</code></a> command line
+    option), the order of the messages in the log file will not make
+    nearly as much sense since messages from different targets will be
+    interspersed.  You might try debugging a serial make first.</p>
+
+    <h2>Common errors in makefiles</h2>
+
+    <h3>Not specifying all dependencies</h3>
+
+    <p><i>Makepp</i> is designed to be extremely clever about finding
+    dependencies, and if you just use a standard unix C or C++ compiler
+    command, it is actually somewhat difficult to get <i>makepp</i> to
+    miss something.  (Please send me examples if you find that it missed
+    something, so I can make <i>makepp</i> smarter.)  However, if you
+    are running commands other than compilation, or dealing with
+    languages other than C or C++, it is much easier to run into
+    problems.</p>
+
+    <p>If you don't tell <i>makepp</i> all of the dependencies of a
+    file, and it can't infer them by looking at the command line or
+    scanning the files for includes, then it may not rebuild a file when
+    it should.  You can make this kind of error less likely by using
+    only automatic variables in your actions, rather than repeating the
+    dependency lists.  For example,</p>
+
+<pre>
+my_program: a.o b.o c.o
+	ld a.o b.o c.o d.o -o my_program
+</pre>
+
+    <p>has an error because <code>d.o</code> is mentioned in the action
+    but not in the dependency list.  If the command had been written
+    this way:</p>
+
+<pre>
+my_program: a.o b.o c.o
+	$(CC) $(inputs) -o my_program
+</pre>
+
+    <p>then the lack of <code>d.o</code> would have been noticed because
+    it would have caused link errors.</p>
+
+    <p>Another way that a missing dependency can occur is if a program
+    actually uses a file but doesn't take the file's name on the command
+    line.  For example, if you're compiling Fortran code, <i>makepp</i>
+    at the moment doesn't know how to scan for included files.  Thus you
+    must explicitly list any files that are included.</p>
+
+    <p>One thing that is sometimes helpful for testing is to start with
+    a completely clean directory--just the bare minimum you think should
+    be necessary--and rebuild absolute everything from scratch.  This
+      can be most conveniently done by using repositories, like
+      this:</p>
+<pre>
+rm -rf test-build-dir
+makepp -R test-build-dir=. -F test-build-dir
+</pre>
+
+    <p>If the build fails because some file is not present, it means
+    that <i>makepp</i> didn't realize some file was a dependency,
+    because it only links files from the repository that it thought were
+    needed.  Performing this test occasionally may save hours of
+    debugging later.  I have worked on projects where this was never
+    done for months because it took so long.  As a result, many little
+    problems crept in.  There were some object files that didn't have
+    source files any more, some source files that were never properly
+    rebuilt by a preprocessing command, etc.</p>
+
+    <p>Of course, this won't catch all missing dependencies, but it will
+      catch some of them.</p>
+
+    <h3>Not specifying all targets</h3>
+
+    <p>You must specify <b>all</b> files that a given command modifies
+    as targets, or else <i>makepp</i> may not have realized they have
+    changed.  You can specify more than one target.  For example,</p>
+
+<pre>
+y.tab.h y.tab.c: parse.y
+	yacc -d parse.y
+</pre>
+
+    <p>If you had forgotten to specify <code>y.tab.h</code> as a target,
+    then <i>makepp</i> would not know to rebuild <code>y.tab.h</code>
+    using this command, and files that depend on <code>y.tab.h</code>
+    might be compiled using the old version.</p>
+
+    <h3>Suggestions?</h3>
+
+    <p>Please suggest things that you have found confusing or dangerous,
+      and I'll either note them or try to fix makepp so they aren't a
+      danger any more.</p>
+    
+
+    <hr>
+    <a href="t_index.html">Tutorial index</a>
+    |
+    <a href="t_variant.html">Previous (source/objects and build variants)</a>
+    <br>
+<!-- Created: Fri Aug 25 23:53:37 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Fri Oct 13 22:08:17 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

@@ -1,0 +1,1255 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Makepp's makefile syntax</title>
+  </head>
+
+  <body>
+    <h1>Makepp's makefile syntax</h1>
+
+    <p><i>makepp</i> tries to be extremely compatible with GNU make, so
+    almost everything that GNU make supports in its makefile is
+    supported.  If you're not familiar with writing makefiles, you'll
+      want to read the <a href="t_index.html">tutorial</a> before
+      reading this file.</p>
+
+    <p>Every nonblank line in the makefile is either a comment, a
+    variable assignment, part of a rule, a conditional, or a
+    statement.</p>
+
+    <dl>
+      <dt><a href="#variable_syntax">Variable syntax</a>
+      <dd>
+	Details on assigning values to variables, and using those values
+	elsewhere.
+
+      <dt><a href="#rule_syntax">Rule syntax</a>
+      <dd>
+	A rule is what tells <i>makepp</i> the recipe for making a file.
+
+      <dt><a href="#statement_syntax">Statement syntax</a>
+      <dd>
+	A statement is any line that begins with a word, such as
+	<code>include</code> or <code>begin_perl</code>.
+	<ul>
+	  <li><a href="#statement_include"><code>include</code></a>
+	  <li><a
+	      href="#load_makefile_statement"><code>load_makefile</code></a>
+	  <li><a
+	      href="#statement_perl_begin"><code>perl_begin</code></a>
+	    and <code>perl_end</code>
+	  <li><a
+	      href="#statement_repository"><code>repository</code></a>
+	  <li><a href="#statement_sub"><code>sub</code></a>
+	</ul>
+
+
+      <dt><a href="#conditionals">Conditionals</a>
+      <dd>
+	<i>Makepp</i> supports several different ways of selecting
+	different parts of your makefile to use.
+
+      <dt><a href="#wildcards">Wildcards in makefiles</a>
+      <dd>
+	Wildcards can be used reliably in rules.  Wildcards match either
+	files that currently exist, or files for which there is a build
+	rule.
+
+      <dt><a href="#special_chars">Filenames with special characters</a>
+      <dd>
+	If your filenames contain spaces or characters like
+	<code>"'\:*%</code>, then makepp may be confused unless you
+	quote them.
+    </dl>
+
+
+
+    <hr>
+    <a name="variable_syntax">
+    <h2>Variable assignment syntax</h2>
+    </a>
+    
+
+    <dl>
+      <dt>VARIABLE = text string
+      <dd>
+	This is the usual assignment statement that all makes support.
+	The expression on the right hand side is not evaluated until the
+	value of <code>$(VARIABLE)</code> is actually used somewhere.
+	Thus, if you do the following:
+<pre>
+X = 1
+Y = $(X)
+X = 2
+</pre>
+	Then <code>$(Y)</code> later in the makefile will evaluate to "2".
+	Leading and trailing whitespace around the text string is
+	stripped; there is at present no way to put trailing whitespace
+	into a variable.
+
+      <dt>VARIABLE := expr
+	<dd>
+	This is the same as "VARIABLE = expr" except that the right hand
+	side is evaluated at the time of the assignment.  Thus if
+<pre>
+X := 1
+Y := $(X)
+X := 2
+</pre>
+	then <code>$(Y)</code> later in the makefile will evaluate to "1" since
+	that's what <code>$(X)</code> was when <code>$(Y)</code> was defined.
+
+      <dt>VARIABLE += expr
+      <dd>
+	Appends the string to the variable.  If the variable was
+	previously assigned with :=, then the right hand side is
+	evaluated before appending.
+
+      <dt>VARIABLE ?= expr
+      <dd>
+	Sets the value of the variable, but only if the variable is not
+	specified earlier in the makefile, on the command line, or in
+	the environment.
+    </dl>
+
+    <a name="variable_substitution"></a>
+    <h3>Variable substitution</h3>
+
+    <p><i>Makepp</i>'s variable substitution rules are similar to those
+    of other makes, but somewhat more powerful.  <code>$(CC)</code> or
+    <code>${CC}</code> both represent the value of the variable CC.  If
+    you need a literal dollar sign, put in a double dollar sign
+    (<code>$$</code>).</p>
+
+    <p><i>makepp</i> uses rc-style substitution (so called because it
+    was pioneered by the rc shell).  This is best illustrated by an
+    example:</p>
+
+<pre>
+MODULES = a b c d
+
+mylib.a : module_dir/$(MODULES).o $(OTHER_OBJECTS)
+	$(CXX) $(dependencies) -o $(target)
+</pre>
+
+    <p>The prefix <code>module_dir/</code> is prepended to each word in
+    MODULES, and the suffix <code>.o</code> is appended to each word.</p>
+
+    <a name="substitution_refs"></a>
+    <p><i>Makepp</i> also supports <i>substitution references</i>.  A
+      substitution reference has the form <code>$(VAR:A=B)</code>, where
+      A is a pattern to match and B is a pattern to replace it with.
+      For example:</p>
+
+<pre>
+source_files = a.c b.c c.c d.c
+object_files = $(source_files:%.c=%.o)
+</pre>
+
+    <p>will set <code>$(object_files)</code> to
+    <code>a.o&nbsp;b.o&nbsp;c.o&nbsp;d.o</code>.  The <code>%</code> is
+    a special character matches any arbitrary string.  Substitution
+    references are <a href="#func_patsubst">an abbreviation for the
+    <code>patsubst</code> function</a>.
+
+    <a name="automatic_variables">
+    <h3>Automatic variables</h3>
+    </a>
+
+    <p><i>makepp</i> supports most of the automatic variables that other
+    versions of make use.  In addition, it has less cryptic, longer
+    names for most of them that you can use instead.  (For legacy
+    makefiles that redefine these names, the definition in the makefile
+    overrides the default meaning.  For example, if you say
+    "<code>target = abc</code>" in your makefile, then
+    <code>$(target)</code> will always expand to <code>abc</code>, and
+    will no longer be equivalent to <code>$@</code>.)</p>
+
+    <dl>
+      
+	<a name="var_target"></a><a name="var_output"></a>
+      <dt><code>$(target)</code> or <code>$(output)</code> or <code>$@</code>
+      <dd>
+	The target of the current rule.  Actually, since <i>makepp</i>
+	supports multiple targets for any rule, this is the <b>first</b>
+	target.
+
+	<a name="var_targets"></a><a name="var_outputs"></a>
+      <dt><code>$(targets)</code> or <code>$(outputs)</code>
+      <dd>
+	All targets of the current rule.  Same as <code>$(target)</code>
+	unless there is more than one target.
+
+	<a name="var_input"></a><a name="var_dependency"></a>
+      <dt><code>$(dependency)</code> or <code>$(input)</code> or <code>$&lt;</code>
+      <dd>
+	The first explicit dependency of the rule.
+
+	<a name="var_inputs"></a><a name="var_dependencies"></a>
+      <dt><code>$(dependencies)</code> or <code>$(inputs)</code> or <code>$^</code>
+      <dd>
+	All the dependencies of the target, not including
+	<code>.h</code> files discovered by <a
+	href="scanning.html">scanning</a> for includes.
+
+	<a name="var_sorted_dependencies"></a><a name="var_sorted_inputs"></a>
+      <dt><code>$(sorted_dependencies)</code> or
+	<code>$(sorted_inputs)</code> or <code>$+</code>
+      <dd>
+	All the dependencies of the target, in sorted order, with
+	duplicates removed.  Equivalent to
+	<code>$(sort&nbsp;$(inputs))</code>.
+
+	<a name="var_quesmark"></a>
+      <dt><code>$?</code>
+      <dd>
+	In most make versions, this is the dependencies of the target
+	which have changed.  This does not fit into <i>makepp</i>'s
+	conceptual framework, because on the next build it will make
+	sure the command is exactly identical to the previous build, or
+	else it considers the file out of date.  So <i>makepp</i>
+	attempts to support this variable for backward compatibility by
+	making it equivalent to all dependencies (the same as
+	<code>$+</code>).
+
+	<p>This variable has no long name because its use is highly
+	discouraged.</p>
+
+	<a name="var_stem"></a>
+      <dt><code>$(stem)</code> or <code>$*</code>
+      <dd>
+	The stem in a pattern rule (i.e., whatever the '%' matched).
+	Alternatively, if this is not a pattern rule, recognizes the
+	file name without the extension (i.e., it's equivalent to
+	<code>$(basename&nbsp;$(input))</code>.
+
+	<a name="var_foreach"></a>
+      <dt><code>$(foreach)</code>
+      <dd>
+	The current filename from the <code>foreach</code> clause.  See
+	<a href="#foreach_rules">below</a> for more details on
+	<code>foreach</code>.
+
+    </dl>
+
+
+    <a name="functions"></a>
+
+    <h3>Functions</h3>
+
+    <p>Any expression of the format
+    <code>$(name&nbsp;arg1&nbsp;arg2&nbsp;arg3)</code> or
+    <code>$(name)</code> where <code>name</code> is not the name of a
+    variable, is interpreted as a function call.  The name may contain
+    letters, underscores, or hyphens; to avoid confusion, you may use
+    hyphens or underscores interchangeably, since internally hyphens are
+    converted to underscores.  Evaluating such an expression simply
+    invokes a perl subroutine.  You can define perl subroutines to do
+    whatever you like.  See the <a href="#statement_sub">sub
+    statement</a> and the section on <a
+    href="extending_makepp.html">extending makepp</a> for more
+    details.</p>
+
+    <p><i>makepp</i> has a number of builtin functions which may be
+    useful.  It supports almost all of GNU make's textual functions (see
+    GNU make's documentation for details), and some of its
+    own.  The most useful functions are:</p>
+
+    <dl>
+      <dt>$(<code>absolute-filename</code> files)
+      <dd>
+	Converts relative filenames into absolutes.  For example,
+	<code>$(absolute-filename&nbsp;xyz.c)</code> might return
+	<code>/usr/src/our_project/subdir/xyz.c</code>.
+
+      <dt>$(<code>basename</code> filenames)
+      <dd>
+	The basename is the entire file name (with the directory), minus
+	the text after the last period.  E.g.,
+	<code>$(basename&nbsp;myfile/version-1.0-module.c)</code> is
+	<code>myfile/version-1.0-module</code>
+
+      <dt>$(<code>filter</code> patterns, words)
+      <dd>
+	Returns all words in the list that match the patterns.
+	Patterns may simply be other words, or they may have a
+	<code>%</code> character, which means to match any string at
+	that point.
+
+      <dt>$(<code>filter-out</code> patterns, words)
+      <dd>
+	Returns all words in the list that do not match the patterns.
+	Patterns may simply be other words, or they may have a
+	<code>%</code> character, which means to match any string at
+	that point.
+
+      <dt>$(<code>notdir</code> filenames)
+      <dd>Returns the non-directory portion of the filename(s).
+
+	<a name="function_only_targets"></a>
+      <dt>$(<code>only-targets</code> filenames)
+      <dd>Returns only those filenames in the list that are actually
+	targets of some rule (either explicit or pattern rules).  This
+	can be used for a clean target, for example:</p>
+<pre>
+.PHONY: clean
+
+clean:
+	rm -f $(only_targets *)
+</pre>
+
+	<p>Now if you type <code>makepp&nbsp;clean</code>, it will delete
+	everything it knows how to build.</p>
+
+	<p>Note that this refers only to files that are known to be
+	  targets <i>at the time you invoke</i>
+	  <code>only-targets</code>.  If <code>only-targets</code>
+	  appears in the dependencies or actions of a rule, then all
+	  possible targets will be known.  If you evaluate try to
+	  evaluate it earlier in the makefile with a <code>:=</code>
+	  variable like this:</p>
+<pre>
+ALL_TARGETS := $(only_targets *)
+
+target1: dependency1
+	actions
+
+target2: dependency2
+	actions
+</pre>
+	<p>then <code>only_targets</code> will not know about the
+	subsequent rules.</p>
+
+	<p>Similarly, <code>only_targets</code> doesn't know about
+	  targets produced in makefiles that are loaded with recursive
+	  make.</p>
+
+      <dt>$(<code>only-nontargets</code> filenames)
+      <dd>Returns only those filenames in the list that are not targets
+	of any rule (either explicit or pattern rules).  This can be
+	used for generating a distribution target, for example:</p>
+<pre>
+.PHONY: distribution
+
+distribution:
+	mkdir our_product-$(VERSION)
+	cp $(filter-out %~, $(only_nontargets *)) our_product-$(VERSION)
+	tar cf - our_product-$(VERSION) | gzip -9c > our_product-$(VERSION).tar.gz
+</pre>
+
+	<p>In this case, the <code>$(only_nontargets *)</code> returns
+	  every file in the current directory that is not a target of
+	  some rule.  The <code>$(filter-out %~, ...)</code> removes
+	  editor backups.</p>
+
+	<p>Similar to <code>only-targets</code> (see above),
+	<code>only-nontargets</code> only knows about targets that have
+	been defined already.  This is only a problem if you use it to
+	define variables with the <code>:=</code> assignment.</p>
+
+      <dt>$(<code>patsubst</code> pattern, substitute, words)
+      <dd>
+	Performs a substitution on each word in the word list.  A
+	<code>%</code> character matches any string.  This is best
+	illustrated by an example:
+<pre>
+OBJS = $(patsubst %.c, object_dir/%.o, $(C_SOURCES))
+</pre>
+	takes every file in C_SOURCES and returns the name of an object
+	file in object_dir.  Sometimes it is more concise to use a <a
+	  href="#substitution_refs">substitution reference</a>, e.g.,
+	the above could have been written as</p>
+
+<pre>
+OBJS = $(C_SOURCES:%.c=object_dir/%.o)
+</pre>
+
+
+      <dt>$(<code>phony</code> words)
+      <dd>
+	Indicates that the list of words are actually phony targets, and
+	returns the list of targets.  It's intended to be used like
+	this:</p>
+<pre>
+$(phony all): my_program
+
+$(phony clean):
+	rm -f *.o my_program
+</pre>
+
+	<p>You can also declare one or more targets as phony with a line like 
+	  this anywhere in your makefile:</p>
+<pre>
+.PHONY: all clean
+</pre>
+
+      <dt>$(<code>print</code> text)
+      <dd>
+	Outputs the text and returns it.  This is mostly useful for
+	debugging, when you don't understand why variable substitution
+	has the result that it does.  For example,
+<pre>
+XYZ := $(print $(patsubst %.c, %o, $(SOURCE_FILES)))
+</pre>
+	will print out the result of the <code>patsubst</code> call.
+<pre>
+XYZ := $(patsubst %.c, %o, $(print $(SOURCE_FILES)))
+</pre>
+	will print out the last argument to the <code>patsubst</code>
+	call.</p>
+
+      <dt>$(<code>shell</code> shell-command)
+      <dd>Returns the output from the given shell command, with newlines
+	replaced by spaces.
+
+    </dl>
+
+    <p><i>makepp</i> also supports many other, less useful functions
+    that GNU make has (see the GNU make documentation for details,
+    because I don't feel like typing it in now).  (The only ones it does
+    not support are <code>join</code>, <code>foreach</code>,
+    <code>origin</code>, <code>call</code>, <code>error</code>, and
+    <code>warning</code>.)  These are intended mainly to support
+    existing makefiles; it's very easy to <a
+    href="extending_makepp.html">write your own functions in perl</a>,
+    or to put <a href="#statement_perl_begin">perl code to manipulate
+    variables directly</a> in your makefile, so you can do any kind of
+    manipulation even if one of these built-in functions isn't
+    adequate.</p>
+      
+
+
+
+
+
+    <hr>
+    <a name="rule_syntax">
+    <h2>Rule syntax</h2>
+    </a>
+
+    <p>A rule is what tells <i>makepp</i> how to build a file or a class
+    of files.  <i>Makepp</i> supports the same rule syntax as other
+    makes, plus some additions of its own.</p>
+
+    <a name="explicit_rules">
+    <h3>Explicit rules</h3>
+    </a>
+
+<pre>
+target1 target2: dependency1 dependency2 ...
+	actions to be performed
+</pre>
+
+    <p>This syntax specifies that in order to make either target1 or
+    target2, all the files dependency1, dependency2, etc., must already
+    have been made.  Then the given actions are executed by the shell to
+    make the targets.  Unlike traditional makes, <i>makepp</i> usually
+    assumes that one invocation of the action makes all of the targets
+    (unless there are no dependencies).  For example, one invocation of
+    yacc creates both output files for this rule:</p>
+<pre>
+y.tab.c y.tab.h : parser.y
+	$(YACC) -d parser.y
+</pre>
+
+    <a name="legacy_multiple_targets"></a>
+    <p>In some cases, however, <i>makepp</i> will execute the rule
+      actions once for each target, so that old makefiles don't break.
+      This happens if all of the following are true:</p>
+    <ul>
+      <li>The rule action mentions the automatic variable <code>$@</code>.
+	(The synonymns <code>$(output)</code> or <code>$(target)</code>
+	do not trigger this behavior.)
+      <li>The rule action does not mention the automatic variable
+	<code>$(outputs)</code> (or its synonymn
+	<code>$(targets)</code>).
+      <li>This is not a <a href="#pattern_rules">pattern rule</a>, and
+	there is no <a href="#foreach_rules">foreach clause</a>.
+    </ul>
+
+    <p>For example,</p>
+
+<pre>
+all test install:
+	for subdir in $(SUBDIRS); do cd $$subdir && $(MAKE) $@; cd ..; done
+</pre>
+
+    <p>is a common idiom in makefiles, and <i>makepp</i> supports it.
+    (Note that you should never use recursive make in any new makefiles
+    you write--use <a href="dirs.html">the <code>load_makefile</code>
+    statement, or implicit makefile loading</a> instead).</p>
+
+    <p>The list of targets may not contain any <a
+    href="#automatic_variables">automatic variables</a> (except
+    <code>$(foreach)</code>).  The dependency list may contain only
+    automatic variables referring to the target (<code>$(output)</code>,
+    <code>$(outputs)</code>, or <a href="#automatic_variables">their
+    synonymns</a>).  The action may contain any automatic variables.</p>
+
+    <h4>Rule actions</h4>
+
+    <p>If <i>makepp</i> decides that the rule needs to be reexecuted,
+    each line of the rule is executed sequentially, and if any returns a
+    non-zero status, the remainder are not executed (and <i>makepp</i>
+    aborts with an error unless you specified the <a
+    href="command_line.html#option_keep_going"><code>-k</code>
+    option</a> on the command line.)  Each action should be only one
+    line.  If an action is too long to write conveniently on a single
+    line, you can split it into several lines and put a backslash to
+    indicate that the several lines should be combined into one.</p>
+
+    <p>In order to distinguish actions from the next rule, the action
+    should be indented more than the line containing the targets and
+    dependencies.  Unlike other implementations of make, <i>makepp</i>
+    doesn't really care how much you indent it or whether you use tab
+    characters rather than spaces (since such things are hard to see by
+    looking at the makefile on the screen).  To keep backward
+    compatibility, the rules <i>makepp</i> uses to decide when actions
+    end and the next rule begins are somewhat complicated:</p>
+
+    <ul>
+      <li>The first action line must be indented more than the line
+	containing the target.
+
+      <li>If a line is indented by one tab character or 8 spaces or more,
+	then it is considered an action line.
+
+      <li>A blank line or a comment line with the <code>#</code>
+	character at the right margin ends the rule, unless the next
+	non-blank line is indented more than 8 spaces (or more than one
+	tab).
+
+      <li>If a line is indented as much or more than the first action
+	line, then it is considered an additional action line.
+    </ul>
+
+    <p>As with other implementations of make, the first explicit rule in
+    a file is the default target, and is made if you do not specify any
+    targets on the command line.</p>
+
+    <p>It is safe to specify wildcards in the dependency list.
+    Wildcards match not only files that exist, but files which can be
+    created given the rules in the makefile.  (See <a
+    href="#wildcards">below</a> for more information on wildcards.)  For
+    example, to build a library from all .o files in a directory, you
+    could write this:</p>
+<pre>
+libmine.a: *.o
+	ar ru $(target) $(dependencies)
+</pre>
+
+    <p>This will work even if none of the <code>.o</code> files have
+    been created yet.</p>
+
+    <p>As usual, the actions must be indented, though (unlike the
+    standard make) makepp doesn't really care how much.  The actions are
+    terminated by a line that does not begin with whitespace or a
+    comment.</p>
+
+    <p>Normally, each shell command is printed as it is executed.
+    However, if the first word of the action is <code>noecho</code> (or
+    if it begins with the character <code>@</code>), then the command is
+    not printed.  For example,</p>
+
+<pre>
+%.o: %.cxx
+      noecho $(LIBTOOL) -c $(input)
+</pre>
+
+    <p>This means that when the libtool command is executed, it is not
+    printed.  (Libtool itself usually prints the modified command that
+    it executes, so it's redundant to print it twice.)</p>
+
+    <p>Normally, if the shell command returns a non-zero status, then
+    <i>makepp</i> aborts because the command failed.  However, some
+    programs incorrectly set the status on exit, or there may be an
+    error which really isn't fatal and shouldn't abort the whole
+    compilation.  You can cause <i>makepp</i> to ignore the return
+    status by specifying <code>ignore_error</code> as the first word of
+    the command line (or <code>-</code> as the first character).  For
+    example,</p>
+
+<pre>
+$(phony distribution):
+	ignore_error rm -r my_program-$(VERSION) # Get rid of previous junk.
+	mkdir my_program-$(VERSION)
+	cp $(FILES) my_program-$(VERSION)
+	tar cf my_program-$(VERSION).tar my_program-$(VERSION)
+</pre>
+
+    <p>This command makes a directory, copies a bunch of files into it,
+    and then puts everything into a tar file for distribution.  It's a
+    good idea to clean out the previous contents of the directory, if
+    there was anything there previously, and that's what the first line
+    does.  The <code>rm</code> might fail, but its return status is
+    ignored.</p>
+
+    <a name="pattern_rules">
+    <h3>Pattern rules</h3>
+    </a>
+
+    <p>A pattern rule is a rule that is applied based on some textual
+    pattern.  This is used to apply the same rule to a whole class of
+    files.  The syntax is the same as GNU make's pattern rules:</p>
+
+<pre>
+%.o: %.c
+	$(CC) -c $(input) -o $(output)
+</pre>
+
+    <p>This says that any file which matches <code>*.c</code> can be
+    converted into the corresponding .o file using the given command.
+    (Note that if you specify the command line option <a
+    href="command_line.html#option_percent_subdirs"><code>--percent-subdirs</code></a>,
+    then the above rule will also compile <code>.c</code> files in
+    subdirectories as well.)</p>
+
+    <p>(If you're used to traditional make, you might not recognize the
+    <a href="#automatic_variables">automatic variables</a>
+    <code>$(input)</code> and <code>$(output)</code>.
+    <code>$(input)</code> is a <a
+    href="#automatic_variables">synonymn</a> for <code>$&lt;</code>, and
+    <code>$(output)</code> is a synonymn for <code>$@</code>.)</p>
+
+    <p>Note that several pattern dependencies may be supplied.  For
+    example, if your <code>xyz.o</code> file depends on the
+    corresponding <code>xyz.cpp</code> file, and also on a file called
+    <code>moc_xyz.cpp</code>, this could be expressed with:
+<pre>
+%.o: %.cpp moc_%.cpp
+	$(CXX) -c $(inputs) -o $(output)
+</pre>
+
+    <p>You may also have several pattern targets.  For example,</p>
+<pre>
+%.tab.h %.tab.c : %.y
+	yacc -d $(input)
+	mv y.tab.h $(stem).tab.h
+	mv y.tab.c $(stem).tab.c
+</pre>
+
+    <a name="foreach_rules">
+    <h3>:foreach rules</h3>
+    </a>
+
+    <p>The above pattern rule syntax is powerful enough to support
+    almost all builds, but occasionally it is necessary to do something
+    more complicated.  <i>Makepp</i> provides a more powerful syntax:
+    the <code>:foreach</code> clause for the rule.</p>
+
+<pre>
+target-expression : depedency-expression : foreach file-list
+	actions
+</pre>
+
+    <p>The variable <code>$(foreach)</code> is set in turn to each file
+    matching the file-list, and the target and dependency expressions
+    are evaluated.  The file-list may contain wildcards, and these match
+    even files which don't exist yet but which can be built (see the
+    section on <a href="#wildcards">wildcards</a> for details).</p>
+
+    <p>The above pattern rule can be expressed in this format as
+      follows:</p>
+
+<pre>
+$(patsubst %.c, %.o, $(foreach)) : $(foreach) : foreach *.c
+	... shell commands here
+</pre>
+
+    <p>(In fact, it's converted to that internally.)  This is an
+    unwieldy syntax but it is extremely flexible, because the
+    <code>$(foreach)</code> variable may appear in any way in the
+    expression.  For example, if you want to specify to make a .o file
+    from a .cpp file, but only if a corresponding .h file exists, you
+    could do it like this:</p>
+
+<pre>
+$(foreach:%.h=%.o) : $(foreach:%.h=%.cpp) : foreach *.h
+	... shell commands here
+</pre>
+
+    <p>(This uses the slightly more concise <a
+    href="#substitution_refs">substitution reference syntax</a> rather
+    than calling <code>patsubst</code> explicitly.  See the section on
+    <a href="#variable_substitution">variable substitution</a> for
+    details.)</p>
+
+    <a name="suffix_rules">
+    <h3>Legacy suffix rules</h3>
+    </a>	
+    
+    <p>For backward compatibility, <i>makepp</i> supports the old-style
+    suffix rules.</p>
+
+<pre>
+.suffix1.suffix2:
+	actions
+</pre>
+    <p>is equivalent to</p>
+<pre>
+%.suffix2: %.suffix1
+	actions
+</pre>
+    <p>but much harder to remember.</p>
+
+    <a name="conflicting_rules">
+    <h3>Conflicting rules</h3>
+    </a>	
+
+    <p>When there is more than one way to make a file, <i>makepp</i>
+    uses a simple procedure to determine which rule to use.</p>
+    <ol>
+      <li>It is an error to have conflicting explicit rules for building
+      a file.
+
+      <li>Pattern rules and foreach rules with wildcards never override
+      explicit rules.  Thus explicit rules can be used to specify
+      exceptions for pattern rules.  (Note that simply using a
+      <code>:foreach</code> clause doesn't make something a pattern
+      rule.  It must have a wildcard (like "*" or "?") as part of the
+      filename in the <code>:foreach</code> clause.  If it is just an
+      explicit list of files, it is treated as an explicit rule for
+      those files.)</p>
+
+      <li>When conflicting pattern rules come from different makefiles,
+      rules from "nearer" makefiles override rules from "farther"
+      makefiles.  "Nearer" means that the makefile is located closer to
+      the target in the directory hierarchy (i.e., the file name of the
+      target relative to the directory the makefile is run from is
+      shorter).  If this doesn't distinguish the makefiles, then the
+      rule from the makefile which is loaded latest is used.
+
+      <li>Rules later in a makefile override rules that are earlier.
+      (This is backwards from GNU make.)  This means that you should put
+      your more general rules earlier, and your more specific rules
+      later.  For example,
+<pre>
+%.o: %.c                            # General compilation rule.
+	action
+
+special_%.o: special_%.c            # Special rule for files with a
+	different action            # "special_" prefix.
+</pre>
+    </ol>
+
+    <a name="rule_options">
+    <h3>Rule options</h3>
+    </a>
+
+    <p>Sometimes it is necessary to supply additional options to modify
+    how <i>makepp</i> executes the rule.  These options are specified as
+    <code>:optionname value</code>, either on the line containing the
+    dependencies, or separated on subsequent lines.<p>
+
+    <p>Supplying the options on separate lines may make it possible for
+    you to use the same makefile with <i>makepp</i> and a traditional
+    make.  For example,</p>
+<pre>
+target : dependencies
+	: signature target_newer
+	actions
+</pre>
+    <p>will work fine with a traditional unix make, because it
+    interprets the <code>:&nbsp;signature</code> line as a shell
+    command, and a command beginning with a colon does nothing.</p>
+
+    <dl>
+      <a name="colon_signature"></a>
+      <dt><code>:signature</code> <i>signature_method</i>
+      <dd>
+	<p>This tells <i>makepp</i> what algorithm to use to determine
+	if the file is out of date.  See the section on <a
+	    href="signature_checking.html">signature checking</a> for
+	  more details.  Legal values for this option are
+	  (currently):</p>
+	<dl>
+	  <dt><code>exact_match</code>
+	  <dd><i>Makepp</i>'s default algorithm.  Insists that all
+	    dependencies have the same signature as on the last build,
+	    and the build command is the same.
+
+	  <dt><code>target_newer</code>
+	  <dd>Insists that dependencies be older than the target, but
+	    does not check the build command or whether the signatures
+	    are the same.  This is <i>makepp</i>'s default algorithm for
+	    all files involved in rebuilding the makefile.
+	</dl>
+
+      <a name="colon_scanner"></a>
+      <dt><code>:scanner</code> <i>name</i>
+      <dd>
+	<p>This tells <i>makepp</i> how to scan for include files.
+	  Usually, <i>makepp</i> guess how to do this based on the words
+	  in the command itself (see the section on <a
+	    href="scanning.html">scanning</a> for more details).
+	  However, if makepp guesses wrongly, you may want to explicitly
+	  indicate the scanner, like this:</p>
+<pre>
+%.o: %.abc
+	: scanner c_compilation
+	action here
+</pre>
+	<p>This causes <i>makepp</i> to perform the same scanning that it
+	does for C/C++ build commands, even if it doesn't recognize the
+	action as a C compilation.</p>
+
+	<p>Legal values for <code>:scanner</code> are (currently):</p>
+
+	<a name="scanner_methods"></a>
+	<dl>
+	  <dt><code>none</code>
+	  <dd>Don't bother scanning the command or any files at all.
+	    <i>Makepp</i> will not know about any dependencies or
+	    targets other than those explicitly listed in the rule.
+	    This is the default for all commands that <i>makepp</i> does
+	    not recognize.</p>
+	    <br>
+
+	  <dt><code>c_compilation</code>
+	  <dd>
+	    Uses thes scanner for C/C++ compilation.  See the section on
+	    <a href="scanning.html">scanning for includes</a> for
+	    details on what this does.
+	</dl>
+
+	<p>The default scanner depends on the command.  If you do not
+	  specify a <code>:scanner</code> option, then the first word of
+	  the command is examined.  If it looks like a compile command,
+	  then <i>makepp</i> will use the <code>c_compilation</code>
+	  scanner; otherwise it usese the <code>none</code> scanner.</p>
+
+	<p>You can <a href="scanning.html">write new scanners or change
+	<i>makepp</i>'s default scanner</a> by writing your own perl
+	subroutines.</p>
+
+    </dl>
+
+
+    <hr>
+    <a name="statement_syntax">
+    <h2>Statement syntax</h2>
+    </a>	
+
+    <p>A statement is any line beginning with a word which does not have
+    a "<code>:</code>" in it.  (A colon implies that the line is a
+    rule.)  For example, these are statements:</p>
+<pre>
+include extra_rules.mk
+load_makefile subdir
+</pre>
+
+    <p>The command word is actually the name of a perl subroutine, and
+    you can define your own perl subroutines to do whatever you
+    want.</p>
+
+    <p><i>Makepp</i> has a number of builtin statements which you may
+      occasionally need to use.</p>
+
+    <a name="statement_include">
+    <h3>include</h3>
+    </a>
+
+    <p>This inserts the contents of another makefile into the current
+    makefile.  It can be useful if you have boilerplate files with a
+    number of rules or variables, and each directory only needs to make
+    a few modifications.  The <code>include</code> statement also used
+    to be commonly used in traditional makes in conjunction with
+    automatic include file scanners, but this is no longer necessary
+    with <i>makepp</i>.</p>
+
+    <p><code>include</code> searches the current directory, then the
+    parent of the current directory, then its parent, etc.  If it does
+    not find a file of the given name by the time it reaches the top of
+    the directory hierarchy, then it looks in the <i>makepp</i> dadta
+    directory (<code>/usr/local/share/makepp</code> if you installed
+    makepp in <code>/usr/local</code>) for one of the include files that
+    comes with <i>makepp</i>.  If you want to include a template file in
+    every makefile in a whole directory hierarchy, you can place your
+    makefile template at the top directory.  The makefiles do not have
+    to know exactly where they are in the hierarchy; each makefile can
+    contain a line like this:</p>
+<pre>
+include standard_definitions.mk
+</pre>
+    <p>instead of something more complicated, like this:</p>
+<pre>
+include ../../../standard_definitions.mk  # Is this the right number of ..?
+</pre>
+
+    <p>You can specify as many files as you want, and variables are allowed:
+<pre>
+include file1 file2 file3 $(other_include_files)
+</pre></p>
+
+    <p>A minor variant on this, the <code>-include</code> statement,
+    includes the file if it exists but doesn't generate a fatal error if
+    it does not.  The <code>-include</code> statement used to be
+    important for include file scanning, but is seldom useful for
+    <i>makepp</i>.  (<i>Makepp</i> will not try to make the file and
+    then reread it, unlike GNU make.)</p>
+
+
+    <a name="load_makefile_statement">
+    <h3>load_makefile</h3>
+    </a>
+
+<pre>
+load_makefile /some/directory/somewhere/Makefile
+load_makefile subdir
+load_makefile VAR1=value1 VAR2=value2 subdir
+</pre>
+
+    <p>This statement causes <i>makepp</i> to cd to the directory
+    containing the makefile and load its rules into <i>makepp</i>'s
+    internal database.  If you specify just a directory instead of a
+    makefile, <code>load_makefile</code> looks for
+    <code>Makeppfile</code>, <code>makefile</code>, or
+    <code>Makefile</code> in that directory.</p>
+
+    <p>Any variables you specify with the syntax <code>VAR=value</code>
+    (or <code>VAR="value1&nbsp;value2"</code>) are passed to the loaded
+    makefiles.  They override any settings in those makefiles, just as
+    if you had typed them on the command line.</p>
+
+    <p>Using <code>load_makefile</code> is different from the command
+<pre>
+include dir/makefile
+</pre>
+    <p>in two ways.  First, <code>load_makefile</code> does not transfer
+    any variables from the top-level makefile into the subordinate
+    makefile; each makefile exists in its own namespace.  The
+    subordinate makefile cannot influence the variables in the top-level
+    makefile in any way.</p>
+
+    <p>Second, each build command is tagged with the directory of the
+    makefile that it came from.  When <i>makepp</i> executes a rule from
+    a different makefile, it first cd's to the directory containing that
+    makefile before executing the command.  Makefiles which are seen
+    with the <code>include</code> statement are actually treated as part
+    of the makefile that included them, and therefore their rules are
+    not tagged with a different directory.</p>
+
+    <p>You usually do not have to load a makefile explicitly, unless it
+    has an unusual name, or it has targets which are not contained in
+    the same directory as the makefile itself, or you have <a
+    href="command_line.html#option_no_implicit_load">disabled implicit
+    makefile loading</a>.  By default, if <i>makepp</i> is trying to
+    build a file and doesn't have a rule to build it, or if it is
+    evaluating a wildcarded filename in a directory, it will
+    automatically attempt to load a makefile from that directory.  See
+    the section on <a href="dirs.html">building with multiple
+    directories</a> for more details.</p>
+
+    <p>You cannot use <code>load_makefile</code> to load several
+    makefiles that apply to the same directory.  Use
+    <code>include</code> for several pieces of the makefile that apply
+    to the same directory, and <code>load_makefile</code> for makefiles
+    that apply to different directories.</p>
+
+
+
+
+    <a name="statement_perl_begin">
+    <h3>perl_begin</h3>
+    </a>
+
+    <p>This statement introduces a block of code which is interpreted
+    verbatim by perl.  It can be useful for defining functions, but you
+    can do this more concisely with the <a href="#statement_sub">sub
+    statement</a>.  A block of perl code in your makefile can be useful
+    for several reasons:</p>
+
+    <ul>
+      <li>To set values of variables that depend on things that are 
+	easier to access from perl.  For example, you can access all of
+	the configuration information that perl knows about your system,
+	including how to build shared libraries, etc.  (Type
+	<code>perldoc&nbsp;Config</code> if you want to see what
+	configuration information perl has available.)
+<pre>
+perl_begin
+
+use Config;
+
+$ARCH = $Config{'archname'};	# Use perl's knowledge of the architecture.
+$CC = $Config{'cc'};		# Use the same C compiler as perl did.
+$SHARED_OBJ_CFLAGS = $Config{'cccdlflags'};
+				# Flags needed to compile objects which will
+				# go into a shared library.
+$SHARED_OBJ_LDFLAGS = $Config{'ccdlflags'} . " " . $Config{'lddlflags'};
+		      		# Linker flags to make a shared library.
+$SHARED_CC_LINK = $Config{'ld'}; # Command to produce shared libraries.
+
+$SHARED_EXTENSION = $Config{'dlext'}; # Extension of shared libraries.
+if ($ARCH =~ /^i[56]86/) {	# Some sort of intel machine > 486?
+  $CFLAGS = "-O6 -malign-double"; # These do better with quadword alignment.
+} else {
+  $CFLAGS = "-O6";
+}
+
+perl_end
+
+%.o: %.c
+	$(CC) $(CFLAGS) $(SHARED_OBJ_CFLAGS) -c $(input) -o $(output)
+
+libmylib.$(DLEXT): *.o
+	$(SHARED_CC_LINK) $(inputs) -o $(output) $(SHARED_OBJ_LDFLAGS)
+</pre>
+
+	<p>Note how we define a bunch of variables in the perl block,
+	  and then we use them afterwards in the rest of the makefile.
+	  You can use the full power of the perl interpreter to set your
+	  variables in arbitrarily complicated ways.  You can run shell
+	  commands from your perl code, access a database, or whatever
+	  you want.</p>
+
+      <li>To <a href="extending_makepp.html">extend makepp</a> to
+      support building of objects other than files, or to use custom
+      signature checking.</p>
+    </ul>
+
+    <p>The remainder of the line following the <code>perl_begin</code>
+    statement is ignored.  All text up until a line that begins at the
+    left margin with <code>perl_end</code> is sent verbatim to the perl
+    interpreter.</p>
+
+
+    <a name="statement_repository"></a>
+    <h3>repository</h3>
+
+    <p>Specifies one or more <a href="repositories.html">repository
+    directories</a>.  The first repository specified has precedence over
+    the others if the same file exists in multiple repositories and
+    there is no build command for it.</p>
+
+    <p>If you specify just a directory after <code>repository</code>,
+    its contents are linked into the current directory.  You can link
+    its contents into any arbitrary place in the file system by
+    specifying the location before an equals sign, e.g,</p>
+<pre>
+repository subdir1/subdir2=/users/joe/joes_nifty_library
+</pre>
+
+
+
+
+    <a name="statement_sub"></a>
+    <h3>sub</h3>
+
+    <p>This statement provides a way to define a perl subroutine inside
+    your makefile.  The syntax is identical to that of the perl sub
+      statement, except that the closing brace must be at the left margin.</p>
+
+    <p>A perl subroutine is invoked whenever a statement is seen, or
+    when an expression like <code>$(name&nbsp;words)</code> is seen.
+    For example, suppose that for some reason you need to load the
+    contents of a file into a make variable.  (You could do this by
+    saying <code>$(shell&nbsp;cat&nbsp;filename)</code>
+    but it's possible to do it without ever invoking the shell.)  This
+    can be done by placing the following into your makefile:</p>
+
+<pre>
+sub f_file_contents {
+  my ($filename) = @_;		# Name the arguments.
+  my $file_contents;
+  open FILE, $filename || die "$!\n";
+  my $line;
+  while (defined($line = <FILE>)) {  # Read another line.
+    $file_contents .= $line;
+  }
+  close FILE;
+
+  return $file_contents;
+}
+</pre>
+
+    <p>Now, with this function defined, you can write</p>
+<pre>
+X = $(file_contents filename)
+</pre>
+
+    <p>and the variable <code>$(X)</code> will contain the contents of the
+    given file.</p>
+
+    <p>See the section on <a href="extending_makepp.html">extending
+	makepp</a> for more details.</p>
+
+
+
+
+    <hr>
+    <a name="conditionals"></a>
+    <h2>Conditionals</h2>
+
+    <p>Often it is convenient to do different things in your makefile
+      depending on what architecture you are on, or what set of options
+      you are building with.  <i>Makepp</i> supports several ways of
+      doing such conditionals.</p>
+
+
+    <dl>
+      <dt><code>ifeq</code>, <code>ifneq</code>, <code>ifdef</code>, and
+	<code>ifndef</code>
+      <dd>
+	These are the conditionals that GNU make supports.
+	<i>Makepp</i>'s implementation is completely compatible with GNU
+	make (as far as I know).  Later I will update this manual to
+	explain it in more detail, but for the moment, refer to the GNU
+	make manual.
+
+      <dt>Perl statements in your makefile
+      <dd>
+	Often your conditionals may be complicated or hard to express
+	using equality/inequality of strings.  But you can include perl
+	code verbatim in your makefile.  You have access to the full
+	power of the perl interpreter.  For example:
+
+<pre>
+<a href="#statement_perl_begin">perl_begin</a>
+
+if ($ARCH =~ /^i[56]86/) {
+  $CFLAGS = '-O6 -malign-double';	# On intel machines > 486, there
+					# is a substantial speed penalty
+					# for doubles that aren't quadword aligned.
+} else {
+  $CFLAGS = '-O6';
+}
+
+perl_end
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $(input) -o $(output)
+</pre>
+
+	<p>Any make variable can be accessed directly as a perl scalar.
+	  In this case, we've set the value of <code>CFLAGS</code>
+	  differently based on a regular expression match on the
+	  architecture flags.</p>
+
+    </dl>
+
+    <hr>
+    <a name="wildcards">
+    <h2>Wildcards</h2>
+    </a>	
+
+    <p><i>makepp</i> makes it much safer and more reliable to use
+    wildcards in your makefile.  <i>makepp</i>'s wildcard expansion
+    returns all existing files that match the wildcard, and all files
+    which do not yet exist but which can be built using the rules.  Thus
+    a rule like this:<p>
+<pre>
+libmylib.a : *.o
+	$(CC) $(inputs) -o $(output)
+</pre>
+
+    <p>will do exactly what it should, even if none of the .o files
+    exists in the directory yet.  (Of course, if you create extra bogus
+    .o files in the directory, <i>makepp</i> has no way of knowing that
+    you don't want them in <code>mylib.a</code>.)  In other versions of
+    make, the <code>*.o</code> wildcard will only return existing object
+    files and so the dependency list will vary depending on what files
+    have been created.</p>
+
+    <p><i>makepp</i> supports all the usual shell wildcards
+    (<code>*</code>, <code>?</code>, and <code>[]</code>).  It also has
+    a wildcard <code>**</code> which matches any number of intervening
+    directories.  (This idea was stolen from zsh.)  For example,
+    <code>**/*.c</code> matches all the <code>.c</code> files in the
+    entire source tree.  <code>objects/**/*.o</code> matches all the
+    <code>.o</code> files contained anywhere in the subdirectory
+    <code>objects</code> or any of its subdirectories or any of their
+    subdirectories.  The <code>**</code> wildcard will not follow soft
+    links to directories.</p>
+
+
+
+
+
+
+    <hr>
+    <a name="special_chars">
+    <h2>Special characters in filenames</h2>
+    </a>
+
+
+    <p><i>makepp</i> can support filenames that have special characters
+    in them like a colon or a space.  Suppose, for example, you want to
+    create a file called <code>a:thing</code> from the file
+    <code>b:thing</code>.  You can't write the rule this way:
+<pre>
+a:thing : b:thing
+	commands here
+</pre>
+    because <i>makepp</i> won't know which colons separate targets from
+    dependencies and which are part of the filenames.  Instead, simply
+    enclose the name in quotes, like this:</p>
+
+<pre>
+"a:thing" : "b:thing"
+	commands here
+</pre>
+
+    <p>Now the rule is unambiguous.</p>
+
+    <p><i>makepp</i>'s quoting rules are quite similar to the shell's.
+    You can, for example, use single quotes instead of double quotes, or
+    you can escape special characters with a backslash:</p>
+<pre>
+a\:thing : 'b:thing'
+	commands here
+</pre>
+
+    <p>Suppose, for example, that your filename is <code>'"!;\$</code>.
+    Now why you'd want such a filename I don't know, but here are
+    several ways you could specify it to make (and the shell):</p>
+<pre>
+\''"!;\$$'
+"'\"!;\\$$"
+</pre>
+
+    <p>Note that (unlike the shell) variables beginning with <code>$</code>
+    are expanded even inside single quotes.  Dollar signs cannot be
+    protected by quotes or backslashes.  To get a literal dollar sign,
+    use a double dollar sign.</p>
+
+    <p>Generally, you should be able to deal with just about any special
+    character by quoting it in some way.  This includes spaces, control
+    characters, etc.  However, be aware that at present, <i>makepp</i>'s
+    comment stripping is somewhat simplistic, and any <code>#</code>
+    characters preceded by whitespace will be interpreted as comments no
+    matter how they are quoted.</p>
+
+    <p>When a target or dependency name is put into an <a
+    href="#automatic_variables">automatic variable like
+    <code>$(target)</code></a>, then the quotes and any backslashes are
+    stripped.  This means that if you want to reference the filename in
+    the actions, you will probably have to quote it again, like this:</p>
+
+<pre>
+"a file name with spaces":
+	echo "Special contents" > "$@"
+</pre>
+
+    <p>If you don't put the quotes around <code>$@</code>, then the
+    shell will see the command</p>
+<pre>
+echo "Special contents" > a file name with spaces
+</pre>
+    <p>which writes the string "Special contents file name with spaces"
+    to the file called <code>a</code>.  This is probably not what you
+    want.</p>
+
+    <hr>
+    <a href="index.html">Table of contents</a>
+    |
+    <a href="command_line.html">Next (command line syntax)</a>
+    |
+    <a href="signature_checking.html">Previous (signature checking)</a>
+    <br>
+<!-- Created: Thu Aug  3 15:19:01 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Tue Nov 14 15:58:55 PST 2000
+<!-- hhmts end -->
+  </body>
+</html>

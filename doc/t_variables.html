@@ -1,0 +1,128 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Using Variables</title>
+  </head>
+
+  <body>
+    <h1>Using Variables</h1>
+
+    <p>So far, our makefile for compiling our program of two modules
+      looks like this:</p>
+
+<pre>
+# Link command:
+my_program: processing.o gui.o
+	c++ processing.o gui.o -o my_program
+
+# Compilation commands:
+processing.o: processing.cxx
+	c++ -c processing.cxx -o processing.o
+
+gui.o: gui.cxx
+	c++ -c gui.cxx -o gui.o
+</pre>
+
+    <p>This works wonderfully, but suppose now we want to change some
+    compilation options.  Or maybe we want to use a different compiler.
+    We'd have to change all three compilation lines.</p>
+
+    <p>Similarly, suppose we want to change the list of modules to
+      compile.  We'd have to change it in two places, and if we
+      accidently made the change in only one of them, it could be very
+      difficult to track down the problem.</p>
+
+    <p>A better way to do it is to use variables, like this:</p>
+
+<pre>
+# Define the symbols we might want to change:
+CXX	:= c++
+CXXFLAGS := -g
+
+OBJECTS	:= processing.o gui.o
+
+my_program: $(OBJECTS)
+	$(CXX) $(OBJECTS) -o my_program
+
+processing.o: processing.cxx
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c processing.cxx -o processing.o
+
+gui.o: gui.cxx
+	$(CXX) $(CXXFLAGS) -c gui.cxx -o gui.o
+</pre>
+
+    <p>Here <code>$(CXX)</code> expands to be the value of the variable
+    <code>CXX</code>, and similarly for <code>$(CXXFLAGS)</code> and
+    <code>$(OBJECTS)</code>.  Now we can just change one line in the
+    makefile, and all relevant compilation commands are affected.</p>
+
+    <p>In fact, we don't even need to change the makefile to change
+    compilation options.  Assignments specified on the command line
+    override assignments in the makefile.  For example, we could type
+    this to the shell:</p>
+
+<pre>
+makepp CXXFLAGS="-g -O2"
+</pre>
+
+    <p>which overrides the setting of <code>CXXFLAGS</code> in the
+    makefile.  It is as if the makefile contained the line</p>
+<pre>
+CXXFLAGS := -g -O2
+</pre>
+    <p>instead of the definition it does contain.</p>
+
+    <p>It might not at all be useful to be able to override these things
+    for your own development, but if you distribute your sources to
+    other people, they might appreciate it.</p>
+
+    <p>Variable names are case sensitive (e.g., <code>OBJECTS</code> is
+    different from <code>objects</code>).  Usually people write
+    most variables in upper case only, but you don't have to.</p>
+
+    <p>If you need to put a literal dollar sign into a rule action,
+      write it with a double dollar sign, like this:</p>
+
+<pre>
+test:
+	for testfile in *.test; do run_test $$testfile; done
+</pre>
+
+    <p>Conventionally, there are a few variables which you might
+    want to set.  These are just conventions, but you will see them in a
+    lot of makefiles.</p>
+
+<pre>
+CC	:= cc			# The C compiler.
+CFLAGS	:= -g			# C compilation options which relate to
+				# optimization or debugging (usually
+				# just -g or -O).  Usually this wouldn't
+				# include -I options to specify the
+				# include directories, because then you
+				# couldn't override it on the command line
+				# easily.
+CXX	:= c++			# The C++ compiler.  (Sometimes "CPP" instead
+				# of CXX.)
+CXXFLAGS := -g			# C++ compilation options related to 
+				# optimization or debugging (-O or -g).
+F77	:= f77			# The fortran compiler.
+FFLAGS	:=			# Optimization flags for fortran.
+</pre>
+
+    <p>There are a lot more extremely powerful things you can do with
+    variables, but first we need to explain some more things about
+    makefiles.</p>
+
+    <hr>
+    <a href="t_index.html">Tutorial index</a>
+    |
+    <a href="t_pattern.html">Next (pattern rules)</a>
+    |
+    <a href="t_simplest.html">Previous (a simple makefile)</a>
+    <br>
+<!-- Created: Sat Aug 19 19:43:14 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Tue Aug 29 22:12:32 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

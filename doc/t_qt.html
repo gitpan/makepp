@@ -1,0 +1,102 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Using Qt's moc preprocessor</title>
+  </head>
+
+  <body>
+    <h1>Using Qt's moc preprocessor</h1>
+
+    <p>This example shows a makefile for a utility that uses <a
+    href="www.trolltech.com">Troll Tech's</a> Qt GUI library.  The only
+    thing that's slightly unusual about this is that you must run a
+    preprocessor called <code>moc</code> on most <code>.h</code> files
+    that contain widget definitions, but you don't want to run
+    <code>moc</code> on any <code>.h</code> files that don't use the
+    <code>Q_OBJECT</code> macro.</p>
+
+    <p>You could, of course, just list all of the <code>.h</code> files
+      that need to have <code>moc</code> run on them.  If you're rapidly
+      developing new widgets, however, it may be something of a nuisance
+      to keep updating the list in the makefile.  You can get around the
+      need to list the moc modules explicitly with something like
+      this:</p>
+
+<pre>
+MOC	:= $(QTDIR)/bin/moc
+MODULES	:= whatever modules you happen to have in your program
+MOC_MODULES := $(patsubst %.h, moc_%, $(shell grep -l Q_OBJECT *.h))
+			# Scans all the .h files for the Q_OBJECT macro.
+
+my_program: $(MODULES).o $(MOC_MODULES).o
+			# This puts a .o after every word in the two
+			# variables; see <a href="syntax_makefile.html#variable_substitution">variable substitution</a>
+			# in the manual for details.
+
+	$(CXX) $(inputs) -o $(output)
+
+moc_%.cxx: %.h		# Makes the moc files from the .h files.
+	$(MOC) $(input) -o $(output)
+
+%.o: %.cxx
+	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
+</pre>
+
+    <p>This approach scans each of your <code>.h</code> files every time
+      <i>makepp</i> is run, looking for the <code>Q_OBJECT</code>
+      macro.  This sounds expensive, but it probably won't take long at
+      all.</p>
+
+    <p>Another approach is to <code>#include</code> the output from the
+    <code>moc</code> preprocessor in your widget implementation file.
+    This means you have to remember to write the <code>#include</code>,
+    but it has the advantage that there are fewer modules to compile,
+    and so compilation goes faster.  (For most C++ compilation, the
+    majority of the time is spent reading the header files, and the
+    output from the preprocessor needs to include almost as many files
+    as your widget anyway.)  For example:</p>
+
+<pre>
+// my_widget.h
+class MyWidget : public QWidget { 
+  Q_OBJECT
+// ...
+} 
+
+// my_widget.cpp
+
+#include "my_widget.moc"	// my_widget.moc is the output from the
+				// moc preprocessor.
+// Other implementation things here.
+MyWidget::MyWidget(QWidget * parent, const char * name) :
+  QWidget(parent, name)
+{
+ // ...
+}
+</pre>
+
+    <p>Now you need to have a rule in your makefile to make all the
+      <code>.moc</code> files, like this:</p>
+
+<pre>
+MOC	:= $(QTDIR)/bin/moc
+# Rule to make .moc files:
+%.moc: %.h
+	$(MOC) $(input) -o $(output)
+</pre>
+
+    <p><i>Makepp</i> is smart enough to realize that it needs to make
+    <code>my_widget.moc</code> if it doesn't already exist, or if it's
+    out of date.</p>
+
+    <p>This second approach is the one that I usually use because it
+    speeds up compilation.</p>
+
+    <hr>
+    <address><a href="mailto:holt@lnc.usc.edu">Gary Holt</a></address>
+<!-- Created: Sat Aug 19 22:35:38 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Wed Aug 23 19:49:21 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Release notes</title>
+  </head>
+
+  <body>
+    <h1>Release notes</h1>
+
+    <h2>Version 0.99</h2>
+
+    <p>In addition to numerous bug fixes, this version has several
+    user-visible changes:</p>
+
+    <ul>
+      <li>Multiple targets for a rule are now treated in a way which is
+      more compatible with old makefiles.  <i>Makepp</i> has a <a
+      href="syntax_makefile.html#legacy_multiple_targets">heuristic
+      algorithm</a> for guessing whether the rule is supposed to build
+      all targets at once or whether the rule needs to be invoked
+      multiple times.  I do not think this will break any existing
+      makefiles, but it should allow <i>makepp</i> to work with many
+      more makefiles designed for unix make.
+
+      <li>The <a
+      href="command_line.html#option_traditional_recursive_make"><code>--traditional-recursive-make</code></a>
+      option can be used for legacy makefiles which use recursive
+      invocations of make in a way that didn't work with <i>makepp</i>'s
+      default implementation.
+
+      <li>Repositories now work with libtool.
+
+      <li>Variable settings are now allowed with the
+	<code>load_makefile</code> statement and with recursive make.
+    </ul>
+
+    <h2>Version 0.95</h2>
+
+    <p>This version has several user-visible changes:</p>
+
+    <ul>
+      <li>A tutorial on writing makefiles for <i>makepp</i> has been added.
+
+      <li>GNU make style conditionals (ifeq/ifneq/ifdef/ifndef) are now
+      supported.  The <code>$(if&nbsp;cond,&nbsp;then,&nbsp;else)</code>
+      function is supported <a href="incompat.html#function_if">to a
+      limited extent</a>.
+
+      <li>By default, the <code>%</code> wildcard now matches only files
+      within a directory; <code>%.c</code> is now equivalent to
+      <code>*.c</code>, not <code>**/*.c</code>.  The reason for this
+      change was that rules almost never need to use the more
+      complicated wildcard, and it often caused unnecessary directories
+      to be searched.  You can get the old behavior by specifying
+      <code>--percent-subdirs</code> on the command line.  (I'm curious
+      how people feel about this change.  Please let me know if you have
+      good reasons for it being one way or the other.)
+
+      <li>By default, makefiles from any directory that contains a
+      dependency, or that is searched by a wildcard, are loaded
+      automatically.  Usually this means you don't need any
+      <code>load_makefile</code> statements at all.  If this causes you
+      problems, you can turn off implicit loading of makefiles by adding
+      <code>--no-implicit-load</code> to the command line.  (I'm curious
+      whether people like or dislike implicit loading of makefiles.)
+
+      <li>A target may now be declared phony on the same line that
+	defines the target by using the new <code>$(phony&nbsp;)</code>
+	function, like this:
+<pre>
+$(phony all): program_1 program_2
+</pre>
+
+	<p>The <code>$(phony&nbsp;)</code> function simply returns its
+	  arguments, but marks them as phony targets.  You can still use
+	  the older syntax that looks like this:</p>
+
+<pre>
+all: program_1 program_2
+
+.PHONY: all
+</pre>
+
+	<p>The <code>$(phony&nbsp)</code> function is an attempt to
+	improve the readability of makefiles.  I'd welcome other
+	suggestions, as I'm still not entirely happy with the
+	syntax.</p>
+
+    </ul>
+
+    <h2>Version 0.90</h2>
+
+    <p>In order to support features like parallel make, most of the
+    internals had to be reorganized or rewritten.  The result is much
+    cleaner and hopefully more reliable.</p>
+
+    <p>Bugs too numerous to mention have been fixed.  In order to help
+    ensure reliability, a test suite has been developed.  It doesn't
+    test absolutely everything yet, but it does test most things, and I
+    hope to make it more extensive in the future.  You can run it by
+    typing <code>makepp test</code> in the <i>makepp</i> distribution
+    directory.  If an unmodified <i>makepp</i> fails the test suite,
+    please let me know so I can fix it.</p>
+
+    <p>There are many new features:</p>
+
+    <ul>
+      <li><a href="repositories.html">Repositories</a> are now
+      supported.
+
+      <li>It is now possible to specify different methods for <a
+      href="syntax_makefile.html#colon_signature">calculating and comparing
+      file signatures</a>.  For example, you can use an <a
+      href="syntax_makefile.html#signature_method_c_compilation_md5">MD5
+      checksum ignoring comments and whitespace</a>, or you can require
+      merely that <a
+      href="syntax_makefile.html#signature_method_target_newer">the target be
+      newer than the dependencies</a> (the method that the traditional
+      make uses).
+
+      <li>Makefiles are only rebuilt if they are older than their
+      dependencies; a different <a
+      href="syntax_makefile.html#colon_signature">signature method</a> is
+      used in this special case.
+
+      <li>Parallel builds are now supported, though this is still an
+      experimental feature.  See the <a
+      href="command_line.html#option_j"><code>-j</code></a> option.
+
+      <li>It is now possible to write your own functions.  See the <a
+      href="syntax_makefile.html#statement_sub">sub statement</a> and
+      the discussion about <a href="extending_makepp.html">extending
+      makepp</a>.
+
+      <li>Filenames with characters like colon or space are now
+      supported with a new <a
+      href="syntax_makefile.html#special_chars">quoting syntax</a>.
+
+      <li><a href="syntax_makefile.html#automatic_variables">Synonymous, less
+      cryptic names for automatic variables</a> have been introduced to
+      encourage more readable makefiles.
+
+      <li><i>Makepp</i> now remembers the architecture of the machine
+	you built on, and rebuilds if the architecture is different.
+
+      <li>Directories can now be targets or dependencies; a previous
+      restriction that all directories had to exist before the start of
+      the built has been lifted.
+
+      <li><i>Makepp</i> now writes a log file called
+	<code>.makepp_log</code> explaining why it rebuilt everything.
+	This is extremely useful for debugging.
+	
+      <li>The usual <code>-k</code> option for continuing to build even
+	when an error occurs is now supported.
+
+      <li>The documentation has been reorganized and extended.
+    </ul>
+
+    <p>There are also (unfortunately) a few incompatibilities with
+    previous versions:</p>
+    <ul>
+      <li>The file format for storing information about the last build
+	has changed.  Thus <i>makepp</i> will insist on rebuilding
+	everything the first time you run the new version.
+
+      <li>load_makefile no longer supports targets or variable settings.
+      It now supports loading a list of makefiles rather than just one,
+      so the <code>-F</code> switch is now unnecessary (and no longer
+      documented).
+
+      <li>Recursive make now ignores variable settings on the command
+      line.  This is necessary to load makefiles in a consistent way.
+
+      <li><code>$(INFERRED_OBJS)</code> is no longer supported (since it
+      was not a well-designed interface anyway).  Use the newer <a
+      href="inferring.html"><code>$(infer_objects&nbsp;)</code></a>
+      function instead.
+
+      <li><code>$_</code> is no longer supported.  Use
+	<code>$(foreach)</code> instead.
+
+      <li>A few seldom used GNU make options such as <code>-s</code>,
+      <code>-n</code>, and <code>-q</code> are no longer supported due to
+      internal architecture changes.  <code>-n</code> will probably be
+      supported again in future releases.
+
+      <li>A man page is no longer provided since the documentation is no
+	longer written in the perl pod format.  Use the HTML
+	documentation instead.
+
+      <li>The automatic clean target is no longer supported.  A better
+      way to do it is with the <a
+      href="syntax_makefile.html#function_only_targets"><code>$(only_targets)</code></a>.
+
+    </ul>
+
+    <hr>
+    <a href="index.html">Table of contents</a>
+    |
+    <a href="bugs.html">Previous (unexpected features)</a>
+    <br>
+<!-- Created: Sat Aug 12 11:51:28 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Sat Oct 14 22:18:25 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Source/Object Separation and Variant Builds</title>
+  </head>
+
+  <body>
+    <h1>Source/Object Separation and Variant Builds</h1>
+
+    <p>Up to this point all of the makefiles we have seen put the object
+    files in the same directory as the source files.  This is usually
+    the way makefiles are written, and it's certainly the simplest way
+    to do things.  However, suppose you have to compile your program on
+    both a linux machine and a Solaris machine.  The binaries from the
+    two machines are incompatible, of course.  Unlike the traditional
+    make, <i>makepp</i> is smart enough to know that if the last
+    compilation was on linux, and the current compilation is on Solaris,
+    a recompilation of everything is necessary.</p>
+
+    <p>But this still leaves a problem: when you recompile on Solaris,
+    you wipe out your linux binaries.  Then when you switch back to
+    linux, you have to recompile everything again, even though the
+    source files that haven't changed.</p>
+
+    <p>A related problem is if you build your program with several
+      different options.  Suppose for example that you usually compile
+      your program with optimization:</p>
+<pre>
+CFLAGS	:= -O2
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $(input) -o $(output)
+
+my_program: *.o
+	$(CC) $(inputs) -o $(output)
+</pre>
+
+    <p>However, you discover a bug, and you want to enable debugging on
+    all files, so you do change <code>CFLAGS</code>:
+<pre>
+CFLAGS	:= -g -DMALLOC_DEBUG
+</pre>
+
+    <p><i>Makepp</i> realizes that the build commands have changed, and
+    it needs to recompile everything.  But again, recompiling with
+    debugging enabled wipes out your old binaries, so if you want to
+    turn optimization back on, everything must be recompiled again, even
+    the files that haven't changed.</p>
+
+    <p>The obvious solution to these problems is to put the
+    architecture-dependent or build-variant-dependent files in a
+    separate subdirectory.  There are two basic techniques for doing
+    this: explicitly specifying an alternate directory, or using
+      repositories.</p>
+
+    <h2>Explicit specifications of alternate directories</h2>
+
+    <p>You could rewrite the rules in your makefile to dump the objects
+      into a different directory, like this:</p>
+
+<pre>
+ARCH	:= $(shell uname -m)	# ARCH becomes the output from the uname -m command.
+CFLAGS	:= -O2
+OBJDIR	:= $(ARCH)-optim
+
+$(OBJDIR)/%.o: %.c
+	$(CC) $(CFLAGS) -c $(input) -o $(output)
+
+$(OBJDIR)/my_program: $(OBJDIR)/*.o
+	$(CC) $(inputs) -o $(output)
+</pre>
+
+    <p>Now when you run <i>makepp</i>, <code>ARCH</code> is
+      automatically set to something different for each architecture,
+      and all of the objects are placed in a different directory for
+      each architecture, so they don't overwrite each other.  If you
+      want to recompile turning on debugging, then you would have to
+      change both <code>CFLAGS</code> and <code>OBJDIR</code>.</p>
+
+    <p>One problem with this approach is that <a
+    href="t_dirs.html">implicit loading of makefiles</a> will no longer
+    work.  The only place that <i>makepp</i> knows to look for a
+    makefile when it needs to build something is in the directory of the
+    file it's trying to build.  If this is a problem for you, then you
+    can explicitly tell <i>makepp</i> where to look using the <a
+    href="syntax_makefile.html#load_makefile_statement"><code>load_makefile</code></a>
+    statement.</p>
+
+
+    <h2>Repositories</h2>
+
+    <p>Repositories are a magical way of using a makefile that is
+    written to put objects in the same directory, and having
+    <i>makepp</i> automatically put the objects in a different
+    directory.  Suppose we start with the original makefile above, and
+    we've been working on linux so our source directory is filled with
+    linux binaries.  When we want to recompile our code on solaris
+    instead of linux, we use the following command instead of just
+    typing <code>makepp</code>:</p>
+
+<pre>
+% mkdir solaris
+% cd solaris
+% makepp -R ..
+</pre>
+
+    <p>What the <code>-R</code> option to <i>makepp</i> does in this
+    case is to declare the directory <code>..</code> (which is the
+    original source directory) as a repository.  A repository is just a
+    way of getting <i>makepp</i> to trick all of the actions into
+    believing that all files in one directory tree are actually located
+    in a different directory tree in the file system.  In the above
+    example, <i>makepp</i> pretends that all the files in
+    <code>..</code> (and all subdirectories of <code>..</code>)are
+    actually in the current directory (and corresponding
+    subdirectories).</p>
+
+    <p>More precisely, a repository is a place where <i>makepp</i> looks
+    if it needs to find a file that doesn't exist in the current
+    directory tree.  If the file exists in the current directory tree,
+    it is used; if it doesn't exist, but a file exists in the
+    repository, <i>makepp</i> makes a temporary symbolic link from the
+    file in the repository to the current directory.  (A symbolic link
+    is an alias for the original file.  It's like a copy, except that
+    trying to access the link actually accesses the original file.)  The
+    rule actions then act on the file in the current directory, but
+    actually reference the files in the repository.</p>
+
+    <p>In this example, initially we start off with a blank new
+    directory <code>solaris</code>.  (It doesn't have to be blank, of
+    course, and it won't be the second time you run <i>makepp</i>.)
+    <i>Makepp</i> is run in this directory, and it sees that there is no
+    makefile there.  However, there is a makefile in the repository, so
+    it links in the one from the repository, and reads it.  The pattern
+    rule in the makefile that converts <code>.c</code> files into
+    <code>.o</code> files causes <i>makepp</i> to link all the
+    <code>.c</code> files that it needs from the repository, and run the
+    compilation command from the <code>solaris</code> subdirectory.
+    Therefore the <code>.o</code> files are now placed into the
+    <code>solaris</code> subdirectory, not in the top level directory.
+    When the build command is finished, any files linked from the
+    repository are deleted, so the <code>solaris</code> subdirectory
+    will contain only the binary files for Solaris.  Any <code>.o</code>
+    files that exist in the repository are unmodified, so when you go
+    back to your linux machine and rerun <i>makepp</i>, most of your
+    program will not have to be recompiled.</p>
+
+    <p>Sometimes it might be more convenient to use a different form of
+    the repository command.  The above three shell commands could be
+    entirely replaced by the following one command:</p>
+
+<pre>
+% makepp -R solaris=. -F solaris
+</pre>
+    <p>What this does is to say that the files in the current directory
+    are to be linked into the <code>solaris</code> subdirectory as
+    necessary.  (The <code>solaris</code> subdirectory will be created
+    automatically if it does not exist.)  Then the <code>-F</code>
+    option causes <i>makepp</i> to cd to the solaris directory and
+    execute the makefile there (which will be linked from the
+    repository).</p>
+
+    <p>Using a repository does not have the same drawbacks as explicitly
+    specifying an object directory; makefiles will be implicitly loaded
+    as expected, since as far as <i>makepp</i> is concerned, the
+    makefile actually is in the same directory as the target files.
+    However, if your build involves not just one but several directory
+    trees, using repositories can become quite complicated.</p>
+
+    <p>Repositories are just a way of pretending that things located at
+    one place in the file system are actually in a different place for
+    the duration of the build.  This is a very powerful technique that
+    can be used for more than just separating your sources and binaries.
+    For more details, see the <a href="repositories.html">reference
+    manual</a>.</p>
+
+
+    <hr>
+    <a href="t_index.html">Tutorial index</a>
+    |
+    <a href="t_debugging.html">Next (debugging makefiles)</a>
+    |
+    <a href="t_functions.html">Previous (functions and variables)</a>
+    <br>
+<!-- Created: Fri Aug 25 23:04:23 PDT 2000 -->
+<!-- hhmts start -->
+Last modified: Fri Oct 13 22:03:24 PDT 2000
+<!-- hhmts end -->
+  </body>
+</html>
