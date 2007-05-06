@@ -1,0 +1,30 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	2	644	1068850460	1068850417	Makeppfile
+repository base
+include base.mk
+###	D	755	1068850460	1068850460	answers
+###	1	644	1068846723	1068846482	answers/z
+y
+###	D	755	1068850460	1068850460	base
+###	10	644	1068848941	1068848932	base/base.mk
+X ?= x
+Y ?= y
+
+x y:
+	&echo $X -o x
+	&echo $Y -o y
+
+die: x y
+	perl { die }
+
+###	1	644	1068771992	1068771967	base/Makeppfile
+include base.mk
+###	8	755	1068846494	1068850452	makepp_test_script
+#!/bin/sh
+
+MAKEPP="${PERL-perl} ${1-makepp}"
+
+$MAKEPP -F base
+$MAKEPP x y die
+$MAKEPP Y=1 x
+cp base/y z

@@ -1,195 +1,144 @@
 =head1 NAME
 
-makepp_signatures -- How makepp knows to rebuild files
+makepp_signatures -- How makepp knows when files have changed
+
+=for vc $Id: makepp_signatures.pod,v 1.12 2007/05/06 10:40:53 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
-Each file is associated with a I<signature>, which is a number or string that
-changes if the file has changed.  Makepp compares signatures to see whether it
-needs to rebuild anything.  The default signature for files is the file's
-modification time, unless you're executing a C/C++ compilation command, in
-which case the default signature is a cryptographic checksum on the file's
-contents, ignoring comments and whitespace.  If you want, you can switch to a
-different method, or you can define your own signature functions.
+L<B<c>_compilation_md5|/c_compilation_md5>,E<nbsp>
+L<B<m>d5|/md5>,E<nbsp>
+L<B<s>hared_object|/shared_object>
 
-In addition to the file's signature, it is also possible to control how makepp
-compares these signature values.  For example, the C<exact_match> method
-requires that file signatures be exactly the same as on the last build,
-whereas the C<target_newer> method only requires that all dependencies be
-older than the target.
+Each file is associated with a I<signature>, which is a string that changes if
+the file has changed.  Makepp compares signatures to see whether it needs to
+rebuild anything.  The default signature for files is a concatenation of the
+file's modification time and its size, unless you're executing a C/C++
+compilation command, in which case the default signature is a cryptographic
+checksum on the file's contents, ignoring comments and whitespace.  If you
+want, you can switch to a different method, or you can define your own
+signature functions.
+
+How the signature is actually used is controlled by the I<build check method>
+(see L<makepp_build_check|makepp_build_check>).  Normally, if a file's
+signature changes, the file itself is considered to have changed, and makepp
+forces a rebuild.
 
 If makepp is building a file, and you don't think it should be, you might want
-to check the build log (C<.makepp_log>).  Makepp writes an explanation of what
-it thought each file depended on, and why it chose to rebuild.
+to check the build log (see L<makepplog|makepplog>).  Makepp writes an
+explanation of what it thought each file depended on, and why it chose to
+rebuild.
 
-At present, there are four signature checking methods included in
-makepp.  Usually, makepp picks the most appropriate signature method
-automatically.  However, you can change the signature method for an
-individual rule by using C<:signature> modifier on the rule (see
+There are several signature methods included in makepp.  Makepp usually picks
+the most appropriate standard one automatically.  However, you can change the
+signature method for an individual rule by using C<:signature> modifier on the
+rule which depends on the files you want to check (see
 L<makepp_rules/signature>), or for all rules in a makefile by using the
-C<signature> statement (see L<makepp_statements/signature>, or for all
-makefiles at once using the C<-m> or C<--signature-method> command line
-option (see L<makepp_command/-m>).
+C<signature> statement (see L<makepp_statements/signature>), or for all
+makefiles at once using the C<-m> or C<--signature-method> command line option
+(see L<makepp_command/-m>).
 
 =head2 Signature methods included in the distribution
 
 =over 4
 
-=item exact_match
+=item plain (actually nameless)
 
-This method uses the modification dates on the file as signatures.  It
-rebuilds the targets unless all of the following conditions are true:
+The plain signature method is the file's modification time and the file's
+size, concatenated.  These values are quickly obtainable from the operating
+system and almost always change when the file changes.
 
-=over 4
+Makepp used to look only at the file's modification time, but if you run
+makepp several times within a second (e.g., in a script that's building
+several small things), sometimes modification times won't change.  Then,
+hopefully the file's size will change.
 
-=item *
+If the case where you may run makepp several times a second is a problem
+for you, you may find that using the C<md5> method is somewhat more
+reliable.  If makepp builds a file, it flushes its cached MD5 signatures
+even if the file's date hasn't changed.
 
-The signature of each dependency is the same as it was on the
-last build.
-
-=item *
-
-The signature of each target is the same as it was on the last
-build.
-
-=item *
-
-The build command has changed.
-
-=item *
-The default directory for the build command has changed.
-
-=item *
-
-The machine architecture (or what perl thinks it is) has
-changed.
-
-=back
-
-Makepp stores all the signature information and the build command from
-the last build, so that it can do these comparisons.  (All the stored
-information is in the subdirectory .makepp of each directory.)
-
-This is makepp's default algorithm unless it is trying to rebuild a
-makefile or compile C/C++ code.  This is a highly reliable way of
-ensuring correct builds, and is almost always what you want.  However,
-it does have a few side effects that may be surprising:
-
-=over 4
-
-=item *
-
-If you've been compiling with the traditional make, and then switch to
-makepp, everything is recompiled the first time you run makepp.
-
-=item *
-
-If you damage makepp's information about what happened on the last build
-(e.g., you delete the subdirectory C<.makepp>, or don't copy it when you
-copy everything else), then a rebuild is triggered.
-
--item *
-
-If you replace a file with an older version, a rebuild is triggered.
-This is normally what you want, but it might be surprising.
-
-=item *
-
-If you modify a file outside of the control of makepp (e.g., you run the
-compilation command yourself), then makepp will rebuild the file next
-time.
-
-=item *
-
-Architecture-independent files are rebuild when you switch to a
-different architecture.  This is usually not a problem, because they
-often don't take long to build.  The reason why all files are tagged
-with the architecture, instead of just binary files, is that often times
-even ASCII files are architecture-dependent.  For example, output from
-the solaris C<lex> program won't compile on linux (or at least this used
-to be true the last time I tried it).
-
-=back
-
-=item target_newer
-
-Rebuilds only if the target is newer than all of its dependencies.  The
-dependencies may change their time stamp, but as long as they are older
-than the target, the target is not rebuilt.  The target is also not
-rebuilt even if the command or the architecture has changed.  (This is
-the signature method that the traditional make uses.)
-
-This is makepp's default algorithm if it is trying to build the makefile
-before reading it in.  (It loads the makefile and checks for a rule
-within the makefile to rebuild itself, and if such a rule is present and
-the makefile needs rebuilding, it is rebuild and then reread.)  This is
-because it is common to modify a makefile using commands that are not
-under the control of makepp, e.g., running a configure procedure.  Thus
-makepp doesn't insist that the last modification to the makefile be made
-by itself.
-
-Using C<target_newer> compared to C<exact_match> has the following
-disadvantages:
-
-=over 4
-
-=item *
-
-makepp can be confused by clock synchronization or by bogus dates.  For
-example, if a file somehow gets a date in the far future, anything that
-depends on it will always be rebuilt, no matter what.
-
-=item *
-
-Replacing a file with an older version of the same file won't trigger a
-rebuild.
-
-=item *
-
-Changing the build command (e.g., changing compilation options) won't
-trigger a rebuild.
-
-=item *
-
-Changing the architecture (e.g., switching from linux to
-solaris) won't trigger a rebuild.
-
-=back
+For efficiency's sake, makepp won't reread the file and recompute the complex
+signatures below if this plain signature hasn't changed since the last time it
+computed it.  This can theoretically cause a problem, since it's possible to
+change the file's contents without changing its date and size.  In practice,
+this is quite hard to do so it's not a serious danger.  In the future, as more
+filesystems switch to timestamps of under a second, hopefully Perl will give us
+access to this info, making this failsafe.
 
 =item md5
 
-This is the same as C<exact_match>, except that instead of using the
-file date as the signature, an MD5 checksum of the files contents is
-used.  This means that if you change the date on the file but don't
-change its contents, makepp won't try to rebuild anything that depends
-on it.
+Computes an MD5 checksum of the file's contents, rather than looking at
+the file's date or size.  This means that if you change the date on
+the file but don't change its contents, makepp won't try to rebuild
+anything that depends on it.
 
 This is particularly useful if you have some file which is often
 regenerated during the build process that other files depend on, but
-which usually doesn't change.  If you use the C<md5> signature checking
-method, makepp will realize that the file's contents haven't changed
-even if the file's date has changed.  (Of course, this won't help if the
-files have a timestamp written inside of them, as archive files do for
-example.)
-
-For C/C++ source code, you should use C<c_compilation_md5> instead since
-it achieves the same thing but in a more powerful way.
+which usually doesn't actually change.  If you use the C<md5> signature
+checking method, makepp will realize that the file's contents haven't
+changed even if the file's date has changed.  (Of course, this won't
+help if the files have a timestamp written inside of them, as archive
+files do for example.)
 
 =item c_compilation_md5
 
-This is the same as C<exact_match>, except that signatures for files
-which look like C or C++ source files are computed by an MD5 checksum of
-the file, ignoring comments and whitespace.  (Technically, comments are
-replaced by a single space, and multiple whitespace characters are
-collapsed to a single space, before computing the MD5 checksum.)
-Ordinary file times are still used for signatures for object files, and
-any other files that don't have an extension typical of a C or C++
-source file.  (A file is considered to be source code if it has an
-extension of C<c>, C<h>, C<cc>, C<hh>, C<cxx>, C<hxx>, C<hpp>, C<cpp>,
-C<h++>, C<c++>, C<moc>, or upper case versions of these.)  If you use
-this, you can reindent your code or add or change comments without
-triggering a rebuild.
+This is the default method, if your Perl supports MD5 (standard since 5.8).
+It checks if a file's name looks like C or C++ source code, including things
+like Corba IDL.  If it does, this method applies.  If it doesn't, it falls
+back to plain signatures for binary files (determined by name or else by
+content) and else to L</md5>.  Alas you can currently tune what is to be
+considered C or binary only by subclassing C<Signature::c_compilation_md5> to
+get a new signature type and there overriding or extending the methods
+C<recognizes_file> and C<excludes_file>.
 
+The idea is to be independent of formatting changes.  This is done by pulling
+everything up as far as possible, and by eliminating insignificant spaces.
+Words are exempt from pulling up, since they might be macros containing
+C<__LINE__>, so they remain on the line where they were.
+
+    // ignored comment
+  
+    #ifdef XYZ
+ 	#include <xyz.h>
+    #endif
+  
+    int a = 1;
+  
+    void f
+    (
+ 	int b
+    )
+    {
+ 	a += b + ++c;
+    }
+  
+ 	/* more ignored comment */
+
+is treated as though it were
+
+    #ifdef XYZ
+    #include<xyz.h>
+    #endif
+  
+  
+  
+    int a=1;
+  
+    void f(
+  
+    int b){
+  
+  
+    a+=b+ ++c;}
+
+That way you can reindent your code or add or change comments without
+triggering a rebuild, so long as you don't change the line numbers.  (This
+signature method recompiles if line numbers have changed because that causes
+calls to C<__LINE__> and most debugging information to change.)  It also
+ignores whitespace and comments B<after> the last token.  This is useful for
+preventing a useless rebuild if your VC adds lines at a C<$>C<Log$> tag when
+checking in.
 
 This method is particularly useful for the following situations:
 
@@ -217,23 +166,39 @@ I work with, we have a preprocessor which (like yacc) produces two
 output files, a C<.cxx> and a C<.h> file:
 
     %.h %.cxx: %.qtdlg $(HLIB)/Qt/qt_dialog_generator
-    	$(HLIB)/Qt/qt_dialog_generator $(input)
+ 	$(HLIB)/Qt/qt_dialog_generator $(input)
 
-However, most of the time when the input file changes, the resulting
-C<.h> file contents are unchanged (except for a comment about the build
-time written by the preprocessor), although its date will change.  This
-could trigger unnecessary rebuilds of many modules without this kind of
-cryptographic signature checking.
+Every time the input file changed, the resulting F<.h> file also was
+rewritten, and ordinarily this would trigger a rebuild of everything
+that included it.  However, most of the time the contents of the F<.h>
+file didn't actually change (except for a comment about the build time
+written by the preprocessor), so a recompilation was not actually
+necessary.
 
 =back
 
-This is the default signature method for C or C++ compilation.  It
-overrides any default specified with the C<-m> or C<--signature-method>
-command line option, but is overridden by any signature method specified
-by the C<signature></a> statement or the C<:signature> rule modifier.
-Makepp determines that you are doing a C/C++ compilation if it
-recognizes your command line as an invocation of a C/C++ compiler (see
-L<makepp_scanning>).
+=item shared_object
+
+This method only works if you have the utility C<nm> in your path, and it
+accepts the C<-P> option to output Posix format.  In that case only the names
+and types of symbols in dynamically loaded libraries become part of their
+signature.  The result is that you can change the coding of functions without
+having to relink the programs that use them.
+
+In the following command the command scanner will detect an implicit
+dependency on F<$(LIBDIR)/libmylib.so>, and build it if necessary.  However
+the link command will only be reperformed whenever the library exports a
+different set of symbols:
+
+    myprog: $(OBJECTS) :signature shared_object
+ 	$(LD) -L$(LIBDIR) -lmylib $(inputs) -o $(output)
+
+This works as long as the functions' interfaces don't change.  But in that
+case you'd change the declaration, so you'd also need to change the callers.
+
+Note that this method only applies to files whose name looks like a shared
+library.  For all other files it falls back to C<c_compilation_md5>, which may
+in turn fall back to others.
 
 =back
 
@@ -244,3 +209,26 @@ signatures and comparing them.  You will need to write a perl module to
 do this.  Have a look at the comments in C<Signature.pm> in the
 distribution, and also at the existing signature algorithms in
 C<Signature/*.pm> for details.
+
+Here are some cases where you might want a custom signature method:
+
+=over 4
+
+=item *
+
+When you want all changes in a file to be ignored.  Say you always want
+F<dateStamp.o> to be a dependency (to force a rebuild), but you don't
+want to rebuild if only F<dateStamp.o> has changed.  You could define a
+signature method that inherits from C<c_compilation_md5> that recognizes
+the F<dateStamp.o> file by its name, and always returns a constant value
+for that file.
+
+=item *
+
+When you want to ignore part of a file.  Suppose that you have a program
+that generates a file that has a date stamp in it, but you don't want to
+recompile if only the date stamp has changed.  Just define a signature
+method similar to C<c_compilation_md5> that understands your file format
+and skips the parts you don't want to take into account.
+
+=back

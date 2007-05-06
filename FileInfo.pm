@@ -2,18 +2,19 @@ package FileInfo;
 require Exporter;
 use Cwd;
 
-# $Id: FileInfo.pm,v 1.4 2003/07/15 00:50:38 grholt Exp $
+# $Id: FileInfo.pm,v 1.65 2007/04/24 22:51:42 pfeiffer Exp $
 
 #use English;
-# Don't ever include this!  This turns out to slow down 
+# Don't ever include this!  This turns out to slow down
 # Signature::c_compilation_md5::md5sum_c_tokens by at least three orders
 # of magnitude!
 
-@ISA = qw(Exporter);
+@ISA = 'Exporter';
 @EXPORT = qw(file_info chdir);
-@EXPORT_OK = qw(relative_filename absolute_filename traverse $CWD_INFO);
+@EXPORT_OK = qw(absolute_filename relative_filename may_have_changed file_exists touched_filesystem $CWD_INFO);
 
 use strict;
+use TextSubs ();
 
 =head1 NAME
 
@@ -21,82 +22,95 @@ FileInfo -- cached information about files and directories
 
 =head1 USAGE
 
+Note that we show both a functional and an object oriented syntax here.  Since
+the latter has a measurable overhead, and as this module is very heavily used,
+the functional syntax is to be preferred.
+
   use FileInfo;
   chdir($new_dir);		# Changes to new directory and keeps track
 				# of the directory name in the variable
 				# $CWD_INFO.
-  $finfo = file_info("filename");
+  $finfo = file_info('filename');
 
+  build_handle( $finfo );
   $finfo->build_handle;		# Returns the handle for the process that is
 				# building (or has built) the file.
+  set_build_handle($finfo,$handle);
   $finfo->set_build_handle($handle); # Sets the handle for the process
 				# that's currently building the file.
 
 
-  $build_rule = $finfo->build_rule; # Returns the rule for building the file,
+  $build_rule = build_rule( $finfo ); # Returns the rule for building the file,
 				# if such a rule exists.
+  set_build_rule($finfo,$rule);
   $finfo->set_build_rule($rule); # Set the rule used to build this file.
 
-  $finfo->build_info_string("key");
+  build_info_string($finfo,'key',...);
+  $finfo->build_info_string('key',...);
 				# Returns a piece of information from the build
 				# info file, if there is one.
-  $finfo->set_build_info_string("key", "value");
+  set_build_info_string($finfo, 'key', 'value');
+  $finfo->set_build_info_string('key', 'value');
   FileInfo::update_build_infos(); # Flushes build info cache to disk.
 
+  if (exists_or_can_be_built( $finfo )) {}
   if ($finfo->exists_or_can_be_built) {}
+  my $dir_finfo = parent( $finfo );
   my $dir_finfo = $finfo->parent; # The directory containing this file.
+  $name = absolute_filename( $finfo );
   $name = $finfo->absolute_filename;	# Returns absolute file name.
 				# If more than one name can be used
 				# (because of soft links), the shortest
 				# possible one is used to avoid problems with
 				# the automounter.
+  $name = relative_filename( $finfo );
   $name = $finfo->relative_filename;
-  $relative_fname = $finfo->relative_filename("dir");
+  $relative_fname = relative_filename( $finfo, 'dir');
+  $relative_fname = $finfo->relative_filename('dir');
+  $relative_fname = relative_filename($finfo, $dirinfo);
   $relative_fname = $finfo->relative_filename($dirinfo);
 				# Returns name relative to given directory.
 
+  may_have_changed( $finfo );
   $finfo->may_have_changed;	# Indicate that the file may have changed on
 				# disk, so invalidate (or check) cached info.
 
+  if (file_exists( $finfo )) { ... }
   if ($finfo->file_exists) { ... }
+  $date = file_mtime( $finfo );
   $date = $finfo->file_mtime;
 
-  @file_infos = find_file("filename"); # Find a file with a given name
-				# somewhere in the directory hierarchy.
-				# (See also Glob::zglob for a more powerful
-				# wildcarded find procedure.)
-
+  if (is_dir( $finfo )) { ... }
   if ($finfo->is_dir) { ... }
+  if (is_writable( $finfo )) { ... }
   if ($finfo->is_writable) { ... }
+  if (is_executable( $finfo )) { ... }
   if ($finfo->is_executable) { ... }
+  if (is_symbolic_link( $finfo )) { ... }
   if ($finfo->is_symbolic_link) { ... }
 
+  FileInfo::unlink( $finfo );
   $finfo->unlink;		# Deletes the file.
 
+  my $link_finfo = dereference( $finfo );
   my $link_finfo = $finfo->dereference;
 				# Dereference a symbolic link.
 
-  @file_infos = $finfo->dir_contents;
-				# If the file is a directory, this is the list
-				# of FileInfo structures in that directory.
+  read_directory( $finfo );
   $finfo->read_directory;	# Try to (re)read the contents of a directory.
 
+  my $stat_array = stat_array( $finfo ); # Return the array returned by stat().
   my $stat_array = $finfo->stat_array; # Return the array returned by stat().
+  my $lstat_array = lstat_array( $finfo ); # Return the array returned by lstat().
   my $lstat_array = $finfo->lstat_array; # Return the array returned by lstat().
-  $signature = $finfo->signature;
-  $finfo->set_signature_function(\&function);
-				# Set the function that is used to compute
-				# the signature for this file.
-
-  FileInfo::relative_filename("file", "dir"); # Returns relative name of file
+  FileInfo::relative_filename('file', 'dir'); # Returns relative name of file
 				# with respect to the directory.
-  FileInfo::absolute_filename("file"); # Returns absolute name of file.
 
 =head1 DESCRIPTION
 
 FileInfo is an efficient way to avoid re-statting files and rereading
 directories.  For each known file, there is a FileInfo structure that
-describes what is known about the file.  You may add arbitrary
+describes what is known about the file.	 You may add arbitrary
 additional information to the structure.
 
 FileInfo is designed so it won't be confused by soft-linked directories.
@@ -113,39 +127,83 @@ overrides some of the routines here.
 =cut
 
 #
-# Definitions for use with the stat command:
+# We only store the subset of (l)stat values which makepp needs.  This reduces
+# makepp's memory footprint by 1.5% and execution time by 4% compared to the
+# 13-element array.
 #
-my $stat_dev     = 0;
-my $stat_inode   = 1;
-my $stat_mode    = 2;
-my $stat_nlink   = 3;
-my $stat_uid     = 4;
-my $stat_gid     = 5;
-my $stat_rdev    = 6;
-my $stat_size    = 7;
-my $stat_atime   = 8;
-my $stat_mtime   = 9;
-my $stat_ctime   = 10;
-my $stat_blksize = 11;
-my $stat_blocks  = 12;
+# Definitions for use with the stat function:
+#
+# usage:
+#	@stat = (stat ...)[STAT_VECTOR];
+#	$stat[STAT_MTIME]
+sub STAT_VECTOR() { 0, 2, 3, 4, 5, 7, 9 }
+BEGIN {
+  *STAT_DEV = \&TextSubs::CONST0;
+  *STAT_MODE = \&TextSubs::CONST1;
+  *STAT_NLINK = \&TextSubs::CONST2;
+  *STAT_UID = \&TextSubs::CONST3;
+  *STAT_GID = \&TextSubs::CONST4;
+  *STAT_SIZE = \&TextSubs::CONST5;
+  *STAT_MTIME = \&TextSubs::CONST6;
+}
 
-my $S_IFLNK = 0120000;		# Bit in stat modes field that indicates this
-				# is a symbolic link.
-my $S_IFDIR = 040000;		# This is a directory.
+sub S_IFMT()  { 0170000 }	# Bits in stat modes field for file type
+sub S_IFREG() { 0100000 }	# Bit in stat modes field that indicates this
+				# is a regular file.
+sub S_IFDIR() { 040000 }	# This is a directory.
+sub S_IWUSR() { 0200 }		# Owner has write permission
 
-my $is_windows = $^O eq 'cygwin'; # If on windows NT, filenames are case 
-				# insensitive but case preserving.
+=head2 $case_sensitive_filenames
+
+Sets true if we think makepp should treat filenames as case sensitive.
+
+At present, makepp can be either 100% case insensitive, converting all
+filenames to lower case, or 100% case sensitive.  Makepp currently cannot
+handle some files coming from a case-insensitive file system and other files
+coming from a case-sensitive file system.
+
+This routine is just a guess.  We look at the current directory to see if it
+looks case sensitive, and switch makepp into the appropriate mode.
+
+=cut
+
+our $case_sensitive_filenames;
+BEGIN {
+  my $testfilename = '.makepp_test';
+  my $i = 0;			# Unlikely filename, but just to be sure...
+  $i++ while -e "$testfilename$i" || -e uc "$testfilename$i";
+  $testfilename .= $i;
+  {
+    open my $fh, '>', $testfilename or # Create the file.
+      return $case_sensitive_filenames = !::is_windows;
+				# If that doesn't work for some reason, assume
+				# we are case insensitive if windows, and case
+				# sensitive for unix.
+  }
+
+  $case_sensitive_filenames = !-e uc $testfilename; # Look for it with different case.
+  unlink $testfilename;
+}
+
+
+# Set this (probably locally) to attempt to avoid lstat calls by reading the
+# directory first if the cached directory listing might be stale.  This may
+# or may not speed things up.
+our( $read_dir_before_lstat, $root, $CWD_INFO );
+my $epoch = 2; # Counter that determines whether dir listings are up-to-date.
+our $empty_array = [];		# Only have one, instead of a new one each time
 
 #
-# All of the information is stored in the structure below.  %file_info
-# is an associative array indexed by the top-level directories.  In
-# addition, for every directory that we stat, we store the device and
-# inode number so we won't be confused by symbolic links with directories.
+# All of the information is stored in the structure below.  $root is an
+# associative array indexed by the top-level directories.  In addition, for
+# every directory that we stat, we store the device and inode number so we
+# won't be confused by symbolic links with directories.
 #
-$FileInfo::root = bless {NAME => '',
-			 SHORTEST_FULLNAME => '',
-			 DIRCONTENTS => {}
-			 };
+$root = bless { NAME => '',
+		SHORTEST_FULLNAME => '',
+		DIRCONTENTS => {},
+		EXISTS => 1
+	       };
 
 #
 # Here are all the possible keys that can be contained in a FileInfo
@@ -157,7 +215,7 @@ $FileInfo::root = bless {NAME => '',
 # Key		Meaning
 # ..		A reference to the FileInfo of the parent directory whose
 #		DIRCONTENTS field contains this file.
-# BUILD_HANDLE	A Fork::Process handle for the process that is currently 
+# BUILD_HANDLE	A Fork::Process handle for the process that is currently
 #		building or has already built this file.
 # BUILD_INFO	If build information has been loaded, this hash contains the
 #		key/value pairs.  See build_info_string() and
@@ -167,33 +225,33 @@ $FileInfo::root = bless {NAME => '',
 #		hash of the files in the directory.  The key for the hash
 #		is the filename.  Sometimes files which aren't directories
 #		can have a DIRCONTENTS field too.  This occurs when they are
-#		referenced as a directory, i.e., "filename/filename".
+#		referenced as a directory, i.e., 'filename/filename'.
 #		Usually this is for a directory that doesn't exist yet but
 #		will be created.
 #		The DIRCONTENTS field is only created by the subroutine
 #		mark_as_directory().  This is so the wildcard routines are
-#		reliably informed that a new directory exists.  See the
+#		reliably informed that a new directory exists.	See the
 #		documentation for Glob::wildcard_action for details.
 # EXISTS	1 if we know the file exists (either because we lstatted it,
 #		or because its name was in the directory), 0 if we know
 #		it doesn't exist (because its name wasn't in the directory,
 #		or the lstat failed).
-# IS_PHONY	True if this has been tagged as a phony target.
-# LINK_DEREF	For soft links, the cached value of the symbolic link.
+# IS_PHONY	Exists iff this has been tagged as a phony target.
+# LINK_DEREF	Exists iff this is a soft link.  False if we have not dereferenced
+#		it, else the cached value of the symbolic link.
 # LSTAT		A reference to the array returned by lstat.
 # NAME		The name of the file (without any directories).
 # PUBLISHED	True if we've alerted any waiting wildcard subroutines that
 #		this file exists.
-# READDIR	1 if we've tried to read this directory.
-# REPOSITORY_FILE
+# READDIR	Nonzero if we've tried to read this directory.
+# ALTERNATE_VERSIONS
 #		For files that can be imported from a repository, this field
-#		contains a reference to the FileInfo struct for the file in
-#		the repository.
+#		contains a reference to the FileInfo structs for the file in
+#		the repositories.
 # SCANNED_FOR_SUBDIRS
-#		If this is a directory, this flag indicates that we have
-#		found all of the subdirectories under the current directory,
-#		i.e., we don't need to stat any more files to see if they
-#		are subdirectories.
+#		Exists iff this is a directory and we have found all of the
+#		subdirectories under the current directory, i.e., we don't
+#		need to stat any more files to see if they are subdirectories.
 # SHORTEST_FULLNAME
 #		There can be multiple names for a directory if soft links are
 #		present.  Usually the shortest name is the most useful one,
@@ -212,36 +270,24 @@ $FileInfo::root = bless {NAME => '',
 
 =head2 absolute_filename
 
-  $str = $fileinfo->absolute_filename;
-  $str = absolute_filename("relative file name");
+  $str = absolute_filename( $fileinfo );
 
-  $str = $fileinfo->absolute_filename($dir);
-  $str = absolute_filename("relative file name", $dir);
-
-Returns the absolute file name.  The optional $dir argument specifies
-where to start looking for the file (i.e., what the "." directory is).
-If you don't specify this, uses the current directory.
+Returns the absolute file name.
 
 =cut
 
 sub absolute_filename {
-  my $fileinfo = &file_info;	# Locate the file.
-
-  my @subdirs = ();		# Build a list of subdirectories on the path.
-
-  until (exists($fileinfo->{SHORTEST_FULLNAME})) {
-    push(@subdirs, $fileinfo->{NAME});
-				# Go up the tree until we find a directory
-				# whose full name we know.
-    $fileinfo = $fileinfo->{".."};
-  }
-
-  my $retstr = join("/", $fileinfo->{SHORTEST_FULLNAME}, reverse @subdirs);
-  $is_windows and $retstr =~ s@^/([A-Za-z]:)@$1@;
+  my $fstr = $_[0]->{SHORTEST_FULLNAME}; # Cached name?
+  defined($fstr) or
+    $fstr = $_[0]->{'..'}{SHORTEST_FULLNAME} . '/' . $_[0]->{NAME};
+				# All directories already have a cached name.
+  if( ::is_windows ) {
+    $fstr =~ s@^/(?=[A-Za-z]:)@@;
 				# Convert /C: to C:.  We converted the other
 				# way so we could use unix file name syntax
 				# everywhere.
-  $retstr;
+  }
+  $fstr;
 }
 
 #
@@ -254,70 +300,66 @@ sub absolute_filename_nolink {
 
   my $ret_str = $fileinfo->{NAME};
 
-  return "/" if $fileinfo == $FileInfo::root;
+  return '/' if !defined($ret_str) or	# Ugly workaround for unknown problem.  (Forum 2005-05-23)
+    $fileinfo == $root;
 				# Special case this one.
   for (;;) {
-    $fileinfo = $fileinfo->{".."};
-    last if $fileinfo == $FileInfo::root; # Quit when we reached the top.
+    $fileinfo = $fileinfo->{'..'};
+    last if $fileinfo == $root; # Quit when we reached the top.
 
     $ret_str = $fileinfo->{NAME} . "/$ret_str";
 				# Add another directory.
   }
 
-  $is_windows and $ret_str =~ s@^/([A-Za-z]:)@$1@;
-				# Convert /C: to C:.  We converted the other
-				# way so we could use unix file name syntax
-				# everywhere.
-  return "/$ret_str";
+  return $ret_str
+    if ::is_windows and
+    $ret_str =~ /^[A-Za-z]:/;	# Leave initial C: without /.
+
+  "/$ret_str";
 }
 
-=head2 chdir("new dir")
+=head2 chdir('new dir')
 
-  chdir("new dir")
+  chdir('new dir')
   chdir($dirinfo)
 
-Changes to the indicated directory, and keeps track of the change in
-the variable $FileInfo::CWD_INFO.  Dies with a message if the chdir failed.
+Changes to the indicated directory, and keeps track of the change in the
+variable $CWD_INFO.  Dies with a message if the chdir failed.
 
 You can pass a FileInfo structure describing the directory instead of the
 directory name itself if that is more convenient.
 
-This subroutine is automatically exported into any packages that 
+This subroutine is automatically exported into any packages that
 use FileInfo, so your chdirs will work automatically.
 
 =cut
 
 sub chdir {
   my $newdir = $_[0];		# Access the directory.
-  my $status;
-  if (ref($newdir) eq 'FileInfo') { # Were we passed a file information struct?
-    return 0 if $newdir == $FileInfo::CWD_INFO; # Don't do the chdir if we're already there.
-    $status = CORE::chdir($newdir->absolute_filename_nolink);
-  } else {			# Passed a file name:
-    $newdir = file_info($newdir); # Get the file information.
-    return 0 if $newdir == $FileInfo::CWD_INFO; # Don't do the chdir if we're already there.
-    $status = CORE::chdir($_[0]);
-  }
+  ref($newdir) eq 'FileInfo' or $newdir = &file_info;
+				# Get the FileInfo structure.
+  return 0 if $newdir == $CWD_INFO; # Don't do the chdir if we're already there.
+  my $status = CORE::chdir absolute_filename_nolink( $newdir );
 
   unless ($status) {
     if ($newdir->{ALTERNATE_VERSIONS}) { # Was it from a repository?
-      $newdir->mkdir;           # Make it.
-      $status = CORE::chdir($newdir->absolute_filename_nolink);
+      FileInfo::mkdir( $newdir );	 # Make it.
+      $status = CORE::chdir absolute_filename_nolink( $newdir );
     }
     $status or
-      die ("chdir: can't cd to directory " . $newdir->absolute_filename .
-           "--$!\n");
+      die ("chdir: can't cd to directory " . absolute_filename( $newdir ) .
+	   "--$!\n");
   }
 
   publish($newdir);		# Make sure we know about this directory.
 
-  $FileInfo::CWD_INFO = $newdir; # Store the new directory if that succeded.
+  $CWD_INFO = $newdir; # Store the new directory if that succeded.
 }
 
 
 =head2 dereference
 
-  $finfo = $fileinfo->dereference;
+  $finfo = dereference( $fileinfo );
 
 If the file is a symbolic link, this returns a FileInfo structure for the file
 it points to.  If the symbolic link points to another symbolic link, returns
@@ -327,48 +369,55 @@ original FileInfo structure.
 =cut
 sub dereference {
   my $finfo = $_[0];		# Get the argument as a FileInfo struct.
-  my $linkcount = ($_[1] || 0);
-  if ($linkcount > 20) {
-    die "symlink: infinite loop trying to resolve symbolic link ", $finfo->absolute_filename, "\n";
-  }
-  my $stat_arr = $finfo->lstat_array;	# Get the flags.
-  (($stat_arr->[$stat_mode] || 0) & $S_IFLNK) != $S_IFLNK and return $finfo;
-				# Not a symbolic link,
-  my $link =
-    ($finfo->{LINK_DEREF} ||= # Have we already dereferenced it?
-     file_info(readlink($finfo->absolute_filename_nolink), $finfo->{".."}));
+  $finfo->{LSTAT} or &lstat_array;	# Get the flags.
+  my( $absolute_filename, $link_absolute_filename );
+  for( 0..20 ) {
+    exists $finfo->{LINK_DEREF} or return $finfo;
+				# Not a symbolic link.
+#    return $finfo if exists $finfo->{ALTERNATE_VERSIONS};
+				# Treat a repository link as not a link.
+    $absolute_filename = $link_absolute_filename || &absolute_filename;
+    $finfo = $finfo->{LINK_DEREF} ||= # Have we already dereferenced it?
+      file_info( readlink absolute_filename_nolink( $finfo ), $finfo->{'..'} );
 #
 # See if using the symbolic link is a shorter way of referring to the
-# file than the absolute path.  If so, use the shorter way.  This will usually
+# file than the absolute path.	If so, use the shorter way.  This will usually
 # get rid of junk from the automounter, and other stuff that may vary from
 # machine to machine on the network.
 #
-  if (length($finfo->absolute_filename) < length($link->absolute_filename)) {
+    $link_absolute_filename = absolute_filename( $finfo );
+    if( length( $absolute_filename ) < length( $link_absolute_filename )) {
 				# Found a shorter way to refer to the file?
-    $link->{SHORTEST_FULLNAME} = $finfo->absolute_filename;
+      reset_shortest_fullname( $finfo, $absolute_filename );
+				# Reset the cached name there and in any of
+				# its subdirectories.
+    }
+    $finfo->{LSTAT} or lstat_array( $finfo );
   }
-  return $link->dereference($linkcount+1); # Get what it refers to.
+  die 'symlink: infinite loop trying to resolve symbolic link ', $absolute_filename, "\n";
 }
 
-=head2 exists_or_can_be_built
-
-  if ($file_info->exists_or_can_be_built) { ... }
-
-Returns true if the file exists.  This is overridden by a method of the same
-name in FileInfo_makepp.pm, which returns true if the file already exists
-or if we know of a way to build it.
-
-=cut
-
-# This is commented out because it needs to be superceded by the version in
-# FileInfo_makepp.
-#sub exists_or_can_be_built {
-#  &file_exists;
-#}
+# reset_shortest_fullname( $fileinfo, $newname )
+#
+# Since we use absolute_filename so often, we cache it for all directories.
+# When we discover a shorter name for a directory, we have to change the
+# cached absolute filename for everything underneath it.
+# This subroutine does that.  Arguments:
+# a) The fileinfo for the file whose cache should be changed.
+# b) The new name.
+#
+sub reset_shortest_fullname {
+  $_[0]->{SHORTEST_FULLNAME} = $_[1]; # Store the new name.
+  if ($_[0]->{DIRCONTENTS}) { # It's a directory.  Process all subdirs:
+    foreach my $dirinfo (values %{$_[0]->{DIRCONTENTS}}) {
+      reset_shortest_fullname($dirinfo, $_[1] . '/' . $dirinfo->{NAME});
+    }
+  }
+}
 
 =head2 file_exists
 
-  if ($file_info->file_exists) { ... }
+  if (file_exists( $file_info )) { ... }
 
 Returns true (actually, returns the FileInfo structure) if the file exists,
 and undef if it doesn't.
@@ -376,20 +425,17 @@ and undef if it doesn't.
 =cut
 
 sub file_exists {
-  my $fileinfo = $_[0];		# Get the file information structure.
-
-  my $ex_flag = $fileinfo->{EXISTS};
-  defined($ex_flag) and return $ex_flag ? $fileinfo : undef;
+  defined $_[0]->{EXISTS} or
 				# See if we already know whether it exists.
-  $fileinfo->lstat_array;	# Stat it to see if it exists.  This will set
+    &lstat_array;		# Stat it to see if it exists.	This will set
 				# the EXISTS flag.
-  return $fileinfo->{EXISTS} ? $fileinfo : undef;
+  $_[0]->{EXISTS} ? $_[0] : undef;
 }
 
 =head2 file_info
 
-  $finfo = file_info("filename");
-  $finfo = file_info("filename", $dirinfo);
+  $finfo = file_info('filename');
+  $finfo = file_info('filename', $dirinfo);
 
 Returns the FileInfo structure for the given file.  If no FileInfo
 structure exists, creates a new one for it.
@@ -398,10 +444,10 @@ If you pass a FileInfo structure to file_info, it just returns
 its argument.
 
 The optional second argument specifies a directory the file name
-should be relative to.  By default, this is the current directory.
+should be relative to.	By default, this is the current directory.
 
-  foreach (@{$finfo->dir_contents}) {
-    $_->exists_or_can_be_built or next;	# Skip if file doesn't exist.
+  foreach (@{dir_contents( $finfo )}) {
+    exists_or_can_be_built( $_ ) or next;	# Skip if file doesn't exist.
 				# (Files which don't exist can have FileInfo
 				# entries, if you happened to call
 				# file_info on them explicitly.)
@@ -419,139 +465,103 @@ sub file_info {
   return $file if ref($file) eq 'FileInfo'; # Don't do anything if we were
 				# already passed a FileInfo structure.
 
-  if ($is_windows) {
-    $file =~ s@^([A-Za-z]):@/$1:@; # If on windows, transform C: into /C: so it
-				# looks like it's in the root directory.
+  $file =~ s@([^/])/+$@$1@;	# Strip trailing slashes.
+
+  $case_sensitive_filenames or
     $file = lc($file);		# Switch to all lower case to avoid
 				# confounds with mix case.
+  my @path_components;
+  my $dinfo = $_[1] || $CWD_INFO; # The fileinfo we start from.
+
+  if( ::is_windows ) {
+    if ($file =~ s@^/(/[^/]+/[^/]+)/?@@) {
+				# If we get a //server/share syntax, treat the
+				# "/server/share" piece as one directory, since
+				# it is never legal to try to access //server
+				# without specifying a share.
+				# This has the odd effect of making the top
+				# level directory's filename actually have
+				# a couple of slashes in it, but that's ok.
+      @path_components = ($1, split(/\/+/, $file));
+
+      $dinfo = $root;
+    } elsif ($file =~ /^[A-Za-z]:/) { # ActiveState Perl, others convert to /cygdrive/c or /c
+      $dinfo = $root;		# Treat "C:" as if it's in the root directory.
+      $file =~ s|\\|/| if $file !~ /\//; # Sometimes gives 'C:\'
+      @path_components = split(/\/+/, $file);
+    } else {
+      $file =~ s@^/@@ and $dinfo = $root;
+      @path_components = split(/\/+/, $file);
+    }
+  } else {
+    $file =~ s@^/+@@ and $dinfo = $root;
+    @path_components = split(/\/+/, $file);
   }
 
-  my $finfo = ($file =~ s@^/+@@ ? $FileInfo::root :
-		 ($_[1] || $FileInfo::CWD_INFO));
-				# Start at current directory or
-				# the top level or specified directory.
-  $file =~ s@/+$@@;		# Strip trailing slashes.
-
-  foreach (split(/\/+/, $file)) { # Handle each piece of the filename.
+  foreach (@path_components) { # Handle each piece of the filename.
 #
 # Also, we now know the parent is (or possibly will be) a directory, so we
 # need to publish it as a directory.  This is necessary so wildcard routines
 # install themselves appropriately in the directory.
 #
-    unless (exists($finfo->{DIRCONTENTS})) {
+    unless (exists($dinfo->{DIRCONTENTS})) {
 				# If the DIRCONTENTS field doesn't exist, then
 				# we haven't checked yet whether the parent is
 				# a directory or not.
-      my $orig_finfo = $finfo;
-      if ($finfo->is_symbolic_link) { # Follow symbolic links.
-	$finfo = $finfo->dereference; # Get where it points to.
-	mark_as_directory($finfo); # Remember that this is a directory.
-	$orig_finfo->{DIRCONTENTS} = $finfo->{DIRCONTENTS};
+      my $orig_dinfo = $dinfo;
+      if( is_symbolic_link( $dinfo )) { # Follow symbolic links.
+	$dinfo = dereference( $dinfo ); # Get where it points to.
+	mark_as_directory($dinfo); # Remember that this is a directory.
+	$orig_dinfo->{DIRCONTENTS} = $dinfo->{DIRCONTENTS};
 				# Set the DIRCONTENTS field of the soft link
 				# to point to the DIRCONTENTS of the actual
 				# directory.
       } else {
-	mark_as_directory($finfo); # Let the wildcard routines know that we
+	mark_as_directory($dinfo); # Let the wildcard routines know that we
 				# discovered a new directory.
-	publish($finfo);	# Alert any wildcard routines.
+	publish($dinfo);	# Alert any wildcard routines.
       }
 
     }
 
 #
-# At this point, $finfo points to the the parent directory.  Now handle the 
+# At this point, $dinfo points to the the parent directory.  Now handle the
 # file:
 #
-    if ($_ eq "..") {		# Go up a directory?
-      $finfo = $finfo->{".."} || $FileInfo::root;
+    if ($_ eq '..') {		# Go up a directory?
+      $dinfo = $dinfo->{'..'} || $root;
 				# Don't go up above the root.
-    } elsif ($_ eq ".") {	# Stay in same directory?
+    } elsif ($_ eq '.') {	# Stay in same directory?
 				# Do nothing.
 
     } else {
-      $finfo = ($finfo->{DIRCONTENTS}{$_} ||=
-		bless { NAME => $_, ".." => $finfo->{LINK_DEREF} || $finfo });
+      $dinfo = ($dinfo->{DIRCONTENTS}{$_} ||=
+		bless { NAME => $_, '..' => $dinfo->{LINK_DEREF} || $dinfo });
 				# Point to the entry for the file, or make one
 				# if there is not one already.
     }
 
   }
 
-  return $finfo;
+  $dinfo;
 }
 
 =head2 file_mtime
 
-  $date = $file_info->file_mtime;
-  $date = file_mtime("filename");
+  $date = file_mtime( $file_info );
+  $date = file_mtime('filename');
 
-Returns the last modification time for the given file.  If the file is a
+Returns the last modification time for the given file.	If the file is a
 symbolic link, this returns the modification for the file the link refers to.
+Return undef if it doesn't exist.
 
 =cut
 
-sub file_mtime {
-  my $stat = &stat_array;
-  $stat->[$stat_mtime];		# Return the time, or undef if it doesn't
-				# exist.
-}
-
-=head2 find_file
-
-  @file_infos = find_file("filename");
-
-Finds all files in the directory tree that have the given file name.
-The files must either exist or have a build command specified for
-them (this is used by PBuilder).  The file name must match exactly.
-The name should not contain any directory specification.
-
-Returns a null array if nothing is found.
-
-See also Glob::zglob for a find procedure that will work with wildcards.
-Note especially its "**" wildcard.  C<find_file("filename")> is equivalent
-to (but faster than) C<zglob_fileinfo("**/filename")>, except that it will not
-read any directories--it only looks at files that are currently known.
-
-This function will not return any files located in directories that don't
-exist, even if there are FileInfo structures for them.
-
-=cut
-#
-# The following subroutine recursively searches a FileInfo directory tree
-# looking for an entry for a file with a given name that exists or
-# has a build command defined.  Arguments:
-# 1) The name of the file.
-# 2) The FileInfo tree to search.  If not specified, defaults to
-#    the root directory.  All subdirectories of the given directory are
-#    searched.
-#
-# Returns an array consisting of the FileInfo structures that it found.
-#
-sub find_file {
-  my ($target_fname, $dirinfo) = @_; # Name the arguments.
-  $is_windows and $target_fname = lc($target_fname);
-  $dirinfo ||= $FileInfo::root; # Default to root directory if not
-				# specified.
-
-  my @ret_vals = ();		# Files found so far.
-  my ($filename, $fileinfo);
-  while (($filename, $fileinfo) = each %{$dirinfo->{DIRCONTENTS}}) {
-				# Look at everything here.
-    push(@ret_vals, find_file($target_fname, $fileinfo))
-      if ($fileinfo->is_dir);	# Recursively descend into the tree.
-
-    if ($filename eq $target_fname && # Matching file that exists or can be built?
-	$fileinfo->exists_or_can_be_built) {
-      push(@ret_vals, $fileinfo); # Remember it.
-    }
-  }
-
-  @ret_vals;			# Return what we found, if anything.
-}
+sub file_mtime { (&stat_array)->[STAT_MTIME] }
 
 =head2 is_dir
 
-  if ($fileinfo->is_dir) { ... }
+  if (is_dir( $fileinfo )) { ... }
 
 Returns true (actually, returns the fileinfo structure) if the given file is
 actually a directory.  Does not return true for soft links that point to
@@ -565,15 +575,11 @@ this kind of directory, use is_or_will_be_dir().
 
 =cut
 
-sub is_dir {
-  my $stat = &lstat_array;	# Get the stat values.
-
-  (($stat->[$stat_mode] || 0) & $S_IFDIR) ? $_[0] : undef;
-}
+sub is_dir { (((&lstat_array)->[STAT_MODE] || 0) & S_IFDIR) ? $_[0] : undef }
 
 =head2 is_or_will_be_dir
 
-  if ($fileinfo->is_dir) { ... }
+  if (is_or_will_be_dir( $fileinfo )) { ... }
 
 Returns true (actually, returns the fileinfo structure) if the given file is
 actually a directory, or if it will be a directory (because file_info() was
@@ -582,16 +588,30 @@ to directories.
 
 =cut
 sub is_or_will_be_dir {
-  $_[0]->{DIRCONTENTS} and return $_[0];
-  $_[0]->dereference->is_dir and return $_[0];
-
-  return undef;
+  my $dinfo = $_[0];
+  my $result = $dinfo->{DIRCONTENTS} ||
+    (($dinfo->{LSTAT} || &lstat_array),
+     ((exists $dinfo->{LINK_DEREF} ? &dereference : $dinfo)->{LSTAT}->[STAT_MODE] || 0) & S_IFDIR) ?
+      $dinfo : undef;
+  if($FileInfo::directory_first_reference_hook) {
+    $dinfo=$dinfo->{'..'} unless $result;
+    my $changed;
+    while( $dinfo && !$dinfo->{REFERENCED} ) {
+      $dinfo->{REFERENCED} = 1;
+      # TBD: Maybe we ought to call these in reverse order?
+      &$FileInfo::directory_first_reference_hook($dinfo);
+      $changed = 1;
+      $dinfo = $dinfo->{'..'};
+    }
+    goto &is_or_will_be_dir if $changed;
+  }
+  $result;
 }
 
 
 =head2 is_executable
 
-  if ($finfo->is_executable) { ... }
+  if (is_executable( $finfo )) { ... }
 
 Returns true (actually, returns the FileInfo structure) if the given file is
 executable by this user.  We don't actually handle the group executable
@@ -601,18 +621,18 @@ user is actually in.
 =cut
 
 sub is_executable {
-  my $stat = $_[0]->stat_array;	# Get the status info.
+  my $stat = &stat_array;	# Get the status info.
   @$stat or return undef;	# File doesn't exist.
-  ($stat->[$stat_mode] & (011)) || # User or group executable?
-    (($stat->[$stat_mode] & 0100) && # User executable?
-      $stat->[$stat_uid] == $>) and return $_[0]; # We're the owner?
+  ($stat->[STAT_MODE] & (011)) || # User or group executable?
+    (($stat->[STAT_MODE] & 0100) && # User executable?
+      $stat->[STAT_UID] == $>) and return $_[0]; # We're the owner?
 				# It's executable.
-  return undef;
+  undef;
 }
 
 =head2 is_readable
 
-  if ($finfo->is_readable) { ... }
+  if (is_readable( $finfo )) { ... }
 
 Returns true if the given file or directory can be read.
 
@@ -620,114 +640,156 @@ Returns true if the given file or directory can be read.
 
 sub is_readable {
   my $finfo = $_[0];
-  if (exists($finfo->{IS_READABLE})) { # Use cached value.
-    return $finfo->{IS_READABLE};
-  }	
+  return $finfo->{IS_READABLE}
+    if exists $finfo->{IS_READABLE}; # Use cached value.
 
-  $finfo->{IS_READABLE} = 0;	# Assume it won't be readable.
-  my $stat = $finfo->stat_array; # Get stat info.
-  $stat && (($stat->[$stat_mode] || 0) & 0x444) or return undef;
+  undef $finfo->{IS_READABLE};	# Assume it won't be readable.
+  my $stat = &stat_array; # Get stat info.
+  return $finfo->{IS_READABLE}
+    if exists $finfo->{IS_READABLE}; # Use value possibly just set.
+  $stat && (($stat->[STAT_MODE] || 0) & 0444) or return undef;
 				# If no one can read the file, then it's
 				# definitely not readable.
+  # If it's a pipe, then simply trust the read permissions. This could be
+  # wrong, but we would detach a prospective writer if we opened it ourself,
+  # so this is the best we can do.
+  if(-p &absolute_filename) {
+    return $finfo->{IS_READABLE} = &have_read_permission;
+  }
 #
-# Checking for file permissions is very complicated and file-system
+# Checking for readability is very complicated and file-system
 # dependent, so we just try to open the file.
-#  
-  local *FH;			# Make a local file handle.
-  if ($stat->[$stat_mode] & $S_IFDIR) {	# A directory?
-    opendir(FH, $finfo->absolute_filename) or return undef;
-    closedir FH;
+#
+  if ($stat->[STAT_MODE] & S_IFDIR) {	# A directory?
+    opendir my $fh, &absolute_filename or return undef;
   } else {
-    open(FH, $finfo->absolute_filename) or return undef;
-    close FH;
+    open my $fh, &absolute_filename or return undef;
   }
 
-  return $finfo->{IS_READABLE} = 1; # File is readable.
+  $finfo->{IS_READABLE} = 1; # File is readable.
+}
+
+=head2 have_read_permission
+
+  if (have_read_permission( $finfo )) { ... }
+
+Returns true if the given file or directory has its read permission set
+for the effective user ID.
+This is not the same as is_readable, because there are other reasons that
+you might not be able to read the file.
+
+=cut
+
+sub have_read_permission {
+  if (exists($_[0]->{HAVE_READ_PERMISSION})) { # Use cached value.
+    return $_[0]->{HAVE_READ_PERMISSION};
+  }
+  $_[0]->{HAVE_READ_PERMISSION} = -r &absolute_filename;
 }
 
 =head2 is_symbolic_link
 
-  if ($finfo->is_symbolic_link) { ... }
+  if (is_symbolic_link( $finfo )) { ... }
 
-Returns true (actually, returns the FileInfo structure) if the given file 
+Returns true (actually, returns the FileInfo structure) if the given file
 is a symbolic link.
 
 =cut
 
 sub is_symbolic_link {
-  my $lstat = $_[0]->lstat_array; # Get status info.
-  @$lstat &&			# File exists.
-    ($lstat->[$stat_mode] & $S_IFLNK) == $S_IFLNK and # Check the mode.
-      return $_[0];		# Return true.
-  
-  return undef;			# File is not a symbolic link.
+  &lstat_array;			# Get status info.
+  exists $_[0]->{LINK_DEREF} ? $_[0] : undef;
 }
 
 =head2 is_writable
 
-  if ($dirinfo->is_writable) { ... }
+  if (is_writable( $dirinfo )) { ... }
 
-Returns true if the given directory can be written to.  Because of the
+Returns true if the given directory can be written to.	Because of the
 complexity of testing for permission, we test by actually trying to
 write a file to that directory.
 
 =cut
 
 sub is_writable {
-  local *FH;			# Make a local file handle.
-
   my $dirinfo = $_[0];		# Access the fileinfo struct.
   if (exists($dirinfo->{IS_WRITABLE})) { # Did we try this test before?
     return $dirinfo->{IS_WRITABLE}; # Use the cached value.
   }
 
+#
+# For some reason, on cygwin it is possible to write to a directory whose
+# mode is 0000, so trying to create a file in the directory is not a valid
+# test.	 So we explicitly test the mode instead of trying to open a file.
+# If the mode says it's read only for all users, then we don't bother
+# with the file test.  This at least makes the documented way of inhibiting
+# repository inputs work.
+#
+  my $dirstat = &stat_array;
+  @$dirstat == 0 and return;
+  ($dirstat->[STAT_MODE] & 0222) == 0 and
+    return $dirinfo->{IS_WRITABLE} = 0;
+
   if ($> == 0 && $FileInfo::uid_for_check != 0) {
 				# Are we running as root?
     $> = $FileInfo::uid_for_check; # Check with a different UID because root
     $) = $FileInfo::gid_for_check; # can read too much.
-				# See setting of uid_for_check for an 
+				# See setting of uid_for_check for an
 				# explanation of why.
     my $retval = &is_writable;	# Run the check.
     $> = $FileInfo::orig_uid;	# Restore the UID/GID.
-    $) = $FileInfo::orig_gid; 
+    $) = $FileInfo::orig_gid;
     return $retval;
   }
+  my $test_fname = Makesubs::f_mktemp( &absolute_filename_nolink . '/.makepp_testfile' );
+				# Try to create a file with an unlikely name
+				# which goes away automatically at the end.
 
-  my $test_fname = $dirinfo->absolute_filename_nolink . "/.makepp_testfile";
-				# Try to create a file with an unlikely
-				# name.  (I hope this cause no problems
-				# on unusual file systems.)
-
-  if (open(FH, "> $test_fname")) { # Can we create such a file?
-    close FH;
-    CORE::unlink $test_fname;	# Get rid of it.
-    return $dirinfo->{IS_WRITABLE} = 1;
-  }
-
-  return $dirinfo->{IS_WRITABLE} = 0;
+  return $dirinfo->{IS_WRITABLE} = 1
+    if open my $fh, '>', $test_fname; # Can we create such a file?
+  undef $dirinfo->{IS_WRITABLE};
 }
-  
+
+=head2 is_writable_owner
+
+   if (is_writable_user( $finfo ))
+
+Determines if a given file is writable by its owner by just checking the
+mode bits.  This does not test whether the current user is the owner.
+
+=cut
+sub is_writable_owner { (((&stat_array)->[STAT_MODE] || 0) & S_IWUSR) != 0 }
+
 =head2 link_to
 
-  $finfo->link_to($other_finfo);
+  FileInfo::symlink( $finfo, $other_finfo);
 
 Sets up $finfo to be a soft link to the file contained in $other_finfo.
 
 =cut
 sub symlink {
-  my ($dest, $link_from) = @_;
-
-  CORE::symlink($link_from->relative_filename($dest->{".."}),
-		$dest->absolute_filename_nolink)
-    or die "error linking " . $link_from->absolute_filename . " to " . $dest->absolute_filename . "--$!\n";
-  $dest->{EXISTS} = 1;		# We know this file exists now.
+  CORE::symlink relative_filename( $_[1], $_[0]->{'..'} ),
+		&absolute_filename_nolink
+    or die 'error linking ' . absolute_filename( $_[1] ) . ' to ' . &absolute_filename . "--$!\n";
+  $_[0]->{EXISTS} = 1;		# We know this file exists now.
 }
 
+=head2 touched_filesystem
+
+A static method with no arguments.  Call this to notify this package that
+some code has been run that might have changed something (especially in the
+case of adding files) that we might care about without updating the database.
+
+=cut
+
+sub touched_filesystem {
+  die unless ++$epoch;		# Detect wraps, just in case
+}
 
 =head2 lstat_array
 
-   $statinfo = $fileinfo->stat_array;
-   $uid = $statinfo->[4];	# Or whatever field you're interested in.
+   $statinfo = stat_array( $fileinfo );
+   $uid = $statinfo->[STAT_UID];	# Or whatever field you're interested in.
 
 Returns the array of values returned by the C<lstat> function on the file.
 The values are cached, so calling this repeatedly entails only minimal extra
@@ -740,33 +802,50 @@ sub lstat_array {
 
   my $stat_arr = $fileinfo->{LSTAT}; # Get the cached value.
   if (!defined($stat_arr)) {	# No cached value?
-    $stat_arr = $fileinfo->{LSTAT} = [ lstat($fileinfo->absolute_filename_nolink) ];
+    if($read_dir_before_lstat) {
+      my $dirinfo = $fileinfo->{'..'};
+      if($dirinfo && (!$dirinfo->{READDIR} || $dirinfo->{READDIR}!=$epoch)) {
+	read_directory( $dirinfo );
+      }
+      unless($fileinfo->{EXISTS}) {
+	return $fileinfo->{LSTAT} = $empty_array;
+      }
+    }
+    $stat_arr = $fileinfo->{LSTAT} = [ (lstat &absolute_filename_nolink)[STAT_VECTOR] ];
 				# Restat the file, and cache the info.
-    if ($fileinfo->{EXISTS} = (@$stat_arr != 0)) {
-				# Update the EXISTS flag too.
-      publish($fileinfo);	# If we now know the file exists but we didn't
-				# use to know that, activate any waiting 
-				# subroutines.
+    if (@$stat_arr != 0) {	# File actually exists?
+      if( -l _ ) {		# Profit from the open stat structure, unless it's a symlink.
+	undef $fileinfo->{LINK_DEREF};
+      } else {
+	$fileinfo->{HAVE_READ_PERMISSION} = -r _; # Let Perl figure out readability
+	$fileinfo->{IS_READABLE} = -r _ if -p _;
 #
 # When a file has been created or changed, it's possible that it has become
-# a directory.  If this is true, then we definitely need to tag it as a 
-# directory so all the wildcard routines know about it.  Otherwise we'll miss
+# a directory.	If this is true, then we definitely need to tag it as a
+# directory so all the wildcard routines know about it.	 Otherwise we'll miss
 # a lot of files.
 #
-      if (!$fileinfo->{DIRCONTENTS} && # Not previously known as a directory?
-	  ($stat_arr->[$stat_mode] & $S_IFDIR) != 0) { # Now it's a dir?
-	mark_as_directory($fileinfo); # Tell the wildcard system about it.
+	if( !$fileinfo->{DIRCONTENTS} && # Not previously known as a directory?
+	    -d _ ) {		# Now it's a dir?
+	  &mark_as_directory;	# Tell the wildcard system about it.
+	}
       }
-	    
+      while( !$fileinfo->{EXISTS} ) {
+	$fileinfo->{EXISTS} = 1;
+	publish( $fileinfo );	# If we now know the file exists but we didn't
+				# use to know that, activate any waiting
+				# subroutines.
+	$fileinfo = $fileinfo->{'..'};
+      }
     }
   }
 
-  return $stat_arr;
+  $stat_arr;
 }
 
 =head2 may_have_changed
 
-  $finfo->may_have_changed;
+  may_have_changed( $finfo );
 
 Indicates that a file may have changed, so that any cached values (such as the
 signature or the file time) are invalid.
@@ -775,61 +854,89 @@ signature or the file time) are invalid.
 sub may_have_changed {
   my $finfo = $_[0];
 
-  my $old_time = $finfo->file_mtime;
-  delete $finfo->{LINK_DEREF};
-  delete $finfo->{LSTAT};
-  delete $finfo->{EXISTS};
-  delete $finfo->{IS_READABLE};
-#
-# Don't force rereading the build information if the file hasn't actually
-# changed.
-#
-  if (($finfo->file_mtime || 0) != ($old_time || 0)) {
-    delete $finfo->{SIGNATURE};
-    delete $finfo->{BUILD_INFO};
-    delete $finfo->{NEEDS_BUILD_UPDATE};
-				# There's no build information to update.
-  } else {
-    delete $finfo->{IS_READABLE};
-    delete $finfo->{IS_WRITABLE};
+  # If the parent directory has been read, then make sure that we will
+  # re-read it before we bypass any lstat's.
+  $finfo->{'..'}{READDIR} &&= $epoch-1;
+
+  delete @{$finfo}{qw(LINK_DEREF LSTAT EXISTS IS_READABLE HAVE_READ_PERMISSION
+		      BUILD_INFO NEEDS_BUILD_UPDATE IS_WRITABLE)};
+}
+
+=head2 check_for_change
+
+  check_for_change( $finfo );
+
+Like may_have_changed, indicates that a file may have changed, but retains
+the build info unless the signature actually changed.
+This is used in place of may_have_changed in order to prevent the unnecessary
+destruction of build info, which is expensive to compute in some cases.
+
+=cut
+sub check_for_change {
+  return if $::gullible;
+  my $finfo = $_[0];
+
+  my $sig_date_size;
+  !exists $finfo->{IS_PHONY} && $finfo->{LSTAT} and
+    $sig_date_size = &signature; # Get the current signature.  Don't
+				# get it if the info isn't already cached.
+  $sig_date_size ||= $finfo->{BUILD_INFO}{SIGNATURE};
+				# If we linked a file in from the repository,
+				# we might not have the signature available,
+				# but we don't want to throw away the build
+				# info below.
+
+  # If the parent directory has been read, then make sure that we will
+  # re-read it before we bypass any lstat's.
+  $finfo->{'..'}{READDIR} &&= $epoch-1;
+
+  delete @{$finfo}{qw(LINK_DEREF LSTAT EXISTS IS_READABLE HAVE_READ_PERMISSION IS_WRITABLE)};
+  if (($sig_date_size || '') ne (&signature || '')) {
+				# Get the signature again.  If it hasn't
+				# changed, then don't dump the build info.
+    warn '`'.&absolute_filename."' changed without my knowledge\n".
+      "but you got lucky this time because its signature changed\n" if $sig_date_size;
+    delete @{$finfo}{qw(BUILD_INFO NEEDS_BUILD_UPDATE)};
   }
 }
 
 =head2 mkdir
 
-   $dirinfo->mkdir;
+   FileInfo::mkdir( $dirinfo );
 
-Makes the directory specified by the FileInfo structure (and any parent
-directories that are necessary).
+Unless it exists, makes the directory specified by the FileInfo structure (and
+any parent directories that are necessary).
 
 =cut
 sub mkdir {
   my $dirinfo = $_[0];
 
-  return if $dirinfo->is_dir;	# If it's already a directory, don't do
+  return if &is_dir;		# If it's already a directory, don't do
 				# anything.
-  $dirinfo->{".."}->mkdir;	# Make sure the parent exists.
-  CORE::mkdir($dirinfo->absolute_filename_nolink, 0777);
+  FileInfo::mkdir( $dirinfo->{'..'} );	# Make sure the parent exists.
+  CORE::mkdir &absolute_filename_nolink, 0777;
 				# Make the directory.
-  $dirinfo->may_have_changed;	# Restat it.
+  &may_have_changed;		# Restat it.
+  # Need to discard the LSTAT of the parent directory, because the number
+  # of links to it has changed, and Glob uses that.
+  # TODO: Is it harmful to just increment it, instead of forcing a restat?
+  delete(($dirinfo->{'..'} || {})->{LSTAT});
   $dirinfo->{IS_WRITABLE} = 1;	# This directory is now writable.
   $dirinfo->{IS_READABLE} = 1;
 }
 
 =head2 parent
 
-   $dirinfo = $finfo->parent;
+   $dirinfo = parent( $finfo );
 
 Returns the directory containing the file.
 
 =cut
-sub parent {
-  return $_[0]->{".."};
-}
+sub parent { $_[0]->{'..'} }
 
 =head2 read_directory
 
-  $dirinfo->read_directory;
+  read_directory( $dirinfo );
 
 Rereads the given directory so we know what files are actually in it.
 
@@ -837,56 +944,53 @@ Rereads the given directory so we know what files are actually in it.
 
 sub read_directory {
   my $dirinfo = $_[0];		# Find the directory.
-  local (*DIRHANDLE);		# Make a local file handle.
 
-  my ($fname, $fileinfo);
-  while (($fname, $fileinfo) = each %{$dirinfo->{DIRCONTENTS}}) {
-    delete $fileinfo->{EXISTS};	# Forget what we used to know about which
+  delete @{$_}{qw(EXISTS IS_READABLE)}
+    for values %{$dirinfo->{DIRCONTENTS}};
+				# Forget what we used to know about which
 				# files exist.
-    delete $fileinfo->{IS_READABLE};
-  }
 
-  opendir(DIRHANDLE, $dirinfo->absolute_filename_nolink) || return;
+  opendir my $dirhandle, &absolute_filename_nolink or return;
 				# Just quit if we can't read the directory.
 				# This can happen for directories which don't
 				# exist yet, or directories which are unreadable.
 
-  foreach (readdir(DIRHANDLE)) {
+  &mark_as_directory;		# Make sure we know this is a directory.
+  foreach( readdir $dirhandle ) {
     next if $_ eq '.' || $_ eq '..'; # Skip the standard subdirectories.
-    $is_windows and $_ = lc($_);
+    $case_sensitive_filenames or $_ = lc;
     my $finfo = ($dirinfo->{DIRCONTENTS}{$_} ||=
-		 bless { NAME => $_, ".." => $dirinfo });
+		 bless { NAME => $_, '..' => $dirinfo });
 				# Get the file info structure, or make
 				# one if there isn't one available.
     $finfo->{EXISTS} = 1;	# Remember that this file exists.
     publish($finfo);		# Activate any wildcard routines.
   }
-  closedir(DIRHANDLE);
 
-  $dirinfo->{READDIR} = 1;	# Remember that we read this directory.
+  delete dereference( $dirinfo )->{LSTAT};
+  $dirinfo->{READDIR} = $epoch;	# Remember that we read this directory.
 }
 
 =head2 relative_filename
 
-  $str = $fileinfo->relative_filename;
-  $str = $fileinfo->relative_filename($dir);
-  $str = relative_filename($filename);
-  $str = relative_filename($filename, $dir);
+  $str = relative_filename( $fileinfo ); # Relative to current directory.
+  $str = relative_filename( $fileinfo, $dirinfo);
+  $n = relative_filename( $fileinfo, $dirinfo, $distance ); # Only count hops.
 
 Return a file name relative to the given directory, if specified.
 If no directory is specified, uses the current working directory.
 If the directory and the file have no directories in common (e.g.,
-like "/home/mystuff/stuff" and "/usr/local/bin"), then an absolute
+like '/home/mystuff/stuff' and '/usr/local/bin'), then an absolute
 file name is returned.
 
 =cut
 
 sub relative_filename {
-  my $dir = $_[1] ? file_info($_[1]) : $FileInfo::CWD_INFO;
-  my $fileinfo = file_info($_[0], $dir); # Point to the file.
+  my $fileinfo = $_[0];		# Get the filename.
+  my $dir = $_[1] || $CWD_INFO;
 
-  $fileinfo == $FileInfo::root and return "/"; # Special case this.
-  return $fileinfo->{NAME} if $fileinfo->{".."} == $dir;
+  $fileinfo == $root && !$_[2] and return '/'; # Special case this.
+  return $_[2] ? 0 : $fileinfo->{NAME} if $fileinfo->{'..'} == $dir;
 				# Optimize for the special case where the
 				# file is in the given directory.
 
@@ -896,42 +1000,55 @@ sub relative_filename {
 # and .. doesn't do what you'd expect if symbolic links are involved.  So
 # we compare only the physical directories.
 #
-  $fileinfo == $dir and return "."; # Take care of this annoying special case
+  $fileinfo == $dir and return $_[2] ? 0 : '.'; # Take care of this annoying special case
 				# first.
 
-  my @dirs1;			# Get a list of directories for the file.
-  for (;;) {
+  my( @dirs1, @dirs2 );
+  # Get a list of directories for the file.
+  while( $fileinfo != ($fileinfo->{ROOT} || $root) ) {
     push @dirs1, $fileinfo;
-    $fileinfo = $fileinfo->{".."}; # Go to the parent.
-    last if $fileinfo == $FileInfo::root;	# Quit when we reach the root.
+    $fileinfo = $fileinfo->{'..'}; # Go to the parent.
+    goto DONE if $fileinfo == $dir;
+				# Found it, no need to home in from the other side.
   }
 
-  my @dirs2;			# Get a list of directories for the dir we
-				# want to be relative to.
-  while ($dir != $FileInfo::root) {
+  # Get a list of directories for the dir we want to be relative to.
+  while( $dir != ($dir->{ROOT} || $root) ) {
     push @dirs2, $dir;
-    $dir = $dir->{".."};
+    $dir = $dir->{'..'};
   }
 
-  if ($dirs2[-1] != $dirs1[-1]) { # Only thing in common is the root?
-    return $_[0]->absolute_filename; # May as well use absolute filename.
+  unless( $fileinfo->{ROOT} && $dir->{ROOT} && $fileinfo->{ROOT} == $dir->{ROOT} ) {
+				# Not in same subtree, so go up to system root
+    while( $fileinfo != $root ) {
+      push @dirs1, $fileinfo;
+      $fileinfo = $fileinfo->{'..'}; # Go to the parent.
+    }
+    while( $dir != $root ) {
+      push @dirs2, $dir;
+      $dir = $dir->{'..'};
+    }
+    return &absolute_filename	# May as well use absolute filename,
+      unless $_[2] or @dirs1 && @dirs2 && $dirs2[-1] == $dirs1[-1]; # when only thing in common is the root.
   }
 
   while (@dirs1 && @dirs2) {	# Peel off the top level directories
     last if $dirs2[-1] != $dirs1[-1]; # until we find a difference.
-    pop @dirs2;			# until we find a difference.
+    pop @dirs2;
     pop @dirs1;
   }
 
-  return join("/", ("..") x @dirs2, map { $_->{NAME} } reverse @dirs1);
+ DONE:
+  $_[2] ? @dirs1 + @dirs2 :
+    join '/', ('..') x @dirs2, map $_->{NAME}, reverse @dirs1;
 				# Form the relative filename.
 }
 
 =head2 stat_array
 
-   $statinfo = $fileinfo->stat_array;
-   $statinfo = FileInfo::stat_array("filename");
-   $uid = $statinfo->[4];	# Or whatever field you're interested in.
+   $statinfo = stat_array( $fileinfo );
+   $statinfo = stat_array('filename');
+   $uid = $statinfo->[STAT_SIZE];	# Or whatever field you're interested in.
 
 Returns the array of values returned by the C<stat> function on the file.  The
 values are cached, so calling this repeatedly entails only minimal extra
@@ -943,33 +1060,41 @@ link refers to.
 =cut
 
 sub stat_array {
-  my $fileinfo = $_[0];		# Get the fileinfo structure.
+  my $finfo = $_[0];
+  my $stat_arr = &lstat_array; # Get lstat value.
 
-  my $stat_arr = $fileinfo->{LSTAT}; # Get the cached value.
-  if (!defined($stat_arr)) {	# No cached value?
-    $stat_arr = $fileinfo->{LSTAT} = [ lstat($fileinfo->absolute_filename_nolink) ];
-				# Restat the file, and cache the info.
-    if ($fileinfo->{EXISTS} = (@$stat_arr != 0)) {
-				# Update the EXISTS flag too.
-      publish($fileinfo);	# Tell everyone the news that the file exists.
-    }
-  }
-  @$stat_arr or return [];	# File does not exist.
+  for( 0..20 ) {
+    @$stat_arr or return $empty_array;
+    exists $finfo->{LINK_DEREF} or return $stat_arr;
 
-  if (($stat_arr->[$stat_mode] & $S_IFLNK) == $S_IFLNK) { # Symbolic link?
-    my $link =
-      ($fileinfo->{LINK_DEREF} ||= # Have we already dereferenced it?
-       file_info(readlink($fileinfo->absolute_filename_nolink), $fileinfo->{".."}));
-    $stat_arr = $link->stat_array; # Get what it refers to (and if it's
+    $finfo = $finfo->{LINK_DEREF} ||= # Have we already dereferenced it?
+      file_info( readlink absolute_filename_nolink( $finfo ), $finfo->{'..'} );
+				# Get what it refers to (and if it's
 				# a link, get what that refers to also).
+    $stat_arr = $finfo->{LSTAT} || lstat_array( $finfo );
   }
+  die 'symlink: infinite loop trying to resolve symbolic link ', &absolute_filename, "\n";
+}
 
-  return $stat_arr;
+=head2 dir_stat_array
+
+Similar to stat_array, except that you need to call this instead if it's
+a directory and you need to get accurate timestamps or link counts.
+
+=cut
+sub dir_stat_array {
+  my $dirinfo = $_[0];
+  # If READDIR is current, then LSTAT is also guaranteed to be current.
+  # Otherwise, we make READDIR current, which updates LSTAT.
+  if(!$dirinfo->{READDIR} || $dirinfo->{READDIR}!=$epoch) {
+    read_directory( $dirinfo );
+  }
+  goto &stat_array;
 }
 
 =head2 traverse
 
-   FileInfo::traverse sub { 
+   FileInfo::traverse sub {
       my (@finfos) = @_;
 
       foreach (@finfos) { ... do something }
@@ -985,36 +1110,36 @@ before it is ivoked on child directories.
 sub traverse {
   my ($subr, $dirinfo) = @_;
 
-  $dirinfo ||= $FileInfo::root; # Start at root of hierarchy if not
+  my @dirs = $dirinfo || $root; # Start at root of hierarchy if not
 				# specified.
-
-  &$subr(values %{$dirinfo->{DIRCONTENTS}}); # Call subroutine on this directory.
-  foreach (values %{$dirinfo->{DIRCONTENTS}}) { # Look in each subdirectory of 
+  while( @dirs ) {
+    $dirinfo = pop @dirs;
+    &$subr(values %{$dirinfo->{DIRCONTENTS}}); # Call subroutine on this directory.
+    push @dirs,
+      grep { $_->{DIRCONTENTS} && !is_symbolic_link( $_ ) }
+				# Don't traverse it if it's a symbolic link,
+				# because then we'll find the same files twice.
+      values %{$dirinfo->{DIRCONTENTS}}; # Look in each subdirectory of
 				# this directory.
-    $_->{DIRCONTENTS} && !$_->is_symbolic_link # Don't traverse it if it's
-				# a symbolic link, because then we'll find the
-				# same files twice.
-      and traverse($subr, $_);
   }
 }
 
 =head2 unlink
 
-   $fileinfo->unlink;
+   FileInfo::unlink( $fileinfo );
 
 Removes the file and marks it in the cache as non-existent.
 
 =cut
 
 sub unlink {
-  my $fileinfo = &file_info;	# Get the FileInfo struct.
+  my $fileinfo = $_[0];		# Get the FileInfo struct.
 
-  CORE::unlink $fileinfo->absolute_filename_nolink; # Delete the file.
-  $fileinfo->{EXISTS} = 0;	# Mark the file as non-existent.  Don't
+  CORE::unlink &absolute_filename_nolink; # Delete the file.
+  undef $_[0]->{EXISTS};	# Mark the file as non-existent.  Don't
 				# delete the fileinfo struct because it
 				# might contain make build info or other stuff.
-  delete $fileinfo->{LSTAT};	# Invalidate the stat information.
-  delete $fileinfo->{SIGNATURE};
+  delete @{$_[0]}{qw(LSTAT SIGNATURE)};	# Invalidate the stat information.
 }
 
 ###############################################################################
@@ -1024,20 +1149,17 @@ sub unlink {
 
 #
 # This subroutine is called as soon as we discover that a file is actually
-# a directory.  Knowing that something is actually a directory is very
+# a directory.	Knowing that something is actually a directory is very
 # important for the wildcard routines, especially those with wildcards
-# like "**/*.cxx".
+# like '**/*.cxx'.
 #
 # Argument: the FileInfo structure of the thing we discovered is a directory.
 #
 sub mark_as_directory {
-  my $dirinfo = $_[0];
-
-  $dirinfo->{DIRCONTENTS} ||= {}; # Mark as a directory.
-
-#
-# Do something here with directory wildcards....
-#  
+  $_[0]->{DIRCONTENTS} ||= {}; # Mark as a directory.
+  $_[0]->{SHORTEST_FULLNAME} = &absolute_filename;
+				# We cache the absolute filename for all
+				# directories for performance reasons.
 }
 
 #
@@ -1051,40 +1173,56 @@ sub mark_as_directory {
 # when a new file matches a given pattern.  This subroutine is responsible for
 # activating them.
 #
+# A file will be published even if it's been published before if $level
+# (default 0) is greater than the level with which it was previously published.
+# Makepp uses this to implement --rm-stale, because a file needs to be
+# re-published if it looked like a stale file the last time it was published,
+# but a rule for the file was learned.
+#
 sub publish {
-  return if $_[0]->{PUBLISHED}++; # Don't do anything if we already published
+  my ($finfo, $level) = @_;
+  $level ||= 0;
+  return if ($finfo->{PUBLISHED} || 0) > $level;
+				# Don't do anything if we already published
 				# this file.
-
-  my $finfo = $_[0];		# Access the fileinfo struct.
+  return if exists $finfo->{IS_PHONY};	# Don't do anything if it's a phony target.
+  $finfo->{PUBLISHED} = $level+1;
 
   my $fname = $finfo->{NAME};	# Form the relative filename.
-  my $dirinfo = $finfo->{".."};	# Find the directory that contains it.
+  my $dirinfo = $finfo->{'..'};	# Find the directory that contains it.
+  my $stale;
 
   while ($dirinfo) {		# Go until we hit the top level.
-    foreach my $wild_rtn (@{$dirinfo->{WILDCARD_ROUTINES}}) {
+    for( @{$dirinfo->{WILDCARD_ROUTINES}} ) {
 				# Check each wildcard match specified to start
 				# in this directory.
-      &$wild_rtn($finfo, $fname, 1); # See if it matches, and call the wildcard
-				# action routine if it does.
+      my( $re, $wild_rtn ) = @$_;
+      next if $fname !~ /^$re$/;
+      if( $::rm_stale_files ) {
+	$stale = &is_stale if !defined $stale;
+	next if $stale;
+	$finfo->{PUBLISHED} = 2;
+      }
+      &$wild_rtn($finfo, 1);	# Call the wildcard action routine if it matches.
     }
 
-    $fname = $dirinfo->{NAME} . "/" . $fname;
+    $fname = $dirinfo->{NAME} . '/' . $fname;
 				# Form the relative filename of the next level.
-    $dirinfo = $dirinfo->{".."}; # Go up a level.
+    $dirinfo = $dirinfo->{'..'}; # Go up a level.
   }
 }
 
-$FileInfo::CWD_INFO = file_info(cwd);
+$CWD_INFO = file_info(cwd);
 				# Store the current directory so we know how
 				# to handle relative file names.
 #
 # One unfortunate complication with the way we scan for include files in
-# makepp is that when the user switches to root to do the "make install",
+# makepp is that when the user switches to root to do the 'make install',
 # a different set of directories is now readable.  This may cause directories
 # which used to be non-writable to become writable, which means that makepp
 # will scan them for include files.  This means that the list of dependencies
 # may change, and therefore recompilation may be forced.  We try to get around
-# this with a special purpose hack where if we're running as root, we 
+# this with a special purpose hack where if we're running as root, we
 # actually do the check with the UID and GID of whoever owns the directory.
 #
 
@@ -1092,7 +1230,7 @@ if ($> == 0) {			# Are we running as root?
   ($FileInfo::orig_uid, $FileInfo::orig_gid) = ($>, $));
 				# Save the original IDs.
   ($FileInfo::uid_for_check, $FileInfo::gid_for_check) =
-    @{$FileInfo::CWD_INFO->stat_array}[$stat_uid, $stat_gid];
+    @{stat_array( $CWD_INFO )}[STAT_UID, STAT_GID];
 				# Use the UID of whoever owns the current
 				# directory.
 }
@@ -1102,11 +1240,58 @@ if ($> == 0) {			# Are we running as root?
 
 __END__
 
+Here is a review of which functions are safe to call as &fn, i.e. reusing your
+own stack.  This is to make sure that no problem arises if the calling
+function may itself have been called with more arguments.  Therefore functions
+with a variable number of arguments should be called with an explicit
+parameter list.  That way the calling function doesn't inherit the weakness of
+a variable list.  The function name can be evited, calling either
+absolute_filename or relative_filename with 2 args.
+
+Primary functions, i.e. which call no others as &fn, so extra args are ok,
+unless there are optional args:
+
+absolute_filename (1 arg)
+absolute_filename_nolink (1 arg)
+assume_unchanged (1 arg)
+dont_build (1 arg)
+dont_read (1 arg)
+in_sandbox (1 arg)
+may_have_changed (1 arg)
+parent (1 arg)
+publish (1 or 2 args)
+reset_shortest_fullname (2 args)
+touched_filesystem (0 args)
+traverse (1 or 2 args)
+update_build_infos (0 args)
+
+Secondary functions, which have been checked to hand down no further args, no
+matter how many extra args get passed in:
+
+check_for_change (1 arg)
+dereference (1 arg)
+file_exists (1 arg)
+have_read_permission (1 arg)
+is_dir (1 arg)
+is_or_will_be_dir (1 arg)
+is_stale (1 arg)
+is_symbolic_link (1 arg)
+is_writable_owner (1 arg)
+lstat_array (1 arg)
+mark_as_directory (1 arg)
+mkdir (1 arg)
+name (1 or 2 args)
+read_directory (1 arg)
+relative_filename (1 to 3 args)
+signature (1 arg)
+stat_array (1 arg)
+symlink (2 args)
+unlink (1 arg)
+_valid_alt_versions (1 arg)
+was_built_by_makepp (1 arg)
+
 =head1 AUTHOR
 
 Gary Holt (holt@lnc.usc.edu)
 
 =cut
-
-
-

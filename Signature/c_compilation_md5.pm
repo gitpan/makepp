@@ -1,11 +1,11 @@
-# $Id: c_compilation_md5.pm,v 1.3 2003/07/18 21:11:08 grholt Exp $
+# $Id: c_compilation_md5.pm,v 1.18 2007/03/20 08:49:27 pfeiffer Exp $
+use strict;
 package Signature::c_compilation_md5;
 
-use Signature::exact_match;
+use Signature;
 use Digest::MD5;
 use TextSubs;
-
-@ISA = qw(Signature::exact_match);
+our @ISA = qw(Signature);
 
 =head1 NAME
 
@@ -37,140 +37,173 @@ Spaces and tabs before a newline are ignored.
 
 =item *
 
-Newlines affect the signature.  This means that if you insert some lines in
-the file, even if they were only comments, recompilation will occur.  Strictly speaking, recompilation is not necessary in this case, but makepp will recompile anyway to avoid messing up line numbers in the debugger.
+Newlines affect the signature. This means that if you insert some lines in the
+file, even if they were only comments, recompilation will occur.  Strictly
+speaking, recompilation is not necessary in this case, but makepp will
+recompile anyway to avoid messing up __LINE__ macros and line numbers in the
+debugger.
 
 =back
 
 What this means is that you can freely add or change comments in your code, or
 reindent your code, and as long as you don't affect the line numbers, there
-will be no recompilation.
+will be no recompilation.  Line number changes after the last token,
+e.g. comments with $Log at the end of file, will not cause a recompilation.
 
 =cut
 
-$c_compilation_md5 = bless {};	# Make the singleton object.
+our $c_compilation_md5 = bless \@ISA; # Make the singleton object.
 
-#
-# The only subroutine we need to override is the signature method; we use
-# exact matching of MD5 signatures.
-#
+# Things that can be overridden by a derived class:
+sub build_info_key { 'C_MD5_SUM' }
+sub important_comment_keywords { qw// }
+sub excludes_file { is_object_or_library_name( $_[1]->{NAME} ) }
+sub recognizes_file { is_cpp_source_name( $_[1]->{NAME} ) }
+
 sub signature {
-  my $finfo = $_[1];		# Name the argument.
+  my $self = shift;		# Trade stack modification for &calls below
+  my $finfo = $_[0];
 
-  is_object_or_library_name($finfo->{NAME}) and
-                                # Looks like some kind of a binary file?
-    return $finfo->signature;   # Use default signature function.
-
-  !$finfo->{".."}->is_writable and # Not a writable directory--don't bother
-    return $finfo->signature;   # scanning.
-
-  !is_cpp_source_name($finfo->{NAME}) && # Unrecognized suffix?
-    (!$finfo->file_exists ||    # File doesn't exist yet?
-     -B $finfo->absolute_filename) and # Binary file?
-       return $finfo->signature; # Don't use MD5 scanning.
-    
-  my $stored_cksum = $finfo->build_info_string("C_MD5_SUM");
-  return $stored_cksum if $stored_cksum; # Do not bother rescanning if
+  if( &FileInfo::file_exists ) {		    # Does file exist yet?
+    if( !FileInfo::is_writable( $finfo->{'..'} ) || # Not a writable directory--don't bother
+				# scanning.
+	$self->excludes_file( $finfo )) { # Looks like some kind of a binary file?
+      &FileInfo::signature;    # Use the normal signature method.
+    } elsif( $self->recognizes_file( $finfo )) {
+      my $build_info_key = $self->build_info_key;
+      my $stored_cksum = FileInfo::build_info_string( $finfo, $build_info_key );
+      if( !$stored_cksum ) {	# Do not bother rescanning if
 				# we have already scanned the file.
-  $stored_cksum = md5sum_c_tokens($finfo->absolute_filename);
+	$stored_cksum = md5sum_c_tokens( $self, &FileInfo::absolute_filename );
 				# Scan the file.
-  $finfo->set_build_info_string("C_MD5_SUM", $stored_cksum);
+	FileInfo::set_build_info_string( $finfo, $build_info_key, $stored_cksum );
 				# Store the checksum so we don't have to do
 				# that again.
-  return $stored_cksum;
+      }
+      $stored_cksum;
+    } elsif( -B &FileInfo::absolute_filename ) { # Binary file?
+      &FileInfo::signature; # Don't use MD5 scanning.
+    } else {
+      # Use regular MD5 scanning if it exists, but we can't tell what it is
+      # by its extension.
+      require Signature::md5;	  # Make sure the MD5 signature module is loaded.
+      Signature::md5::signature( $Signature::md5::md5, $finfo );
+    }
+  }
 }
 
 #
 # This is the function that does the work of scanning C or C++ source code,
-# breaking it into tokens, and computing the MD5 checksum of the tokens.
-# Argument is the file name to scan.
+# breaking it into tokens, and computing the MD5 checksum of the tokens.  All
+# tokens except words (which might be macros with __LINE__) are pulled up as
+# far as possible.  Argument is the file name to scan.
 #
 sub md5sum_c_tokens {
-  my $fname = $_[0];		# Name the argument.
+  #my( $self, $fname ) = @_;	# Name the arguments.
 
-  local *INFILE;		# Make a local file handle.
+  open my $infile, $_[1] or	# File exists?
+    return '';
 
-#  $main::warn_level and
-#    print "Computing commentless MD5 sum of $fname\n";
+  # NOTE: $keywords can be used by the derived class.
+  my %keywords;
+  @keywords{$_[0]->important_comment_keywords} = (); # Make them exist
 
-  if (open(INFILE, $fname)) {	# File exists?
-    local $/ = undef;		# Slurp in the whole file at once.
-                                # (This makes it easier to handle C-style
-                                # comments.)
-    local $_ = <INFILE>;	# Read it all.
-    close INFILE;
+  local $/ = undef;		# Slurp in the whole file at once.
+				# (This makes it easier to handle C-style
+				# comments.)
+  local $_ = "\n" . <$infile>;	# Read it all.  Prepend newline for preproc handling.
 
-    pos($_) = 0;		# Start scanning at position 0.
-    my $ctx = Digest::MD5->new;	# Make a context.
+  pos = 0;			# Start scanning at position 0.
 
-    my $space_pending = 0;      # No space being held.
-    while (pos($_) < length($_)) {
-      m@\G//.*@gc and next;	# Skip over C++ comments.
-      if (/\G\n/gc) {
-        $token = "\n";
-        $space_pending = 0;     # Strip out any spaces before the newline.
-      }
-      elsif (/\G[ \t]+/gc) {
-        $space_pending = 1;     # Remember that there's a space before the
-                                # next token.
-        next;
-      } 
-      elsif (m@\G/\*(.*?)\*/@sgc) { # C comment?
-        my $n_newlines = ($1 =~ tr/\n//); # Count # of newlines.
-        if ($n_newlines == 0) { # No newlines at all?
-          $space_pending = 1;   # Treat as a space.
-          next;
-        }
-        $space_pending = 0;     # Ignore spaces before the newline.
-        $token = ("\n" x $n_newlines);
-                                # Replace with same number of newlines, or
-                                # at least a single space.
-      }
+  my $add_space;		# Need a space here.
+  my $word;			# Last saw a word.
+  my $n_newlines = 0;		# No newlines being held.
+  my $preproc;			# On a preprocessor line.
+  my $tokens = '';		# The canonical document.
+  while( pos() < length ) {
+    my $token;			# Temp holder for things that might need space or \n before.
+    if( /\G([\w\$]+)/gc ) {
+      $add_space = $word;	# Put a space between words.
+      $token = $1;
+      $word = $1 =~ /^\D/;
 
-      elsif (/\G(\w+|\+\+|--|\<\<?=?|\>\>?=?|[-+|&*\/~^%]=?)/gc) {
-				# An ordinary name or a 2 or 3 char token?
+    } else {
+      if( /\G\r?\n/gc ) {
+	if( /\G[ \t]*#/gc ) {
+	  $n_newlines = 0 if	# Reset count after #line.
+	    /\G[ \t]*(?:line[ \t]*)?(\d+)\b/gc;
+	  if( "\n" eq substr $tokens, -1 ) {
+	    $tokens .= $1 ? "#$1" : '#';
+	  } else {
+	    $tokens .= $1 ? "\n#$1" : "\n#";	# Put it at bol.
+	  }
+	  $preproc = 1;
+	} elsif( $preproc ) {
+	  $tokens .= "\n";	# Go to bol.
+	  $preproc = 0;
+	} else {
+	  ++$n_newlines;	# Remeber nl for later.
+	}
+      } elsif( $preproc && /\G\\\r?\n/gc ) {
+	++$n_newlines;	# Remeber nl for later.
+
+      } elsif( /\G(([-+&*])\2?)/gc ) {
+	$add_space = !$word;	# Keep space in what might be "a+ ++b" or "a/ *b"!
 	$token = $1;
-      }
 
-      elsif (/\G\"/gc) {	# Quoted string?
-	my $quotepos = pos($_)-1; # Remember where the string started.
-	while (pos($_) < length($_)) {
+      } elsif( /\G\"/gc ) {	# Quoted string?
+	my $quotepos = pos()-1;	# Remember where the string started.
+	while( pos() < length ) {
 	  /\G[^\\\"]+/sgc and next; # Skip over everything between the quotes.
 	  /\G\"/gc and last;	# Found the closing quote.
 	  /\G\\./sgc and next;	# Skip over characters after a backslash.
 	  die "How did I get here?";
 	}
-	$token = substr($_, $quotepos, pos($_)-$quotepos);
+	$tokens .= substr $_, $quotepos, pos()-$quotepos;
 				# Add the string to the checksum.
-      }
-
-      elsif (/\G\'/gc) {	# Single quote expression?
-	my $quotepos = pos($_)-1; # Remember where the string started.
-	while (pos($_) < length($_)) {
+      } elsif( /\G\'/gc ) {	# Single quote expression?
+	my $quotepos = pos()-1;	# Remember where the string started.
+	while( pos() < length ) {
 	  /\G[^\\\']+/gc and next; # Skip over everything between the quotes.
 	  /\G\'/gc and last;	# Found the closing quote.
 	  /\G\\./sgc and next;	# Skip over characters after a backslash.
 	  die "How did I get here?";
 	}
-	$token = substr($_, $quotepos, pos($_)-$quotepos);
+	$tokens .= substr $_, $quotepos, pos()-$quotepos;
 				# Add the string to the checksum.
-      }
-      else {
-	$token = substr($_, pos($_), 1); # Must be a single char token.
-	++pos($_);
-      }
 
-#      $| = 1;
-#      print " $token";
-      $space_pending and $ctx->add(' ');
-      $ctx->add($token);        # Add the token into the checksum.
+      } else {
+	$token = substr $_, pos()++, 1; # Get next char.
+
+	if( ord( $token ) == ord '/' ) { # Either division or comment.
+	  if( /\G(\/.*)/gc ) { # Skip over C++ comments.
+	    undef $token, next
+	      unless %keywords && $1 =~ /^(\W*(\w+).*)/ && exists $keywords{$2};
+	    $token .= $1;
+	  } elsif( /\G\*(.*?)\*\//sgc ) { # C comment?
+	    undef $token;
+	    $n_newlines += ($1 =~ tr/\n//);
+	  }
+	}
+      }
+      undef $word;
     }
 
-    return $ctx->hexdigest;
+    if( defined $token ) {
+      if( $word && $n_newlines && !$preproc ) {
+	$tokens .= "\n" x $n_newlines;
+	$n_newlines = $add_space = 0;
+      } elsif( $add_space ) {
+	$tokens .= ' ';
+	$add_space = 0;
+      }
+      $tokens .= $token;
+    }
+
+    /\G[ \t]+/gc;		# Just skip space, it is added only where needed.
   }
-  else {
-    return '';
-  }
+
+  Digest::MD5::md5_base64( $tokens ); # Get checksum from tokens.
 }
 
 1;

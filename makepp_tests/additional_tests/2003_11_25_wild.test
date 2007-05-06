@@ -1,0 +1,38 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	4	644	1143325703	1069788272	RootMakeppfile.mk
+FILES := $(wildcard *.x)
+
+x.h: $(FILES)
+	&cat $(inputs) -o $@
+###	D	755	1069789369	1069789369	answers
+###	1	644	1069789051	1069788703	answers/z
+0
+###	1	644	1069788782	1069788602	bar.x
+#define X 0
+###	D	755	1069789370	1069789370	dir
+###	4	644	1069788872	1069788867	dir/Makeppfile.mk
+CFLAGS := -I ..
+
+z: y
+	./y > $@
+###	3	644	1069789252	1069789246	dir/foo.x
+#ifndef X
+# define X 1
+#endif
+###	7	644	1069788645	1069788529	dir/y.c
+#include <stdio.h>
+#include "x.h"
+
+int main() {
+	printf("%d\n", X);
+	return 0;
+}
+###	3	644	1069789246	1069789240	foo.x
+#ifndef X
+# define X 1
+#endif
+###	4	755	1164315688	1069789337	makepp_test_script.pl
+makepp '-Cdir';
+rename 'dir/z', 'z';
+rename 'dir/.makepp/log', '.makepp/log';
+1;

@@ -1,0 +1,1286 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	38	644	1170452082	1172688966	makepp_test_script.pl
+{ open my $fh, '>c/c.h' }
+utime 0, 0, 'c/c.h';		# Make sure this exists (because makeppclean removes it) and is old.
+if( (stat 'c/c.h')[9] ) {	# mtime unchanged on this fs (but utime may have lied in its return code)
+  wait_timestamp 'c/c.h';	# Wait for a newer second than mtime to start.
+  open my $fh, '+<', 'c/c.h.in';
+  print $fh '#';		# Rewrite first char to force mtime change.
+}
+
+makepp '--dont-build=/', '--do-build=.'; # Can't have a RootMakeppfile because that sorts output
+				# differently on a case insensitive fs or Ebcdic, so explicitly
+				# protect against logging stuff outside of our build system.
+makepp \'log', '-ciKnuokey.txt', '-k!PARSE !NOT_FOUND'; # $(CC) varies and thus the parsed cmd
+				# and $(FC) may not be found on Windows.
+makepp \'log', '-cipuolog.txt', '-k!PARSE !SCAN* !NOT_FOUND';
+
+makepp \'graph';
+
+# The loaded modules trigger some magic, efficiently creating more variants than the options ask for.
+sub makeppgraph($) {
+  my( $file, @args ) = @{$_[0]};
+  makepp \'graph', '-Mudg_dot', "-o$file.udg", @args;
+}
+makeppgraph $_ for
+  [full => '-l.makepp/log', '-bDir', '&cwd || &makepp'],
+  [suf => '-l.makepp/', '-Dir', '(&cwd || undef $_) && &suf'],
+  [dir => '-l.makepp', '-bDir', '&dir && (&cwd || &makepp)'],
+  [both => '-Mboth_up_down', '-l.', '-bDi', 'c/c.h', 'makepp.mk'];
+
+if( is_windows ) {
+  for( qw(key log) ) {
+    unlink "answers/$_.txt";
+    rename "answers/$_.txt.win", "answers/$_.txt";
+  }
+} else {
+  unlink <answers/*.win>;
+}
+
+1;
+###	24	644	1170452082	1172649962	makefile
+makepp_no_builtin_linker = 1	# The built in rule works differently on Windows,
+				# leading to extra dependencies and log output.
+
+include makepp.mk
+include makepp1.mk
+
+ifeq a 1
+or ifeq a,2
+or ifeq(a,a)
+$(phony all): a
+endif
+
+# force a BECAUSE edge
+c/c.h: c/c.h.in: build_check target_newer
+	&cp -fl $(input) $(output)
+
+a: a.o b/b.o c/c.o
+	$(infer_linker $(inputs)) $(inputs) $(LDLIBS) $(LDFLAGS) $(LIBS) -o $(output)
+    ifperl ::is_windows()
+	&mv a.exe a
+    endif
+
+$(phony clean):
+	&rm -f $(wildcard *.dot *.udg *.txt)
+###	1	644	1170452082	1166207798	makepp.mk
+include makepp1.mk
+###	0	644	1170452082	1166207809	makepp1.mk
+###	76	644	1170452082	1167449090	both_up_down.pm
+sub rewrite_test {
+  package Rewrite;
+  my $pref = FileInfo::absolute_filename $FileInfo::CWD_INFO;
+  my $result = "cwd:\n";
+  for my $arg ( 0, 1, 2, 4 ) {
+    for my $file ( '', qw(/ /a /a/b) ) {
+      local $_ = $pref.$file;
+      cwd $arg or die "failed cwd $arg: $_\n";
+      $result .= " $_";
+
+      $_ = $pref.$file;
+      cwd $arg, ':' or die "failed cwd $arg, ':': $_\n";
+      $result .= " $_";
+
+      $_ = $pref.$file;
+      cwd $arg, ':', '' or die "failed cwd $arg, ':', '': $_\n";
+      $result .= " $_";
+    }
+    $result .= "\n";
+    $pref =~ s!/[^/]+$!!;
+  }
+
+  $result .= "dir:\n";
+  for( qw(/ /bin /usr/bin /usr/bin/id /a/b/c |a| |a|b |a|b/c |a|b/c/d) ) {
+    local $_ = $_;
+    &dir;
+    $result .= "$_\n";
+  }
+
+  $result .= "usr:\n";
+  for( qw(/lib /bin /usr/lib /usr/share /usr/local/include /usr/local/lib /usr/X11/bin /usr/X11R6/lib /nogo /tmp/nogo) ) {
+    for my $file ( '', qw(a a/b a/b/c) ) {
+      local $_ = $file ? "$_/$file" : $_;
+      &usr;
+      $result .= " $_";
+    }
+    $result .= "\n";
+  }
+
+  $result .= "suf:\n";
+  for( qw(f.x a/f.x a/b/f.x a/b/c/f.x
+	  /f.x /a/f.x /a/b/f.x /a/b/c/f.x
+	  ~/f.x ~/a/f.x ~/a/b/f.x ~/a/b/c/f.x
+	  ~a/f.x ~a/b/f.x ~a/b/c/f.x
+	  |a|f.x |a|b/f.x |a|b/c/f.x) ) {
+    $result .= $_;
+    for my $arg (-3, -2, -1, undef, 0, 1, 2, 3) {
+      local $_ = $_;
+      suf $arg;
+      $result .= (defined $arg ? " $arg:" : ' undef:') . $_;
+    }
+    $result .= "\n";
+  }
+
+  open my $fh, '>rewrite.txt';
+  print $fh $result;
+}
+
+$::both_up_down = sub {
+  &rewrite_test;
+  my( $outfile, $up, $down ) = @_;
+  if( !fork ) {
+    if( !fork ) {
+      $$up = 1;
+      push @ARGV, 'b/b.o';
+      $$outfile =~ s/\bboth\b/up/;
+    } else {
+      wait;
+      $$down = 1;
+      $$outfile =~ s/\bboth\b/down/;
+    }
+    open STDOUT, '>', $$outfile or die "can't write `$$outfile'--$!";
+  } else {
+    wait;
+  }
+}
+###	15	644	1170452082	1170694169	udg_dot.pm
+# Fan out into one process per output format.
+$::udg_dot = sub {
+  my( $outfile, $type ) = @_;
+  if( !fork ) {
+    $$type = 'dot';
+    $outfile =~ s/udg$/dot/;
+    open STDOUT, '>', $outfile or die "can't write `$outfile'--$!";
+  } else {
+    wait;
+  }
+};
+
+# Replace makepp dir with abbreviation <m> (instead of std |m|, due to Ebcdic sorting).
+no warnings 'redefine';
+sub Rewrite::makepp() { defined and s!^$::datadir(?:/|$|(?=:))!<m>! }
+###	6	644	1170452082	1166207697	a.c
+#include "a.h"
+#include "b/b.h"
+#include "c/c.h"
+#include "a1.h"
+
+int main() { return 0; }
+###	4	644	1170452082	1166207305	a.h
+#ifndef A_H
+#define A_H
+#include "a1.h"
+#endif
+###	4	644	1170452082	1166207328	a1.h
+#ifndef A1_H
+#define A1_H
+#include "a.h"
+#endif
+###	D	755	1170452082	1170451981	b/
+###	5	644	1170452082	1166207697	b/b.c
+#include "b.h"
+#include "b1.h"
+#include "../a.h"
+
+int b() { return 0; }
+###	4	644	1170452082	1166207305	b/b.h
+#ifndef B_H
+#define B_H
+#include "b1.h"
+#endif
+###	4	644	1170452082	1166207328	b/b1.h
+#ifndef B1_H
+#define B1_H
+#include "b.h"
+#endif
+###	D	755	1170452082	1170451981	c/
+###	6	644	1170452082	1166207697	c/c.c
+#include "c.h"
+#include "c1.h"
+#include "../a.h"
+#include "../b/b.h"
+
+int c() { return 0; }
+###	3	644	1170452082	1166207305	c/c.h.in
+#ifndef C_H
+#define C_H
+#endif
+###	4	644	1170452082	1166207328	c/c1.h
+#ifndef C1_H
+#define C1_H
+#include "c.h"
+#endif
+###	D	755	1170452156	1170451970	answers/
+###	-33	644	1170452082	1170451234	answers/both.dot
+// Generated by makeppgraph
+digraph a {
+rankdir=LR
+node [shape=box style=filled fillcolor=white]
+edge [dir=back]
+a [label="a" style="filled,bold" color=red]
+b [label="a.o" fillcolor="#e8e8e8" style="filled,bold" color=red]
+a -> b
+c [label="c/c.o" fillcolor="#e8e8e8" style="filled,bold" color=red]
+a -> c
+d [label="a.c" fillcolor="#f8a808"]
+e [label="c/c.h" fillcolor="#f8e800"]
+d -> e [style=dotted]
+b -> d
+b -> e
+f [label="all" shape=ellipse]
+f -> a
+g [label="c/c.c" fillcolor="#f8a808"]
+g -> e [style=dotted]
+h [label="c/c1.h" fillcolor="#f8e800"]
+g -> h [style=dotted]
+i [label="c/c.h.in"]
+e -> i [style=bold color=red]
+c -> g
+c -> e
+c -> h
+h -> e [style=dotted]
+j [label="makefile" fillcolor="#0090e0"]
+k [label="makepp.mk" fillcolor="#0090e0"]
+j -> k [style=dotted]
+l [label="makepp1.mk" fillcolor="#0090e0"]
+k -> l [style=dotted]
+}
+###	-41	644	1170452082	1170451234	answers/both.udg
+[
+l("a",n("",[a("OBJECT","makepp.mk"),a("COLOR","#0090e0")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("b",n("",[a("OBJECT","makepp1.mk"),a("COLOR","#0090e0")],[
+]))
+),
+]))
+,l("c",n("",[a("OBJECT","makefile"),a("COLOR","#0090e0")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("a")),
+]))
+,l("d",n("",[a("OBJECT","c/c1.h"),a("COLOR","#f8e800")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("e",n("",[a("OBJECT","c/c.h"),a("COLOR","#f8e800")],[
+e("",[a("EDGEPATTERN","thick"),a("EDGECOLOR","#ff0000"),a("_DIR","first")],l("f",n("",[a("OBJECT","c/c.h.in")],[
+]))
+),
+]))
+),
+]))
+,l("g",n("",[a("OBJECT","c/c.o"),a("COLOR","#e8e8e8"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("d")),
+e("",[a("_DIR","first")],r("e")),
+e("",[a("_DIR","first")],l("h",n("",[a("OBJECT","c/c.c"),a("COLOR","#f8a808")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("d")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("e")),
+]))
+),
+]))
+,l("i",n("",[a("OBJECT","all"),a("_GO","ellipse")],[
+e("",[a("_DIR","first")],l("j",n("",[a("OBJECT","a"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("g")),
+e("",[a("_DIR","first")],l("k",n("",[a("OBJECT","a.o"),a("COLOR","#e8e8e8"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("e")),
+e("",[a("_DIR","first")],l("l",n("",[a("OBJECT","a.c"),a("COLOR","#f8a808")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("e")),
+]))
+),
+]))
+),
+]))
+),
+]))
+,]
+###	-24	644	1170452082	1170691695	answers/dir.dot
+// Generated by makeppgraph
+digraph a {
+rankdir=LR
+node [shape=box style=filled fillcolor=white]
+edge [dir=back]
+a [label="." style="filled,bold" color=red shape=ellipse]
+a -> a
+a -> a [style=dotted]
+b [label="<m>"]
+a -> b [style=dotted]
+c [label="b" style="filled,bold" color=red]
+a -> c [dir=both]
+a -> c [style=dotted dir=both]
+d [label="c" style="filled,bold" color=red]
+a -> d [dir=both]
+a -> d [style=dotted dir=both]
+b -> b [style=dotted]
+c -> c
+c -> c [style=dotted]
+d -> c
+d -> c [style=dotted]
+d -> d [style=bold color=red]
+d -> d [style=dotted]
+}
+###	-24	644	1170452082	1170691692	answers/dir.udg
+[
+l("a",n("",[a("OBJECT","c"),a("BORDER","double")],[
+e("",[a("EDGEPATTERN","thick"),a("EDGECOLOR","#ff0000"),a("_DIR","first")],r("a")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("a")),
+e("",[a("_DIR","first")],l("b",n("",[a("OBJECT","b"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("b")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("b")),
+e("",[a("_DIR","both")],l("c",n("",[a("OBJECT","."),a("BORDER","double"),a("_GO","ellipse")],[
+e("",[a("_DIR","both")],r("a")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","both")],r("a")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","both")],r("b")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("d",n("",[a("OBJECT","<m>")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("d")),
+]))
+),
+e("",[a("_DIR","first")],r("c")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("c")),
+]))
+),
+]))
+),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("b")),
+]))
+,]
+###	-12	644	1170452082	1170451234	answers/down.dot
+// Generated by makeppgraph
+digraph a {
+rankdir=LR
+node [shape=box style=filled fillcolor=white]
+edge [dir=back]
+a [label="c/c.h" fillcolor="#f8e800"]
+b [label="c/c.h.in"]
+a -> b [style=bold color=red]
+c [label="makepp.mk" fillcolor="#0090e0"]
+d [label="makepp1.mk" fillcolor="#0090e0"]
+c -> d [style=dotted]
+}
+###	-12	644	1170452082	1170451234	answers/down.udg
+[
+l("a",n("",[a("OBJECT","makepp.mk"),a("COLOR","#0090e0")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("b",n("",[a("OBJECT","makepp1.mk"),a("COLOR","#0090e0")],[
+]))
+),
+]))
+,l("c",n("",[a("OBJECT","c/c.h"),a("COLOR","#f8e800")],[
+e("",[a("EDGEPATTERN","thick"),a("EDGECOLOR","#ff0000"),a("_DIR","first")],l("d",n("",[a("OBJECT","c/c.h.in")],[
+]))
+),
+]))
+,]
+###	-68	644	1170452082	1170691838	answers/full.dot
+// Generated by makeppgraph
+digraph a {
+rankdir=LR
+node [shape=box style=filled fillcolor=white]
+edge [dir=back]
+a [label="<m>makepp_default_makefile.mk" fillcolor="#0090e0"]
+b [label="<m>makepp_builtin_rules.mk" fillcolor="#0090e0"]
+a -> b [style=dotted]
+c [label="a" style="filled,bold" color=red]
+d [label="a.o" fillcolor="#e8e8e8" style="filled,bold" color=red]
+c -> d
+e [label="b/b.o" fillcolor="#e8e8e8" style="filled,bold" color=red]
+c -> e
+f [label="c/c.o" fillcolor="#e8e8e8" style="filled,bold" color=red]
+c -> f
+g [label="a.c" fillcolor="#f8a808"]
+h [label="a.h" fillcolor="#f8e800"]
+g -> h [style=dotted]
+i [label="a1.h" fillcolor="#f8e800"]
+g -> i [style=dotted]
+j [label="b/b.h" fillcolor="#f8e800"]
+g -> j [style=dotted]
+k [label="c/c.h" fillcolor="#f8e800"]
+g -> k [style=dotted]
+h -> i [style=dotted dir=both]
+d -> g
+d -> h
+d -> i
+d -> j
+l [label="b/b1.h" fillcolor="#f8e800"]
+d -> l
+d -> k
+m [label="all" shape=ellipse]
+m -> c
+n [label="b/b.c" fillcolor="#f8a808"]
+n -> h [style=dotted]
+n -> j [style=dotted]
+n -> l [style=dotted]
+j -> l [style=dotted dir=both]
+e -> h
+e -> i
+e -> n
+e -> j
+e -> l
+o [label="c/c.c" fillcolor="#f8a808"]
+o -> h [style=dotted]
+o -> j [style=dotted]
+o -> k [style=dotted]
+p [label="c/c1.h" fillcolor="#f8e800"]
+o -> p [style=dotted]
+q [label="c/c.h.in"]
+k -> q [style=bold color=red]
+f -> h
+f -> i
+f -> j
+f -> l
+f -> o
+f -> k
+f -> p
+p -> k [style=dotted]
+r [label="makefile" fillcolor="#0090e0"]
+r -> b [style=dotted]
+s [label="makepp.mk" fillcolor="#0090e0"]
+r -> s [style=dotted]
+t [label="makepp1.mk" fillcolor="#0090e0"]
+r -> t [style=dotted]
+s -> t [style=dotted]
+}
+###	-84	644	1170452082	1170691861	answers/full.udg
+[
+l("a",n("",[a("OBJECT","makepp.mk"),a("COLOR","#0090e0")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("b",n("",[a("OBJECT","makepp1.mk"),a("COLOR","#0090e0")],[
+]))
+),
+]))
+,l("c",n("",[a("OBJECT","makefile"),a("COLOR","#0090e0")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("b")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("a")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("d",n("",[a("OBJECT","<m>makepp_builtin_rules.mk"),a("COLOR","#0090e0")],[
+]))
+),
+]))
+,l("e",n("",[a("OBJECT","c/c1.h"),a("COLOR","#f8e800")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("f",n("",[a("OBJECT","c/c.h"),a("COLOR","#f8e800")],[
+e("",[a("EDGEPATTERN","thick"),a("EDGECOLOR","#ff0000"),a("_DIR","first")],l("g",n("",[a("OBJECT","c/c.h.in")],[
+]))
+),
+]))
+),
+]))
+,l("h",n("",[a("OBJECT","c/c.o"),a("COLOR","#e8e8e8"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("e")),
+e("",[a("_DIR","first")],r("f")),
+e("",[a("_DIR","first")],l("i",n("",[a("OBJECT","c/c.c"),a("COLOR","#f8a808")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("e")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("f")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("j",n("",[a("OBJECT","b/b.h"),a("COLOR","#f8e800")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","both")],l("k",n("",[a("OBJECT","b/b1.h"),a("COLOR","#f8e800")],[
+]))
+),
+]))
+),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("l",n("",[a("OBJECT","a.h"),a("COLOR","#f8e800")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","both")],l("m",n("",[a("OBJECT","a1.h"),a("COLOR","#f8e800")],[
+]))
+),
+]))
+),
+]))
+),
+e("",[a("_DIR","first")],r("k")),
+e("",[a("_DIR","first")],r("j")),
+e("",[a("_DIR","first")],r("m")),
+e("",[a("_DIR","first")],r("l")),
+]))
+,l("n",n("",[a("OBJECT","b/b.o"),a("COLOR","#e8e8e8"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("k")),
+e("",[a("_DIR","first")],r("j")),
+e("",[a("_DIR","first")],l("o",n("",[a("OBJECT","b/b.c"),a("COLOR","#f8a808")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("k")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("j")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("l")),
+]))
+),
+e("",[a("_DIR","first")],r("m")),
+e("",[a("_DIR","first")],r("l")),
+]))
+,l("p",n("",[a("OBJECT","all"),a("_GO","ellipse")],[
+e("",[a("_DIR","first")],l("q",n("",[a("OBJECT","a"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("h")),
+e("",[a("_DIR","first")],r("n")),
+e("",[a("_DIR","first")],l("r",n("",[a("OBJECT","a.o"),a("COLOR","#e8e8e8"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("f")),
+e("",[a("_DIR","first")],r("k")),
+e("",[a("_DIR","first")],r("j")),
+e("",[a("_DIR","first")],r("m")),
+e("",[a("_DIR","first")],r("l")),
+e("",[a("_DIR","first")],l("s",n("",[a("OBJECT","a.c"),a("COLOR","#f8a808")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("f")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("j")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("m")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("l")),
+]))
+),
+]))
+),
+]))
+),
+]))
+,l("t",n("",[a("OBJECT","<m>makepp_default_makefile.mk"),a("COLOR","#0090e0")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("d")),
+]))
+,]
+###	140	644	1170449082	1172649322	answers/key.txt
+.../makepp --dont-build=/ --do-build=.
+LOAD Loading makefile `makefile' with default directory `.'
+TRY Trying to build `makefile'
+USE  Using rule `default rule'
+DEPEND  Targets `makefile' depend on 
+UP_TO_DATE `makefile' is up to date
+PREBUILD Pre-building `makepp.mk' from `makefile:4'
+TRY Trying to build `makepp.mk'
+USE  Using rule `default rule'
+DEPEND  Targets `makepp.mk' depend on 
+UP_TO_DATE `makepp.mk' is up to date
+LOAD_INCL Including `makepp.mk' from `makefile:4'
+PREBUILD Pre-building `makepp1.mk' from `makepp.mk:1'
+TRY Trying to build `makepp1.mk'
+USE  Using rule `default rule'
+DEPEND  Targets `makepp1.mk' depend on 
+UP_TO_DATE `makepp1.mk' is up to date
+LOAD_INCL Including `makepp1.mk' from `makepp.mk:1'
+PREBUILD Pre-building `makepp1.mk' from `makefile:5'
+LOAD_INCL Including `makepp1.mk' from `makefile:5'
+IFEQ if(n)eq comparing `a' with `1' at `makefile:7'
+IFEQ if(n)eq comparing `a' with `2' at `makefile:8'
+IFEQ if(n)eq comparing `a' with `a' at `makefile:9'
+IFEQ if(n)eq comparing `1' with `0' at `.../makepp_builtin_rules.mk:61'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+LOAD_INCL Including `.../makepp_builtin_rules.mk' from `makefile'
+LOAD_END Finished loading `makefile'
+TRY Trying to build `all'
+USE  Using rule `default rule'
+DEPEND  Targets `all' depend on `a'
+TRY Trying to build `a'
+USE  Using rule `makefile:17'
+PREBUILD Pre-building `a.o' from `makefile:17'
+TRY Trying to build `a.o'
+USE  Using rule `.../makepp_builtin_rules.mk:98(.)'
+SCAN_INFO  Trying to retrieve scan info for `a.o'
+SCAN_RULE Scanning rule for `a.o' because `info not cached'
+TRY Trying to build `a.c'
+USE  Using rule `default rule'
+DEPEND  Targets `a.c' depend on 
+UP_TO_DATE `a.c' is up to date
+SCAN Scanning `a.c'
+INCL `a.c' includes `a.h'
+TRY Trying to build `a.h'
+USE  Using rule `default rule'
+DEPEND  Targets `a.h' depend on 
+UP_TO_DATE `a.h' is up to date
+INCL `a.c' includes `b/b.h'
+TRY Trying to build `b/b.h'
+LOAD_DEFAULT Loading default makefile for directory `b'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+LOAD_INCL Including `.../makepp_builtin_rules.mk' from `.../makepp_default_makefile.mk'
+LOAD_END Finished loading `.../makepp_default_makefile.mk'
+USE  Using rule `default rule'
+DEPEND  Targets `b/b.h' depend on 
+UP_TO_DATE `b/b.h' is up to date
+INCL `a.c' includes `c/c.h'
+TRY Trying to build `c/c.h'
+LOAD_DEFAULT Loading default makefile for directory `c'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+LOAD_INCL Including `.../makepp_builtin_rules.mk' from `.../makepp_default_makefile.mk'
+LOAD_END Finished loading `.../makepp_default_makefile.mk'
+USE  Using rule `makefile:14'
+SCAN_INFO  Trying to retrieve scan info for `c/c.h'
+SCAN_RULE Scanning rule for `c/c.h' because `info not cached'
+DEPEND  Targets `c/c.h' depend on `c/c.h.in'
+TRY Trying to build `c/c.h.in'
+USE  Using rule `default rule'
+DEPEND  Targets `c/c.h.in' depend on 
+UP_TO_DATE `c/c.h.in' is up to date
+BUILD_OLD Rebuild `c/c.h' because it's older than `c/c.h.in'
+SUCCESS `makefile:14' successfully executed for `c/c.h'
+INCL `a.c' includes `a1.h'
+TRY Trying to build `a1.h'
+USE  Using rule `default rule'
+DEPEND  Targets `a1.h' depend on 
+UP_TO_DATE `a1.h' is up to date
+SCAN Scanning `a.h'
+INCL `a.h' includes `a1.h'
+SCAN Scanning `b/b.h'
+INCL `b/b.h' includes `b/b1.h'
+TRY Trying to build `b/b1.h'
+USE  Using rule `default rule'
+DEPEND  Targets `b/b1.h' depend on 
+UP_TO_DATE `b/b1.h' is up to date
+SCAN Scanning `c/c.h'
+SCAN Scanning `a1.h'
+INCL `a1.h' includes `a.h'
+SCAN Scanning `b/b1.h'
+INCL `b/b1.h' includes `b/b.h'
+DEPEND  Targets `a.o' depend on `a.c', `a.h', `a1.h', `b/b.h', `b/b1.h', `c/c.h'
+BUILD_NONE Build `a.o' because it doesn't exist
+REMOVE Removing target `a.o' before running its rule
+SUCCESS `.../makepp_builtin_rules.mk:98(.)' successfully executed for `a.o'
+PREBUILD Pre-building `b/b.o' from `makefile:17'
+TRY Trying to build `b/b.o'
+USE  Using rule `.../makepp_builtin_rules.mk:98(b)'
+SCAN_INFO  Trying to retrieve scan info for `b/b.o'
+SCAN_RULE Scanning rule for `b/b.o' because `info not cached'
+TRY Trying to build `b/b.c'
+USE  Using rule `default rule'
+DEPEND  Targets `b/b.c' depend on 
+UP_TO_DATE `b/b.c' is up to date
+SCAN Scanning `b/b.c'
+INCL `b/b.c' includes `b/b.h', `b/b1.h', `a.h'
+DEPEND  Targets `b/b.o' depend on `a.h', `a1.h', `b/b.c', `b/b.h', `b/b1.h'
+BUILD_NONE Build `b/b.o' because it doesn't exist
+REMOVE Removing target `b/b.o' before running its rule
+SUCCESS `.../makepp_builtin_rules.mk:98(b)' successfully executed for `b/b.o'
+PREBUILD Pre-building `c/c.o' from `makefile:17'
+TRY Trying to build `c/c.o'
+USE  Using rule `.../makepp_builtin_rules.mk:98(c)'
+SCAN_INFO  Trying to retrieve scan info for `c/c.o'
+SCAN_RULE Scanning rule for `c/c.o' because `info not cached'
+TRY Trying to build `c/c.c'
+USE  Using rule `default rule'
+DEPEND  Targets `c/c.c' depend on 
+UP_TO_DATE `c/c.c' is up to date
+SCAN Scanning `c/c.c'
+INCL `c/c.c' includes `c/c.h', `c/c1.h'
+TRY Trying to build `c/c1.h'
+USE  Using rule `default rule'
+DEPEND  Targets `c/c1.h' depend on 
+UP_TO_DATE `c/c1.h' is up to date
+INCL `c/c.c' includes `a.h', `b/b.h'
+SCAN Scanning `c/c1.h'
+INCL `c/c1.h' includes `c/c.h'
+DEPEND  Targets `c/c.o' depend on `a.h', `a1.h', `b/b.h', `b/b1.h', `c/c.c', `c/c.h', `c/c1.h'
+BUILD_NONE Build `c/c.o' because it doesn't exist
+REMOVE Removing target `c/c.o' before running its rule
+SUCCESS `.../makepp_builtin_rules.mk:98(c)' successfully executed for `c/c.o'
+SCAN_INFO  Trying to retrieve scan info for `a'
+SCAN_RULE Scanning rule for `a' because `info not cached'
+DEPEND  Targets `a' depend on `a.o', `b/b.o', `c/c.o'
+BUILD_NONE Build `a' because it doesn't exist
+REMOVE Removing target `a' before running its rule
+SUCCESS `makefile:17' successfully executed for `a'
+BUILD_PHONY Rebuild `all' because it is a phony target
+SUCCESS `default rule' successfully executed for `all'
+N_FILES 5 files updated and 0 targets failed
+###	147	644	1170449082	1172688488	answers/key.txt.win
+.../makepp --dont-build=/ --do-build=.
+LOAD Loading makefile `makefile' with default directory `.'
+TRY Trying to build `makefile'
+USE  Using rule `default rule'
+DEPEND  Targets `makefile' depend on 
+UP_TO_DATE `makefile' is up to date
+PREBUILD Pre-building `makepp.mk' from `makefile:4'
+TRY Trying to build `makepp.mk'
+USE  Using rule `default rule'
+DEPEND  Targets `makepp.mk' depend on 
+UP_TO_DATE `makepp.mk' is up to date
+LOAD_INCL Including `makepp.mk' from `makefile:4'
+PREBUILD Pre-building `makepp1.mk' from `makepp.mk:1'
+TRY Trying to build `makepp1.mk'
+USE  Using rule `default rule'
+DEPEND  Targets `makepp1.mk' depend on 
+UP_TO_DATE `makepp1.mk' is up to date
+LOAD_INCL Including `makepp1.mk' from `makepp.mk:1'
+PREBUILD Pre-building `makepp1.mk' from `makefile:5'
+LOAD_INCL Including `makepp1.mk' from `makefile:5'
+IFEQ if(n)eq comparing `a' with `1' at `makefile:7'
+IFEQ if(n)eq comparing `a' with `2' at `makefile:8'
+IFEQ if(n)eq comparing `a' with `a' at `makefile:9'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:36'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:37'
+IFEQ if(n)eq comparing `1' with `0' at `.../makepp_builtin_rules.mk:42'
+IFEQ if(n)eq comparing `1' with `0' at `.../makepp_builtin_rules.mk:61'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+LOAD_INCL Including `.../makepp_builtin_rules.mk' from `makefile'
+LOAD_END Finished loading `makefile'
+TRY Trying to build `all'
+USE  Using rule `default rule'
+DEPEND  Targets `all' depend on `a'
+TRY Trying to build `a'
+USE  Using rule `makefile:17'
+PREBUILD Pre-building `a.o' from `makefile:17'
+TRY Trying to build `a.o'
+USE  Using rule `.../makepp_builtin_rules.mk:98(.)'
+SCAN_INFO  Trying to retrieve scan info for `a.o'
+SCAN_RULE Scanning rule for `a.o' because `info not cached'
+TRY Trying to build `a.c'
+USE  Using rule `default rule'
+DEPEND  Targets `a.c' depend on 
+UP_TO_DATE `a.c' is up to date
+SCAN Scanning `a.c'
+INCL `a.c' includes `a.h'
+TRY Trying to build `a.h'
+USE  Using rule `default rule'
+DEPEND  Targets `a.h' depend on 
+UP_TO_DATE `a.h' is up to date
+INCL `a.c' includes `b/b.h'
+TRY Trying to build `b/b.h'
+LOAD_DEFAULT Loading default makefile for directory `b'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:36'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:37'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+LOAD_INCL Including `.../makepp_builtin_rules.mk' from `.../makepp_default_makefile.mk'
+LOAD_END Finished loading `.../makepp_default_makefile.mk'
+USE  Using rule `default rule'
+DEPEND  Targets `b/b.h' depend on 
+UP_TO_DATE `b/b.h' is up to date
+INCL `a.c' includes `c/c.h'
+TRY Trying to build `c/c.h'
+LOAD_DEFAULT Loading default makefile for directory `c'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:36'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:37'
+IFEQ if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+LOAD_INCL Including `.../makepp_builtin_rules.mk' from `.../makepp_default_makefile.mk'
+LOAD_END Finished loading `.../makepp_default_makefile.mk'
+USE  Using rule `makefile:14'
+SCAN_INFO  Trying to retrieve scan info for `c/c.h'
+SCAN_RULE Scanning rule for `c/c.h' because `info not cached'
+DEPEND  Targets `c/c.h' depend on `c/c.h.in'
+TRY Trying to build `c/c.h.in'
+USE  Using rule `default rule'
+DEPEND  Targets `c/c.h.in' depend on 
+UP_TO_DATE `c/c.h.in' is up to date
+BUILD_OLD Rebuild `c/c.h' because it's older than `c/c.h.in'
+SUCCESS `makefile:14' successfully executed for `c/c.h'
+INCL `a.c' includes `a1.h'
+TRY Trying to build `a1.h'
+USE  Using rule `default rule'
+DEPEND  Targets `a1.h' depend on 
+UP_TO_DATE `a1.h' is up to date
+SCAN Scanning `a.h'
+INCL `a.h' includes `a1.h'
+SCAN Scanning `b/b.h'
+INCL `b/b.h' includes `b/b1.h'
+TRY Trying to build `b/b1.h'
+USE  Using rule `default rule'
+DEPEND  Targets `b/b1.h' depend on 
+UP_TO_DATE `b/b1.h' is up to date
+SCAN Scanning `c/c.h'
+SCAN Scanning `a1.h'
+INCL `a1.h' includes `a.h'
+SCAN Scanning `b/b1.h'
+INCL `b/b1.h' includes `b/b.h'
+DEPEND  Targets `a.o' depend on `a.c', `a.h', `a1.h', `b/b.h', `b/b1.h', `c/c.h'
+BUILD_NONE Build `a.o' because it doesn't exist
+REMOVE Removing target `a.o' before running its rule
+SUCCESS `.../makepp_builtin_rules.mk:98(.)' successfully executed for `a.o'
+PREBUILD Pre-building `b/b.o' from `makefile:17'
+TRY Trying to build `b/b.o'
+USE  Using rule `.../makepp_builtin_rules.mk:98(b)'
+SCAN_INFO  Trying to retrieve scan info for `b/b.o'
+SCAN_RULE Scanning rule for `b/b.o' because `info not cached'
+TRY Trying to build `b/b.c'
+USE  Using rule `default rule'
+DEPEND  Targets `b/b.c' depend on 
+UP_TO_DATE `b/b.c' is up to date
+SCAN Scanning `b/b.c'
+INCL `b/b.c' includes `b/b.h', `b/b1.h', `a.h'
+DEPEND  Targets `b/b.o' depend on `a.h', `a1.h', `b/b.c', `b/b.h', `b/b1.h'
+BUILD_NONE Build `b/b.o' because it doesn't exist
+REMOVE Removing target `b/b.o' before running its rule
+SUCCESS `.../makepp_builtin_rules.mk:98(b)' successfully executed for `b/b.o'
+PREBUILD Pre-building `c/c.o' from `makefile:17'
+TRY Trying to build `c/c.o'
+USE  Using rule `.../makepp_builtin_rules.mk:98(c)'
+SCAN_INFO  Trying to retrieve scan info for `c/c.o'
+SCAN_RULE Scanning rule for `c/c.o' because `info not cached'
+TRY Trying to build `c/c.c'
+USE  Using rule `default rule'
+DEPEND  Targets `c/c.c' depend on 
+UP_TO_DATE `c/c.c' is up to date
+SCAN Scanning `c/c.c'
+INCL `c/c.c' includes `c/c.h', `c/c1.h'
+TRY Trying to build `c/c1.h'
+USE  Using rule `default rule'
+DEPEND  Targets `c/c1.h' depend on 
+UP_TO_DATE `c/c1.h' is up to date
+INCL `c/c.c' includes `a.h', `b/b.h'
+SCAN Scanning `c/c1.h'
+INCL `c/c1.h' includes `c/c.h'
+DEPEND  Targets `c/c.o' depend on `a.h', `a1.h', `b/b.h', `b/b1.h', `c/c.c', `c/c.h', `c/c1.h'
+BUILD_NONE Build `c/c.o' because it doesn't exist
+REMOVE Removing target `c/c.o' before running its rule
+SUCCESS `.../makepp_builtin_rules.mk:98(c)' successfully executed for `c/c.o'
+SCAN_INFO  Trying to retrieve scan info for `a'
+SCAN_RULE Scanning rule for `a' because `info not cached'
+DEPEND  Targets `a' depend on `a.o', `b/b.o', `c/c.o'
+BUILD_NONE Build `a' because it doesn't exist
+REMOVE Removing target `a' before running its rule
+SUCCESS `makefile:17' successfully executed for `a'
+BUILD_PHONY Rebuild `all' because it is a phony target
+SUCCESS `default rule' successfully executed for `all'
+N_FILES 5 files updated and 0 targets failed
+###	121	644	1170452082	1172649302	answers/log.txt
+.../makepp --dont-build=/ --do-build=.
+makepplog: Loading makefile `makefile' with default directory `.'
+makepplog: Trying to build `makefile'
+makepplog:  Using rule `default rule'
+makepplog:  Targets `makefile' depend on 
+makepplog: `makefile' is up to date
+makepplog: Pre-building `makepp.mk' from `makefile:4'
+makepplog: Trying to build `makepp.mk'
+makepplog:  Using rule `default rule'
+makepplog:  Targets `makepp.mk' depend on 
+makepplog: `makepp.mk' is up to date
+makepplog: Including `makepp.mk' from `makefile:4'
+makepplog: Pre-building `makepp1.mk' from `makepp.mk:1'
+makepplog: Trying to build `makepp1.mk'
+makepplog:  Using rule `default rule'
+makepplog:  Targets `makepp1.mk' depend on 
+makepplog: `makepp1.mk' is up to date
+makepplog: Including `makepp1.mk' from `makepp.mk:1'
+makepplog: Pre-building `makepp1.mk' from `makefile:5'
+makepplog: Including `makepp1.mk' from `makefile:5'
+makepplog: if(n)eq comparing `a' with `1' at `makefile:7'
+makepplog: if(n)eq comparing `a' with `2' at `makefile:8'
+makepplog: if(n)eq comparing `a' with `a' at `makefile:9'
+makepplog: if(n)eq comparing `1' with `0' at `.../makepp_builtin_rules.mk:61'
+makepplog: if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+makepplog: Including `.../makepp_builtin_rules.mk' from `makefile'
+makepplog: Finished loading `makefile'
+makepplog: Trying to build `all'
+makepplog:  Using rule `default rule'
+makepplog:  Targets `all' depend on `a'
+makepplog:   Trying to build `a'
+makepplog:    Using rule `makefile:17'
+makepplog:   Pre-building `a.o' from `makefile:17'
+makepplog:   Trying to build `a.o'
+makepplog:    Using rule `.../makepp_builtin_rules.mk:98(.)'
+makepplog:   Trying to build `a.c'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `a.c' depend on 
+makepplog:   `a.c' is up to date
+makepplog:   `a.c' includes `a.h'
+makepplog:   Trying to build `a.h'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `a.h' depend on 
+makepplog:   `a.h' is up to date
+makepplog:   `a.c' includes `b/b.h'
+makepplog:   Trying to build `b/b.h'
+makepplog:   Loading default makefile for directory `b'
+makepplog:   if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+makepplog:   Including `.../makepp_builtin_rules.mk' from `.../makepp_default_makefile.mk'
+makepplog:   Finished loading `.../makepp_default_makefile.mk'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `b/b.h' depend on 
+makepplog:   `b/b.h' is up to date
+makepplog:   `a.c' includes `c/c.h'
+makepplog:   Trying to build `c/c.h'
+makepplog:   Loading default makefile for directory `c'
+makepplog:   if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+makepplog:   Including `.../makepp_builtin_rules.mk' from `.../makepp_default_makefile.mk'
+makepplog:   Finished loading `.../makepp_default_makefile.mk'
+makepplog:    Using rule `makefile:14'
+makepplog:    Targets `c/c.h' depend on `c/c.h.in'
+makepplog:     Trying to build `c/c.h.in'
+makepplog:      Using rule `default rule'
+makepplog:      Targets `c/c.h.in' depend on 
+makepplog:     `c/c.h.in' is up to date
+makepplog:   Rebuild `c/c.h' because it's older than `c/c.h.in'
+makepplog:   `makefile:14' successfully executed for `c/c.h'
+makepplog:   `a.c' includes `a1.h'
+makepplog:   Trying to build `a1.h'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `a1.h' depend on 
+makepplog:   `a1.h' is up to date
+makepplog:   `a.h' includes `a1.h'
+makepplog:   `b/b.h' includes `b/b1.h'
+makepplog:   Trying to build `b/b1.h'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `b/b1.h' depend on 
+makepplog:   `b/b1.h' is up to date
+makepplog:   `a1.h' includes `a.h'
+makepplog:   `b/b1.h' includes `b/b.h'
+makepplog:    Targets `a.o' depend on `a.c', `a.h', `a1.h', `b/b.h', `b/b1.h', `c/c.h'
+makepplog:   Build `a.o' because it doesn't exist
+makepplog:   Removing target `a.o' before running its rule
+makepplog:   `.../makepp_builtin_rules.mk:98(.)' successfully executed for `a.o'
+makepplog:   Pre-building `b/b.o' from `makefile:17'
+makepplog:   Trying to build `b/b.o'
+makepplog:    Using rule `.../makepp_builtin_rules.mk:98(b)'
+makepplog:   Trying to build `b/b.c'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `b/b.c' depend on 
+makepplog:   `b/b.c' is up to date
+makepplog:   `b/b.c' includes `b/b.h', `b/b1.h', `a.h'
+makepplog:    Targets `b/b.o' depend on `a.h', `a1.h', `b/b.c', `b/b.h', `b/b1.h'
+makepplog:   Build `b/b.o' because it doesn't exist
+makepplog:   Removing target `b/b.o' before running its rule
+makepplog:   `.../makepp_builtin_rules.mk:98(b)' successfully executed for `b/b.o'
+makepplog:   Pre-building `c/c.o' from `makefile:17'
+makepplog:   Trying to build `c/c.o'
+makepplog:    Using rule `.../makepp_builtin_rules.mk:98(c)'
+makepplog:   Trying to build `c/c.c'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `c/c.c' depend on 
+makepplog:   `c/c.c' is up to date
+makepplog:   `c/c.c' includes `c/c.h', `c/c1.h'
+makepplog:   Trying to build `c/c1.h'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `c/c1.h' depend on 
+makepplog:   `c/c1.h' is up to date
+makepplog:   `c/c.c' includes `a.h', `b/b.h'
+makepplog:   `c/c1.h' includes `c/c.h'
+makepplog:    Targets `c/c.o' depend on `a.h', `a1.h', `b/b.h', `b/b1.h', `c/c.c', `c/c.h', `c/c1.h'
+makepplog:   Build `c/c.o' because it doesn't exist
+makepplog:   Removing target `c/c.o' before running its rule
+makepplog:   `.../makepp_builtin_rules.mk:98(c)' successfully executed for `c/c.o'
+makepplog:    Targets `a' depend on `a.o', `b/b.o', `c/c.o'
+makepplog:   Build `a' because it doesn't exist
+makepplog:   Removing target `a' before running its rule
+makepplog:   `makefile:17' successfully executed for `a'
+makepplog: Rebuild `all' because it is a phony target
+makepplog: `default rule' successfully executed for `all'
+makepplog: 5 files updated and 0 targets failed
+###	128	644	1170452082	1172688552	answers/log.txt.win
+.../makepp --dont-build=/ --do-build=.
+makepplog: Loading makefile `makefile' with default directory `.'
+makepplog: Trying to build `makefile'
+makepplog:  Using rule `default rule'
+makepplog:  Targets `makefile' depend on 
+makepplog: `makefile' is up to date
+makepplog: Pre-building `makepp.mk' from `makefile:4'
+makepplog: Trying to build `makepp.mk'
+makepplog:  Using rule `default rule'
+makepplog:  Targets `makepp.mk' depend on 
+makepplog: `makepp.mk' is up to date
+makepplog: Including `makepp.mk' from `makefile:4'
+makepplog: Pre-building `makepp1.mk' from `makepp.mk:1'
+makepplog: Trying to build `makepp1.mk'
+makepplog:  Using rule `default rule'
+makepplog:  Targets `makepp1.mk' depend on 
+makepplog: `makepp1.mk' is up to date
+makepplog: Including `makepp1.mk' from `makepp.mk:1'
+makepplog: Pre-building `makepp1.mk' from `makefile:5'
+makepplog: Including `makepp1.mk' from `makefile:5'
+makepplog: if(n)eq comparing `a' with `1' at `makefile:7'
+makepplog: if(n)eq comparing `a' with `2' at `makefile:8'
+makepplog: if(n)eq comparing `a' with `a' at `makefile:9'
+makepplog: if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:36'
+makepplog: if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:37'
+makepplog: if(n)eq comparing `1' with `0' at `.../makepp_builtin_rules.mk:42'
+makepplog: if(n)eq comparing `1' with `0' at `.../makepp_builtin_rules.mk:61'
+makepplog: if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+makepplog: Including `.../makepp_builtin_rules.mk' from `makefile'
+makepplog: Finished loading `makefile'
+makepplog: Trying to build `all'
+makepplog:  Using rule `default rule'
+makepplog:  Targets `all' depend on `a'
+makepplog:   Trying to build `a'
+makepplog:    Using rule `makefile:17'
+makepplog:   Pre-building `a.o' from `makefile:17'
+makepplog:   Trying to build `a.o'
+makepplog:    Using rule `.../makepp_builtin_rules.mk:98(.)'
+makepplog:   Trying to build `a.c'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `a.c' depend on 
+makepplog:   `a.c' is up to date
+makepplog:   `a.c' includes `a.h'
+makepplog:   Trying to build `a.h'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `a.h' depend on 
+makepplog:   `a.h' is up to date
+makepplog:   `a.c' includes `b/b.h'
+makepplog:   Trying to build `b/b.h'
+makepplog:   Loading default makefile for directory `b'
+makepplog:   if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:36'
+makepplog:   if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:37'
+makepplog:   if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+makepplog:   Including `.../makepp_builtin_rules.mk' from `.../makepp_default_makefile.mk'
+makepplog:   Finished loading `.../makepp_default_makefile.mk'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `b/b.h' depend on 
+makepplog:   `b/b.h' is up to date
+makepplog:   `a.c' includes `c/c.h'
+makepplog:   Trying to build `c/c.h'
+makepplog:   Loading default makefile for directory `c'
+makepplog:   if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:36'
+makepplog:   if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:37'
+makepplog:   if(n)eq comparing  with  at `.../makepp_builtin_rules.mk:87'
+makepplog:   Including `.../makepp_builtin_rules.mk' from `.../makepp_default_makefile.mk'
+makepplog:   Finished loading `.../makepp_default_makefile.mk'
+makepplog:    Using rule `makefile:14'
+makepplog:    Targets `c/c.h' depend on `c/c.h.in'
+makepplog:     Trying to build `c/c.h.in'
+makepplog:      Using rule `default rule'
+makepplog:      Targets `c/c.h.in' depend on 
+makepplog:     `c/c.h.in' is up to date
+makepplog:   Rebuild `c/c.h' because it's older than `c/c.h.in'
+makepplog:   `makefile:14' successfully executed for `c/c.h'
+makepplog:   `a.c' includes `a1.h'
+makepplog:   Trying to build `a1.h'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `a1.h' depend on 
+makepplog:   `a1.h' is up to date
+makepplog:   `a.h' includes `a1.h'
+makepplog:   `b/b.h' includes `b/b1.h'
+makepplog:   Trying to build `b/b1.h'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `b/b1.h' depend on 
+makepplog:   `b/b1.h' is up to date
+makepplog:   `a1.h' includes `a.h'
+makepplog:   `b/b1.h' includes `b/b.h'
+makepplog:    Targets `a.o' depend on `a.c', `a.h', `a1.h', `b/b.h', `b/b1.h', `c/c.h'
+makepplog:   Build `a.o' because it doesn't exist
+makepplog:   Removing target `a.o' before running its rule
+makepplog:   `.../makepp_builtin_rules.mk:98(.)' successfully executed for `a.o'
+makepplog:   Pre-building `b/b.o' from `makefile:17'
+makepplog:   Trying to build `b/b.o'
+makepplog:    Using rule `.../makepp_builtin_rules.mk:98(b)'
+makepplog:   Trying to build `b/b.c'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `b/b.c' depend on 
+makepplog:   `b/b.c' is up to date
+makepplog:   `b/b.c' includes `b/b.h', `b/b1.h', `a.h'
+makepplog:    Targets `b/b.o' depend on `a.h', `a1.h', `b/b.c', `b/b.h', `b/b1.h'
+makepplog:   Build `b/b.o' because it doesn't exist
+makepplog:   Removing target `b/b.o' before running its rule
+makepplog:   `.../makepp_builtin_rules.mk:98(b)' successfully executed for `b/b.o'
+makepplog:   Pre-building `c/c.o' from `makefile:17'
+makepplog:   Trying to build `c/c.o'
+makepplog:    Using rule `.../makepp_builtin_rules.mk:98(c)'
+makepplog:   Trying to build `c/c.c'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `c/c.c' depend on 
+makepplog:   `c/c.c' is up to date
+makepplog:   `c/c.c' includes `c/c.h', `c/c1.h'
+makepplog:   Trying to build `c/c1.h'
+makepplog:    Using rule `default rule'
+makepplog:    Targets `c/c1.h' depend on 
+makepplog:   `c/c1.h' is up to date
+makepplog:   `c/c.c' includes `a.h', `b/b.h'
+makepplog:   `c/c1.h' includes `c/c.h'
+makepplog:    Targets `c/c.o' depend on `a.h', `a1.h', `b/b.h', `b/b1.h', `c/c.c', `c/c.h', `c/c1.h'
+makepplog:   Build `c/c.o' because it doesn't exist
+makepplog:   Removing target `c/c.o' before running its rule
+makepplog:   `.../makepp_builtin_rules.mk:98(c)' successfully executed for `c/c.o'
+makepplog:    Targets `a' depend on `a.o', `b/b.o', `c/c.o'
+makepplog:   Build `a' because it doesn't exist
+makepplog:   Removing target `a' before running its rule
+makepplog:   `makefile:17' successfully executed for `a'
+makepplog: Rebuild `all' because it is a phony target
+makepplog: `default rule' successfully executed for `all'
+makepplog: 5 files updated and 0 targets failed
+###	-55	644	1170452082	1170451234	answers/log.udg
+[
+l("a",n("",[a("OBJECT","c/c.o"),a("COLOR","#e8e8e8")],[
+e("",[a("_DIR","first")],l("b",n("",[a("OBJECT","c/c1.h"),a("COLOR","#f8e800")],[
+]))
+),
+e("",[a("_DIR","first")],l("c",n("",[a("OBJECT","c/c.h"),a("COLOR","#f8e800")],[
+e("",[a("_DIR","first")],l("d",n("",[a("OBJECT","c/c.h.in")],[
+]))
+),
+]))
+),
+e("",[a("_DIR","first")],l("e",n("",[a("OBJECT","c/c.c"),a("COLOR","#f8a808")],[
+]))
+),
+e("",[a("_DIR","first")],l("f",n("",[a("OBJECT","b/b1.h"),a("COLOR","#f8e800")],[
+]))
+),
+e("",[a("_DIR","first")],l("g",n("",[a("OBJECT","b/b.h"),a("COLOR","#f8e800")],[
+]))
+),
+e("",[a("_DIR","first")],l("h",n("",[a("OBJECT","a1.h"),a("COLOR","#f8e800")],[
+]))
+),
+e("",[a("_DIR","first")],l("i",n("",[a("OBJECT","a.h"),a("COLOR","#f8e800")],[
+]))
+),
+]))
+,l("j",n("",[a("OBJECT","b/b.o"),a("COLOR","#e8e8e8")],[
+e("",[a("_DIR","first")],r("f")),
+e("",[a("_DIR","first")],r("g")),
+e("",[a("_DIR","first")],l("k",n("",[a("OBJECT","b/b.c"),a("COLOR","#f8a808")],[
+]))
+),
+e("",[a("_DIR","first")],r("h")),
+e("",[a("_DIR","first")],r("i")),
+]))
+,l("l",n("",[a("OBJECT","all"),a("_GO","ellipse")],[
+e("",[a("_DIR","first")],l("m",n("",[a("OBJECT","a")],[
+e("",[a("_DIR","first")],r("a")),
+e("",[a("_DIR","first")],r("j")),
+e("",[a("_DIR","first")],l("n",n("",[a("OBJECT","a.o"),a("COLOR","#e8e8e8")],[
+e("",[a("_DIR","first")],r("c")),
+e("",[a("_DIR","first")],r("f")),
+e("",[a("_DIR","first")],r("g")),
+e("",[a("_DIR","first")],r("h")),
+e("",[a("_DIR","first")],r("i")),
+e("",[a("_DIR","first")],l("o",n("",[a("OBJECT","a.c"),a("COLOR","#f8a808")],[
+]))
+),
+]))
+),
+]))
+),
+]))
+,]
+###	1	644	1170452082	1166207328	answers/n_files
+5 0
+###	45	644	1170452082	1167449127	answers/rewrite.txt
+cwd:
+ . . . . . . a a a a/b a/b a/b
+ .. : : .. : : ../a :/a :a ../a/b :/a/b :a/b
+ ../.. :/: :: ../.. :/: :: ../../a :/:/a ::a ../../a/b :/:/a/b ::a/b
+ ../../.. :/:/: ::: ../../.. :/:/: ::: ../../../a :/:/:/a :::a ../../../a/b :/:/:/a/b :::a/b
+dir:
+/
+/bin
+/usr/bin
+/usr/bin
+/a/b
+|a|
+|a|
+|a|b
+|a|b/c
+usr:
+ |l| |l|a |l|a/b |l|a/b/c
+ |b| |b|a |b|a/b |b|a/b/c
+ |ul| |ul|a |ul|a/b |ul|a/b/c
+ |us| |us|a |us|a/b |us|a/b/c
+ |uli| |uli|a |uli|a/b |uli|a/b/c
+ |ull| |ull|a |ull|a/b |ull|a/b/c
+ |uXb| |uXb|a |uXb|a/b |uXb|a/b/c
+ |uXl| |uXl|a |uXl|a/b |uXl|a/b/c
+ /nogo /nogo/a /nogo/a/b /nogo/a/b/c
+ /tmp/nogo /tmp/nogo/a /tmp/nogo/a/b /tmp/nogo/a/b/c
+suf:
+f.x -3:*.x -2:*.x -1:*.x undef:*.x 0:*.x 1:*.x 2:*.x 3:*.x
+a/f.x -3:*.x -2:*.x -1:*.x undef:*.x 0:*.x 1:a/*.x 2:a/*.x 3:a/*.x
+a/b/f.x -3:*.x -2:*.x -1:a/*.x undef:*.x 0:*.x 1:a/*.x 2:a/b/*.x 3:a/b/*.x
+a/b/c/f.x -3:*.x -2:a/*.x -1:a/b/*.x undef:*.x 0:*.x 1:a/*.x 2:a/b/*.x 3:a/b/c/*.x
+/f.x -3:*.x -2:*.x -1:*.x undef:*.x 0:/*.x 1:/*.x 2:/*.x 3:/*.x
+/a/f.x -3:*.x -2:*.x -1:*.x undef:*.x 0:/*.x 1:/a/*.x 2:/a/*.x 3:/a/*.x
+/a/b/f.x -3:*.x -2:*.x -1:/a/*.x undef:*.x 0:/*.x 1:/a/*.x 2:/a/b/*.x 3:/a/b/*.x
+/a/b/c/f.x -3:*.x -2:/a/*.x -1:/a/b/*.x undef:*.x 0:/*.x 1:/a/*.x 2:/a/b/*.x 3:/a/b/c/*.x
+~/f.x -3:*.x -2:*.x -1:*.x undef:*.x 0:~*.x 1:~/*.x 2:~/*.x 3:~/*.x
+~/a/f.x -3:*.x -2:*.x -1:~/*.x undef:*.x 0:~*.x 1:~/*.x 2:~/a/*.x 3:~/a/*.x
+~/a/b/f.x -3:*.x -2:~/*.x -1:~/a/*.x undef:*.x 0:~*.x 1:~/*.x 2:~/a/*.x 3:~/a/b/*.x
+~/a/b/c/f.x -3:~/*.x -2:~/a/*.x -1:~/a/b/*.x undef:*.x 0:~*.x 1:~/*.x 2:~/a/*.x 3:~/a/b/*.x
+~a/f.x -3:*.x -2:*.x -1:*.x undef:*.x 0:~*.x 1:~a/*.x 2:~a/*.x 3:~a/*.x
+~a/b/f.x -3:*.x -2:*.x -1:~a/*.x undef:*.x 0:~*.x 1:~a/*.x 2:~a/b/*.x 3:~a/b/*.x
+~a/b/c/f.x -3:*.x -2:~a/*.x -1:~a/b/*.x undef:*.x 0:~*.x 1:~a/*.x 2:~a/b/*.x 3:~a/b/c/*.x
+|a|f.x -3:*.x -2:*.x -1:*.x undef:*.x 0:|*.x 1:|a|*.x 2:|a|*.x 3:|a|*.x
+|a|b/f.x -3:*.x -2:*.x -1:|a|*.x undef:*.x 0:|*.x 1:|a|*.x 2:|a|b/*.x 3:|a|b/*.x
+|a|b/c/f.x -3:*.x -2:|a|*.x -1:|a|b/*.x undef:*.x 0:|*.x 1:|a|*.x 2:|a|b/*.x 3:|a|b/c/*.x
+###	-23	644	1170452082	1170451234	answers/suf.dot
+// Generated by makeppgraph
+digraph a {
+rankdir=LR
+node [shape=box style=filled fillcolor=white]
+edge [dir=back]
+a [label="*.c" fillcolor="#f8a808"]
+b [label="*.h" fillcolor="#f8e800"]
+a -> b [style=dotted]
+b -> b [style=dotted]
+c [label="*.in"]
+b -> c
+d [label="*.mk" fillcolor="#0090e0"]
+d -> d [style=dotted]
+e [label="*.o" fillcolor="#e8e8e8"]
+e -> a
+e -> b
+f [label="a"]
+f -> e
+g [label="all" shape=ellipse]
+g -> f
+h [label="makefile" fillcolor="#0090e0"]
+h -> d [style=dotted]
+}
+###	-27	644	1170452082	1170451234	answers/suf.udg
+[
+l("a",n("",[a("OBJECT","makefile"),a("COLOR","#0090e0")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("b",n("",[a("OBJECT","*.mk"),a("COLOR","#0090e0")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("b")),
+]))
+),
+]))
+,l("c",n("",[a("OBJECT","all"),a("_GO","ellipse")],[
+e("",[a("_DIR","first")],l("d",n("",[a("OBJECT","a")],[
+e("",[a("_DIR","first")],l("e",n("",[a("OBJECT","*.o"),a("COLOR","#e8e8e8")],[
+e("",[a("_DIR","first")],l("f",n("",[a("OBJECT","*.h"),a("COLOR","#f8e800")],[
+e("",[a("_DIR","first")],l("g",n("",[a("OBJECT","*.in")],[
+]))
+),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("f")),
+]))
+),
+e("",[a("_DIR","first")],l("h",n("",[a("OBJECT","*.c"),a("COLOR","#f8a808")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("f")),
+]))
+),
+]))
+),
+]))
+),
+]))
+,]
+###	-31	644	1170452082	1170451234	answers/up.dot
+// Generated by makeppgraph
+digraph a {
+rankdir=LR
+node [shape=box style=filled fillcolor=white]
+edge [dir=back]
+a [label="a" style="filled,bold" color=red]
+b [label="a.o" fillcolor="#e8e8e8" style="filled,bold" color=red]
+a -> b
+c [label="b/b.o" fillcolor="#e8e8e8" style="filled,bold" color=red]
+a -> c
+d [label="c/c.o" fillcolor="#e8e8e8" style="filled,bold" color=red]
+a -> d
+e [label="a.c" fillcolor="#f8a808"]
+f [label="c/c.h" fillcolor="#f8e800" style="filled,bold" color=red]
+e -> f [style=dotted]
+b -> e
+b -> f
+g [label="all" shape=ellipse]
+g -> a
+h [label="c/c.c" fillcolor="#f8a808"]
+h -> f [style=dotted]
+i [label="c/c1.h" fillcolor="#f8e800"]
+h -> i [style=dotted]
+d -> h
+d -> f
+d -> i
+i -> f [style=dotted]
+j [label="makefile" fillcolor="#0090e0"]
+k [label="makepp.mk" fillcolor="#0090e0"]
+j -> k [style=dotted]
+}
+###	-38	644	1170452082	1170451234	answers/up.udg
+[
+l("a",n("",[a("OBJECT","makepp.mk"),a("COLOR","#0090e0")],[
+]))
+,l("b",n("",[a("OBJECT","makefile"),a("COLOR","#0090e0")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("a")),
+]))
+,l("c",n("",[a("OBJECT","c/c1.h"),a("COLOR","#f8e800")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],l("d",n("",[a("OBJECT","c/c.h"),a("COLOR","#f8e800"),a("BORDER","double")],[
+]))
+),
+]))
+,l("e",n("",[a("OBJECT","c/c.o"),a("COLOR","#e8e8e8"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("c")),
+e("",[a("_DIR","first")],r("d")),
+e("",[a("_DIR","first")],l("f",n("",[a("OBJECT","c/c.c"),a("COLOR","#f8a808")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("c")),
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("d")),
+]))
+),
+]))
+,l("g",n("",[a("OBJECT","b/b.o"),a("COLOR","#e8e8e8"),a("BORDER","double")],[
+]))
+,l("h",n("",[a("OBJECT","all"),a("_GO","ellipse")],[
+e("",[a("_DIR","first")],l("i",n("",[a("OBJECT","a"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("e")),
+e("",[a("_DIR","first")],r("g")),
+e("",[a("_DIR","first")],l("j",n("",[a("OBJECT","a.o"),a("COLOR","#e8e8e8"),a("BORDER","double")],[
+e("",[a("_DIR","first")],r("d")),
+e("",[a("_DIR","first")],l("k",n("",[a("OBJECT","a.c"),a("COLOR","#f8a808")],[
+e("",[a("EDGEPATTERN","dotted"),a("_DIR","first")],r("d")),
+]))
+),
+]))
+),
+]))
+),
+]))
+,]

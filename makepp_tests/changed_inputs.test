@@ -1,0 +1,49 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	14	644	1103821381	1103821396	Makeppfile
+#
+# This makefile tests the $(changed_inputs) variable and the
+# ignore_action build check method.
+#
+
+$(phony all): abcdef abcdef_always
+
+abcdef : a b c d e f : build_check ignore_action
+	&echo $(changed_inputs) -o $(output)
+			# This isn't a very useful command; we just want
+			# the output to vary depending on the command.
+
+abcdef_always : a b c d e f  # Same thing except without ignore_action.
+	&echo $? -o $(output)
+###	23	755	1103821634	1103821634	makepp_test_script
+#!/bin/sh
+#
+# Test what happens if we have $(changed_inputs) in a command, and we
+# only change a few of the inputs.
+#
+MAKEPP="${PERL-perl} ${1-makepp}"   # Get path to makepp.
+
+touch a b c d e f               # Create the initial files.
+$MAKEPP || exit 1
+mv abcdef abcdef_1
+
+#
+# Now change 3 of the files:
+#
+echo a > a
+echo b > b
+echo c > c
+$MAKEPP || exit 2
+mv abcdef abcdef_2
+
+$MAKEPP || exit 3               # This one should not rebuild abcdef
+                                # though the command has changed.
+                                # However, it will build abcdef_always.
+###	D	755	1103821506	1103821509	answers/
+###	1	644	1103821477	1103821477	answers/abcdef
+a b c d e f
+###	1	644	1103821476	1103821476	answers/abcdef_1
+a b c d e f
+###	L	H	0	0	answers/abcdef_2
+answers/abcdef
+###	1	644	1103821476	1103821477	answers/abcdef_always
+

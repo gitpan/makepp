@@ -2,6 +2,8 @@
 
 makepp_tutorial_compilation -- Unix compilation commands
 
+=for vc $Id: makepp_tutorial_compilation.pod,v 1.3 2006/07/02 16:41:01 pfeiffer Exp $
+
 =head1 DESCRIPTION
 
 Skip this this manual page if you have a good grasp on what the compilation
@@ -229,14 +231,14 @@ These warnings have saved me many many hours of debugging.
 =head2 Other useful compilation options
 
 Often, necessary include files are stored in some directory other than the
-current directory or the system include directory (C</usr/include>).  This
+current directory or the system include directory (F</usr/include>).  This
 frequently happens when you are using a library that comes with include files
 to define the functions or classes.
 
 Suppose, for example, you are writing an application that uses the Qt
 libraries.  You've installed a local copy of the Qt library in
-C</home/users/joe/qt>, which means that the include files are stored in the
-directory C</home/users/joe/qt/include>.  In your code, you want to be able to
+F</home/users/joe/qt>, which means that the include files are stored in the
+directory F</home/users/joe/qt/include>.  In your code, you want to be able to
 do things like this:
 
     #include <qwidget.h>
@@ -250,10 +252,10 @@ by using the C<-I> compilation option:
 
     g++ -I/home/users/joe/qt/include -g -c mywidget.cpp -o mywidget.o
 
-There is no usually space between the C<-I> and the directory name.
+There is usually no space between the C<-I> and the directory name.
 
-When the C++ compiler is looking for the file C<qwidget.h>, it will look in
-C</home/users/joe/qt/include> before looking in the system include directory.
+When the C++ compiler is looking for the file F<qwidget.h>, it will look in
+F</home/users/joe/qt/include> before looking in the system include directory.
 You can specify as many C<-I> options as you want.
 
 =head2 Using libraries
@@ -267,20 +269,20 @@ library.  The C<-l> (lowercase L) option says to link with a specific library:
 C<-lm> says to link with the system math library, which you will need if you
 are using functions like C<sqrt>.
 
-<b>Beware:</b> if you specify more than one C<-l> option, the order can make a
+B<Beware:> if you specify more than one C<-l> option, the order can make a
 difference on some systems.  If you are getting undefined variables when you
 know you have included the library that defines them, you might try moving
 that library to the end of the command line, or even including it a second
 time at the end of the command line.
 
 Sometimes the libraries you will need are not stored in the default place for
-system libraries.  C<-labc> searches for a file called C<libabc.a> or
-C<libabc.so> or C<libabc.sa> in the system library directories (C</usr/lib>
+system libraries.  C<-labc> searches for a file called F<libabc.a> or
+F<libabc.so> or F<libabc.sa> in the system library directories (F</usr/lib>
 and usually a few other places too, depending on what kind of unix you're
 running).  The C<-L> option specifies an additional directory to search for
 libraries.  To take the above example again, suppose you've installed the Qt
-libraries in C</home/users/joe/qt>, which means that the library files are in
-C</home/users/joe/qt/lib>.  Your link step for your program might look
+libraries in F</home/users/joe/qt>, which means that the library files are in
+F</home/users/joe/qt/lib>.  Your link step for your program might look
 something like this:
 
     g++ -g test_mywidget.o mywidget.o -o test_mywidget -L/home/users/joe/qt/lib -lqt
@@ -308,12 +310,12 @@ apply to compilation on the linking step, and options which normally apply to
 linking on the compilation step.  For example, the following commands are
 valid:
 
+    cc -g -L/usr/X11R6/lib -c xyz.c -o xyz.o
     cc -g -I/somewhere/include xyz.o -o xyz
-    cc -g -L/usr/X11R6/lib -c xyz.c -o xyz
 
 
 The irrelevant options are ignored; the above commands are exactly equivalent
 to this:
 
+    cc -g -c xyz.c -o xyz.o
     cc -g xyz.o -o xyz
-    cc -g -c xyz.c -o xyz

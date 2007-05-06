@@ -1,11 +1,19 @@
-# $Id: TextSubs.pm,v 1.2 2003/07/18 21:11:08 grholt Exp $
+# $Id: TextSubs.pm,v 1.27 2007/05/06 09:43:23 pfeiffer Exp $
 package TextSubs;
 require Exporter;
 @ISA = qw(Exporter);
 
-@EXPORT = qw(index_ignoring_quotes split_on_whitespace split_on_colon unquote
+@EXPORT = qw(index_ignoring_quotes max_index_ignoring_quotes
+	     split_on_whitespace join_with_protection split_on_colon
+	     split_commands unquote unquote_split_on_whitespace
 	     requote format_exec_args whitespace_len hash_neq
-             is_cpp_source_name is_object_or_library_name);
+	     is_cpp_source_name is_object_or_library_name);
+
+# Centrally provide constants which are needed repeatedly for aliasing, since
+# perl implements them as subs, and each sub takes about 1.5kb RAM.
+BEGIN {
+  eval 'sub CONST' . $_ . '() { ' . $_ . ' }' for 0..6;
+}
 
 #
 # This module contains a few subroutines for manipulating text, mostly for
@@ -23,11 +31,12 @@ each word in @words, and the result returned as an array.
 
 For example:
 
-  @pieces = pattern_substitution("%.c", "%.o", "file1.c", "file2.c")
+  @pieces = pattern_substitution('%.c', '%.o', 'file1.c', 'file2.c')
 
-returns ("file1.o", "file2.o").
+returns ('file1.o', 'file2.o').
 
 =cut
+
 sub pattern_substitution {
   my ($src, $dest, @words) = @_; # Name the arguments.
   my $percent_pos = index($src, '%'); # Find the percent char.
@@ -37,19 +46,18 @@ sub pattern_substitution {
   my $src_prefix = substr($src, 0, $percent_pos);
   my $src_suffix = substr($src, $percent_pos+1);
 
-  $dest =~ /\%/ or
+  $dest =~ /%/ or
     die "\$(patsubst ...) called with '$dest' as second argument\n";
 
   my @ret_words;
   foreach (@words) {
-    my $stem_len = length($_) - length($src_prefix) - length($src_suffix);
+    my $stem_len = length() - length($src_prefix) - length($src_suffix);
     if ($stem_len >= 0 &&	# Make sure prefix & suffix don't overlap.
 	substr($_, 0, length($src_prefix)) eq $src_prefix &&
 	substr($_, length($_)-length($src_suffix)) eq $src_suffix) {
-      my $pattern_stem = substr($_, length($src_prefix),
-				length($_)-length($src_prefix)-length($src_suffix));
+      my $pattern_stem = substr $_, length($src_prefix), $stem_len;
       my $dest_copy;
-      ($dest_copy = $dest) =~ s/\%/$pattern_stem/g;
+      ($dest_copy = $dest) =~ s/%/$pattern_stem/g;
 				# Replace all occurences of % with the stem.
       push @ret_words, $dest_copy;
 				# Save the resulting word(s).  There may be
@@ -63,69 +71,70 @@ sub pattern_substitution {
 				# it without modification to the output.
     }
   }
-  
-  return @ret_words;
+
+  @ret_words;
 }
+
+# Rather than cascade if( /\Gx/gc ), just look up the action
+my %skip_over = (
+  "'", \&skip_over_squote,
+  '"', \&skip_over_dquote,
+  '$', \&skip_over_make_expression,
+  '\\', sub { ++pos });
 
 =head2 index_ignoring_quotes
 
-  my $index = index_ignoring_quotes($string, "substr");
+  my $index = index_ignoring_quotes($string, 'substr');
 
-Works like C<index($string, "substr")>, except that the substring may not be
+Works like C<index($string, 'substr')>, except that the substring may not be
 inside quotes or a make expression.
 
 =cut
 sub index_ignoring_quotes {
   my $substr = $_[1];
-#  local *_ = \$_[0];		# Put the string in $_ (without copying it).
-				# (Just doing local $_ = $_[0] actually
-				# duplicates the string in memory.)
-  local $_ = $_[0];		# Above doesn't work for perl 5.005.
+  for( $_[0] ) {		# Alias arg to $_
+    pos = 0;			# Start at the beginning.
 
-  pos($_) = 0;			# Start at the beginning.
+    for (;;) {
+      my $last_pos = pos;
+      if (/\G([^"'\\\$]+)/gc) {	# Just ordinary characters?
+	my $idx = index($1, $substr); # See if it's in those characters.
+	$idx >= 0 and return $last_pos + $idx;
+      }
 
- mainloop:
-  for (;;) {
-    my $last_pos = pos($_);
-    if (/\G([^\"\'\\\$]+)/gc) {	# Just ordinary characters?
-      my $idx = index($1, $substr); # See if it's in those characters.
-      $idx >= 0 and return $last_pos + $idx;
-    }
-
-    return -1 if length($_) <= pos($_); # End of string?  That means no match.
+      return -1 if length() <= pos; # End of string?  That means no match.
 				# For reasons that I don't understand, testing
 				# for /\G\z/gc doesn't work here.
 
-    if (/\G\$/gc) {		# Make expression?
-      &skip_over_make_expression;
-      next;
+      # It's one of the standard cases ", ', \ or $.
+      &{$skip_over{substr $_, pos()++, 1}};
     }
-
-    if (/\G\\/gc) {		# Backslash to protect something?
-      ++pos($_);		# Skip whatever it is.
-      next;
-    }
-
-    if (/\G\"/gc) {		# Double quoted string?
-      &skip_over_dquote;
-      next;
-    }
-
-    if (/\G\'/gc) {		# Single quoted string?
-      &skip_over_squote;
-      next;
-    }
-
-    die "How in the world did I get here?";
-
   }
+}
+
+=head2 max_index_ignoring_quotes
+
+Like C<index_ignoring_quotes>, except that it returns the index to the last
+instance rather than the first.
+
+=cut
+sub max_index_ignoring_quotes {
+  use strict;
+  my ($str, $sub) = @_;
+  my $max = 0;
+  my $len = length($sub) or return 0;
+  while((my $next = index_ignoring_quotes($str, $sub)) >= 0) {
+    $max += $next + $len;
+    $str = substr($str, $next + $len);
+  }
+  return $max ? $max - $len : -1;
 }
 
 =head2 split_on_whitespace
 
   @pieces = split_on_whitespace($string);
 
-Works just like 
+Works just like
 
   @pieces = split(' ', $string)
 
@@ -139,91 +148,109 @@ terminated by a matching double quote that isn't escaped by a backslash.
 Backquoted strings are terminated by a matching backquote that isn't escaped
 by a backslash.
 
-At the moment, we don't properly handle shell expressions like 
-
-   $(echo xyz)
-
-Unfortunately, this will be split into separate words.
-
 =cut
 sub split_on_whitespace {
+  split_on_whitespace_or_commands(0, $_[0]);
+}
+sub unquote_split_on_whitespace {
+  # Can't call unquote when pushing because both use \G and at least in 5.6
+  # localizing $_ doesn't localize \G
+  map unquote(), split_on_whitespace_or_commands(0, $_[0]);
+}
+sub split_commands {
+  split_on_whitespace_or_commands(1, $_[0]);
+}
+sub split_on_whitespace_or_commands {
   my @pieces;
+  my $cmds=$_[0];
+  local $_ = $_[1];
 
-#  local *_ = \$_[0];		# Put the string in $_ (without copying it).
-				# (Just doing local $_ = $_[0] actually
-				# duplicates the string in memory.)
-  local $_ = $_[0];		# The above causes perl 5.005 to barf.
+  pos = 0;			# Start at the beginning.
+  $cmds ? /^[;|&]+/gc : /^\s+/gc;			# Skip over leading whitespace.
+  my $last_pos = pos;
 
-  pos($_) = 0;			# Start at the beginning.
-  /^\s+/gc;			# Skip over leading whitespace.
-  my $last_pos = pos($_);
-
- mainloop:
   for (;;) {
-    /\G[^\s\"\'\`\\]+/gc;		# Skip over irrelevant things.
+    $cmds ? /\G[^;|&"'`\\\$]+/gc : /\G[^\s"'\\]+/gc;	# Skip over irrelevant things.
 
-    last if length($_) <= pos($_); # End of string.
+    last if length() <= pos;	# End of string.
 
-    my $cur_pos = pos($_);	# Remember the current position.
-    if (/\G\s+/gc) {		# Found some whitespace?
+    my $cur_pos = pos;		# Remember the current position.
+    if ($cmds && /\G(?<=[<>])&/gc) {	# Skip over redirector, where & is not a separator
+    }
+
+    elsif ($cmds ? /\G[;|&]+/gc : /\G\s+/gc) { # Found some whitespace?
       push(@pieces, substr($_, $last_pos, $cur_pos-$last_pos));
-      $last_pos = pos($_);	# Beginning of next string is after this space.
-      next;
+      $last_pos = pos;		# Beginning of next string is after this space.
     }
 
-    if (/\G\\/gc) {		# Backslash to protect something?
-      ++pos($_);		# Skip whatever it is.
-      next;
-    }
-
-    if (/\G\"/gc) {		# Double quoted string?
-      while (pos($_) < length($_)) {
-	next if /\G[^\\\"]+/gc;	# Skip everything except quote and \.
-	/\G\\/gc and ++pos($_);	# Skip char after backslash.
-	/\G\"/gc and next mainloop; # We've found the end of the string.
+    elsif (!$cmds and /\G"/gc) { # Double quoted string?
+      while (pos() < length) {
+	next if /\G[^\\"]+/gc;	# Skip everything except quote and \.
+	/\G"/gc and last;	# We've found the end of the string.
+	pos() += 2;		# Skip char after backslash.
       }
-      next;			# If we get here, there was no terminating
-				# quote.
     }
 
-    if (/\G\'/gc) {		# Single quoted string?
-      /\G[^\']+/gc;		# Skip until end of quoted string.
-      /\G\'/gc;			# Skip concluding single quote.
-      next;
+    elsif (/\G'[^']*'/gc) {	# Skip until end of single quoted string.
     }
 
-    if (/\G\`/gc) {		# Back quoted string?
-      while (pos($_) < length($_)) {
-	next if /\G[^\\\`]+/gc;	# Skip everything except quote and \.
-	/\G\\/gc and ++pos($_);	# Skip char after backslash.
-	/\G\`/gc and next mainloop; # We've found the end of the string.
+    elsif (/\G`/gc) {		# Back quoted string?
+      while (pos() < length) {
+	next if /\G[^\\`]+/gc;	# Skip everything except quote and \.
+	/\G`/gc and last;	# We've found the end of the string.
+	pos() += 2;		# Skip char after backslash.
       }
-      next;			# If we get here, there was no terminating
-				# quote.
     }
 
-    die "How in the world did I get here?";
-
+    else {			# It's one of the standard cases ", \ or $.
+      # $ only gets here in commands, where we use the similarity of make expressions
+      # to skip over $(cmd; cmd), $((var|5)), ${var:-foo&bar}.
+      # " only gets here in commands, where we need to catch nested things like
+      # "$(cmd "foo;bar")"
+      &{$skip_over{substr $_, pos()++, 1}};
+    }
   }
 
-  if (length($_) > $last_pos) {	# Anything left at the end of the string?
+  if (length() > $last_pos) {	# Anything left at the end of the string?
     push @pieces, substr($_, $last_pos);
   }
 
   return @pieces;
 }
 
+=head2 join_with_protection
+
+  $string = join_with_protection(@pieces);
+
+Works just like
+
+  $string = join(' ', @pieces)
+
+except that strings in @pieces that contain shell metacharacters are protected
+from the shell.
+
+=cut
+
+sub join_with_protection {
+  my @args = @_;		# Avoid modifying @_
+  join ' ',
+    map {
+      s/\'/'\\''/g;
+      $_ eq '' || m|[^\w/.@%\-+=:]| ? "'$_'" : $_
+    } @args;
+}
+
 =head2 split_on_colon
 
-  @pieces = split_on_colon("string";
+  @pieces = split_on_colon('string');
 
 This subroutine is equivalent to
 
-  @pieces = split(/:+/, "string");
+  @pieces = split(/:+/, 'string');
 
 except that colons inside double quoted strings or make expressions are passed
 over.  Also, a semicolon terminates the expression; any colons after a
-semicolon are ignored.  This is to support parsing of this horrible rule:
+semicolon are ignored.	This is to support parsing of this horrible rule:
 
   $(srcdir)/cat-id-tbl.c: stamp-cat-id; @:
 
@@ -237,60 +264,57 @@ sub split_on_colon {
 				# duplicates the string in memory.)
 
   my $last_pos = 0;
-  pos($_) = 0;			# Start at the beginning.
+  pos = 0;			# Start at the beginning.
 
- mainloop:
   for (;;) {
-    /\G[^;:\"\'\\\$]+/gc;	# Skip over irrelevant stuff.
-    last if length($_) <= pos($_); # End of string?
+    /\G[^;:"'\\\$]+/gc;		# Skip over irrelevant stuff.
+    last if length() <= pos;	# End of string?
 				# For reasons that I don't understand, testing
 				# for /\G\z/gc doesn't work here.
 
     if (/\G(:+)/gc) {		# Found our colon?
-      push(@pieces, substr($_, $last_pos, pos($_)-$last_pos-length($1)));
-      $last_pos = pos($_);	# Beginning of next string is after this space.
-      next;
-   }
-
-    if (/\G\$/gc) {		# Make expression?
-      &skip_over_make_expression;
-      next;
+      push(@pieces, substr($_, $last_pos, pos()-$last_pos-length($1)));
+      $last_pos = pos;		# Beginning of next string is after this space.
     }
 
-    if (/\G\\/gc) {		# Backslash to protect something?
-      ++pos($_);		# Skip whatever it is.
-      next;
+    elsif (/\G;/gc) {		# Found end of the rule?
+      pos = length;		# Don't look for any more colons.
     }
 
-    if (/\G\"/gc) {		# Double quoted string?
-      &skip_over_dquote;
-      next;			# If we get here, there was no terminating
-				# quote.
+    else {			# It's one of the standard cases ", ', \ or $.
+      &{$skip_over{substr $_, pos()++, 1}};
     }
-
-    if (/\G\'/gc) {		# Single quoted string?
-      &skip_over_squote;
-      next;
-    }
-
-    if (/\G;/gc) {		# Found end of the rule?
-      pos($_) = length($_);	# Don't look for any more colons.
-      next;
-    }
-
-    die "How in the world did I get here?";
-
   }
 
-  if (length($_) > $last_pos) {	# Anything left at the end of the string?
+  if (length() > $last_pos) {	# Anything left at the end of the string?
     push @pieces, substr($_, $last_pos);
   }
 
-  return @pieces;
+  @pieces;
+}
+
+
+#
+# This routine splits the PATH according to the current systems syntax.  An
+# object may be optionally passed.  If that contains a non-empty entry {PATH},
+# that is used instead of $ENV{PATH}.  Empty elements are returned as '.'.
+# A second optional argument may be an alternative string to 'PATH'.
+# A third optional argument may be an alternative literal path.
+#
+sub split_path {
+  my $var = $_[1] || 'PATH';
+  my $path = $_[2] || ($_[0] && $_[0]->{$var} || $ENV{$var});
+  if( !::is_windows() ) {
+    map { $_ eq '' ? '.' : $_ } split /:/, "$path:";
+  } else {
+    map { tr!\\"!/!d; $_ eq '' ? '.' : $_ } $^O =~ /^MSWin/ ?
+      split( /;/, "$path;" ) :		# "C:/a b";C:\WINNT;C:\WINNT\system32
+      split_on_colon( "$path:" );	# "C:/a b":"C:/WINNT":/cygdrive/c/bin
+  }
 }
 
 #
-# This routine is used to skip over a make expression.  A make expression
+# This routine is used to skip over a make expression.	A make expression
 # is a variable, like "$(CXX)", or a funtion, like $(patsubst %.o, %.c, sdaf).
 #
 # The argument should be passed in the global variable $_ (not @_, as usual),
@@ -298,125 +322,97 @@ sub split_on_colon {
 # On return, pos($_) is the first character after the end of the make
 # expression.
 #
+# This returns the length of the opening parens, i.e.: $@ = 0; $(VAR) = 1 and
+# $((perl ...)) = 2, or undef if the closing parens don't match.
+#
 sub skip_over_make_expression {
+  my( $nonre, $endre );
   if (/\G\(/gc) {		# Does the expression begin with $(?
-    for (;;) {
-      /\G[^\"\'\$\)]+/gc;	# Skip over irrelevant things.
-      last if /\G\)/gc;		# Quit if closing parens.
-      last if length($_) <= pos($_); # Quit if end of string.  (Testing for \z
-				# seems unreliable.)
-
-      if (/\G\$/gc) {		# A nested make expression?
-	&skip_over_make_expression;
-	next;
-      }
-
-      if (/\G\"/gc) {		# Double quoted string?
-	&skip_over_dquote;
-	next;
-      }
-
-      if (/\G\'/gc) {		# Single quoted string?
-	&skip_over_squote;
-	next;
-      }
-
-      die "How did I get here?";
-    }	
-  }
-  elsif (/\G\{/gc) {		# Does the expression begin with ${?
-    for (;;) {
-      /\G[^\"\'\$\}]+/gc;	# Skip over irrelevant things.
-      last if /\G\}/gc;		# Quit if closing parens.
-      last if length($_) <= pos($_); # Quit if end of string.  (Testing for \z
-				# seems unreliable.)
-
-      if (/\G\$/gc) {		# A nested make expression?a
-	&skip_over_make_expression;
-	next;
-      }
-
-      if (/\G\"/gc) {		# Double quoted string?
-	&skip_over_dquote;
-	next;
-      }
-
-      if (/\G\'/gc) {		# Single quoted string?
-	&skip_over_squote;
-      }
-
-      die "How did I get here?";
-    }	
-  }
-  else {
-    ++pos($_);			# Must be a single character variable.  Just
+    $nonre = qr/[^)"'\$]/;
+    $endre = qr/\)/;
+  } elsif (/\G\{/gc) {		# Does the expression begin with ${?
+    $nonre = qr/[^}"'\$]/;
+    $endre = qr/\}/;
+  } elsif (/\G\[/gc) {		# Does the expression begin with $[?
+    $nonre = qr/[^]"'\$]/;
+    $endre = qr/\]/;
+  } else {
+    ++pos;			# Must be a single character variable.	Just
 				# skip over it.
-  }	
+    return 0;
+  }
+
+  my $double = //gc || 0;	# Does the expression begin with $((, ${{ or $[[?
+
+  if( /\G(?:perl|ma(p))\s+/gc ) { # Is there plain Perl code we must skip blindly?
+    if( $1 ) {			# The first arg to map is normal make stuff.
+      /\G[^"'\$,]/gc or &{$skip_over{substr $_, pos()++, 1}}
+	while !/\G,/gc;
+    }
+    $double ? /\G.*?$endre$endre/gc : /\G.*?$endre/gc;
+    return $double + 1;
+  }
+
+  for (;;) {
+    /\G$nonre+/gc;		# Skip over irrelevant things.
+    last if length() <= pos;	# Quit if end of string.  (Testing for \z
+				# seems unreliable.)
+    if( /\G$endre/gc ) {
+      return $double + 1 if !$double or //gc; # Quit if closing parens.
+      ++pos;			# A simple ) within $(( )) or } within ${{ }}
+    }
+    else {			# It's one of the standard cases ", ' or $.
+      &{$skip_over{substr $_, pos()++, 1}};
+    }
+  }
+  undef;
 }
 
+
 #
-# This subroutine is used to skip over a double quoted string.  A double
+# This subroutine is used to skip over a double quoted string.	A double
 # quoted string may have a make expression inside of it; we also skip over
 # any such nested make expressions.
 #
 # The argument should be passed in the global variable $_ (not @_, as usual),
-# and pos($_) should be the character immediately after the dollar sign.
+# and pos($_) should be the character immediately after the quote.
 # On return, pos($_) is the first character after the closing quote.
 #
 sub skip_over_dquote {
   for (;;) {
-    /\G[^\"\\\$]+/gc;		# Skip over irrelevant characters.
+    /\G[^"\\\$]+/gc;		# Skip over irrelevant characters.
 
-    /\G\"/gc and last;		# Found the closing quote.
-    last if length($_) <= pos($_); # Quit if end of string.  (Testing for \z
+    last if length() <= pos;	# Quit if end of string.  (Testing for \z
 				# seems unreliable.)
+    /\G"/gc and last;		# Found the closing quote.
 
-
-    if (/\G\\/gc) {		# Skip over the character following a
-      ++pos($_);		# backslash.
-      next;
-    }	
-
-    if (/\G\$/gc) {		# Skip over nested make expressions.
-      &skip_over_make_expression;
-      next;
-    }
-
-    die "How did I get here?";
-  }	
+    # It's one of the standard cases \ or $.
+    &{$skip_over{substr $_, pos()++, 1}};
+  }
 }
 
 #
-# This subroutine is used to skip over a single quoted string.  A single
+# This subroutine is used to skip over a single quoted string.	A single
 # quoted string may have a make expression inside of it; we also skip over
 # any such nested make expressions.  The difference between a single and double
 # quoted string is that a backslash is used to escape special chars inside
 # a double quoted string, whereas it has no meaning in a single quoted string.
 #
 # The argument should be passed in the global variable $_ (not @_, as usual),
-# and pos($_) should be the character immediately after the dollar sign.
+# and pos($_) should be the character immediately after the quote.
 # On return, pos($_) is the first character after the closing quote.
 #
 sub skip_over_squote {
   for (;;) {
-    /\G[^\'\\\$]+/gc;		# Skip over irrelevant characters.
+    /\G[^'\\\$]+/gc;		# Skip over irrelevant characters.
 
-    /\G\'/gc and last;		# Found the closing quote.
-    last if length($_) <= pos($_); # Quit if end of string.  (Testing for \z
+    last if length() <= pos;	# Quit if end of string.  (Testing for \z
 				# seems unreliable.)
+    /\G'/gc and last;		# Found the closing quote.
 
-    if (/\G\\/gc) {		# Skip over the character following a
-      ++pos($_);		# backslash.
-      next;
-    }	
-
-    if (/\G\$/gc) {		# Skip over nested make expressions.
-      &skip_over_make_expression;
-      next;
-    }
-
-    die "How did I get here?";
-  }	
+    # It's one of the standard cases \ or $.
+    &{$skip_over{substr $_, pos()++, 1}};
+  }
 }
 
 =head2 unquote
@@ -438,53 +434,58 @@ unquote() knows nothing about make expressions.
 
 sub unquote {
 #  local *_ = \$_[0];		# Put the string in $_ (without copying it).
-  local $_ = $_[0];
+  local $_ = $_[0] if @_;
 				# (Just doing local $_ = $_[0] actually
 				# duplicates the string in memory.)
   my $ret_str = '';
 
-  pos($_) = 0;			# Start at beginning of string.
+  pos = 0;			# Start at beginning of string.
   for (;;) {
-    /\G([^\"\'\\]+)/gc and $ret_str .= $1; # Skip over ordinary characters.
-    last if length($_) <= pos($_);
+    /\G([^"'\\]+)/gc and $ret_str .= $1; # Skip over ordinary characters.
+    last if length() <= pos;
 
-    if (/\G\"/gc) {		# Double quoted section of the string?
+    if (/\G"/gc) {		# Double quoted section of the string?
       for (;;) {
-	/\G([^\"\\]+)/gc and $ret_str .= $1; # Skip over ordinary chars.
-	/\G\"/gc and last;	# End of string.
-	/\G\\(.)/sgc and $ret_str .= $1; # Handle quoted chars.
-	length($_) <= pos($_) and last;	# End of string w/o matching quote.
+	/\G([^"\\]+)/gc and $ret_str .= $1; # Skip over ordinary chars.
+	if( /\G\\/gc ) {	# Handle quoted chars.
+	  if( length() <= pos ) {
+	    die "single backslash at end of string '$_'\n";
+	  }
+	  else {		# Other character escaped with backslash.
+	    $ret_str .= substr $_, pos()++, 1; # Put it in verbatim.
+	  }
+	} else {
+	  last if length() <= pos || # End of string w/o matching quote.
+	    ++pos;		# Skip quote.
+	}
       }
     }
-
-    elsif (/\G\\([0-7]{1,3})/gc) { # Octal character code?
-      $ret_str .= chr(oct($1));	# Convert the character to binary.
+    elsif (/\G'/gc) {		# Single quoted string?
+      /\G([^']+)/gc and $ret_str .= $1; # Copy up to terminating quote.
+      last if length() <= pos;	# End of string w/o matching quote.
+      ++pos;			# Or skip quote.
     }
-    elsif (/\G\\([^\*\[\]\?])/sgc) { # Character escaped with backslash?
+    else {
+      ++pos;			# Must be '\', skip it
+      if( length() <= pos ) {
+	die "single backslash at end of string '$_'\n";
+      }
+      elsif (/\G([0-7]{1,3})/gc) { # Octal character code?
+	$ret_str .= chr(oct($1));	# Convert the character to binary.
+      }
+      elsif (/\G([*?[\]])/gc) { # Backslashed wildcard char?
 				# Don't weed out backslashed wildcards here,
 				# because they're recognized separately in
 				# the wildcard routines.
-      $ret_str .= $1;		# Put it in verbatim.
-    }
-    elsif (/\G\\(.)/sgc) {	# Backslashed wildcard char?
-      $ret_str .= "\\$1";	# Leave the backslash there.
-    }
-    elsif (/\G\\/sgc) {
-      die "single backslash at end of string\n";
-    }
-    elsif (/\G\'/sgc) {		# Single quoted string?
-      /\G([^\']+)/gc and $ret_str .= $1; # Copy up to terminating quote.
-      unless (/\G\'/gc ||
-	      length($_) <= pos($_) and last) { # End of string w/o matching quote.
-	die "How did I get here?";
+	$ret_str .= '\\' . $1;	# Leave the backslash there.
       }
-    }
-    else {
-      die "How did I get here?";
+      else {			# Other character escaped with backslash.
+	$ret_str .= substr $_, pos()++, 1; # Put it in verbatim.
+      }
     }
   }
 
-  return $ret_str;
+  $ret_str;
 }
 
 =head2 requote
@@ -497,68 +498,66 @@ $unquoted_text.
 
 =cut
 sub requote {
-  local $_ = $_[0];		# Get the string.
-  s/\\/\\\\/g;			# Protect all backslashes.
-  s/\"/\\\"/g;			# Escape any double quotes.
-  s{([\0-\037])}{sprintf("\\%o", ord($1))}eg; # Protect any binary characters.
+  local $_ = $_[0];		# Get a modifiable copy of the string.
+  s/(["\\])/\\$1/g;		# Protect all backslashes and double quotes.
+  s{([\0-\037])}{sprintf('\%o', ord($1))}eg; # Protect any binary characters.
   qq["$_"];			# Return the quoted string.
 }
 
 #
 # Perl contains an optimization where it won't run a shell if it thinks the
-# command has no shell metacharacters.  However, its idea of shell
+# command has no shell metacharacters.	However, its idea of shell
 # metacharacters is a bit too limited, since it doesn't realize that something
-# like "XYZ=abc command" does not mean to execute the program "XYZ=abc".  
+# like "XYZ=abc command" does not mean to execute the program "XYZ=abc".
 # Also, perl's system command doesn't realize that ":" is a valid shell
-# command.  So we do a bit more detailed check for metacharacters and 
+# command.  So we do a bit more detailed check for metacharacters and
 # explicitly pass it off to a shell if needed.
 #
 # This subroutine takes a shell command to execute, and returns an array
 # of arguments suitable for exec() or system().
 #
 sub format_exec_args {
-  local ($_) = @_;		# Access the string.
-
-  if (/[:=\(\)\{\};\>\<\"\'\`\&\*\?\\]/ || # Any shell metachars?
-      /^\s*(?:exit|\.|source|eval|exec|test)\b/) { # Special commands that only
+  for( $_[0] ) {
+    return $_			# No Shell available.
+      if ::is_windows() && $^O =~ /^MSWin/;
+    return ('/bin/sh', '-c', $_)
+      if ::is_windows() && $^O eq 'msys' ||
+      	/[()<>\\"'`;&|*?[\]]/ || # Any shell metachars?
+	/\{.*,.*\}/ || # Pattern in Bash (blocks were caught by ';' above).
+	/^\s*(?:\w+=|[.:]\s|e(?:val|xec|xit)\b|source\b|test\b)/;
+				# Special commands that only
 				# the shell can execute?
-    return ("/bin/sh", "-c", $_);
-  } else {			# Let perl do its optimization.
-    return ($_);		# Execute the command.
+
+    return $_;			# Let perl do its optimization.
   }
 }
 
 #
 # Compute the length of whitespace when it may be composed of spaces or tabs.
+# The leading whitespace is removed from $_.
 # Usage:
-#	$len = whitespace_len($string);
+#	$len = strip_indentation;
 #
-# If the string is not all tabs and spaces, returns the length of the 
+# If $_ is not all tabs and spaces, returns the length of the
 # whitespace up to the first non-white character.
 #
-sub whitespace_len {
-  local $_ = $_[0];		# Access the string.
+
+sub strip_indentation() {
   my $white_len = 0;
-
-  pos($_) = 0;			# Start at the beginning of the string.
-
-  while (pos($_) < length($_)) {
-    if (/\G( +)/gc) {		# Spaces?
-      $white_len += length($1);
-      next;
-    }
-    elsif (/\G\t/gc) {		# Tab?
-      $white_len = 8*int(($white_len+8)/8); # Move to the next tab stop.
-    }
-    else {			# Not a whitespace character?
-      return $white_len;
+  pos = 0;			# Start at the beginning of the string.
+  while( /\G(?:( +)|(\t+))/gc ) {
+    if( $1 ) {			# Spaces?
+      $white_len += length $1;
+    } else {			# Move over next tab stops.
+      $white_len = ($white_len + 8*length $2) & ~7;
+				# Cheap equivalent for 8*int(.../8)
     }
   }
-
-  return $white_len;
+  substr $_, 0, pos, '';
+  $white_len;
 }
 
-=head2 hash_equal
+=head2 hash_neq
 
   if (hash_neq(\%a, \%b)) { ... }
 
@@ -585,7 +584,7 @@ sub hash_neq {
   if (scalar %a_not_b) {	# Anything left over?
     return (%a_not_b)[0] || '0_'; # Return the first key value.
   }
-  return '';			# No difference.
+  '';				# No difference.
 }
 
 =head2 is_cpp_source_name
@@ -597,11 +596,15 @@ a C or C++ source or include file.
 
 =cut
 
+# NOTE: NVIDIA uses ".pp" for generic files (not necessarily programs)
+# that need to pass through cpp.
 sub is_cpp_source_name {
-  return $_[0] =~ /\.(?:[ch]|cc|hh|[ch]xx|[ch]pp|[ch]\+\+|moc|x[bp]m)$/i;
+  $_[0] =~ /\.(?:[ch](|[xp+])\1|([chp])\2|moc|x[bp]m|idl|ii?|mi)$/i;
+				# i, ii, and mi are for the GNU C preprocessor
+				# (see cpp(1)).	 moc is for qt.
 }
 
-=head2 is_object_name
+=head2 is_object_or_library_name
 
   if (is_object_or_library_name($filename)) { ... }
 
@@ -611,7 +614,100 @@ sort of object or library file.
 =cut
 
 sub is_object_or_library_name {
-  return $_[0] =~ /\.(?:l[ao]|[ao]|s[aol](?:\.[\d\.]+))$/;
+  $_[0] =~ /\.(?:l?[ao]|s[aol](?:\.[\d.]+))$/;
+}
+
+=head2 getopts
+
+  getopts %vars, strictflag, [qw(o optlong), \$var, wantarg, handler], ...
+
+Almost as useful as Getopt::Long and much smaller :-)
+
+%vars is optional, any VAR=VALUE pairs get stored in it if passed.
+
+strictflag is optional, means to stop at first non-option.
+
+Short opt may be empty, longopt may be a regexp (grouped if alternative).
+
+$var gets incremented for each occurence of this option or, if optional
+wantarg is true, it gets set to the argument.  This can be undef if you don't
+need it.
+
+If an optional handler is given, it gets called after assigning $var, if it is
+a ref (a sub).  Any other value is assigned to $var.
+
+=cut
+
+sub getopts(@) {
+#  package main;
+  our %vars;
+  my @specs = @_;
+  my $hash = 'HASH' eq ref $specs[0];
+  local *vars = shift @specs if $hash;
+  my $strict = !ref $specs[0];
+  shift @specs if $strict;
+  my @ret;
+  while( @ARGV ) {
+    for( shift @ARGV ) {	# alias to $_
+      if( s/^-(-?)// ) {
+	my $long = $1;
+	if( $_ eq '' ) {	# nothing after -(-)
+	  if( $long ) {		# -- explicit end of opts
+	    unshift @ARGV, @ret;
+	    return;
+	  }
+	  push @ret, '-';	# - stdin
+	} else {
+	  for my $spec ( @specs, 0 ) {
+	    die "$0: unknown option -$long$_\n" unless $spec;
+	    if( $long ) {
+	      if( $$spec[3] ) {
+		next if !/^$$spec[1](?:=(.*))?$/;
+		${$$spec[2]} = defined $1 ? $1 : @ARGV ? shift @ARGV :
+		  die "$0: no argument to --$_\n";
+	      } else {		# want no arg
+		next if !/^$$spec[1]$/;
+		${$$spec[2]}++;
+	      }
+	    } else {		# short opt
+	      next if !$$spec[0] || !s/^$$spec[0]//;
+	      if( $$spec[3] ) {
+		${$$spec[2]} = $_ ne '' ? $_ : @ARGV ? shift @ARGV :
+		  die "$0: no argument to -$$spec[0]\n";
+	      } else {
+		unshift @ARGV, "-$_" if $_; # push back other grouped short opts
+		${$$spec[2]}++;
+	      }
+	      print STDERR "$0: -$$spec[0] is short for --"._getopts_long($spec)."\n"
+		if $::verbose;
+	    }
+	    ref $$spec[4] ? &{$$spec[4]} : (${$$spec[2]} = $$spec[4]) if exists $$spec[4];
+	    last;
+	  }
+	}
+      } elsif( $hash and /^(\w[-\w.]*)=(.*)/ ) {
+	$vars{$1} = $2;
+      } elsif( $strict ) {
+	unshift @ARGV, $_;
+	return;
+      } else {
+	push @ret, $_;
+      }
+    }
+  }
+  @ARGV = @ret;
+}
+
+# Transform regexp to be human readable.
+sub _getopts_long($) {
+  for( "$_[0][1]" ) {
+    s/.*?://;			# remove qr// decoration
+    s/\[-_\]\??/-/g;
+    s/\(\?:([^(]+)\|[^(]+?\)/$1/g; # reduce inner groups (?:...|...) to 1st variant
+    s/\|/, --/g;
+    tr/()?://d;
+    return $_;
+  }
 }
 
 1;

@@ -1,0 +1,30 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	15	644	1078366452	1078366449	Makefile
+a: b d
+	&echo "NOK" -o e
+	&cat b d -o $@
+
+b: c
+	&echo "NOK" -o e
+	&cp $< $@
+
+c:
+	&echo "OK" -o $@
+	perl { die }
+
+d:
+	perl { -f 'e' or do { open my $fh, '>', 'e'; print $fh "OK\n" }}
+	&echo "OK" -o $@
+###	D	755	1078366417	1078366377	answers
+###	1	644	1078366417	1078366377	answers/c
+OK
+###	1	644	1078366417	1078366377	answers/d
+OK
+###	1	644	1078366417	1078366377	answers/e
+OK
+###	1	644	1119218920	1078366377	answers/n_files
+1 1
+###	3	755	1119218920	1078367492	makepp_test_script.pl
+eval { makepp '-k' } and die;
+
+1;

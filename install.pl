@@ -1,8 +1,9 @@
 #!/usr/bin/perl -w
 #
 # This script asks the user the necessary questions for installing
-# makepp.
-# $Id: install.pl,v 1.7 2003/07/19 23:28:05 grholt Exp $
+# makepp and does some heavy HTML massageing.
+#
+# $Id: install.pl,v 1.64 2007/01/05 21:36:34 pfeiffer Exp $
 #
 
 use Config;
@@ -11,30 +12,65 @@ use File::Copy;
 #
 # First make sure this version of perl is recent enough:
 #
-eval { require 5.00503; };
+eval { require 5.006 };
 if ($@) {			# Not recent enough?
-  die "I need perl version 5.005_03 or newer.  If you have it installed 
-somewhere already, run this installation procedure with that perl binary, e.g.,
+  die "I need perl version 5.6 or newer.  If you have it installed somewhere
+already, run this installation procedure with that perl binary, e.g.,
 
-	perl5.005 install.pl
+	perl5.8.6 install.pl
 
 If you don't have a recent version of perl installed (what kind of system are
 you on?), get the latest from www.perl.com and install it.
 ";
 }
 
-$perlbin = $Config{'perlpath'};
+BEGIN {
+  $perl = $ENV{PERL};
+  if( !$perl ) {
+    $perl = $Config{perlpath};	# Prefer appended version number for precision.
+    if( !-x $perl ) {
+      my $version = sprintf '%vd', $^V;
+      if( -x "$perl$version" ) {
+	$perl .= $version;
+      } else {
+	die "Perl claims to be running from $perl, but that is not an executable.\n";
+      }
+    }
+  }
+}
 
-print "Using perl in $perlbin.\n";
+print "Using perl in $perl.\n";
 
 #
 # Load the version number so it can be automatically inserted into the
 # files.
 #
+our $eliminate = '';		# So you can say #@@eliminate
 open(VERSION, "VERSION") || die "You are missing the file VERSION.  This should be part of the standard distribution.\n";
 $VERSION = <VERSION>;
 chomp $VERSION;
 close VERSION;
+
+if( $VERSION =~ s/beta// ) {
+#
+# Grep all our sources for the checkin date.  Make a composite version
+# consisting of the three most recent dates (shown as mmdd, but sorted
+# including year) followed by the count of files checked in that day.  This
+# assumes that we have at least three check ins a year.
+#
+  my %VERSION;
+  for( <makepp *.pm */*.pm makepp_builtin_rules.mk> ) {
+    open my( $fh ), $_;
+    while( <$fh> ) {
+      if( /\$Id: .+,v [.0-9]+ ([\/0-9]+)/ ) {
+	$VERSION{$1}++;
+	last;
+      }
+    }
+  }
+  $VERSION .= join '-', '',
+    grep s!\d+/(\d+)/(\d+)!$1$2$VERSION{$_}!, (reverse sort keys %VERSION)[0..2];
+}
 
 #
 # Now figure out where everything goes:
@@ -62,6 +98,38 @@ simply architecture-independent data that needs to be stored somewhere.
 
 Where should the library files be installed [$prefix/share/makepp]? ") ||
   "$prefix/share/makepp";
+our $setdatadir;
+if ($datadir !~ /^\//) {	# Make a relative path absolute.
+  use Cwd;
+  my $cwd = cwd;
+  chdir $datadir;
+  $setdatadir = "\$datadir = '" . cwd . "';";
+  chdir $cwd;
+} else {
+  $setdatadir = "\$datadir = '$datadir';";
+}
+
+# prior installation may not have supported .makepp/*.mk files
+-r "$datadir/FileInfo_makepp.pm" and
+  (stat "$datadir/FileInfo_makepp.pm")[9] < 1102710870 || # check-in time
+  do {
+    my $found;
+    open F, "$datadir/FileInfo_makepp.pm";
+    while( <F> ) {
+      $found = 1, last if /build_info_subdir.+\.mk/;
+    }
+    !$found;
+  } and
+  print '
+Warning: the names of the metainformation files under .makepp have changed
+with regard to your old installation of makepp.  Every user must issue the
+following command at the tops of their build trees, to prevent the new makepp
+from rebuilding everything.  Or sysadmins installing this version can issue
+the command for the whole machine from the root directory.
+
+  find `find . -name .makepp` -type f | xargs -i mv {} {}.mk
+
+';
 
 $mandir = shift @ARGV || read_with_prompt("
 Where should the manual pages be installed?
@@ -74,36 +142,78 @@ Where should the HTML documentation be installed?
 Enter \"none\" if you do not want any documentation installed.
 HTML documentation directory [$prefix/share/makepp/html]: ") ||
   "$prefix/share/makepp/html";
+$htmldir_val = $htmldir;
 
-substitute_file("makepp", $bindir, 0755);
-substitute_file("recursive_makepp", $datadir, 0644);
+use vars qw/$findbin/;
+$findbin = shift @ARGV;
+defined($findbin) or $findbin = read_with_prompt("
+Where should the library files be sought relative to the executable?
+Enter \"none\" to seek in $datadir [none]: ") || "none";
+$findbin=0 if $findbin eq "none";
+if($findbin) {
+  $setdatadir = "use FindBin;\n" .
+    qq{\$datadir = "\$FindBin::RealBin/$findbin";};
+  $htmldir = qq{\$FindBin::RealBin/$findbin/html}
+    if $htmldir eq $datadir . "/html";
+}
 
-make_dir("$datadir/Signature");
-foreach $module (qw(FileInfo FileInfo_makepp MakeEvent Glob Makefile Makesubs Rule
-		    Signature TextSubs
-		    Signature/exact_match Signature/target_newer
-		    Signature/c_compilation_md5 Signature/md5)) {
+@sig_num{split ' ', $Config{sig_name}} = split ' ', $Config{sig_num};
+$USR1 = $sig_num{USR1}; $USR1 = $USR1; 	# suppress used-only-once warning
+
+substitute_file( $_, $bindir, 0755 ) for
+  qw(makepp makeppbuiltin makeppclean makeppgraph makepplog makepp_build_cache_control);
+
+substitute_file( $_, $datadir, 0644 ) for
+  qw(recursive_makepp FileInfo_makepp.pm);
+
+make_dir("$datadir/$_") for
+  qw(ActionParser BuildCheck CommandParser Scanner Signature);
+foreach $module (qw(AutomakeFixer BuildCache BuildCacheControl FileInfo Glob MakeEvent
+		    Makecmds Makefile Makesubs Rule TextSubs Utils
+
+		    ActionParser ActionParser/Legacy ActionParser/Specific
+
+		    BuildCheck BuildCheck/architecture_independent
+		    BuildCheck/exact_match BuildCheck/ignore_action
+		    BuildCheck/symlink BuildCheck/target_newer
+		    BuildCheck/only_action
+
+		    CommandParser CommandParser/Basic CommandParser/Esqlc
+		    CommandParser/Gcc CommandParser/Swig CommandParser/Vcs
+
+		    Scanner Scanner/C Scanner/Esqlc Scanner/Swig Scanner/Vera
+		    Scanner/Verilog
+
+		    Signature Signature/c_compilation_md5 Signature/md5
+		    Signature/shared_object Signature/verilog_simulation_md5
+		    Signature/verilog_synthesis_md5)) {
   copy("$module.pm", "$datadir/$module.pm");
   chmod 0644, "$datadir/$module.pm";
 }
 
-foreach $include (qw(c_compilation_md5 infer_objects 
-		     makepp_builtin_rules makepp_default_makefile)) {
+foreach $include (qw(makepp_builtin_rules makepp_default_makefile)) {
   copy("$include.mk", "$datadir/$include.mk");
   chmod 0644, "$datadir/$include.mk";
 }
+
+#
+# From here on we treat the pod files
+#
+chdir 'pod';
+
+@pods = <*.pod>;
 
 #
 # Install the man pages:
 #
 if ($mandir ne 'none') {
   make_dir("$mandir/man1");
-  foreach $file (glob("pod/*.pod")) {
+  foreach $file (@pods) {
     my $manfile = $file;
     $manfile =~ s/\.pod$/.1/;   # Get the name of the man file.
     $manfile =~ s@^pod/@@;
     system("pod2man $file > $mandir/man1/$manfile 2>/dev/null");
-                                # Ignore stderr because older versions of 
+                                # Ignore stderr because older versions of
                                 # pod2man (e.g., perl 5.006) don't understand
                                 # =head3.
     chmod 0644, "$mandir/man1/$manfile";
@@ -111,12 +221,322 @@ if ($mandir ne 'none') {
 }
 
 #
-# Now install the HTML pages.
+# Now massage and install the HTML pages.
 #
-if ($htmldir ne 'none') {
-  make_dir($htmldir);
-  system("cd pod; $Config{'perlpath'} ./pod2html $htmldir *.pod");
-  system("cd $htmldir; chmod 0644 *.html");
+use Pod::Html ();
+
+sub highlight_keywords() {
+  s!\G(\s*)((?:noecho\s+|ignore_error\s+|makeperl\s+|perl\s+|[-\@]|&amp;(?:cat|chmod|cp|mv|cut|echo|expr|printf|yes|grep|sed|(?:un)?install|ln|mkdir|perl|preprocess|rm|sort|template|touch|uniq)\b)+)!$1<b>$2</b>! or
+
+  s!\G((?:override )?(?:define|export|global)|override|ifn?def|makesub|sub)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<i>$3</i>! or
+  s!\G(register_scanner|signature)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<u>$3</u>! or
+  # repeat the above, because they may appear in C<> without argument
+  s!\G(\s*(?:and |or |else )?if(?:n?(?:def|eq|sys|xxx)|(?:make)?perl)|build_cache|else|endd?[ei]f|export|global|fi|[_-]?include|load[_-]makefile|makeperl|no[_-]implicit[_-]load|override|perl(?:|[_-]begin|[_-]end)|repository|runtime|unexport|define|makesub|sub|register_scanner|signature)\b!<b>$1</b>! && s|xxx|<i>xxx</i>| or
+
+    # highlight assignment
+    s,\G\s*(?:([-.\w\s%*?\[\]]+?)(\s*:\s*))?((?:override\s+)?)([-.\w]+)(?= *(?:[:;+?!]|&amp;)?=),
+      ($1 ? "<u>$1</u>$2" : '') . ($3 ? "<b>$3</b>" : '') . "<i>$4</i>"
+    ,e or
+
+    # highlight rule targets -- EOL trickery to mostly not underline Perl or C++
+    $pre && !/define|export|global|override/ && s!\G(\s*)([^&\s].*?)(?=\s*:(?:$|.*?[^;{]\n))!$1<u>$2</u>!m;
+
+  # highlight rule options
+  s!(: *)(build_c(?:ache|heck)|quickscan|scanner|signature|smartscan)(&nbsp;| +)([-/\w]+)!$1<b>$2</b>$3<u>$4</u>! or
+  # repeat the above, because they may appear in C<> without argument
+  s!(: *)(foreach|quickscan|scanner|signature|smartscan)\b!$1<b>$2</b>!;
+}
+
+sub highlight_variables() {
+  s((\$[\{\(]{1,2})([-\w]+)([\}\)]{0,2})){
+    my( $prefix, $name, $suffix ) = ($1, $2, $3);
+    $name = "<b>$name</b>" if
+      $name =~ /absolute[_-]filename|
+	add(?:pre|suf)fix|
+	basename|
+	CURDIR|
+	dependenc(?:y|ies)|
+	dir(?:[_-]noslash)?|
+	error|
+	filesubst|
+	filter(?:[_-]out)?|
+	find(?:[_-](?:program|upwards)|file|string)|
+	first(?:[_-]available|word)|
+	foreach|
+	if|
+	infer[_-](?:linker|objects)|
+	inputs?|
+	join|
+	make(?:perl)?|
+	map|
+	mktemp|
+	notdir|
+	only[_-](?:generated|stale|(?:non)?targets)|
+	origin|
+	outputs?|
+	patsubst|
+	perl|
+	phony|
+	print|
+	PWD|
+	relative[_-](?:filename|to)|
+	shell|
+	sort(?:ed_dependencies|ed_inputs)?|
+	stem|
+	strip|
+	subst|
+	suffix|
+	targets?|
+	warning|
+	wildcard|
+	word(?:list|s)|
+	xargs/x;
+    $name =~ />(?:outputs?|stem|targets?)</ ?
+      "<u>$prefix<i>$name</i>$suffix</u>" :
+      "$prefix<i>$name</i>$suffix";
+  }eg;
+  s!(\$[\@%*])!<u>$1</u>!g;
+}
+
+if ($htmldir_val ne 'none') {
+  my( %nolink, %link );
+  my %alias = (makepp => 'Overview',
+	       build_check => 'Build Check Methods',
+	       builtin => 'Builtin Rules',
+	       builtins => 'Builtin Commands',
+	       command => 'Command Options',
+	       tutorial_compilation => 'Compilation Tutorial',
+	       makeppbuiltin => 'makeppbuiltin',
+	       makeppclean => 'makeppclean',
+	       makeppgraph => 'makeppgraph',
+	       makepplog => 'makepplog');
+  for( @pods ) {
+    my $pod = $_;
+    (my $file = $_) =~ s/pod$/html/;
+    for( $pod ) {
+      s/^makepp_//; s/\.pod$//;
+      $alias{$_} ||= join ' ', map "\u$_", split '_';
+      $_ = $alias{$_};
+      $nolink{$file} = "<b>$_</b>";
+      $link{$file} = "<a href='" . ($file eq 'makepp.html' ? '.' : $file) . "'>$_</a>";
+    }
+  }
+  # Put these first/last alphabetically:
+  my %order = ('makepp.html' => 0,
+	    'makepp_release_notes.html' => 1,
+	    'makepp_tutorial.html' => 2,
+	    'makepp_tutorial_compilation.html' => 3,
+	    'makepp_cookbook.html' => 4,
+	    'makepp_speedup.html' => 5,
+	    'perl_performance.html' => 6,
+	    'makeppbuiltin.html' => '~0',
+	    'makeppclean.html' => '~1',
+	    'makeppgraph.html' => '~2',
+	    'makepplog.html' => '~3');
+  my $home = ($htmldir_val =~ /\/[0-9.]+(?:\/|$)/);
+  my @links =
+      sort { (exists $order{$a} ? $order{$a} : $nolink{$a}) cmp (exists $order{$b} ? $order{$b} : $nolink{$b}) }
+      keys %link;
+  # Separate menu into 3 sections
+  $nolink{$_} = "<hr />$nolink{$_}", $link{$_} = "<hr />$link{$_}" for
+      qw(makepp_build_algorithm.html makeppbuiltin.html);
+  $link{'..'} = "<a href='..'>Home</a>", unshift @links, '..' if $home;
+
+  # Nuke the pod cache, because otherwise it doesn't get updated when new
+  # pages are added (on Perl 5.6.1, Pod::Html 1.03, i686-linux2.4)
+  unlink <pod2htm*~~ pod2htm?.tmp>;
+  my $tmp = '/tmp/makepp' . substr rand, 1;
+  make_dir($htmldir_val);
+  $htmldir_val =~ s!^([^/])!../$1!;
+  my $empty_line = '';
+  for( @pods ) {
+    my $has_commands_with_args = /makepp(?:_(?:builtins|command|extending|functions|statements)|builtin|graph|log)\.pod/;
+    my( $timestamp, $author ) = ('', '');
+    {
+      open my( $podfile ), $_;
+      for( 1..10 ) {		# Expect it in first 10 lines.
+	if( <$podfile> =~ m!\$Id: .+,v [0-9.]+ (\d{4})/(\d{2})/(\d{2}) ! ) {
+	  $timestamp = "$1-$2-$3";
+	}
+      }
+    }
+    Pod::Html::pod2html qw'--libpods=makepp_functions:makepp_rules:makepp_statements:makepp_variables:makepp_signatures:makepp_build_cache
+			   --podpath=. --podroot=. --htmlroot=. --css=makepp.css --infile', $_, '--outfile', $tmp;
+    open my( $tmpfile ), $tmp;
+    s/pod$/html/;
+    my $img = '<img src="makepp.gif" width=142 height=160 title=makepp border=0>';
+    $img = "<a href='" . ($home ? '/' : '.') . "'>$img</a>" if $home || length() > 11;
+    my $nav = "<table id='Nav'><tr><th>$img<th></tr><tr><th></th></tr>
+  <tr><th>
+    <a href='http://sourceforge.net/projects/makepp/'>at
+    <img src='sflogo.png' width='88' height='31'
+	 border='0' align='middle' alt='SourceForge'></a></th></tr>
+  <tr><th><form method=GET action='http://google.com/search'>
+    <input type='hidden' name='as_sitesearch' value='makepp.sourceforge.net' />
+    <input type='text' name='as_q' size='14' /><br />
+    <button type='submit'><img src='google.png' width='16' height='16' align='middle' alt='Google'> Site Search</button>
+  </form></th></tr><tr><td>";
+    { # No link to self.
+      local $link{$_} = $nolink{$_};
+      $nav .= join '<br />', map $link{$_}, @links;
+    }
+    $nav .= '</td></tr></table>';
+    open my $outfile, ">$htmldir_val/$_" or die "can't create `$htmldir_val/$_'--$!";
+    chmod 0644, "$htmldir_val/$_";
+    s/\.html$//;
+    my $title = (s/^makepp(?:_|$)// ? 'Makepp ' : '') . $alias{$_ || 'makepp'};
+    my $index;
+    my %count;
+    while( <$tmpfile> ) {
+      s/<(\/?[\w\s]+)/<\L$1/g if $Pod::Html::VERSION < 1.04; # Perl 5.6
+      if( defined $unread ) {
+	$_ = $unread . $_;
+	undef $unread;
+      }
+      if ( /^<\/head>/../<h1>.*(?:DESCRIPTION|SYNOPSIS)/ ) {
+	if ( /<(?:\/?ul|li)>/ ) {
+	  # These are visible anyway when the index is.
+	  next if /NAME|DESCRIPTION|SYNOPSIS|AUTHOR/;
+	  $index .= $_;
+	}
+	# Such a line MUST be present in every POD.
+	next unless s!<p>(makepp\w*) -- (.+)!$2!;
+	# Paragraph maybe not complete, grab rest
+	$_ .= <$tmpfile> while ! s!</p>$!</b>!i;
+	for ( $index ) {
+	  # Rearrange the index, because we threw out some items, discard it if empty.
+	  s!<ul>\s+</ul>!!;
+	  m!<ul>\s+<ul>! &&
+	  s!</ul>\s+</ul>!</ul>! &&
+	  s!<ul>\s+<ul>!<ul>!;
+	}
+	$_ = "<link rel=icon href='url.png' type='image/png'>
+</head><body>$nav<h1>$title</h1>\n<p><b>$_</p>$index";
+      } elsif ( s/<pre>\n// ) {
+	$pre = 1;
+      } elsif ( $pre ) {
+
+	if( /^(.*#.*\|.*\|.*#.*\|.*\|.*)<\/pre>$/ ) { # Special case for compatibility table.
+
+	  my @list = split /[#|]/, $1;
+	  s/^\s+//, s/\s+$// for @list;
+	  if( $list[0] ) {
+	    $_ = '<tr><th align="left">' . shift( @list ) . '</th>';
+	    for my $elem ( @list ) {
+	      if( $elem eq 'x' ) {
+		$_ .= '<th class="good">x</th>';
+	      } elsif( $elem eq '/' ) {
+		$_ .= '<th class="bad"><i>/</i></th>';
+	      } elsif( $elem ) {
+		$_ .= "<th class='soso'>x<a href='#\L$elem'><sup>*)</sup></a></th>";
+	      } else {
+		$_ .= '<th>&nbsp;</th>';
+	      }
+	    }
+	  } else {		# Heading line.
+	    shift @list;
+	    $_ = '<tr><th></th>';
+	    if( $list[0] ne '.0' ) {
+	      $_ .= '<th colspan="3">5.6</th><th colspan="' . (@list - 3) . '">5.8</th>';
+	    } else {
+	      for my $elem ( @list ) {
+		$_ .= "<th>&nbsp;$elem&nbsp;</th>";
+	      }
+	    }
+	  }
+	  $_ .= "</tr>\n";
+	  $pre = 0;
+
+	} else {
+
+	  # unindent initial whitespace which marks <pre> in pod
+	  s/^ {1,7}\t(\t*)(?!#)/$1    / or s/^    ?//;
+
+	  if( /^\s+$/ ) {
+	    $empty_line = '<span class=tall>&nbsp;</span>';
+	    next;
+	  } else {
+	    # don't parse comments
+	    $end = s/(#(?: .*?)?)((?:<\/pre>)?)$// ? "<span class=comment>$1</span>$empty_line$2" : $empty_line;
+	    $empty_line = '';
+	  }
+
+	  s!^([%\$]? ?)(makepp(?:builtin|clean|_build_cache_control)?)\b!$1<b>$2</b>!g or
+				# g creates BOL \G for keywords
+	    highlight_keywords;
+	  highlight_variables;
+
+	  # put comment back in
+	  s/$/$end/ if $end;
+	  $_ = '<pre>' . $_, $pre++ if $pre == 1;
+	  $pre = 0 if m!</pre>!;
+
+	}
+      } elsif ( /^<\/dd>$/ ) { # repair broken nested =over
+	$dd = 1;
+	next;
+      } elsif ( $dd and /^<(?:d[dt]|\/dl)>/ ) {
+	$dd = 0;
+	s!(<strong>-. )(.+?<)!$1<i>$2/i><! ||	# Repetitions of same don't get itemized.
+	s!("item_[^"]*">--[^<=]*=)(.+?) ?<!$1<i>$2</i><! ||
+	s!("item_[^"]*">[^ <,]* )(.+?) ?<!$1<i>$2</i><!
+	  if $has_commands_with_args;		# italicize args
+	s!"item_(\w+)[^"]*">(\1)!"$1">$2!i;	# fix =item anchor
+	s!"item_(_2d\w+)">!"$1">! ||		# fix =item hexcode-anchor
+	s! name="item_(_\w+?)(?:__[25][db].*?)?">!$seen{$1}++ ? '>' : " name='$1'>"!e;
+	s!"item_(%[%\w]+)">!(my $i = $1) =~ tr/%/_/; "'$i'>"!e; # Perl 5.6
+      } elsif( ! s/<title>\w+/<title>$title/ ) {
+	s!([\s>]|^)([Mm]ake)pp([\s,.:])!$1<i><span class="makepp">$2</span>pp</i>$3!g;
+	s!("#_)(?=\w+">&amp;)!${1}26!g;		# fix builtins index link
+	s!<li></li>!<li>!;
+	s!(<strong>-. )(.+?<)!$1<i>$2/i><! ||	# Repetitions of same don't get itemized.
+	s!("item_[^"]*">--[^<=]*=)(.+?) ?<!$1<i>$2</i><! ||
+	s!("item_[^"]*">[^ <,]* )(.+?) ?<!$1<i>$2</i><!
+	  if $has_commands_with_args;		# italicize args
+	s!"item_(\w+)[^"]*">(\1)!"$1">$2!i;	# fix =item anchor
+	s!"item_(_2d\w+)">!"$1">! ||		# fix =item hexcode-anchor
+	s! name="item_(_\w+?)(?:__[25][db].*?)?">!$seen{$1}++ ? '>' : " name='$1'>"!e;
+	s!#item_(\w+)">!#$1">!g;		# fix =item link
+	s!"item_(%[%\w]+)">!(my $i = $1) =~ tr/%/_/; "'$i'>"!e; # Perl 5.6
+	s!#item_(%[%\w]+)">!(my $i = $1) =~ tr/%/_/; "#$i\">"!ge; # Perl 5.6
+	s!\./(\.html.+? in the (.+?) manpage<)!$2$1!g;		  # at least up to 5.8.5
+	highlight_keywords while /<code>/g;	# g creates "pseudo-BOL" \G for keywords
+	highlight_variables;
+	if ( /<h1.+AUTHOR/ ) {	# Put signature at bottom right.
+	  $_ = <$tmpfile>;
+	  /p>(.+?) (?:\(|&lt;)(<a href="mailto:.+?">)/i;
+	  $author = "$2$1</a>";
+	  $_ = '';
+	} elsif( $timestamp || $author and /<\/body>/ ) {
+	  if( $timestamp ) {
+	    if( $author ) {
+	      $author .= '<br />';
+	    } else {
+	      $author = '<hr />'; # In this case there was none.
+	    }
+	    $timestamp = "Last modified: $timestamp";
+	  }
+	  $_ = "<address>$author$timestamp</address>$_";
+	}
+      }
+				# uniquify =item labels (and simplify them)
+      no warnings 'uninitialized';
+      s!dt><strong><a name=['"](.+?)['"]!dt id="$1$count{$1}"! &&
+	++$count{$1} &&
+	s!</a></strong>!!;
+      s!\./\./makepp!makepp!g;
+      print $outfile $_;
+    }
+  }
+
+  unlink $tmp;
+
+  for( qw'google.png makepp.gif makepp.css pre.png sflogo.png url.png' ) {
+    copy $_, "$htmldir_val/$_";
+    chmod 0644, "$htmldir_val/$_";
+  }
+
+  symlink 'makepp.html', "$htmldir_val/index.html";
 }
 
 #
@@ -132,10 +552,10 @@ Makepp will work without it, however.
 If you installed perl from a binary distribution (e.g., from a linux package),
 you can probably get a precompiled version of this module from the same place.
 Otherwise, you can get it from CPAN
-(http://www.cpan.org/authors/id/G/GA/GAAS/Digest-MD5-2.25.tar.gz).
+(http://www.cpan.org/authors/id/G/GA/GAAS/Digest-MD5-2.33.tar.gz).
 After you've downloaded it, do the following:
-	gzip -dc Digest-MD5-2.25.tar.gz | tar xf -
-	cd Digest-MD5-2.25
+	gzip -dc Digest-MD5-2.33.tar.gz | tar xf -
+	cd Digest-MD5-2.33
 	perl Makefile.PL
 	make
 	make test
@@ -160,22 +580,30 @@ print "makepp successfully installed.\n";
 sub substitute_file {
   my ($infile, $outdir, $prot) = @_;
 
+  local *INFILE;
   open(INFILE, $infile) || die "$0: can't read file $infile--$!\n";
   make_dir($outdir);
 
   open(OUTFILE, "> $outdir/$infile") || die "$0: can't write to $outdir/$infile--$!\n";
 
-  while (defined($_ = <INFILE>)) {
-    s@^\#!\s*(\S+?)/perl@\#!$perlbin@;    # Handle #!/usr/bin/perl.
-    s/\@(\w+)\@/${$1}/g;          # Substitute anything containg @xyz@.
+  local $_;
+  while( <INFILE> ) {
+    s@^\#!\s*(\S+?)/perl(\s|$)@\#!$perl$2@	# Handle #!/usr/bin/perl.
+       if $. == 1;
+    s/\\?\@(\w+)\@/${$1}/g;		# Substitute anything containg @xyz@.
+    if( /^#\@\@(\w+)/ ) {		# Substitute anything containg #@@xyz ... #@@
+      1 until substr( <INFILE>, 0, 3 ) eq "#\@\@";
+      $_ = $$1;
+    }
 
     print OUTFILE $_;
   }
   close(OUTFILE);
+  close(INFILE);
 
   chmod $prot, "$outdir/$infile";
 }
- 
+
 #
 # Make sure a given directory exists.  Makes it and its parents if necessary.
 # Arguments: the name of the directory.

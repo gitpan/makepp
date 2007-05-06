@@ -1,0 +1,15 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	1	644	1070669423	1070669357	Makeppfile
+$(phony target):
+###	D	755	1070668820	1070668804	answers
+###	0	644	1070668804	1070668804	answers/x
+###	D	755	1070669462	1070669468	dir
+###	3	644	1070669423	1070669362	dir/Makeppfile
+repository ..
+
+$(phony target):
+###	4	644	1070669422	1070669410	makepp_test_script.pl
+makepp 'dir/target';
+open my $out, '>x';
+if( -l 'dir/target' ) { print $out "oops\n" }
+1;

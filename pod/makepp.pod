@@ -2,69 +2,162 @@
 
 makepp -- Compatible but improved replacement for make
 
+=for vc $Id: makepp.pod,v 1.25 2006/11/22 20:19:53 pfeiffer Exp $
+
 =head1 SYNOPSIS
 
-B<makepp> S<[ -e ]> S<[ -C dir ]> S<[ -f makefile]> S<[ -F makefile_or_dir ]>
-    S<[ -j n]> S<[ -k ]> S<[ -m method ]> S<[ --norc-substitution ]>
-    S<[ --noremake-makefiles ]> S<[ --nowarn ]> S<[ --percent-subdirs ]>
-    S<[ -q ]> S<[ -R dir]> S<[ --traditional-recursive-make ]>
-    S<[ -v ]> S<[ --version ]>
+B<makepp> S<[ -e ]> S<[ -C I<dir> ]> S<[ -f I<makefile>]> S<[ -F I<makefile_or_dir> ]>
+    S<[ -j I<n>]> S<[ -k ]> S<[ -m I<method> ]> S<[ --noremake-makefiles ]>
+    S<[ --nowarn ]> S<[ -q ]> S<[ -R I<dir>]> S<[ --traditional-recursive-make ]>
+    S<[ -v ]> S<[ --version ]> S<[ I<VAR=value> ... ]> S<[ I<target> ... ]>
+
+=head1 UPGRADE WARNING
+
+Many things have changed, meaning if you upgrade from 1.40 (or even a newer
+CVS version), you will probably have a full rebuild.  Especially as of
+2004-12-10, the names of the metainformation files under .makepp have changed.
+To get rid of the old ones, call C<makeppclean -r> before calling makepp.
 
 =head1 DESCRIPTION
 
 Makepp is a build program like make that supports all the features of GNU
 make, but has a number of additional features to make writing makefiles much
-easier and to make builds much safer.  
+easier and to make builds much safer.
 
-Makepp runs with any version of perl since 5.003_03.  I have seen it
-occasionlly trip a nasty bug in perl 5.6.0 on linux which causes makepp to
-spit out all kinds of strange error messages, so I don't recommend running
-with perl 5.6.0; however, this is apparently rare so if you have 5.6.0 you
-might well be ok.
+These pages describe the beta of upcoming Version 1.50.  It passes an
+extensive test-suite, and is used in several big projects.  Occasionally there
+may be a glitch with bleeding edge features, so be sure to keep a backup of
+the version that worked for you, before you update!  If you have any issues
+with the latest CVS version, holler, and we'll try to fix it quickly.
+
+Makepp runs with any version of perl since 5.6.  I have seen it occasionally
+trip over a nasty bug in perl 5.6.0 on linux which causes makepp to spit out
+all kinds of strange error messages, so I don't recommend running with perl
+5.6.0; however, this is apparently rare so if you have 5.6.0 you might well be
+ok.
 
 The following manual pages contain further information on how to use
 makepp:
 
-   makepp_command              Command line syntax
+=over 4
 
-   makepp_tutorial             How to write a makefile.  This is mostly 
-                               intended for someone with little or no
-                               experience using any implementation of make.
+=item L<Release Notes|makepp_release_notes>
 
-   makepp_cookbook             Quick answers to "How do I ...?" or
-                               "What's the best way to ...?"
+What changed with each release.
 
-   makepp_build_algorithm      How makepp's build algorithm differs in 
-                               fundamental ways from traditional make
+=item L<Tutorial|makepp_tutorial>
 
-   makepp_builtin              For very simple programs, you may not
-                               need a makefile at all!  These are the
-                               builtin rules that makepp knows about.
+How to write a makefile.  This is mostly intended for someone with little or
+no experience using any implementation of make.
 
-   makepp_rules                Specifying rules to build files
+=item L<Compilation Tutorial|makepp_tutorial_compilation>
 
-   makepp_variables            Using variables to simplify rules
+What the Unix compilation commands do.
 
-   makepp_functions            Functions for text manipulation
+=item L<Cookbook|makepp_cookbook>
 
-   makepp_statements           Additional directives to control makepp
+Quick answers to "How do I ...?" or "What's the best way to ...?"
 
-   makepp_scanning             How makepp scans for dependencies like include 
-                               files
+=item L<Speedup|makepp_speedup>
 
-   makepp_signatures           How makepp decides when to rebuild files
+Various tips for making makepp go much faster.
 
-   makepp_repositories         Repositories are a technique that simplifies
-                               both variant builds and keeping a central
-                               set of sources
+=item L<Perl Performance|perl_performance>
 
-   makepp_extending            How you can add functions to makepp by writing
-                               your own perl code.
+Various tips for making perl (within your makefiles and elsewhere) go faster.
 
-   makepp_incompatibilities    What works differently between GNU make
-                               and makepp.
+=for html </dl><hr /><dl>
 
-   makepp_release_notes        What changed with each release.
+
+=item L<Build Algorithm|makepp_build_algorithm>
+
+How makepp's build algorithm differs in fundamental ways from traditional make.
+
+=item L<Build Cache|makepp_build_cache>
+
+A build cache is a directory that stores the results of prior builds in
+case they are needed again in the same directory, or in a separate build
+in a different directory.
+
+=item L<Build Check Methods|makepp_build_check>
+
+How makepp decides when to build.
+
+=item L<Builtin Commands|makepp_builtins>
+
+Powerful, efficient commands available everwhere makepp 1.50 is.
+
+=item L<Builtin Rules|makepp_builtin>
+
+For very simple programs, you may not need a makefile at all!  These are the
+builtin rules that makepp knows about.
+
+=item L<Command Options|makepp_command>
+
+Command line syntax.
+
+=item L<Compatibility|makepp_compatibility>
+
+Where and and with what version of Perl makepp works.
+
+=item L<Extending|makepp_extending>
+
+How you can add functions to makepp by writing your own perl code.
+
+=item L<Functions|makepp_functions>
+
+Functions for text manipulation and various other purposes.
+
+=item L<Incompatibilities|makepp_incompatibilities>
+
+What works differently between GNU make and makepp.
+
+=item L<Repositories|makepp_repositories>
+
+Repositories are a technique that simplifies both variant builds and keeping a
+central set of sources.
+
+=item L<Rules|makepp_rules>
+
+Specifying rules to build files.
+
+=item L<Scanning|makepp_scanning>
+
+How makepp scans for dependencies like include files.
+
+=item L<Signatures|makepp_signatures>
+
+How makepp decides when files have changed.
+
+=item L<Statements|makepp_statements>
+
+Additional directives to control makepp.
+
+=item L<Variables|makepp_variables>
+
+Using variables to simplify rules.
+
+=item L<Sandboxes|makepp_sandboxes>
+
+Using sandboxes to partition the build.
+
+
+=for html </dl><hr /><dl>
+
+=item L<makeppclean|makeppclean>
+
+An efficient stand-alone cleanup script to remove files generated by makepp.
+
+=item L<makeppgraph|makeppgraph>
+
+A stand-alone utility to graphically analyze dependencies and the reasons for a rebuild.
+
+=item L<makepplog|makepplog>
+
+A stand-alone utility to analyze dependencies and the reasons for a rebuild.
+
+=back
+
 
 =head2 Features
 
@@ -75,7 +168,7 @@ makepp:
 Makepp scans automatically for include files.  This obviates the need for
 tools like makedepend.  Makepp's scanner works even if the included files
 don't exist yet but have to be built.  (This is true no matter where on the
-include path they come from, unlike programs that depend on gcc's 
+include path they come from, unlike programs that depend on gcc's
 S<C<-MM -MG>> option.)  Makepp has a flexible system for doing this which is
 based on scanning the build command; you can adapt it for other languages or
 build commands by writing a perl subroutine.
@@ -98,12 +191,15 @@ upper-level makefile.  So the usual solution is to build everything that
 can be built with the lower-level makefiles, hoping that that's adequate
 to build everything that's needed for the upper-level makefile.
 
-Makepp loads all the makefiles in at once, so it has no problem dealing
-with situations where a file in one makefile depends on a file produced
-by a different makefile.  Makepp cd's automatically to the directory
-containing the makefile before executing a command from a makefile, so
-each makefile may be written independently without knowledge of the
-top-level build directory.
+Makepp loads all the needed makefiles in at once, so it has no problem dealing
+with situations where a file from one makefile depends on a file produced by a
+different makefile.  Makepp cd's automatically to the directory containing the
+makefile before executing a command from a makefile, so each makefile may be
+written independently without knowledge of the top-level build directory.  But
+if access to the root of your build tree is important (e.g. because that's
+where your include directory resides), you can name the makefile in that
+directory specially.  Then makepp gives you the path to that directory in a
+variable.
 
 Makepp also can figure out where all the makefiles for the entire
 project are without being told, if each makefile is in the same
@@ -122,10 +218,10 @@ simply read something like this:
 
     CXX = g++
     CXXFLAGS = -g
-    
+ 
     %.o : %.c
     	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
-    
+ 
     my_program: *.o
     	$(CXX) $(inputs) -o $(output)
 
@@ -203,7 +299,7 @@ by files that change, and yet the generated include files themselves
 seldom change.  Suppose you have a complicated yacc grammar in your
 program, with a build rule like this:
 
-    y.tab.c y.tab.h:
+    y.tab.c y.tab.h: parser.y
     	yacc -d parser.y
 
 Ordinarily, every time you make even a tiny change to C<parser.y>, every
@@ -215,8 +311,8 @@ so all that recompilation is unnecessary.
 =item Repositories
 
 Makepp can automatically incorporate files from a different directory
-tree (the "repository") as needed into the current build tree.  (This
-idea was also taken from the "cons" program.)  This has a several
+tree (the "repository") into the current build tree as needed.  (This
+idea was also taken from the "cons" program.)  This has several
 interesting uses:
 
 =over 4
@@ -232,10 +328,10 @@ did not change.  The procedure would look like this:
 
     % makepp CFLAGS=-O2			# Compile everything.
     # oops, bug discovered here
-    makepp CFLAGS=-g			# Recompiles everything again.
+    % makepp CFLAGS=-g			# Recompiles everything again.
     gdb my_program
     # ... find the bug
-    makepp CFLAGS=-O2			# Recompiles everything a third time.
+    % makepp CFLAGS=-O2			# Recompiles everything a third time.
 
 With makepp, you can simply cd to an empty directory, and specify your
 original directory as a repository.  This will create new object files
@@ -273,6 +369,12 @@ corresponding files in the repository.  It can even do this for object
 files which exist in the repository and do not need to be recompiled in
 the developer's individual directory.
 
+=item Guarantee correct rules
+
+If your rules do somthing which you didn't tell makepp about, the repository
+mechanism will not know to fetch those things.  So something that builds
+normally but fails from a repository tells you to fix your rules.
+
 =back
 
 =item Automatic inference of needed C<.o> files
@@ -288,8 +390,8 @@ I used to, because makepp can automatically pick out the modules I need.
 
 Makepp won't be confused by soft links to a directory or by different
 relative filenames that refer to the same file.  All directory paths to
-a file are recognized, including C<foo>, C<./foo>, C<../src/foo>,
-C</auto_mnt/somedisk/bob/src/foo>, and C</users/bob/src/foo>.
+a file are recognized, including F<foo>, F<./foo>, F<../src/foo>,
+F</auto_mnt/somedisk/bob/src/foo>, and F</users/bob/src/foo>.
 
 =item Filenames with special characters
 
@@ -324,11 +426,10 @@ Makepp supports parallel compilations, but (unlike other make
 implementations) it won't mix output from separate processes which are
 running simultaneously.
 
-=item Synonymns for cryptic variables
+=item Synonyms for cryptic variables
 
 Makepp supports easier-to-remember synonymns for the cryptic make
 variables C<$@>, C<$^>, and C<$E<lt>>.  See L<makepp_variables> for
 details.
 
 =back
-

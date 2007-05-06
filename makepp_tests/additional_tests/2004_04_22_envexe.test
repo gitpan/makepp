@@ -1,0 +1,13 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	4	644	1082657847	1082657845	Makeppfile
+export DOT := .
+
+x:
+	$$DOT/ec_o "OK" > $@
+###	D	755	1082657921	1082657919	answers
+###	1	644	1082657919	1082657919	answers/x
+OK
+###	3	755	1082657833	1082657806	ec_o
+#!/bin/sh
+
+echo "$@"

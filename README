@@ -14,17 +14,16 @@ perl or better.  It's distributed under the terms of the perl Artistic
 License, which means that it's freely available to anyone for just about
 any purpose.
 
-Warning: Version 5.005_02 of perl is not good enough.  I've gotten lots
-of problem reports from Solaris systems where perl 5.005_02 is the
-default.  Don't be another statistic; install a newer version of perl.
-Don't say, "Well, I'll just try it and see what it does, and upgrade my
-perl only if it looks good."  Makepp won't even begin to do nice things
-until you upgrade your perl.
+Some perl versions have bugs that cause makepp to fail.  These are:
+o perl 5.005_02 does not work at all.  This used to be the default on many
+  solaris installations
+o perl 5.6.0 fails in really weird ways on the x86 (and maybe other
+  platforms) on large builds.
+o perl 5.6.1 has failed for us in different ways on different architectures.
+  On some architectures it seems to work fine, on others it's flaky.
 
-Makepp is also known to trip a bug in perl 5.6.0 for large builds.  It doesn't
-happen on all builds (in fact, it doesn't happen on any of the regression
-suite) so if you are using 5.6.0, you might be ok.  But it's better to use
-a different version of perl.
+We develop and test mostly with perl 5.8.0 or later, and we have
+encountered no problems with it.
 
 For the latest distribution, manual pages, and information about mailing
 lists, please see the makepp home page, http://makepp.sourceforge.net.

@@ -2,6 +2,8 @@
 
 makepp_tutorial -- Tutorial on writing makefiles
 
+=for vc $Id: makepp_tutorial.pod,v 1.11 2006/07/02 16:41:01 pfeiffer Exp $
+
 =head1 DESCRIPTION
 
 A I<makefile> is the set of instructions that you use to tell makepp how to
@@ -31,7 +33,7 @@ Makepp (short for Make-plus-plus, or B<make++>) is a tool for solving
 exactly this problem.  It is an improvement on the B<make> program, a
 standard tool that has been around for many years.  It relies either on
 its own builtin knowledge (in very simple cases), or on a file called a
-F<makefile> that contains a detailed recipe for building the program.
+F<Makefile> that contains a detailed recipe for building the program.
 
 Usually, the input files are program source code, and the output files
 are executables, but makepp doesn't care what they are.  You can use a
@@ -133,10 +135,11 @@ a makefile, because it always recompiles both modules even if one of
 them hasn't changed, and this can take a significant amount of extra
 time.)
 
-In order to use makepp to control the build process, you'll need to
-write a <i>makefile</i>.  The makefile is a text file that contains the
-recipe for building your program.  It usually resides in the same
-directory as the sources, and it is usually called C<Makefile>.
+In order to use makepp to control the build process, you'll need to write a
+I<makefile>.  The makefile is a text file that contains the recipe for
+building your program.  It usually resides in the same directory as the
+sources, and it is usually called C<Makeppfile>, C<Makefile> or, only at the
+root of your build tree C<RootMakeppfile>.
 
 Each one of these commands should be a separate I<rule> in a makefile.
 A rule is an instruction for building one or more output files from one
@@ -147,7 +150,7 @@ changed since the last time the rule was executed.
 A rule has a syntax like this:
 
     output_filenames : input_filenames
-    	actions
+ 	actions
 
 The first line of the rule contains a space-separated list of output
 files, followed by a colon, followed by a space-separated list of input
@@ -163,6 +166,11 @@ action line, but there can be as many as you want; each line is executed
 sequentially, and if any one of them fails, the remainder are not
 executed.  The rule ends at the first line which is not indented.
 
+Some or all of the I<actions> may also be Perl statements.  These may be
+on a single line and surrounded by C<perl { ... }>.  Or they may span
+several lines, in which case the braces must be doubled, C<perl {{ ...
+}}>.
+
 You can place the rules in any order in the makefile, but it is
 traditional to write the rule that links the program first, followed by
 the compilation rules.  One reason for this is that if you simply type
@@ -177,14 +185,17 @@ rules.  A makefile for building this program could look like this:
 
     # Link command:
     my_program: processing.o gui.o
-    	c++ processing.o gui.o -o my_program
-    
+ 	c++ processing.o gui.o -o my_program
+ 	perl {{
+ 	  print "my_program is built\n";
+ 	}}
+ 
     # Compilation commands:
     processing.o: processing.cxx
-    	c++ -c processing.cxx -o processing.o
-    
+ 	c++ -c processing.cxx -o processing.o
+ 
     gui.o: gui.cxx
-    	c++ -c gui.cxx -o gui.o
+ 	c++ -c gui.cxx -o gui.o
 
 
 (Characters on a line following a C<#> are ignored; they are just
@@ -228,11 +239,14 @@ build.
 
 =item *
 
-The date on any input file has changed since the last build.
+The date on any input file has changed since the last build, and there is a
+significant difference in the input file.  For C or C++ files this means a
+change other than whitespace or within comments.
 
 =item *
 
-The date on any target has changed since the last build.
+The date on any target has changed since the last build, and there is a
+difference in the target file.
 
 =item *
 
@@ -243,6 +257,10 @@ The actions have changed since the last build.
 The last build occured on a different architecture (different CPU type or
 operating system type).
 
+=item *
+
+Any environment variable listed on the rule has changed in value.
+
 =back
 
 It might seem a little funny that makepp executes the action if either
@@ -252,7 +270,7 @@ the commands in the makefile.  If you go and modify the file yourself,
 then makepp can't guarantee that the modified file is actually correct,
 so it insists on rebuilding.  (For more information on how makepp
 decides whether to rebuild, and how you can control this, see
-L<makepp_signatures>.)
+L<makepp_signatures> and L<makepp_command>.)
 
 Now C<processing.o> might not depend only on C<processing.cxx>; if
 C<processing.cxx> includes any C<.h> files, then it needs to be
@@ -262,7 +280,7 @@ like this:
 
     # Unnecessary listing of .h files
     processing.o: processing.cxx processing.h simple_vector.h list.h
-    	c++ -c processing.cxx -o processing.o
+ 	c++ -c processing.cxx -o processing.o
 
 However, it is a real nuisance to modify the makefile every time you
 change the list of files that are included, and it is also extremely
@@ -295,14 +313,14 @@ looks like this:
 
     # Link command:
     my_program: processing.o gui.o
-    	c++ processing.o gui.o -o my_program
-    
+ 	c++ processing.o gui.o -o my_program
+ 
     # Compilation commands:
     processing.o: processing.cxx
-    	c++ -c processing.cxx -o processing.o
-    
+ 	c++ -c processing.cxx -o processing.o
+ 
     gui.o: gui.cxx
-    	c++ -c gui.cxx -o gui.o
+ 	c++ -c gui.cxx -o gui.o
 
 
 This works wonderfully, but suppose now we want to change some compilation
@@ -326,17 +344,17 @@ each time the information is needed.
     # Define the symbols we might want to change:
     CXX	:= c++
     CXXFLAGS := -g
-    
+ 
     OBJECTS	:= processing.o gui.o
-    
+ 
     my_program: $(OBJECTS)
-    	$(CXX) $(OBJECTS) -o my_program
-    
+ 	$(CXX) $(OBJECTS) -o my_program
+ 
     processing.o: processing.cxx
-    	$(CXX) $(INCLUDES) $(CXXFLAGS) -c processing.cxx -o processing.o
-    
+ 	$(CXX) $(INCLUDES) $(CXXFLAGS) -c processing.cxx -o processing.o
+ 
     gui.o: gui.cxx
-    	$(CXX) $(CXXFLAGS) -c gui.cxx -o gui.o
+ 	$(CXX) $(CXXFLAGS) -c gui.cxx -o gui.o
 
 
 Here C<$(CXX)> expands to be the value of the variable C<CXX>, and
@@ -370,23 +388,23 @@ If you need to put a literal dollar sign into a rule action, write it
 with a double dollar sign, like this:
 
     test:
-    	for testfile in *.test; do run_test $$testfile; done
+ 	for testfile in *.test; do run_test $$testfile; done
 
 Conventionally, there are a few variables which you might want to set.
 These are just conventions, but you will see them in a lot of makefiles.
 
     CC	    := cc		# The C compiler.
     CFLAGS  := -g		# C compilation options which relate to
-    				# optimization or debugging (usually
-    				# just -g or -O).  Usually this wouldn't
-    				# include -I options to specify the
-    				# include directories, because then you
-    				# couldn't override it on the command line
-    				# easily as in the above example.
+ 				# optimization or debugging (usually
+ 				# just -g or -O).  Usually this wouldn't
+ 				# include -I options to specify the
+ 				# include directories, because then you
+ 				# couldn't override it on the command line
+ 				# easily as in the above example.
     CXX	     := c++             # The C++ compiler.  (Sometimes "CPP" instead
-    				# of CXX.)
-    CXXFLAGS := -g		# C++ compilation options related to 
-    				# optimization or debugging (-O or -g).
+ 				# of CXX.)
+    CXXFLAGS := -g		# C++ compilation options related to
+ 				# optimization or debugging (-O or -g).
     F77	     := f77		# The fortran compiler.
     FFLAGS   :=	        	# Optimization flags for fortran.
 
@@ -420,7 +438,7 @@ The following pattern rule will take any C<.c> file and compile it into
 a C<.o> file:
 
     %.o: %.c
-    	$(CC) $(CFLAGS) $(INCLUDES) -c $(input) -o $(output)
+ 	$(CC) $(CFLAGS) $(INCLUDES) -c $(input) -o $(output)
 
 
 (This assumes that you have the variables C<CC>, C<CFLAGS>, and
@@ -475,11 +493,11 @@ pattern rules.  For example,
 
     # Put the object files into a separate directory:
     objects/%.o: %.cpp
-    	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
-    
+ 	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
+ 
     # Run a preprocessor to make source files:
     moc_%.cxx: %.h
-    	$(MOC) $(input) -o $(output)
+ 	$(MOC) $(input) -o $(output)
 
 Using pattern rules and automatic variables, we'd probably
 rewrite our makefile for our simple program like this:
@@ -487,15 +505,15 @@ rewrite our makefile for our simple program like this:
     CXX	:= c++
     CXXFLAGS := -g
     INCLUDES := -I.		# This would contain any -I options to the
-    				# compiler, if there are any.
+ 				# compiler, if there are any.
     LIBS     := -L/usr/X11R6/lib -lX11 # Contains libraries we need to link in.
     OBJECTS  := processing.o gui.o
-    
+ 
     my_program: $(OBJECTS)
-    	$(CXX) $(inputs) -o $(output) $(LIBS)
-    
+ 	$(CXX) $(inputs) -o $(output) $(LIBS)
+ 
     %.o: %.cxx
-    	$(CXX) $(INCLUDES) $(CXXFLAGS) -c $(input) -o $(output)
+ 	$(CXX) $(INCLUDES) $(CXXFLAGS) -c $(input) -o $(output)
 
 Now we don't have to have an explicit rule for each object file we need
 to produce.  If we want to add another module to our program, we only
@@ -517,12 +535,12 @@ fragment:
 
     CXXFLAGS := -g -O2
     FAST_CXXFLAGS := -DNO_DEBUG -O6 -malign-double -funroll-all-loops
-    
+ 
     %.o: %.cpp
-    	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
-    
+ 	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
+ 
     time_critical_subs.o: time_critical_subs.cpp
-    	$(CXX) $(FAST_CXXFLAGS) -c $(input) -o $(output)
+ 	$(CXX) $(FAST_CXXFLAGS) -c $(input) -o $(output)
 
 There is also another syntax that can be more convenient for affecting
 compilation options for just one or a few targets.  It is possible to
@@ -531,10 +549,10 @@ specific targets.  In this example, it would look like this:
 
     CXXFLAGS := -g -O2
     FAST_CXXFLAGS := -DNO_DEBUG -O6 -malign-double -funroll-all-loops
-    
+ 
     %.o: %.cpp
-    	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
-    
+ 	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
+ 
     time_critical_subs.o: CXXFLAGS := $(FAST_CXXFLAGS)
 
 In general, if you specify a variable name after a list of targets, then
@@ -544,7 +562,8 @@ being determined.
 If you find yourself wanting to do something with patterns that isn't
 expressed easily using the C<%> wildcard, makepp has another syntax
 which is somewhat harder to read, but considerably more powerful.  See
-the C<:foreach> clause for more details.
+L<the foreach clause in rules|makepp_rules/Foreach rules> for more
+details.
 
 Makepp actually has builtin rules for compiling C or C++ or Fortran
 code, which are available if you don't override them with your own
@@ -560,20 +579,28 @@ build process.  For example, a very common procedure in makefiles is
 something like this:
 
     prefix=/usr/local
-    
+ 
     install: our_program
-    	install -m 0755 our_program $(prefix)/bin
-    	install -m 0644 *.png $(prefix)/share/our_program/icons
-    
+ 	&install -m 0755 our_program $(prefix)/bin
+ 	&install -m 0644 $(wildcard *.png) $(prefix)/share/our_program/icons
+ 
     .PHONY: install
 
 When someone types S<C<makepp install>>, then makepp first builds
 C<our_program>, then runs the commands associated with the install
 target.  The C<install> command simply copies its arguments to the
 specified directory, and sets the file's protection to the indicated
-value.  So it copies C<our_program> into C</usr/local/bin>, and some
-associated data files into C</usr/local/share/our_program/icons>.  But
+value.  So it copies F<our_program> into F</usr/local/bin>, and some
+associated data files into F</usr/local/share/our_program/icons>.  But
 this doesn't create a file called C<install> in the current directory.
+
+The command itself, C<&install>, is preceded by an ampersand.  This means that
+it is not a Shell command, but a similar builtin command.  (You see the
+difference in that you need the C<$(wildcard)> function, because the Shell is
+not expanding it for you.)  Makepp has quite a few of these, both for
+portability reasons -- C<install>, when it is at all present, differs wildly,
+and even trivial commands like C<echo> do -- and performance.  See the
+L<builtin commands|makepp_builtins> for more details.
 
 The C<install> target here is called a I<phony target> because makepp
 treats it as if it were a real file, but it is not actually a file, it's
@@ -581,6 +608,7 @@ just a trick for forcing makepp to build its dependencies and then run
 some commands.
 
 That's what the line
+
     .PHONY: install
 
 is for.  It tells makepp that it really shouldn't expect the file
@@ -592,7 +620,7 @@ does not.
 
 You can also write the phony declaration like this:
     $(phony install): our_program
-    	...
+ 	...
 
 and then omit the S<C<.PHONY: install>> line.  This means that you can
 declare the target as phony on the same line as you define it, which may
@@ -614,75 +642,63 @@ Here is a sample makefile fragment that illustrates some commonly used
 phony targets:
 
     PROGRAMS	:= combobulator discombobulator
-    
+ 
     $(phony all): $(PROGRAMS)	# All is the first target, so it's the default.
-    
+ 
     combobulator: $(COMBOBULATOR_OBJS)
-    	$(CXX) $(inputs) -o $(output)
-    
+ 	$(CXX) $(inputs) -o $(output)
+ 
     discombobulator: $(DISCOMBOBULATOR_OBJS)
-    	$(CXX) $(inputs) -o $(output)
-    
+ 	$(CXX) $(inputs) -o $(output)
+ 
     #
     # This target makes sure everything is compiled, and then puts the
     # programs into a place where everyone can access them.  We make the
-    # directories if they don't exist yet.
+    # directories if they don't exist yet.  We don't use &mkdir, because
+    # &install keeps track of everything it does, so &uninstall can later
+    # undo this.
     #
     prefix	:= /usr/local
-    
+ 
     $(phony install): all
-    	test -d $(prefix) || mkdir $(prefix)
-    	test -d $(prefix)/bin || mkdir $(prefix)/bin
-    	for prog in $(PROGRAMS); do \
-    	  install -m 0755 $$prog $(prefix)/bin; \
-    	done
-    	test -d $(prefix)/share || mkdir $(prefix)/share
-    	test -d $(prefix)/share/combobulate || mkdir -p $(prefix)/share/combobulate
-    	for icon in *.xbm; do \
-    	  install -m 0644 $$icon $(prefix)/share/combobulate; \
-    	done
-    # Note the use of the double dollar sign to pass a single dollar sign to
-    # the shell.  Note also the backslashes at the end of a line to indicate
-    # that a shell command continues to the next line.
-    
-    #
-    # This target gets rid of all the junk that gets built during compiles.
-    # (Note that this could be done more thoroughly with the only_targets
-    # function.)
-    #
-    $(phony clean):
-    	rm -f $(PROGRAMS) *.o
-    
+ 	&install -d $(prefix)/bin $(prefix)/share/combobulate
+ 	&install -m 0755 $(PROGRAMS) $(prefix)/bin
+ 	&install -m 0644 $(wildcard *.xbm) $(prefix)/share/combobulate
+ 
     #
     # This target makes a source distribution for shipping out to someone.
     #
     VERSION := 3.14
-    
+ 
     $(phony distribution):
-    	rm -rf combobulate-$(VERSION)	# Get rid of previous junk, if any.
-    	mkdir combobulate-$(VERSION)
-    	cp *.c *.h Makefile README INSTALL combobulate-$(VERSION)
-    	tar cf - combobulate-$(VERSION) | gzip -9c > combobulate-$(VERSION).tar.gz
-    	rm -rf combobulate-$(VERSION)
-    
+ 	rm -rf combobulate-$(VERSION)	# Get rid of previous junk, if any.
+ 	&mkdir combobulate-$(VERSION)
+ 	&cp -l $(wildcard *.c *.h) Makefile README INSTALL combobulate-$(VERSION)
+ 	tar cf - combobulate-$(VERSION) | gzip -9c > combobulate-$(VERSION).tar.gz
+ 	rm -rf combobulate-$(VERSION)
+ 
     #
     # This target runs regression tests to make sure the program(s) are
     # doing what they are supposed to do.
     #
     $(phony test): $(PROGRAMS)
-    	noecho for testfile in *.test; do \
-    	   ./combobulate $$testfile | ./discombobulate - > junk_output; \
-    	  if cmp -s junk_output $$testfile; then \
-    	    echo passed $$testfile; \
-    	  else \
-    	    echo failed $$testfile; \
-    	  fi; \
-    	done
+ 	noecho for testfile in *.test; do \
+ 	   ./combobulate $$testfile | ./discombobulate - > junk_output; \
+ 	  if cmp -s junk_output $$testfile; then \
+ 	    echo passed $$testfile; \
+ 	  else \
+ 	    echo failed $$testfile; \
+ 	  fi; \
+ 	done
     #
     # If "noecho" is the first word of the action, the action itself is not
     # printed before it is executed.  In this case, printing the action
     # would merely clutter up the screen so it is very common to suppress
     # printing for such long commands.
+    #
+    # Note the use of the double dollar sign to pass a single dollar sign to
+    # the shell.  Note also the backslashes at the end of a line to indicate
+    # that a shell command continues to the next line.
     #
 
 =head2 Working with several directories
@@ -713,40 +729,41 @@ that this makefile refers to files in other directories, and it will
 examine those other directories to see if there is a makefile in them.
 In this way, all relevant makefiles will be loaded.
 
-As a simple example, suppose your top level directory contains
-the following makefile:
+As a simple example, suppose your top level directory contains the following
+makefile (suggested name is C<RootMakeppfile>, but C<Makeppfile> will also
+work):
 
     # Top level makefile:
-    
+ 
     CXX	:= c++
     CXXFLAGS := -O2
     my_program: main.o goodies/libgoodies.so
-    	$(CXX) $(inputs) -o $(output)
-    
+ 	$(CXX) $(inputs) -o $(output)
+ 
     %.o: %.cxx
-    	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
+ 	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
 
 You would need to write a makefile in the directory
 C<goodies> which builds C<libgoodies.so>, like
 this:
 
     # goodies/Makefile
-    
+ 
     CXX	:= c++
     CXXFLAGS := -O2
-    
+ 
     MODULES = candy.o chips.o licorice.o cookies.o popcorn.o spinach.o
-    
+ 
     libgoodies.so: $(MODULES)
-    	$(CXX) -shared $(inputs) -o $(output)
-    			# Note that the command is written assuming that
-    			# the current directory is the subdirectory
-    			# "goodies", not the top level subdirectory.
-    			# Makepp cds into this directory before executing
-    			# any commands from this makefile.
-    
+ 	$(CXX) -shared $(inputs) -o $(output)
+ 			# Note that the command is written assuming that
+ 			# the current directory is the subdirectory
+ 			# "goodies", not the top level subdirectory.
+ 			# Makepp cds into this directory before executing
+ 			# any commands from this makefile.
+ 
     %.o: %.cxx
-    	$(CXX) $(CXXFLAGS) -fpic -c $(input) -o $(output)
+ 	$(CXX) $(CXXFLAGS) -fpic -c $(input) -o $(output)
 
 
 And that's all you need to do.
@@ -813,14 +830,14 @@ contain the following definitions:
     # standard_defs.mk
     CXX	:= c++
     CXXFLAGS := -O2
-    
+ 
     #
     # We've also included a pattern rule that might be useful in one or more
     # subdirectories.  This pattern rule is for C compilation for putting
     # things into a shared library (that's what the -fpic option is for).
     #
     %.o: %.cxx
-    	$(CXX) $(CXXFLAGS) -fpic -c $(input) -o $(output)
+ 	$(CXX) $(CXXFLAGS) -fpic -c $(input) -o $(output)
 
 
 Note that since the included file is actually inserted into each
@@ -832,30 +849,30 @@ The top level C<Makefile> might look like this:
 
     # Top level makefile
     include standard_defs.mk
-    
+ 
     my_program: main.o goodies/libgoodies.so
-    	$(CXX) $(inputs) -o $(output)
-    
+ 	$(CXX) $(inputs) -o $(output)
+ 
     #
     # Note that this pattern rule overrides the one found in standard_defs.mk,
     # because makepp sees it later.  This pattern rule is for compilation for
     # a module that doesn't belong in a shared library.
     #
     %.o: %.cxx
-    	$(CXX) $(CXXFLAGS) $(input) -o $(output)
+ 	$(CXX) $(CXXFLAGS) $(input) -o $(output)
 
 
 And the subdirectory's makefile might look like this:
 
     # goodies/Makefile
     include standard_defs.mk
-    
+ 
     MODULES = candy.o chips.o licorice.o cookies.o popcorn.o spinach.o
-    
+ 
     libgoodies.so: $(MODULES)
-    	$(CXX) -shared $(inputs) -o $(output)
-    
-    # We don't need the pattern rule for compilation of .cxx to .o files, 
+ 	$(CXX) -shared $(inputs) -o $(output)
+ 
+    # We don't need the pattern rule for compilation of .cxx to .o files,
     # because it's contained in standard_defs.mk.
 
 =head3 The -F compilation option
@@ -882,9 +899,9 @@ that go into a program or a library.  The previous makefile, for
 example, contained this line:
 
     MODULES = candy.o chips.o licorice.o cookies.o popcorn.o spinach.o
-    
+ 
     libgoodies.so: $(MODULES)
-    	$(CXX) -shared $(inputs) -o $(output)
+ 	$(CXX) -shared $(inputs) -o $(output)
 
 In this case, listing all of the modules that go into C<libgoodies.so>
 is not such a big deal since there aren't very many of them.  But
@@ -897,7 +914,7 @@ could just tell makepp to do that without listing them all.
 Well, you can.  The above lines could be rewritten as:
 
     libgoodies.so: *.o
-    	$(CXX) -shared $(inputs) -o $(output)
+ 	$(CXX) -shared $(inputs) -o $(output)
 
 The C<*.o> wildcard matches any existing C<.o> files, or any C<.o> files
 which do not yet exist but can be made by any of the rules that makepp
@@ -916,13 +933,13 @@ Makepp supports the usual unix wildcards and one additional one:
 
 =over 4
 
-=item *
+=item C< *>
 
 Matches any string of 0 or more characters.  It will not match the C</>
 character.  For example, C<a*c> matches C<ac>, C<abc>, and C<aaaaabc>,
 but not C<aa/bc>.
 
-=item ?
+=item C<?>
 
 Matches exactly one character (not including C</>).  For example,
 C<???.o> matches all filenames that have 3 characters before the C<.o>
@@ -936,11 +953,11 @@ C<[abc].o> matches C<a.o>, C<b.o>, C<c.o>, but not C<abc.o> or C<d.o>.
 You can also specify a range of characters, e.g., C<data_[0-9]> will
 match C<data_0>, C<data_1>, etc.
 
-=item **
+=item C< **>
 
-This is a special wildcard, found only in makepp (and the zsh shell,
-from which I stole the idea).  It matches any number of intervening
-directories.  For example, C<**/*.o> matches C<xyz.o>,
+This is a special wildcard, found only in makepp (and the zsh shell, from
+which I stole the idea, as bash has done since).  It matches any number of
+intervening directories.  For example, C<**/*.o> matches C<xyz.o>,
 C<test_programs/abc.o>, and C<a/deeply/nested/subdirectory/def.o>.
 
 If your sources are contained in several subdirectories, and
@@ -948,7 +965,7 @@ you want to link all the object modules together, you could
 write it like this:
 
     liboodles.so: **/*.o
-    	$(CXX) -shared $(inputs) -o $(output)
+ 	$(CXX) -shared $(inputs) -o $(output)
 
 =back
 
@@ -1016,12 +1033,13 @@ the above lines like this:
 
     SOURCES = a.cpp bc.cpp def.cpp
     OBJS = $(SOURCES:%.cpp=%.o)
+    OBJS = $(SOURCES:.cpp=.o)	# Shorthand, when both begin with %.
 
-=item rc-style substitution 
+=item rc-style substitution
 
 Sometimes invocations of C<patsubst> or the equivalent substitution
 references can be somewhat cryptic.  Makepp provides another option
-which is sometimes more convenient: i<rc-style substitution> (so called
+which is sometimes more convenient: I<rc-style substitution> (so called
 because it was pioneered by the rc shell).
 
     MODULES := a bc def
@@ -1047,10 +1065,11 @@ by an example:
     ($OBJS = $SOURCES) =~ s/\.cpp/.o/g;
     perl_end
 
-Any text between the C<perl_begin> statement and the C<perl_end>
-statement is passed off to the perl interpreter.  All variables in the
-makefile (except automatic variables) are accessible as perl scalars.
-Any variables you set with perl code will be accessible in the makefile.
+Any text between the C<perl_begin> statement and the C<perl_end> statement is
+passed off to the perl interpreter.  You can also use an equivalent more
+perlish syntax of C<perl { ... }>.  All variables in the makefile (except
+automatic variables) are accessible as perl scalars.  Any variables you set
+with perl code will be accessible in the makefile.
 
 So what the above example does is to copy the text from C<$SOURCES> to
 C<$OBJS>, then substitute each occurence of C<.cpp> with C<.o>.
@@ -1083,12 +1102,12 @@ options.  Suppose for example that you usually compile your program with
 optimization:
 
     CFLAGS	:= -O2
-    
+ 
     %.o: %.c
-    	$(CC) $(CFLAGS) -c $(input) -o $(output)
-    
+ 	$(CC) $(CFLAGS) -c $(input) -o $(output)
+ 
     my_program: *.o
-    	$(CC) $(inputs) -o $(output)
+ 	$(CC) $(inputs) -o $(output)
 
 However, you discover a bug, and you want to enable debugging on all
 files, so you do change C<CFLAGS>:
@@ -1111,15 +1130,23 @@ specifying an alternate directory, or using repositories.
 You could rewrite the rules in your makefile to dump the objects into a
 different directory, like this:
 
-    ARCH	:= $(shell uname -m)	# ARCH becomes the output from the uname -m command.
+    ARCH	;= $(shell uname -s)-$(shell uname -m)-$(shell uname -r)
+ 			# ARCH becomes the output from the uname commands.
+			# Sometimes people use only $(shell uname -m), but
+			# this will be the same for FreeBSD and Linux on an
+			# x86.  The -r is not really useful on linux, but is
+			# important for other OSes: binaries for SunOS 5.8
+			# typically won't run on SunOS 5.7.  Note the ;= which
+			# means to evaluate this at most once, when first
+			# needed.
     CFLAGS	:= -O2
-    OBJDIR	:= $(ARCH)-optim
-    
+    OBJDIR	;= $(ARCH)-optim
+ 
     $(OBJDIR)/%.o: %.c
-    	$(CC) $(CFLAGS) -c $(input) -o $(output)
-    
+ 	$(CC) $(CFLAGS) -c $(input) -o $(output)
+ 
     $(OBJDIR)/my_program: $(OBJDIR)/*.o
-    	$(CC) $(inputs) -o $(output)
+ 	$(CC) $(inputs) -o $(output)
 
 Now when you run makepp, C<ARCH> is automatically set to something
 different for each architecture, and all of the objects are placed in a
@@ -1262,14 +1289,14 @@ this kind of error less likely by using only automatic variables in your
 actions, rather than repeating the dependency lists.  For example,
 
     combined_file: a b c
-         do_something a b c d > combined_file
+ 	 do_something a b c d > combined_file
 
 has an error because F<d> is mentioned in the action but not in the
 dependency list.  If the command had been written using automatic
 variables like this:
 
-    combined_file a b c d
-        do_something $(inputs) > combined_file
+    combined_file: a b c d
+ 	do_something $(inputs) > combined_file
 
 then it would have been impossible to make this mistake.
 
@@ -1284,8 +1311,8 @@ completely clean directory--just the bare minimum you think should be
 necessary--and rebuild absolute everything from scratch.  This can be
 most conveniently done by using repositories, like this:
 
-    rm -rf test-build-dir
-    makepp -R test-build-dir=. -F test-build-dir
+    % rm -rf test-build-dir
+    % makepp -R test-build-dir=. -F test-build-dir
 
 If the build fails because some file is not present, it means that
 makepp didn't realize some file was a dependency, because it only links
@@ -1306,7 +1333,7 @@ or else makepp may not have realized they have changed.  You can specify
 more than one target.  For example,
 
     y.tab.h y.tab.c: parse.y
-    	yacc -d parse.y
+ 	yacc -d parse.y
 
 If you had forgotten to specify F<y.tab.h> as a target, then makepp
 would not know to rebuild F<y.tab.h> using this command, and files that
@@ -1318,75 +1345,3 @@ run.
 Please suggest things that you have found confusing or dangerous, and
 I'll either note them or try to fix makepp so they aren't a danger any
 more.
-
-<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
-<html>
-<head>
-<title>Using Qt's moc preprocessor</title>
-</head>
-
-<body>
-<h1>Using Qt's moc preprocessor</h1>
-
-
-
-
-<hr>
-<a href="t_index.html">Tutorial index</a>
-|
-<a href="t_debugging.html">Next (debugging makefiles)</a>
-|
-<a href="t_functions.html">Previous (functions and variables)</a>
-<br>
-<!-- $Id: makepp_tutorial.pod,v 1.3 2003/07/15 00:50:38 grholt Exp $ -->
-<!-- Created: Fri Aug 25 23:04:23 PDT 2000 -->
-<!-- hhmts start -->
-Last modified: Tue Dec 26 21:08:53 PST 2000
-<!-- hhmts end -->
-</body>
-</html>
-<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
-<html>
-<head>
-<title>What is in a makefile</title>
-</head>
-
-<body>
-<h1>What is in a makefile</h1>
-
-
-
-
-<hr>
-<a href="t_index.html">Tutorial index</a>
-|
-<a href="t_functions.html">Next (functions and variables)</a>
-|
-<a href="t_dirs.html">Previous (directories)</a>
-<br>
-<!-- $Id: makepp_tutorial.pod,v 1.3 2003/07/15 00:50:38 grholt Exp $ -->
-<!-- Created: Fri Aug 25 21:16:52 PDT 2000 -->
-<!-- hhmts start -->
-Last modified: Fri Aug 25 22:57:09 PDT 2000
-<!-- hhmts end -->
-</body>
-</html>
-<h1>Libraries and Makepp</h1>
-
-
-Libraries are used for several reasons.
-<ol>
-<li>A subroutine or collection of subroutines that is used in many
-different programs is often put into a library.  For example,
-the C functions printf, fprintf, etc., are all part of the
-standard C library that every program links with.
-<li>A library
-
-
-
-Two kinds of libraries are common on unix systems: static and
-dynamic (or shared).  Static libraries have a C<.a>
-suffix, and dynamic libraries have a C<.so> (or
-sometimes C<.sa>) suffix.
-
-

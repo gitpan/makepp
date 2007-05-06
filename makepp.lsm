@@ -1,7 +1,7 @@
 Begin4
 Title: makepp
-Version: 1.18
-Entered-date: 2002-01-09
+Version: 1.19
+Entered-date: 2003-08-03
 Description: A syntax-compatible replacement for GNU make with numerous
    enhancements for build reliability.  Remembers last build command and
    rebuilds if build command or any file changed.  Vastly improved
@@ -14,9 +14,9 @@ Description: A syntax-compatible replacement for GNU make with numerous
    arbitrary perl functions for particularly complicated textual
    transformations.
 Keywords: make, build, compile, variant build
-Author: holt@LNC.usc.edu (Gary Holt)
-Maintained-by: holt@LNC.usc.edu (Gary Holt)
-Primary-site: http://LNC.usc.edu/~holt/makepp
+Author: holt-makepp@gholt.net (Gary Holt)
+Maintained-by: holt-makepp@gholt.net (Gary Holt)
+Primary-site: http://makepp.sourceforge.net
 Alternate-site: 
 Original-site:  
 Platforms: unix with perl 5.005_03 or newer

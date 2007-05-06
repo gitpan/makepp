@@ -1,0 +1,28 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	9	644	1079144736	1079144775	Makeppfile
+$(phony default): main
+	if [ ! -f x ]; then echo "OK" > x; fi
+
+main.o: main.c
+	:smartscan
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
+
+b.h:
+	&echo "NOK" -o x
+###	4	644	1079140748	1079140593	a.h
+#if 0
+# include "b.h"
+#endif
+#define A 1
+###	D	755	1079144793	1079144618	answers
+###	1	644	1079144618	1079144618	answers/x
+OK
+###	8	644	1079140745	1079140626	main.c
+#include "a.h"
+
+int main() {
+#if A
+	return 0;
+#endif
+	return 1;
+}

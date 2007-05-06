@@ -2,6 +2,8 @@
 
 makepp_build_algorithm -- How makepp executes a makefile
 
+=for vc $Id: makepp_build_algorithm.pod,v 1.5 2006/03/27 21:56:53 pfeiffer Exp $
+
 =head1 DESCRIPTION
 
 Makepp's internals differ from the standard unix make in fundamental ways.
@@ -17,7 +19,7 @@ is older than any of its dependencies of the rule, then it is rebuilt.
 For example, consider this pattern rule:
 
     %.o: %.cxx
-    	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
+ 	$(CXX) $(CXXFLAGS) -c $(input) -o $(output)
 
 When make realizes it needs to make a file called C<xyz.o>, it searches
 through its list of pattern rules until it sees that C<xyz.o> matches
@@ -91,7 +93,7 @@ confused by soft-linked directory names.)
 
 Makepp stores much more information about each file that it builds
 beyond just the date stamp (which is all that the standard make cares
-about).  This information includes: 
+about).  This information includes:
 
 =over 4
 
@@ -143,9 +145,16 @@ This means that you usually don't have to tell makepp explicitly where
 to find makefiles--all you have to do is to reference a file in another
 directory, and makepp will automatically figure out how to build it.
 
-Implicit loading will occur only if the directory is writable to you.
-Thus if you want to prevent makepp from trying to build a bunch of
-things that never change, simply make the directory read-only.
+Implicit loading will occur only if the directory is writable to you.  Thus if
+you want to prevent makepp from trying to build a bunch of things that never
+change, simply make the directory read-only.
+
+Implicit loading will not occur if you are in a tree under a
+F<RootMakeppfile(.mk)> and the other makefile is outside that tree.  If you do
+want this once, you can give a C<--do-build=/> option to makepp, to make
+everything outside the tree buildable.  If you always want this, you can put a
+C<load_makefile> statement somewhere within the tree to explicitly connect it
+to the tree.
 
 If implicit loading gets in your way (i.e., makepp loads too many
 makefiles and it wastes time, or else you really don't want it to try to
@@ -153,4 +162,3 @@ rebuild all the stuff described in the makefiles), you can turn it off
 for all directories using the C<--noimplicit_load> command line option,
 or you can turn it off for selected directories using the
 C<no_implicit_load> statement in your makefile.
-

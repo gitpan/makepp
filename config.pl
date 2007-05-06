@@ -1,4 +1,5 @@
 #!/usr/bin/perl -w
+# $Id: config.pl,v 1.20 2005/11/15 19:27:13 pfeiffer Exp $
 #
 # Configure this package.
 #
@@ -7,12 +8,12 @@ use Config;
 #
 # First make sure this version of perl is recent enough:
 #
-eval { require 5.00503; };
+eval { require 5.006 };
 if ($@) {			# Not recent enough?
-  die "I need perl version 5.005 or newer.  If you have it installed 
-somewhere already, run this installation procedure with that perl binary, e.g.,
+  die "I need perl version 5.6 or newer.  If you have it installed somewhere
+already, run this installation procedure with that perl binary, e.g.,
 
-	perl5.005 install.pl
+	perl5.8.6 install.pl
 
 If you don't have a recent version of perl installed (what kind of system are
 you on?), get the latest from www.perl.com and install it.
@@ -32,10 +33,23 @@ Press return to continue:
   $_ = <STDIN>;
 }
 
+if ($] == 5.006001) {
+  print "**************** You're running perl 5.6.1.  *************************
+
+perl 5.6.1 fails on some architectures and works just fine on others.
+If you encounter weird problems with makepp, or if the tests fail,
+consider upgrading your version of perl.
+
+Press return to continue:
+";
+  $_ = <STDIN>;
+}
+
 #
 # Parse the arguments:
 #
 $prefix = "/usr/local";
+$findbin = "none";
 
 while (@ARGV) {
   $_ = shift @ARGV;             # Get the next argument.
@@ -58,7 +72,10 @@ where options are:
                  do not want the documentation installed.
    --datadir=/path/to/installation/share/makepp
                  Where to install makepp's library files.
-";   
+   --findbin=relative/path/to/datadir/from/bindir
+                 Where to find libraries relative to executables. Specify
+                 'none' (the default) to find them in datadir.
+";
   }
   elsif (/^--?prefix(?:=(.*))?/) {
     $prefix = $1 || shift @ARGV;
@@ -74,6 +91,9 @@ where options are:
   }
   elsif (/^--?htmldir(?:=(.*))?/) {
     $htmldir = $1 || shift @ARGV;
+  }
+  elsif (/^--?findbin(?:=(.*))?/) {
+    $findbin = $1 || shift @ARGV;
   }
 }
 
@@ -102,6 +122,7 @@ open(MAKEFILE, "> Makefile") or die "$0: can't write Makefile--$!\n";
 print MAKEFILE "PERL = $Config{'perlpath'}
 BINDIR = $bindir
 DATADIR = $datadir
+FINDBIN = $findbin
 MANDIR = $mandir
 HTMLDIR = $htmldir
 VERSION = $VERSION
@@ -111,27 +132,34 @@ print MAKEFILE q[
 
 all: test
 
-test:
+test: .test_done
+
+.test_done: *.pm Signature/*.pm Scanner/*.pm CommandParser/*.pm ActionParser/*.pm makepp makepp_tests/*.test makepp_tests/run_tests.pl
 	cd makepp_tests && PERL=$(PERL) $(PERL) run_tests.pl
+	touch $@
 
 distribution: makepp-$(VERSION).tar.gz
 
 makepp-$(VERSION).tar.gz: README INSTALL LICENSE VERSION makepp.lsm ChangeLog \
-	makepp recursive_makepp Signature/*.pm *.mk *.pm \
-	pod/*.pod pod/pod2html makepp_tests/*.test makepp_tests/run_tests.pl \
-	Makefile config.pl configure install.pl
+	makepp recursive_makepp makeppclean \
+	Signature/*.pm Scanner/*.pm \
+	BuildCheck/*.pm CommandParser/*.pm ActionParser/*.pm *.mk *.pm \
+	pod/*.pod pod/makepp_compatibility.html \
+	makepp_tests/*.test makepp_tests/run_tests.pl \
+	config.pl configure install.pl makepp_build_cache_control
 	rm -rf makepp-$(VERSION)
-	./configure         # Reset Makefile.	  
+	./configure         # Reset Makefile.
 	mkdir makepp-$(VERSION)
 	mkdir makepp-$(VERSION)/pod makepp-$(VERSION)/makepp_tests \
-	   makepp-$(VERSION)/Signature
+	   makepp-$(VERSION)/Signature makepp-$(VERSION)/Scanner \
+	   makepp-$(VERSION)/CommandParser makepp-$(VERSION)/ActionParser
 	for file in $^; do cp $$file makepp-$(VERSION)/$$file; done
 	GZIP=-9 tar --create --gzip --file $@ makepp-$(VERSION)
 	cd makepp-$(VERSION) && make test    # Make sure it all runs.
 	rm -rf makepp-$(VERSION)
 
 install: all
-	$(PERL) install.pl $(BINDIR) $(DATADIR) $(MANDIR) $(HTMLDIR)
+	$(PERL) install.pl $(BINDIR) $(DATADIR) $(MANDIR) $(HTMLDIR) $(FINDBIN)
 
 .PHONY: all distribution install test
 ];

@@ -2,13 +2,15 @@
 
 makepp_builtin -- Built in rules for makepp
 
+=for cvs $Id: makepp_builtin.pod,v 1.8 2006/04/18 21:27:23 pfeiffer Exp $
+
 =head1 DESCRIPTION
 
 Makepp may be able to figure out how to compile and link your program even if
-you specify no rules at all (or if you don't even have a makefile).  After
-every makefile is loaded, makepp also loads a set of default rules.  (These
+you specify no rules at all (or if you don't even have a Makeppfile).  After
+every Makeppfile is loaded, makepp also loads a set of default rules.  (These
 rules are special in that they do not override any other rules in the
-makefile.)  The default rule database is stored in the file
+Makeppfile.)  The default rule database is stored in the file
 C<makepp_builtin_rules.mk> in the makepp distribution or library directory, so
 you can always look at that to see exactly what the default rules are.
 
@@ -23,50 +25,18 @@ in.
 
 =head2 Default variable values
 
-Makepp supplies default values for a number of variables.  These values
-will be overridden by assigning to these variables in your makefile.
+Makepp supplies default values for a number of variables.  Most of these are
+typically used in rules, and are indeed used in the default rules.  Their
+values can be overridden by assigning to these variables in your Makeppfile or
+on the command line.
 
-=over 4
-
-=item C<$(CC)>
-
-The C compiler.  Makepp looks for gcc, cc, or some other variants on your
-system and tries to pick an appropriate compiler.
-
-=item C<$(CFLAGS)>
-
-C<-g> unless you're using the GNU compiler, in which case it's S<C<-g -Wall>>.
-
-=item C<$(CXX)>
-
-The C++ compiler.  Makepp looks for g++, c++, cxx, or CC
-(and a few other variants) and tries to pick an appropriate
-value.
-
-=item C<$(CXXFLAGS)>
-
-C<-g> unless you're using the GNU compiler, in which case it's S<C<-g -Wall>>.
-
-=item C<$(F77)> or C<$(FC)>
-
-The Fortran compiler.  Makepp looks for f77, g77, or fort77.
-
-=item C<$(YACC)>
-
-S<C<yacc> or C<bison -y>>, depending on what you have on your system.
-
-=item C<$(LEX)>
-
-C<lex> or C<flex>, depending on what you have on your system.
-
-=back
-
+These variables are documented in L<makepp_variables/Predefined Variables>.
 If you have any questions about what any variable evaluates to, you can
-always put a line in your makefile like this:
+always put a line in your Makeppfile like this:
 
     dummy := $(print $(CC))
 
-which simply prints the value of the C<$(CC)> variable when the makefile
+which simply prints the value of the C<$(CC)> variable when the Makeppfile
 is loaded.  (Incidently, this is a useful way to debug any expression
 that you're not sure is right.)
 
@@ -80,29 +50,29 @@ the compilation command is changed as expected.
     # For C programs:
     #
     %.o: %.c
-    	$(CC) $(CFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
-    
+ 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
+ 
     #
     # For C++ programs:
     #
     %.o: %.cxx # and also %.cc, %.cpp, %.c++, and %.C
-    	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
-    
+ 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
+ 
     #
     # For fortran programs:
     #
     %.o: %.f
-    	$(FC) $(FFLAGS) -c $(input) -o $(output)
-    
+ 	$(FC) $(FFLAGS) -c $(input) -o $(output)
+ 
     #
     # Yacc and lex:
     #
     %.c: %.y
-    	$(YACC) $(YFLAGS) $(input)
-    	mv -f y.tab.c $(output)
-
+ 	$(YACC) $(YFLAGS) $(input)
+ 	&mv -f y.tab.c $(output)
+ 
     %.c: %.l
-    	$(LEX) $(LFLAGS) -t $(input) -o $(output)
+ 	$(LEX) $(LFLAGS) -t $(input) -o $(output)
 
 If you're curious about the exact details, you can look in the file
 F<makepp_builtin_rules.mk> in the makepp distribution.
@@ -119,7 +89,7 @@ libraries need to be linked in.
 The link rule looks something like this:
 
     xyz: $(infer_objects xyz.o, *.o)
-    	$(inferred linker) $(inputs) $(LDFLAGS) $(LDLIBS) $(LIBS) -o $(output)
+ 	$(infer_linker $(inputs)) $(inputs) $(LDFLAGS) $(LDLIBS) $(LIBS) -o $(output)
 
 C<infer_objects> attempts to infer what other C<.o> files need to be linked in
 based on what C<.h> files are included; see L<makepp_functions/infer_objects>
@@ -133,14 +103,22 @@ or C<$(F77)> if any of the sources are Fortran.
 
 If you don't like the built-in rules, don't use them.  If they don't
 work for you, your built is probably sufficiently complicated that you
-need your own custom makefile anyway.
+need your own custom Makeppfile anyway.
 
 X<makepp_no_builtin>To turn off the builtin rules, you can add a line like
-this to your makefile:
+this to your Makeppfile:
 
     makepp_no_builtin = 1
 
+X<makepp_no_builtin_linker>If you do use them, but not the fairly expensive
+builtin linker rules, you can turn those off with:
+
+    makepp_no_builtin_linker = 1
+
 For backward compatibility, makepp also turns off its default rules if
-you include this line somewhere in your makefile:
+you include this line somewhere in your Makeppfile:
 
     .SUFFIXES:
+
+You can turn off builtin rules for every Makeppfile in the entire build by
+specifying the C<--no-builtin-rules> option on the command line.

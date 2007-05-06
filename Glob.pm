@@ -1,19 +1,16 @@
 package Glob;
-require 5.005;			# Needs the m//gc option, which appeared in
-				# 5.004, and the qr// syntax, which appeared
-# $Id: Glob.pm,v 1.2 2003/06/25 18:42:38 grholt Exp $
-				# in 5.005.
+
+# $Id: Glob.pm,v 1.24 2007/03/13 21:41:14 pfeiffer Exp $
 use strict;
 
-use FileInfo;
+use FileInfo qw(file_info chdir absolute_filename relative_filename $CWD_INFO);
 
 require Exporter;
-@Glob::ISA = qw(Exporter);
-@Glob::EXPORT = qw(chdir);	# Force our caller to use our chdir sub that
+our @ISA = qw(Exporter);
+our @EXPORT = qw(chdir);	# Force our caller to use our chdir sub that
 				# we inherit from FileInfo.
-@Glob::EXPORT_OK = qw(zglob zglob_fileinfo $allow_dot_files wildcard_action);
+our @EXPORT_OK = qw(zglob zglob_fileinfo $allow_dot_files wildcard_action needed_wildcard_action);
 
-my $is_windows = $^O eq 'cygwin'; # Case-insensitive filenames.
 use strict;
 
 =head1 NAME
@@ -22,8 +19,8 @@ Glob -- Subroutines for reading directories easily.
 
 =head1 USAGE
 
-  my @file_info_structs = Glob::zglob_fileinfo("pattern"[, default dir]);
-  my @filenames = Glob::zglob("pattern"[, default dir]);
+  my @file_info_structs = Glob::zglob_fileinfo('pattern'[, default dir]);
+  my @filenames = Glob::zglob('pattern'[, default dir]);
   $Glob::allow_dot_files = 1;	# Enable returning files beginning with '.'.
   wildcard_action @wildcards, sub { my $finfo = $_[0]; ... };
 
@@ -40,14 +37,14 @@ supports some limited extended wildcards (ideas stolen from zsh).
 	[range]		Matches a range just like the unix wildcards.
 	**		Matches an arbitrary list of directories.  This
 			is a shortcut to running "find" on the directory
-			tree.  For example, "x/**/a.o" matches "x/a.o",
-			"x/y/a.o", "x/y/z/a.o", etc.  Like find, it does
+			tree.  For example, 'x/**/a.o' matches 'x/a.o',
+			'x/y/a.o', 'x/y/z/a.o', etc.  Like find, it does
 			not search through directories specified by
 			symbolic links.
 
 If the argument to zglob does not have any wildcard characters in it, the file
 name is returned if the file exists; an empty list is returned if it does not
-exist.  (This is different from the shell's usual globbing behaviour.)  If
+exist.	(This is different from the shell's usual globbing behaviour.)	If
 wildcard characters are present, then a list of files matching the wildcard is
 returned.  If no files match, an empty list is returned.
 
@@ -66,12 +63,12 @@ the current directory.)
 By default, C<zglob> does not return file names beginning with '.'.
 You can force it to return these files by setting $Glob::allow_dot_files=1,
 or (as with the shell) by specifing a leading . in the wildcard pattern (e.g.,
-".*").
+'.*').
 
 C<zglob> only returns files that exists and are readable, or can be built.
 
-C<zglob> returns a list of file names.  It uses an internal subroutine,
-C<zglob_fileinfo>, which returns a list of FileInfo structures.  See the
+C<zglob> returns a list of file names.	It uses an internal subroutine,
+C<zglob_fileinfo>, which returns a list of FileInfo structures.	 See the
 FileInfo package for more details.
 
 =cut
@@ -79,72 +76,73 @@ FileInfo package for more details.
 $Glob::allow_dot_files = 0;	# Don't return any files beginning with '.'.
 
 sub zglob {
-  map { $_->relative_filename($_[1]) } zglob_fileinfo(@_);
+  map relative_filename($_,$_[1]), &zglob_fileinfo;
 }
 
 sub zglob_fileinfo_atleastone {
   my @files = &zglob_fileinfo;	# Get a list of files.
   if (@files == 0) {		# No files matched at all?
-    @files = (file_info($_[0], $_[1] || $FileInfo::CWD_INFO));
+    @files = file_info $_[0], $_[1] || $CWD_INFO;
 				# Make a fileinfo structure for whatever the
 				# wildcard itself (or non-existent file) was.
   }
 
-  return @files;
+  @files;
 }
 
 #
 # The third argument to zglob_fileinfo indicates whether to avoid following
-# soft-linked directories ("**" never follows soft links, but other wildcards
-# can).  Generally, you want to follow soft links, but because of some
+# soft-linked directories ('**' never follows soft links, but other wildcards
+# can).	 Generally, you want to follow soft links, but because of some
 # technical restrictions, wildcard_action can't do it right so in order to
 # avoid having makefile bugs where things work some of the time but not all
 # of the time, when we're called from wildcard_action we don't follow soft
 # links either.
 #
 sub zglob_fileinfo {
-  local ($_) = $_[0];		# Access the filename or wildcard.
-  my $startdir = $_[1] ? file_info($_[1]) : $FileInfo::CWD_INFO;
+  local $_ = $_[0];		# Access the filename or wildcard.
+  m@^/\*\*@ and die "Refusing to expand /** as wildcard--you don't want to search every directory in the file system\n";
+  my $startdir = $_[1] ? file_info($_[1]) : $CWD_INFO;
 				# Get the current directory.
   my $dont_follow_soft = $_[2];
+  my $phony = $_[3] ? 1 : 0;
+  my $stale = $_[4] ? 1 : 0;
 
   my $is_wildcard = 0;		# We haven't seen a wildcard yet.
 
-  if ($is_windows) {
-    s@^([A-Za-z]):@/$1:@;	# If on windows, transform C: into /C: so it
+  ::is_windows and
+    s@^(?=[A-Za-z]:)@/@;	# If on windows, transform C: into /C: so it
 				# looks like it's in the root directory.
-    $_ = lc($_);		# Switch to lower case to avoid problems with
-				# mixed case.
-  }
+  $FileInfo::case_sensitive_filenames or
+    $_ = lc unless		# Switch to lower case to avoid problems with
+                                # mixed case.
 
-  s@^/@@ and $startdir = $FileInfo::root; # If this is a rooted wildcard,
+    s@^/@@ and $startdir = $FileInfo::root; # If this is a rooted wildcard,
 				# change to the top of the path.  Also,
 				# strip out the leading /.
-  my @pieces = split(/\/+/, $_); # Get the pieces of the filename, and
+  my @pieces = split /\/+/;	# Get the pieces of the filename, and
 				# examine each one of them separately.
   my @new_candidates = ($startdir); # Directories that are possible.  At first,
 				# there is only the starting directory.
 
   my @candidate_dirs;
 
-  foreach (@pieces) {
-    if ($dont_follow_soft) {
-      @candidate_dirs = grep($_->{DIRCONTENTS} && !$_->is_symbolic_link ||
-			     $_->is_or_will_be_dir,
-			     @new_candidates);
-    } else {
-      @candidate_dirs = grep($_->{DIRCONTENTS} || $_->is_or_will_be_dir, @new_candidates);
+  while ($_ = shift @pieces) {
+    @candidate_dirs = $dont_follow_soft ?
+      grep($_->{DIRCONTENTS} && !FileInfo::is_symbolic_link( $_ ) ||
+	   FileInfo::is_or_will_be_dir( $_ ),
+	   @new_candidates) :
+      grep($_->{DIRCONTENTS} || FileInfo::is_or_will_be_dir( $_ ), @new_candidates);
 				# Discard everything that isn't a directory,
 				# since we have to look for files in it.
 				# (Note that we will return files that are
 				# in directories that don't exist yet.)
-    }
 
-    if ($main::implicitly_load_makefiles) { # Should wildcards trigger loading?
+    if ($::implicitly_load_makefiles) { # Should wildcards trigger loading?
 				# We have to do this before scanning the
 				# directory, since loading the makefile
 				# may make extra files appear.
-      foreach my $dir (@candidate_dirs) { Makefile::implicitly_load($dir); }
+      Makefile::implicitly_load($_) for @candidate_dirs;
     }
 
 
@@ -153,7 +151,7 @@ sub zglob_fileinfo {
 #
 # First translate the wildcards in this piece:
 #
-    if ($_ eq "**") {		# Special zsh wildcard?
+    if ($_ eq '**') {		# Special zsh wildcard?
       foreach (@candidate_dirs) {
 	push(@new_candidates, $_, find_all_subdirs_recursively($_));
       }
@@ -164,7 +162,7 @@ sub zglob_fileinfo {
 # The remaining wildcards match only files within these directories.  Convert
 # them to regular expressions:
 #
-    my ($is_wildcard, $file_regex_or_name) = wild_to_regex($_);
+    my $file_regex_or_name = wild_to_regex($_);
 				# Convert to a regular expression.
 
 #
@@ -172,66 +170,55 @@ sub zglob_fileinfo {
 # to the wildcard.  It's possible, however, that there were wildcard characters
 # but they were all preceded by a backslash.
 #
-    if ($is_wildcard) {		# Was there actually a wildcard?
-      my $allow_dotfiles = $Glob::allow_dot_files ||
-	($file_regex_or_name =~ /^\\\./);
-				# Allow dot files if they are explicitly
-				# specified, or if we're automatically
-				# accepting them.
-      my $dir;
-      my $search_perl_code = eval
-	("sub {\n" .
-	 "  foreach my \$finfo (values %{\$dir->{DIRCONTENTS}}) {\n" .
-				# Used to use "each" here instead of values,
-				# but perl 5.005_3 apparently has a bug where
-				# it unaccountably returns nothing unless
-				# you print out the keys of DIRCONTENTS. 
-				# Argh!!!!!!!!!!!!!!!!!!!!!!
-	 "    next unless \$finfo->{NAME} =~ /^$file_regex_or_name\$/;\n" .
-	 ($allow_dotfiles ? "" : "    next if \$finfo->{NAME} =~ /^\\./;\n") .
-	 "    \$finfo->exists_or_can_be_built and\n" . # File must exist, or
-	 "        push(\@new_candidates, \$finfo);\n" .
-	 "  }\n" .
-	 "}\n");
-				# Perl code to search for all the files in a
-				# directory.
-      foreach (@candidate_dirs) { # Look for the file in each of the 
-				# possible directories.
-	$dir = $_;		# This is a hack, because foreach $dir ()
-				# doesn't load up the my variable $dir in 
-				# a way that the eval'd expression above
-				# can access it.
-	$dir->{READDIR} or $dir->read_directory; # Load the list of filenames.
+    my @phony_expr = (@pieces ? () : ($phony, $stale, 1)); # Set $no_last_chance
+    if( ref $file_regex_or_name ) { # Was there actually a wildcard?
+      my $allow_dotfiles = $Glob::allow_dot_files || /^\./;
+				# Allow dot files if we're automatically
+				# accepting them, or if they are explicitly
+				# specified.
+      for( @candidate_dirs ) { # Look for the file in each of the possible directories.
+	$_->{READDIR} or FileInfo::read_directory( $_ ); # Load the list of filenames.
 				# This also correctly sets the EXISTS flag
-	&$search_perl_code;	# Search for those files.
+	# Sometimes DIRCONTENTS changes inside this loop, which messes up
+	# the 'each' operator.  The fix is to make a static copy:
+	my %dircontents = %{$_->{DIRCONTENTS}};
+	while( my( $fname, $finfo ) = each %dircontents ) {
+	  next if !$allow_dotfiles and $fname =~ /^\./;
+	  next unless $fname =~ /^$file_regex_or_name$/;
+	  # Commas are evil, because they (currently) often get interpreted as argument delimiters
+	  if( $fname =~ /,/ ) {
+	    warn 'Wildcard not matching `', absolute_filename( $finfo ), "' because it contains a comma\n";
+	    next;
+	  }
+	  FileInfo::exists_or_can_be_built( $finfo, @phony_expr ) and # File must exist, or
+	    push @new_candidates, $finfo;
+	}
       }
       next;			# We're done with this wildcard.
     }
 #
-# No wildcard characters were present.  Just see if this file exists in any
+# No wildcard characters were present.	Just see if this file exists in any
 # of the candidate directories.
 #
-    my $dir;
-    foreach $dir (@candidate_dirs) {
-      if ($_ eq "..") {		# Go up a directory?
-	push @new_candidates, $dir->{".."};
+    foreach my $dir (@candidate_dirs) {
+      if ($_ eq '..') {		# Go up a directory?
+	push @new_candidates, $dir->{'..'} || $dir; # Handle root case!
       }
-      elsif ($_ eq ".") {	# Stay in same directory?
+      elsif ($_ eq '.') {	# Stay in same directory?
 	push @new_candidates, $dir;
       }
       else {
-	$dir->{READDIR} or $dir->read_directory; # Load the list of filenames.
+	$dir->{READDIR} or FileInfo::read_directory( $dir ); # Load the list of filenames.
 	my $finfo = $dir->{DIRCONTENTS}{$file_regex_or_name}; # See if this entry exists.
-	$finfo && $finfo->exists_or_can_be_built &&
-	  !$finfo->{IS_PHONY} and	# Not a phony target?
-	    push(@new_candidates, $finfo);
+	$finfo && FileInfo::exists_or_can_be_built( $finfo, @phony_expr ) &&
+	  push(@new_candidates, $finfo);
       }
     }
 
   }
 
-  return sort { $a->{NAME} cmp $b->{NAME} ||
-		  $a->name cmp $b->name } @new_candidates;
+  sort { $a->{NAME} cmp $b->{NAME} ||
+	   absolute_filename( $a ) cmp absolute_filename( $b ) } @new_candidates;
 				# Return a sorted list of matching files.
 }
 
@@ -241,7 +228,7 @@ sub zglob_fileinfo {
 
 Returns FileInfo structures for all the subdirectories immediately under
 the given directory.  These subdirectories might not exist yet; we return
-FileInfo structures for any FileInfo for which has been treated as a 
+FileInfo structures for any FileInfo for which has been treated as a
 directory in calls to FileInfo::file_info.
 
 We do not follow symbolic links.  This is necessary to avoid infinite
@@ -249,50 +236,44 @@ recursion and a lot of other bad things.
 
 =cut
 sub find_all_subdirs {
-  my $dirinfo = shift @_;	# Get a fileinfo struct for this directory.
+  my $dirinfo = $_[0];	# Get a fileinfo struct for this directory.
 
 #
-# First find all the directories that currently exist.  (There may be other
+# First find all the directories that currently exist.	(There may be other
 # files with a DIRCONTENTS field that don't exist yet; presumably these will
-# become directories.)  We make sure that all real directories have a
-# DIRCONTENTS array (even if it's empty).
+# become directories.)	We make sure that all real directories have a
+# DIRCONTENTS hash (even if it's empty).
 #
-  if (!$dirinfo->{SCANNED_FOR_SUBDIRS}++ &&
+  if( !exists $dirinfo->{SCANNED_FOR_SUBDIRS} ) {
+    undef $dirinfo->{SCANNED_FOR_SUBDIRS};
 				# Don't do this again, because we may have
 				# to stat a lot of files.
-      $dirinfo->is_dir) {	# Don't even try to do this if this directory
+    if( FileInfo::is_dir $dirinfo ) {	# Don't even try to do this if this directory
 				# itself doesn't exist yet.
 
-    foreach (find_real_subdirs($dirinfo)) {
-      $_->{DIRCONTENTS} ||= {};	# Make sure that each of the directories is
-				# at least tagged as such.
+      FileInfo::mark_as_directory $_ # Make sure that it's tagged as a directory.
+	for find_real_subdirs( $dirinfo );
     }
   }
 
 #
 # Now return a list of FileInfo structures that have a DIRCONTENTS field.
 #
-  my @subdirs;
-
-  foreach my $finfo (values %{$dirinfo->{DIRCONTENTS}}) {
-    next if $finfo->is_symbolic_link; # Don't return symbolic links, or else
-				# we can get in trouble with infinite 
-				# recursion.
-    $finfo->{DIRCONTENTS} and push @subdirs, $finfo;
-  }
-
-  return @subdirs;
+  grep {
+    $_->{DIRCONTENTS} and
+      !FileInfo::is_symbolic_link $_; # Don't return symbolic links, or else
+				# we can get in trouble with infinite recursion.
+  } values %{$dirinfo->{DIRCONTENTS}};
 }
 
 #
 # This is an internal subroutine which finds all the subdirectories of a given
 # directory as fast as possible.  Unlike find_all_subdirs, this will only
-# return the subdirectories that currently exist; it will not return 
+# return the subdirectories that currently exist; it will not return
 # subdirectories which don't yet exist but have valid FileInfo structures.
 #
 sub find_real_subdirs {
-
-  my $dirinfo = shift @_;	# Get the directory to search.
+  my $dirinfo = $_[0];	# Get the directory to search.
 
 #
 # Find the number of expected subdirectories.  On all unix file systems, the
@@ -300,91 +281,91 @@ sub find_real_subdirs {
 # means that we can know without statting any files whether there are any
 # subdirectories.
 #
-  my $dirstat = $dirinfo->stat_array;
+  my $dirstat = FileInfo::dir_stat_array( $dirinfo );
   my $expected_subdirs = 0;
-  defined($dirstat->[3]) and	# If this directory doesn't exist, then it 
+  defined($dirstat->[FileInfo::STAT_NLINK]) and	# If this directory doesn't exist, then it
 				# doesn't have subdirectories.
-    $expected_subdirs = $dirstat->[3]-2;
+    $expected_subdirs = $dirstat->[FileInfo::STAT_NLINK]-2;
 				# Note that if we're on a samba-mounted
 				# file system, $expected_subdirs will be -1
 				# since it doesn't keep a link count.
 
   $expected_subdirs or return (); # Don't even bother looking if this is a
 				# leaf directory.
-  $dirinfo->{READDIR} or $dirinfo->read_directory;
+  $dirinfo->{READDIR} or FileInfo::read_directory( $dirinfo );
 				# Load all the files known in the directory.
+
+  my @subdirs;			# Where we build up the list of subdirectories.
+  for( values %{$dirinfo->{DIRCONTENTS}} ) {
+    if( $_->{LSTAT} && FileInfo::is_dir( $_ )) {
+      push @subdirs, $_		# Note this directory.
+	unless /^\./ && !$Glob::allow_dot_files;
+				# Skip dot directories.
+      --$expected_subdirs;	# We got one of the expected subdirs.
+      return @subdirs if !$expected_subdirs; # We got them all.
+    }
+  }
+
 #
 # Here we apply a simple heuristic optimization in order to avoid statting
 # most of the files in the directory.  Looking for subdirectories is
-# time-consuming if we have to stat every file.  Since we know the link count
+# time-consuming if we have to stat every file.	 Since we know the link count
 # of the parent directory, we know how many subdirectories we are looking for
 # and we can stop when we find the right amount.  Furthermore, some file names
 # are unlikely to be directories.  For example, files with '~' characters in
 # them are usually editor backups.  Similarly, files with alphabetic
-# extensions (e.g., ".c") are usually not directories.
+# extensions (e.g., '.c') are usually not directories.
 #
 # This heuristic doesn't work at all for windows, since it doesn't maintain
 # link counts.
 #
 # On other operating systems, this would be a lot easier since directories
-# often have an extension like ".dir" that uniquely identifies them.
+# often have an extension like '.dir' that uniquely identifies them.
 #
 # More detailed heuristics are possible, but we have to balance the cost of
 # testing the heuristics with the cost of doing the stats.
 #
-  my ($dirfilename, $dirfileinfo);
-  my @subdirs;			# Where we build up the list of subdirectories.
-
-#
-# First pass: look for files without extensions and ~ characters.
-#
-  while ($expected_subdirs != 0 &&
-	 (($dirfilename, $dirfileinfo) = each %{$dirinfo->{DIRCONTENTS}})) {
-				# Look at each file in the directory.
-    next if $dirfilename =~ /\~/; # Skip editor backups.
-    next if $dirfilename =~ /[A-Za-z]\.[0-9]$/;	
-				# Skip man pages.  (These can be pretty
+  my( @l1, @l2, @l3, @l4 );
+  local $_;
+  my $finfo;
+  while( ($_, $finfo) = each %{$dirinfo->{DIRCONTENTS}} ) {
+    next if $finfo->{LSTAT}; # Already checked this above.
+    if( exists $finfo->{DIRCONTENTS} ||
+	/^\.makepp$/ || /^includes?$/ || /^src$/ || /^libs?$/ || /^docs?$/ || /^man$/ ) {
+      push @l1, $_;
+    } elsif( /~$/ || /.\.bak$/ || /.\.sav$/ ) {
+				# Do editor backups very last.
+      push @l4, $_;
+    } elsif( /[A-Za-z]\.\d$/ || /.\.[A-Za-z]+$/ ) {
+				# Do man pages last.  (These can be pretty
 				# expensive to stat since there's often a lot
 				# of them.)  This will not skip directories
 				# like "perl-5.6.0" because the period
 				# must be preceded by an alphabetic char.
-    next if $dirfilename =~ /.\.[A-Za-z]+$/;
-				# Skip files with alphabetic extensions.  Don't
+				# Do files with alphabetic extensions last.  Don't
 				# skip files with numeric extensions, since
 				# version numbers are often placed in
 				# directory names.  Note that this does not
 				# skip files with a leading '.'.
 
-    if ($dirfileinfo->is_dir) {
-      push(@subdirs, $dirfileinfo) # Note this directory.
-	unless $dirfilename =~ /^\./ && !$Glob::allow_dot_files;
+      push @l3, $_;
+    } else {
+      push @l2, $_;
+    }
+  }
+  for( @l1, @l2, @l3, @l4 ) {
+    my $finfo = $dirinfo->{DIRCONTENTS}{$_};
+				# Look at each file in the directory.
+    if( FileInfo::is_dir $finfo ) {
+      push @subdirs, $finfo	# Note this directory.
+	unless /^\./ && !$Glob::allow_dot_files;
 				# Skip dot directories.
       --$expected_subdirs;	# We got one of the expected subdirs.
+      last if !$expected_subdirs;
     }
   }
 
-#
-# Second pass: look at all files (except the ones we looked at on the previous
-# pass).
-#
-  while ($expected_subdirs != 0 && 
-	 (($dirfilename, $dirfileinfo) = each %{$dirinfo->{DIRCONTENTS}})) {
-				# Look at each file in the directory that we
-				# haven't looked at before.
-    next unless ($dirfilename =~ /\~/ || # We skipped editor backups.
-		 $dirfilename =~ /[A-Za-z]\.[0-9]$/ || # We skipped man pages.
-		 $dirfilename =~ /.\.[A-Za-z]+$/);
-				# We skipped files with alphabetic extensions.
-
-    if ($dirfileinfo->is_dir) {
-      push(@subdirs, $dirfileinfo) # Note this directory.
-	unless $dirfilename =~ /^\./ && !$Glob::allow_dot_files;
-				# Skip dot directories.
-      --$expected_subdirs;	# We got one of the expected subdirs.
-    }
-  }
-
-  return @subdirs;
+  @subdirs;
 }
 
 =head2 Glob::find_all_subdirs_recursively
@@ -393,7 +374,7 @@ sub find_real_subdirs {
 
 Returns FileInfo structures for all the subdirectories of the given
 directory, or subdirectories of subdirectories of that directory,
-or.... 
+or....
 
 The subdirectories are returned in a breadth-first manner.  The directory
 specified as an argument is not included in the list.
@@ -417,111 +398,102 @@ sub find_all_subdirs_recursively {
   }
   else {			# Same code, except that we don't search
 				# subdirectories that begin with '.'.
-    @subdirs = grep($_->{NAME} !~ /^\./, &find_all_subdirs); 
+    @subdirs = grep($_->{NAME} !~ /^\./, &find_all_subdirs);
 				# Start with the list of our subdirs.
     for (my $subdir_idx = 0; $subdir_idx < @subdirs; ++$subdir_idx) {
 				# Use this kind of loop because we'll be adding
 				# to @subdirs.
-      push(@subdirs, grep($_->{NAME} !~ /^\./, 
+      push(@subdirs, grep($_->{NAME} !~ /^\./,
 			  find_all_subdirs($subdirs[$subdir_idx])));
 				# Look in this directory for subdirectories.
     }
-    
-  }	
 
-  return @subdirs;
+  }
+
+  @subdirs;
 }
 
 #
-# This subroutine converts a wildcard to a regular expression.  If no wildcards
-# were actually used, then it returns just the filename (after removing
-# backslashes).
+# This subroutine converts a wildcard to a regular expression.
 #
 # Arguments:
-# a) The wildcard string to convert to a regular expression.
-
+# The wildcard string to convert to a regular expression.
 #
 # Returns:
-# a) A flag indicating whether in fact there were any wildcards.
-# b) The regular expression, if there was a wildcard, or the filename with
-#    backslashes removed, if there were no wildcards.
-#    The returned regular expression does not have a leading "^" or a trailing
-#    "$".
+# The qr/regular expression/, if there was a wildcard, or the filename with
+# backslashes removed, if there were no wildcards.  The returned regular
+# expression does not have a leading '^' or a trailing '$'.
 #
+my %regexp_cache;
 sub wild_to_regex {
-  my $fname = $_[0];		# Access the filename.
+  for( $_[0] ) {		# Alias the filename to $_.
+    return $regexp_cache{$_} if $regexp_cache{$_}; # Processed this before.
 
-  if ($fname =~ /[\*\[\?]/) {	# Is it possible that there are wildcards?  If
+    if( /[\*\[\?]/ ) {	# Is it possible that there are wildcards?  If
 				# not, don't bother to do the more complicated
 				# parsing.
-    my $is_wildcard = 0;	# Haven't seen a wildcard yet.
-    my $file_regex = '';	# A regular expression to match this level.
-    $is_windows and $file_regex = '(?i)'; # Make it case insensitive.
-    pos($fname) = 0;
-      
-  parseloop:
-    while (pos($fname) < length($fname)) {
-      if ($fname =~ /\G([^\\\[\]\*\?]+)/gc) { # Ordinary characters?
-	$file_regex .= quotemeta($1);	# Just add to regex verbatim, with
+      my $is_wildcard = 0;	# Haven't seen a wildcard yet.
+      my $file_regex = '';	# A regular expression to match this level.
+      pos() = 0;
+
+    parseloop:
+      while( pos() < length ) {
+	if( /\G([^\\\[\]\*\?]+)/gc ) { # Ordinary characters?
+	  $file_regex .= quotemeta($1); # Just add to regex verbatim, with
 				# appropriate backslashes.
-      }
+	}
 
-      elsif ($fname =~ /\G(\\.)/gc) { # \ + some char?
-	$file_regex .= $1;	# Just add it verbatim.
-      }
+	elsif( /\G(\\.)/gc ) {	# \ + some char?
+	  $file_regex .= $1;	# Just add it verbatim.
+	}
 
-      elsif ($fname =~ m@\G\*\*/@gc) { # Special "**/" wildcard?
-	$file_regex .= "(?:[^\\/.][^\\/]*\\/)*"; # Match any number of directories.
-	$is_wildcard = 1;
-      }
+	elsif( /\G\*/gc ) {	# Any number of chars?
+	  $is_wildcard = 1;	# We've actually seen a wildcard char.
+	  $file_regex .= /\G\*/gc ?
+	    '(?:[^\/.][^\/]*\/)*' : # Match any number of directories.
+	    '[^\/]*';		# Convert to proper regular expression syntax.
+	}
 
-      elsif ($fname =~ /\G\*/gc) { # Any number of chars?
-	$is_wildcard = 1;	# We've actually seen a wildcard char.
-	$file_regex .= "[^\\/]*"; # Convert to proper regular expression syntax.
-      }
+	elsif( /\G\?/gc ) {	# Single character wildcard?
+	  $is_wildcard = 1;
+	  $file_regex .= '[^\/]';
+	}
 
-      elsif ($fname =~ /\G\?/gc) { # Single character wildcard?
-	$is_wildcard = 1;
-	$file_regex .= "[^\\/]";
-      }
-
-      elsif ($fname =~ /\G\[/gc) { # Beginning of a character class?
-	$is_wildcard = 1;
-	$file_regex .= "[";	# Begin the character class.
-      CLASSLOOP:		# Nested loop for parsing the character class.
-	{
-	  if ($fname =~ /\G([^\\\]]+)/gc) { $file_regex .= $1; redo CLASSLOOP; }
+	else {			# Must be beginning of a character class?
+	  ++pos();		# Skip it.
+	  $is_wildcard = 1;
+	  $file_regex .= '[';	# Begin the character class.
+	CLASSLOOP:		# Nested loop for parsing the character class.
+	  {
+	    if( /\G([^\\\]]+)/gc ) { $file_regex .= $1; redo CLASSLOOP; }
 				# No quotemeta because we want it to
 				# interpret '-' and '^' as wildcards, and those
 				# are the only special characters within a
 				# character class except \.
-	  if ($fname =~ /\G(\\.)/gc)      { $file_regex .= $1; redo CLASSLOOP; }
-	  if ($fname =~ /\G\]/gc)         { $file_regex .= "]"; }
-	  else { die("$0: unterminated character class in '$fname'\n"); }
+	    if( /\G(\\.)/gc )	  { $file_regex .= $1; redo CLASSLOOP; }
+	    if( /\G\]/gc )	  { $file_regex .= ']'; }
+	    else { die "$0: unterminated character class in '$_'\n" }
+				# TODO: sh ] is only special 2 or more chars after [
+	  }
 	}
       }
-      else {
-	die "How in the world did I get here?";
-      }
+      return $regexp_cache{$_} = $FileInfo::case_sensitive_filenames ?
+	qr/$file_regex/ :
+	qr/$file_regex/i	# Make it case insensitive.
+	if $is_wildcard;	# It's a regular expression.
     }
-
-    if (!$is_wildcard) {	# No wildcard actually seen?
-      $fname =~ s/\\(.)/$1/g;	# Unquote any backslashed characters.
-      return (0, $fname);	# Just return the filename.
-    }
-
-    return (1, $file_regex);	# It's a regular expression.
   }
 
-  $fname =~ s/\\(.)/$1/g;	# Unquote any backslashed characters.
-  $is_windows and return (0, lc($fname));
-  return (0, $fname);		# Just return the filename.
+  (my $fname = $_[0]) =~ s/\\(.)/$1/g;	# Unquote any backslashed characters.
+  $FileInfo::case_sensitive_filenames ?
+    $fname :
+    lc $fname;			# Not case sensitive--switch to lc.
 }
 
 =head2 Glob::wildcard_action
 
 You generally should not call this subroutine directly; it's intended to be
-called from the chain of responsibility handled by main::wildcard_action.
+called from the chain of responsibility handled by ::wildcard_action.
 
 This subroutine is the key to handling wildcards in pattern rules and
 dependencies.  Usage:
@@ -531,14 +503,14 @@ dependencies.  Usage:
     ...
   };
 
-The subroutine is called once for each file that matches the wildcards.  If at
+The subroutine is called once for each file that matches the wildcards.	 If at
 some later time, files which match the wildcard are created (or we find rules
 to build them), then the subroutine is called again.  (Internally, this is done
 by FileInfo::publish, which is called automatically whenever a file which
 didn't used to exist now exists, or whenever a build rule is specified for a
 file which does not currently exist.)
 
-You can specify non-wildcards as arguments to wildcard_action.  In this case,
+You can specify non-wildcards as arguments to wildcard_action.	In this case,
 the subroutine is called once for each of the files explicitly listed, even if
 they don't exist and there is no build command for them yet.  Use the second
 argument to the subroutine to determine whether there was actually a wildcard
@@ -563,10 +535,10 @@ example, if you do this:
 in order to match all .cxx files somewhere in a subdirectory called "xyz", and
 "xyz" is actually a soft link to some other part of the file system, then your
 .cxx files will not be found.  This is only true if the soft link occurs
-B<after> the first wildcard; something like "xyz/*.cxx" will work fine even if
+B<after> the first wildcard; something like 'xyz/*.cxx' will work fine even if
 xyz is a soft link.
 
-Similarly, after the first wildcard specification, ".." will not work as
+Similarly, after the first wildcard specification, '..' will not work as
 expected.  (It works fine if it's present before all wildcards.)  For example,
 consider something like this:
 
@@ -579,12 +551,24 @@ message in this case.
 
 =cut
 
+sub needed_wildcard_action {
+  unshift @_, 'NEEDED_WILDCARD_ROUTINES', 0;
+  goto &wildcard_action_shared;
+}
+
 sub wildcard_action {
+  unshift @_, 'WILDCARD_ROUTINES', 1;
+  goto &wildcard_action_shared;
+}
+
+sub wildcard_action_shared {
+  my $member = shift @_;
+  my $call_for_existing = shift @_;
   my $subr = pop @_;		# Last argument is the subroutine to execute.
 
 #
 # We first call the subroutine immediately with all files that we currently
-# know about that match the wildcard.  
+# know about that match the wildcard.
 #
  file_loop:
   foreach my $filename (@_) {
@@ -592,27 +576,27 @@ sub wildcard_action {
 # Split this apart into the directories, and handle each layer separately.
 # First handle any leading non-wildcarded directories.
 #
-    my $initial_finfo = $FileInfo::CWD_INFO; # Start at the current directory.
+    my $initial_finfo = $CWD_INFO; # Start at the current directory.
     my @file_pieces = split(/\/+/, $filename);
 				# Break up into directories.
-    if ($file_pieces[0] eq "") { # Was there a leading slash?
+    if ($file_pieces[0] eq '') { # Was there a leading slash?
       $initial_finfo = $FileInfo::root; # Start at the root.
       shift @file_pieces;	# Discard the leading slash.
     }
 
     while (@file_pieces) {	# Loop through leading non-wildcarded dirs:
-      my ($wild_flag, $name_or_regex) = wild_to_regex($file_pieces[0]);
-      last if $wild_flag;	# Quit if we hit the first wildcard.
+      my $name_or_regex = wild_to_regex $file_pieces[0];
+      last if ref $name_or_regex; # Quit if we hit the first wildcard.
       $initial_finfo = file_info($name_or_regex, $initial_finfo);
       shift @file_pieces;	# Get rid of that piece.
     }
 
 #
-# At this point, $initial_finfo is the FileInfo entry for the file that 
+# At this point, $initial_finfo is the FileInfo entry for the file that
 # matches the leading non-wildcard directories.
 #
     if (@file_pieces == 0) {	# Is there anything left?
-      &$subr($initial_finfo, 0); # No.  Just call the subroutine directly,
+      &$subr($initial_finfo, 0); # No.	Just call the subroutine directly,
 				# and set the no-wildcard flag.
     }
     else {
@@ -622,13 +606,13 @@ sub wildcard_action {
 #
       my $idx = 0;
       while ($idx < @file_pieces) {
-	if ($file_pieces[$idx] eq ".") { # Remove useless "./" components
+	if ($file_pieces[$idx] eq '.') { # Remove useless './' components
 	  splice(@file_pieces, $idx, 1); # (since they will mess up the regex).
 	  next;			# Go back to top without incrementing idx.
 	}
 
-	if ($file_pieces[$idx] eq "..") { # At least give a warning message
-	  warn "$0: .. is not supported after a wildcard 
+	if ($file_pieces[$idx] eq '..') { # At least give a warning message
+	  warn "$0: .. is not supported after a wildcard
   in the wildcard expression \"$filename\".
   This will only match existing files.\n";
 				# Let user know this will not do what he thinks.
@@ -637,15 +621,19 @@ sub wildcard_action {
 	++$idx;
       }
 
-      my $remaining_path = join("/", @file_pieces);
-      foreach (zglob_fileinfo($remaining_path, $initial_finfo, 1)) {
-	&$subr($_, 1);		# Call the subroutine on each file that matches
-      }				# right now.  We give an extra argument to 
+      my $remaining_path = join('/', @file_pieces);
+      if($call_for_existing) {
+	foreach (zglob_fileinfo($remaining_path, $initial_finfo, 1)) {
+	  $_->{PUBLISHED}=2 if $::rm_stale_files;
+				# Don't also call $subr later if it looks like
+				# a source file now, but we find a rule for it.
+	  &$subr($_, 1);	# Call the subroutine on each file that matches
+        }			# right now.  We give an extra argument to
 				# zglob_fileinfo that says not to match soft-
 				# linked directories, so the behavior is at
 				# least consistent and we do not have subtle
-				# bugs in makefiles.  The reason is that 
-				# we match based on the text of the 
+				# bugs in makefiles.  The reason is that
+				# we match based on the text of the
 				# filename including the directory
 				# path, and (in order to make that path unique)
 				# the path cannot contain soft-linked dirs.
@@ -654,17 +642,13 @@ sub wildcard_action {
 				# this directory, so that any subsequent files
 				# which match also cause the subroutine to
 				# be  called.
-      my $wild_regex = "^" . wild_to_regex($remaining_path) . "\$";
-      push(@{$initial_finfo->{WILDCARD_ROUTINES}},
-	   eval "sub { \$_[1] =~ /$wild_regex/ and &\$subr(\$_[0], 1); }");
+      }
+      my $wild_regex = wild_to_regex $remaining_path;
+      push @{$initial_finfo->{$member}}, [$wild_regex, $subr];
 				# Note that wild_to_regex has quoted all the
 				# special characters (except some slashes),
 				# so it is safe to interpolate in the string
 				# like this.
-				# $subr is a my value, so it is passed into
-				# the subroutine by the closure mechanism.
-      $@ and die "internal error: $@\n"; # Make sure the expression compiles
-				# properly.
     }
   }
 
@@ -674,6 +658,3 @@ sub wildcard_action {
 }
 
 1;
-
-
-__END__

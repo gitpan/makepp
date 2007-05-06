@@ -1,10 +1,11 @@
-# $Id: md5.pm,v 1.1.1.1 2002/01/10 07:04:35 grholt Exp $
+# $Id: md5.pm,v 1.9 2006/06/24 01:21:34 topnerd Exp $
+use strict;
 package Signature::md5;
 
-use Signature::exact_match;
+use Signature;
 use Digest::MD5;
 
-@ISA = qw(Signature::exact_match);
+our @ISA = 'Signature';
 
 =head1 NAME
 
@@ -24,7 +25,7 @@ if the statement is recognized as C compilation.
 
 =cut
 
-$md5 = bless {};	# Make the singleton object.
+our $md5 = bless \@ISA;		# Make the singleton object.
 
 #
 # The only subroutine we need to override is the signature method; we use
@@ -33,21 +34,22 @@ $md5 = bless {};	# Make the singleton object.
 sub signature {
   my $finfo = $_[1];		# Name the argument.
 
-  my $stored_cksum = $finfo->build_info_string("MD5_SUM");
+  my $stored_cksum = FileInfo::build_info_string( $finfo, "MD5_SUM");
 
   unless ($stored_cksum) {	# Don't bother resumming if we
 				# already know the answer.
 
-    local *INFILE;
-    if (open(INFILE, $finfo->absolute_filename)) {
+    my $fname = FileInfo::absolute_filename( $finfo );
+    if(-f $fname && open my $infile, $fname) {
 #      $main::warn_level and
-#	print "Computing MD5 sum of " . $finfo->absolute_filename  . "\n";
+#	print "Computing MD5 sum of $fname\n";
       my $ctx = Digest::MD5->new;	# Make a context for computing.
-      $ctx->addfile(*INFILE);	# Read in the whole file.
-      close INFILE;
+      $ctx->addfile( $infile );	# Read in the whole file.
+      close $infile;
 
-      $stored_cksum = $ctx->hexdigest;
-      $finfo->set_build_info_string("MD5_SUM", $stored_cksum);
+      # Digest key and format needs to match BuildCache::copy_from_cache
+      $stored_cksum = $ctx->b64digest;
+      FileInfo::set_build_info_string( $finfo, "MD5_SUM", $stored_cksum);
 				# Store the checksum so we don't have to do
 				# that again.
     }

@@ -1,0 +1,67 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	45	644	1164352976	971219030	Makeppfile
+#
+# This is a test of parallel make.  In order to test that make is actually
+# executing jobs in parallel, we rely on timing to synchronize jobs, which
+# isn't 100% reliable.
+#
+# This script is designed to be run with -j 2, so we know that at most 2
+# jobs are running.
+
+perl {
+  unlink 'b', 'c';
+  sub c_waitfor {
+    my $hires = eval { require Time::HiRes };
+    while( ! (stat $_[0])[7] ) {
+      if( $hires ) {
+	Time::HiRes::sleep( .1 );
+      } else {
+	select undef, undef, undef, .1;
+      }
+    }
+  }
+}
+
+a: b c
+	&cat $^ -o $@
+
+
+#
+# Commands to execute b and c should run in parallel, but commands to execute
+# a should wait for them.  The final contents of b and c will differ depending
+# on whether the build commands were executed in parallel or in serial.
+# This is because we've lied to makepp about which files are modified.
+#
+b:
+	@&echo building b
+	&echo b -o>>b
+	&waitfor c
+	@&echo b is modifying c
+	&echo b -o>>c
+
+c:
+	@&echo building c
+	&echo c -o>>c
+	&waitfor b
+	@&echo c is modifying b
+	&echo c -o>>b
+###	D	755	1067451877	971218421	answers
+###	4	644	1067451877	971218395	answers/a
+b
+c
+c
+b
+###	2	644	1067451877	971218393	answers/b
+b
+c
+###	2	644	1067451877	971218393	answers/c
+c
+b
+###	1	644	1067451877	971218421	answers/n_files
+3 0
+###	5	755	1067451877	1055540204	makepp_test_script
+#!/bin/sh
+#
+# Need to run this in parallel.
+#
+exec ${PERL-perl} $1 -j 2
