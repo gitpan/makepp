@@ -80,7 +80,7 @@ if( $Config{ptrsize} == 8 && $^O eq 'hpux' ) {
   # keys, which are luckily disjoint from those where we do calculations with
   # int.
   chdir "$source_path/..";
-  for( qw(BuildCheck/exact_match.pm CommandParser.pm FileInfo_makepp.pm Makefile.pm Rule.pm Scanner.pm makepp) ) {
+  for( qw(BuildCheck/exact_match.pm BuildCacheControl.pm CommandParser.pm FileInfo.pm FileInfo_makepp.pm Makefile.pm Rule.pm Scanner.pm makepp) ) {
     next if -f "$_~";		# Already converted
     rename $_, "$_~";
     open my $in, "$_~";

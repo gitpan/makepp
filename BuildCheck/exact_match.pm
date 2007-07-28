@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.20 2007/03/13 21:27:17 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.24 2007/07/04 07:38:04 pfeiffer Exp $
 use strict;
 package BuildCheck::exact_match;
 
@@ -130,7 +130,7 @@ sub _check_env {
 }
 sub build_check {
   my (
-    $self, $tinfo, $sorted_dependencies, $command_string, $build_cwd,
+    undef, $tinfo, $sorted_dependencies, $command_string, $build_cwd,
     $sig_method, $env, $ignore_action, $ignore_architecture, $only_action
   ) = @_;
 
@@ -195,7 +195,7 @@ sub build_check {
 # If we get here, we have to scan through all of the dependencies
 # to see if any of them has changed.
 #
-  my @old_dep_list = map file_info($_, $build_cwd),
+  my @old_dep_list = map $build_cwd->{DIRCONTENTS}{$_} || file_info( $_, $build_cwd ),
     split /\01/, $sorted_deps;
 
   if (@old_dep_list != @$sorted_dependencies) { # Different # of dependencies?
@@ -244,7 +244,7 @@ sub build_check {
 sub report_changed_dependencies {
   $::log_level or return;	# Don't do anything if not logging.
 
-  my ($old_deps, $new_deps, $tinfo, $build_cwd) = @_;
+  my( $old_deps, $new_deps, $tinfo ) = @_;
 
   my %old_deps = map +(int, $_), @$old_deps; # Int is cheapest printable ref representation
   my @not_in_old_deps;
@@ -269,7 +269,7 @@ sub report_changed_dependencies {
 #
 sub build_check_from_build_info {
   my (
-    $self, $bc_entry, $sorted_dependencies, $command_string, $build_cwd,
+    undef, $bc_entry, $sorted_dependencies, $command_string, undef,
     $sig_method, $env, $ignore_action, $ignore_architecture, $only_action
   ) = @_;
 
@@ -312,13 +312,12 @@ sub build_cache_key {
                                 # the MD5 method is not available.
 
   my (
-    $self, $tinfo, $sorted_dependencies, $command_string, $build_cwd,
-    $sig_method, $env, $ignore_action, $ignore_architecture, $only_action
-  ) = @_;
+    undef, $tinfo, $sorted_dependencies, $key, $build_cwd, $sig_method,
+    $env, $ignore_action, $ignore_architecture, $only_action
+  ) = @_;			# Copy the build command directly into key.
 
-  my $key = $ignore_action ? "\01" : "$command_string\01";
-				# Delimit the build command.
-  $key .= $ignore_architecture ? "\01" : ::ARCHITECTURE . "\01";
+  $key = '' if $ignore_action;	# Remove the build command.
+  $key .= $ignore_architecture ? "\01" : "\01" . ::ARCHITECTURE;
 				# Architecture is also important.
 
   if( !$only_action ) {
@@ -329,21 +328,22 @@ sub build_cache_key {
 	# If the signature isn't already content-based, then use MD5.
 	$content_based_signature = Signature::md5::signature( $Signature::md5::md5, $_ );
       }
-      $key .= "$content_based_signature\01";
+      $key .= "\01$content_based_signature";
 				# Delimit the dependency signatures too.
     }
 
-    $key .= "$_\02$env->{$_}\01"
+    $key .= "\01$_\02$env->{$_}"
       for sort keys %$env;
   }
 
-  # add relative path of the file to distinguish it from
-  # copies in different locations in the tree
-  $key .= FileInfo::relative_filename( $tinfo, $build_cwd ) . "\01";
+  # Add relative path of the file's dir to distinguish it from
+  # copies in different locations in the tree, unless it's in cwd.
+  $key .= "\01" . FileInfo::relative_filename $tinfo->{'..'}, $build_cwd
+    if $tinfo->{'..'} != $build_cwd;
 
   if( $FileInfo::case_sensitive_filenames ) {
     $key = Digest::MD5::md5_base64( $key );
-    $key =~ tr|/|=|;		# Make it file system compatible.
+    $key =~ tr|/|%|;		# Make it file system compatible.
   } else {
     $key = Digest::MD5::md5_hex( $key );
   }
@@ -362,7 +362,7 @@ sub build_cache_key {
 # success implies substitutability.
 #
 sub update_dep_sigs {
-  my ($self, $output_finfo, $rule) = @_;
+  my( undef, $output_finfo, $rule ) = @_;
   my %deps;
   my( $sorted_deps, $dep_sigs ) =
     FileInfo::build_info_string( $output_finfo, qw(SORTED_DEPS DEP_SIGS) );
@@ -384,7 +384,7 @@ sub update_dep_sigs {
 # for details.
 #
 sub changed_dependencies {
-  my ($self, $tinfo, $signature_method, $build_cwd, @dep_list) = @_;
+  my( undef, $tinfo, $signature_method, $build_cwd, @dep_list ) = @_;
 
   my( $old_dep_str, $dep_sigs ) =
     FileInfo::build_info_string( $tinfo, qw(SORTED_DEPS DEP_SIGS) );

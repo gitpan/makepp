@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	39	644	1164351461	1056139626	makepp_test_script.pl
+###	41	644	1164351461	1185360292	makepp_test_script.pl
 # This test depends entirely on the builtin rules and the existence of a C compiler.
 #
 # Tests several things about C compilation:
@@ -12,20 +12,22 @@
 # rebuild.
 
 use Config;
+my $obj;
 for $iter ( 0..3 ) {
   # This is slow and low-tech, but we need to guarantee that the .c has
   # a timestamp different from its build info, *and* that the .o
   # timestamp changes between runs, even if the compiler is very fast and
   # the files are on NFS (so that we cannot rely on calls to time).
-  wait_timestamp( qw(compilation_test.c compilation_test.o) ) if $iter;
+  wait_timestamp( 'compilation_test.c', "compilation_test.$obj" ) if $iter;
   print "**** Iteration $iter\n";
   cp "compilation_test_$iter.c", 'compilation_test.c';
   makepp 'CPPFLAGS=-I subdir1 -Isubdir2', 'compilation_test';
 				# We test both the "-I subdir" and "-Isubdir"
 				# syntax.
+  $obj ||= -f 'compilation_test.o' ? 'o' : 'obj';
   system '.' . ($^O =~ /^MSWin/ ? '\\' : '/') . "compilation_test > iteration_$iter";
   my $exitstatus = 2;
-  open my $fh, ".makepp/compilation_test.o.mk" or return 0;
+  open my $fh, ".makepp/compilation_test.$obj.mk" or return 0;
   while ( <$fh> ) {
     if ( m@subdir1/x2\.h@ ) {
       $exitstatus = 0; last;

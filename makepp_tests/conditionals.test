@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	372	644	1172615881	1172616170	Makeppfile
+###	375	644	1172615881	1181421762	Makeppfile
 #
 # Test the use of conditionals.
 #
@@ -371,6 +371,9 @@ ifneq ($(PLAIN),1 )
 	@&echo ok22
 else
 	@&expr -n
+endif
+ifnsys MSWin32			# Test that ! is executable
+	! false
 endif
 ###	D	755	1172615888	973201896	answers/
 ###	1	644	1172615881	973207609	answers/n_files

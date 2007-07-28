@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: MakeEvent.pm,v 1.16 2007/01/22 22:50:57 pfeiffer Exp $
+# $Id: MakeEvent.pm,v 1.20 2007/07/20 19:59:31 pfeiffer Exp $
 
 package MakeEvent;
 
@@ -58,16 +58,10 @@ our $n_external_processes = 0;	# Number of processes currently running.
 
 our $fork_level = 0;		# How many times we've forked.
 
-# TBD: $exit_on_error isn't used any more, because it breaks critical sections.
-# I'm not sure if this means that it should be removed completly, or that
-# makepp shouldn't use it.
-#$MakeEvent::exit_on_error = 0;	# Exit as soon as possible if an error occured,
-				# instead of propagating the error up the
-				# chain.
 #
 # Some internal variables:
 #
-my $child_exited = 0;		# 1 if we've received a SIGCHLD.
+my $child_exited;		# 1 if we've received a SIGCHLD.
 
 my $read_vec;			# Vector of file handles that we are listening
 				# to.
@@ -89,7 +83,7 @@ you want MakeEvent::wait_until.
 =cut
 
 sub event_loop {
-  unless ($child_exited) {	# Do not call select() if we already have stuff
+  unless( defined $child_exited ) { # Do not call select() if we already have stuff
 				# to do.  That can cause a hang.
 #
 # Check for file handles which can be read.  We used to use IO::Select but
@@ -98,13 +92,12 @@ sub event_loop {
 #
     my $r = $read_vec;		# Make a modifiable copy of the list of file
 				# handles to wait for.
-#    print "Event loop: waiting for " . join(" ", keys %MakeEvent::Process::running_processes) . "\n";
-    my $n_handles = select($r, undef, undef, 5);
+    my $n_handles = select $r, undef, undef, 5;
 				# Supply a 5s timeout, so we do not wait
 				# forever if the signal happened to come
 				# between when we tested select_finished_subs
 				# and when we called select.
-    if ($n_handles > 0) {	# Data available on any handles?
+    if( $n_handles > 0 ) {	# Data available on any handles?
 				# Scan backwards to find out which handles it
 				# might have been on, since we are more likely
 				# to be waiting on later file handles.
@@ -124,10 +117,8 @@ sub event_loop {
 #
 # Check for other kinds of interruptions:
 #
-  if ($child_exited) {		# Need to wait() on child processes?
-    $child_exited = 0;		# Reset the flag.
-    &MakeEvent::Process::process_reaper;
-  }
+  &MakeEvent::Process::process_reaper
+    if defined $child_exited;	# Need to wait() on child processes?
 }
 
 =head2 read_wait
@@ -167,25 +158,6 @@ sub read_wait {
 sub process_finished {
   my ($handle, $status) = @_;	# Name the arguments.
 
-#  print "*** Error $status\n";
-#
-# If there was an error and we're supposed to exit as soon as possible, don't
-# even bother to activate waiters--just exit immediately.
-#
-#  if ($status && $exit_on_error) {
-#    ::print_error("status ($status), stopping now"); # Print a suitable message.
-#    if ($MakeEvent::n_external_processes > 0) {	# Did we run anything?
-#      ::print_error("waiting for other jobs to complete");
-#      while ($MakeEvent::n_external_processes > 0) {
-#	my $pid = wait;		# Wait for all the other processes to finish,
-#				# but don't start up any new ones.
-#	next unless WIFEXITED($?); # Make sure it really has exited.
-#	--$MakeEvent::n_external_processes;
-#      }
-#    }
-#    exit 1; # Exit with error status.
-#  }
-
   $handle->{STATUS} ||= $status; # Store the new status value.	Note that we
 				# use ||= rather than =.
 				# It's possible that the status value could
@@ -196,56 +168,66 @@ sub process_finished {
 				# if any of the things it was waiting for
 				# had errors.
 
-  if ($handle->{STATUS} && $handle->{ERROR_HANDLER}) {
+  if( $handle->{STATUS} && exists $handle->{ERROR_HANDLER} ) {
 				# Is there an error and an error handler in
 				# this handle?
-    $handle->{ARGS} = [ delete $handle->{STATUS} ]; # Pass the status code to
+    if( ref( $handle->{ERROR_HANDLER} ) eq 'CODE' ) {
+      $handle->{CODE} = delete $handle->{ERROR_HANDLER};
+				# Replace the subroutine with the error
+				# handler instead.
+      $handle->{ARGS} = [ delete $handle->{STATUS} ]; # Pass the status code to
 				# the error handler, and get rid of it so
 				# there's a place to put the return code from
 				# the error handler.
-    $handle->{CODE} = delete $handle->{ERROR_HANDLER};
-				# Replace the subroutine with the error
-				# handler instead.
-    $handle = bless $handle, 'MakeEvent::WaitingSubroutine';
-                                # Make sure we don't fork again, if this was
-                                # a MakeEvent::Process error handler.
-    $handle->start;		# Start off the error handler.
+      MakeEvent::WaitingSubroutine::start( $handle, 1 );
+				# Start off the error handler despite status.
+    } else {
+      $handle->{STATUS} = $handle->{ERROR_HANDLER};
+    }
   }
 
   my $waiters = $handle->{WAITING_FOR};
 
-  foreach (keys %$handle) {
-    delete $handle->{$_} unless $_ eq 'STATUS';
-				# Get rid of everything but the status, in
-				# order to save memory.
-  }
+  if( exists $handle->{STATUS} ) {
+    $status = $handle->{STATUS};
+    %$handle = ();
+    $handle->{STATUS} = $status;
+  } else {
+    %$handle = ();
+  }				# Get rid of everything but the status, in
+				# order to save memory, without creating new ref.
   return unless $waiters;	# Don't do anything if no one was waiting
 				# for this.
 
-  if ($handle->{STATUS}) {	# Was there some error?
+  if( $handle->{STATUS} ) {	# Was there some error?
 #
 # If there was an error, don't activate routines which were waiting;
 # activate the error routines, if any.
 #
     foreach my $waiter (@$waiters) {
       $waiter->{STATUS} ||= $handle->{STATUS}; # Remember the error.
-      if (--$waiter->{WAIT_COUNT} == 0) { # Were we the last thing waiting?
-	if (exists $waiter->{ERROR_HANDLER}) { # Activate the error handler
-				# instead of the subroutine.
-	  $waiter->{ARGS} = [ $waiter->{STATUS} ];
+      if( --$waiter->{WAIT_COUNT} == 0 ) { # Were we the last thing waited for?
+	if( exists $waiter->{ERROR_HANDLER} ) {
+	  if( ref( $waiter->{ERROR_HANDLER} ) eq 'CODE' ) {
+	    $waiter->{CODE} = delete $waiter->{ERROR_HANDLER};
+				# Activate the error handler instead of the subroutine.
+	    $waiter->{ARGS} = [ $waiter->{STATUS} ];
 				# Set the status value.
-
-	  $waiter->{CODE} = delete $waiter->{ERROR_HANDLER};
-	  $waiter->start;	# Invoke the error handler instead of the
-				# subroutine.
-	}
-	else {			# Just pass the error to this routine's caller,
+	    MakeEvent::WaitingSubroutine::start( $waiter, 1 );
+				# Start off the error handler despite status
+				# it may already have gotten from another
+				# dependency.
+	  } else {
+	    $waiter->{STATUS} = delete $waiter->{ERROR_HANDLER};
+	    $waiter->{CODE} = \&TextSubs::CONST0;
+	    MakeEvent::WaitingSubroutine::start( $waiter, 1 );
+	  }
+	} else {		# Just pass the error to this routine's caller,
 	  process_finished($waiter, $handle->{STATUS}); # without invoking the routine.
 	}
       }
     }
-  }
-  else {
+  } else {
 #
 # No error.  Activate whoever was waiting for this waiter.
 #
@@ -258,23 +240,24 @@ sub process_finished {
 
 =head2 when_done
 
+  $handle = when_done $handle1, $handle2, ..., sub { ... };
   $handle = when_done $handle1, $handle2, ..., sub { ... }, [subroutine args];
   $handle = when_done $handle1, $handle2, ..., sub { ... }, ERROR => sub { ... };
+  $handle = when_done $handle1, $handle2, ..., sub { ... }, ERROR => $scalar;
+  $handle = when_done $handle1, $handle2, ..., sub { ... }, [subroutine args], ERROR => sub { ... };
+  $handle = when_done $handle1, $handle2, ..., sub { ... }, [subroutine args], ERROR => $scalar;
 
-Calls the specified subroutine when the processes have finished or the
-other subroutines have been called.  The arguments can appear in any
-order; scalar arguments are interpreted as handles, a reference to a
-subroutine is treated as a subroutine to call, and a reference to a
-list is a set of arguments to pass to the subroutine.
-
-You can specify more than one subroutine to call.  In this case, the
-subroutines are called in sequence.  The subroutines may return any of
-the following values:
+Calls the specified subroutine when the processes have finished or the other
+subroutines have been called.  Scalar arguments are interpreted as handles, a
+reference to a subroutine is treated as a subroutine to call, and a reference
+to a list is a set of arguments to pass to the subroutine.
 
 Ordinarily you would pass arguments into the subroutine via perl's
 closure mechanism, but there do appear to be some bugs in this (in
 perl 5.8.0) and so it is possible to pass arguments via an explicit
 argument list.
+
+The subroutine should return any of the following values:
 
 =over 4
 
@@ -299,11 +282,11 @@ handles.  On entry to the subroutine, $_[0] is the error status code.  The
 subroutine should return a status code just like the usual when_done
 subroutines.
 
-=back
+=item 'ERROR', then a scalar
 
-Each subroutine should return these values.  If you specify more than one
-subroutine, and the first returns a list of handles, the second is not called
-until all of those handles are done.
+Assign the scalar as the status, instead of the propagated one.
+
+=back
 
 You can also specify an error handler, which is called if activity on any
 of the given handles returns an error.	(It is not called if the subroutines
@@ -320,78 +303,56 @@ status code when the handle has finished.)
 
 sub when_done {
   my @handles;
-  my @subrs;
-  my $error_handler;
+  my $subr;
   my $status;			# True if we were passed an error status
 				# code as one of the arguments.
-  my $subr_args;
 #
 # Parse the arguments:
 #
-  my $error;
   for( @_ ) {
-    if ($error) {
-      $error_handler = $_;	# Grab the error handler.
-    }
-    elsif( !defined ) {		# Skip undef values--undef means success with
-    }				# no waiting.
-    elsif (ref eq 'MakeEvent::WaitingSubroutine' ||
-	ref eq 'MakeEvent::Process') { # Is this a handle?
-      if (exists $_->{STATUS}) { # Did this handle already finish?
-	$status ||= $_->{STATUS};
-      } else {			# No, we have to wait for it.
-	push @handles, $_;
+    if( $subr ) {
+      if( ref eq 'ARRAY' ) {	# Subroutine arguments.
+	$subr->{ARGS} = $_;
+      } elsif( $_ eq 'ERROR' ) { # Indicates the error subroutine?
+	$subr->{ERROR_HANDLER} = $_[-1];
+	last;
       }
-    }
-    elsif (ref eq 'CODE') { # Is this a subroutine?
-      push @subrs, $_;	# Store it.
-    }
-    elsif (ref eq 'ARRAY') {
-      $subr_args = $_;	# Subroutine arguments.
-    }
-    elsif ($_ eq 'ERROR') {	# Indicates the error subroutine?
-      $error = 1;		# Grab the error handler on the next round.
-    }
-    else {			# Must be an error status code.
-      $status ||= $_;
+    } elsif( defined ) {	# Skip undef values--undef means success with no waiting.
+      if( ref =~ /^MakeEvent::/s ) { # Is this a handle?
+	if( exists $_->{STATUS} ) { # Did this handle already finish?
+	  $status ||= $_->{STATUS};
+	} else {		# No, we have to wait for it.
+	  push @handles, $_;
+	}
+      } elsif( ref eq 'CODE' ) { # Is this a subroutine?
+	$subr = new MakeEvent::WaitingSubroutine $_; # Store it.
+      } else {			# Must be an error status code.
+	$status ||= $_;
+      }
     }
   }
 
 #
 # Now queue up the subroutines:
 #
-  my ($first_subr_handle, $subr, $subr_handle);
-  while ($subr = shift @subrs) { # Another handle to go?
-    $subr_handle = new MakeEvent::WaitingSubroutine $subr, $subr_args || [];
-				# Make the data structure.
-    foreach (@handles) {	# Indicate that it is waiting for each one of
-      push @{$_->{WAITING_FOR}}, $subr_handle; # these handles.
-    }
-    $subr_handle->{WAIT_COUNT} = @handles; # So we know when they are done.
 
-    @handles = ($subr_handle);	# Make successive subroutines wait for the
-				# first one.
+  $subr->{ARGS} ||= [];
+  push @{$_->{WAITING_FOR}}, $subr for @handles;
+				# Indicate that it is waiting for each one of these handles.
+  $subr->{WAIT_COUNT} = @handles; # So we know when they are done.
 
-    $first_subr_handle ||= $subr_handle; # Remember the first handle.
-  }
-
-  $status and $first_subr_handle->{STATUS} = $status;
+  $subr->{STATUS} = $status if $status;
 				# Store the proper error status.
-  $error_handler and $subr_handle->{ERROR_HANDLER} = $error_handler;
-				# Put the error handler in the handle for the
-				# last subroutine.
-  unless ($first_subr_handle->{WAIT_COUNT}) { # Are we waiting for anything now?
-    if ($status) {		# Did we already find an error?
-      process_finished($first_subr_handle, $status); # Don't even call the
-				# routine.
-    } else {
-      $first_subr_handle->start; # No.	Start it immediately.
-    }
+  if( @handles ) {		# Waiting for anything now?
+  } elsif( $status ) {		# No, did we already find an error?
+    process_finished( $subr, $status ); # Don't even call the routine.
+  } else {			# No, start it immediately.
+    MakeEvent::WaitingSubroutine::start( $subr );
   }
 
-  return $subr_handle;		# Return the handle for the last subroutine so
-				# if someone waits on it, all the others have
-				# also finished.
+  $subr;			# Return the handle for the subroutine so if
+                                # someone waits for it, all the others have
+                                # also finished.
 }
 
 =head2 wait_for
@@ -404,26 +365,19 @@ to finish, and returns the status.
 =cut
 
 sub wait_for {
-  my $done_flag = 0;
-  my $status = 0;		# Assume no error.
-
-  my $handle = when_done @_, sub {
-#    print "Wait for: done\n";
-    $done_flag = 1;		# Indicate that the subroutine was called.
-    0;				# No error.
+  my $status;
+  when_done @_, sub {
+    $status = 0;		# No error.
   },
   ERROR => sub {		# Called if there was an error.
-#    print "Wait for: done with error $_[0]\n";
-    $done_flag = 1;
-    $status = $_[0];		# Store the status value.
-    0;
+    defined( $status = $_[0] )	# Store the status value.
+      or goto DONE;		# Short circuit is more expensive.
   };
 
-  while (!$done_flag) {		# Wait until our subroutine is called.
-    &event_loop;
-#    print "Wait for: done_flag = $done_flag, status = " . ($handle->{STATUS} || '') . ", wait count = " . ($handle->{WAIT_COUNT} || '') . "\n";
-  }
+  defined $child_exited ? &MakeEvent::Process::process_reaper : &event_loop
+    until defined $status;	# Wait until our subroutine is called.
 
+ DONE:
   $status;
 }
 
@@ -449,8 +403,7 @@ my %running_processes;		# A hash of processes that we start, indexed
 # 4-...) Arguments to the subroutine.
 #
 # If the last two arguments are 'ERROR' and a subroutine, then the subroutine
-# is called if the command returned an error.  Note that the error subroutine
-# will not be called unless you also set $exit_on_error to 0.
+# is called if the command returned an error.
 #
 
 #
@@ -467,28 +420,24 @@ sub new {
 				# Store the information.
   $errorsub and $proc->{ERROR_HANDLER} = $errorsub;
 
-  push(@pending_processes, $proc); # Queue it up.
-
 #
 # See if we can start this job (and maybe another one) immediately:
 #
-  while (@pending_processes > 0 &&
-	 $MakeEvent::n_external_processes < $MakeEvent::max_proc) {
-    (shift @pending_processes)->start; # Start it now.
+  if( $MakeEvent::n_external_processes < $MakeEvent::max_proc ) {
+    start( $proc );
+    start( shift @pending_processes )
+      while @pending_processes && $MakeEvent::n_external_processes < $MakeEvent::max_proc;
+  } else {
+    push @pending_processes, $proc; # Queue it up.
   }
 
 #
 # If we can't start it immediately, wait until we can.	We don't want to get
 # too far ahead of the build.
 #
-  while (@pending_processes > 0) {
-				# Too many processes already waiting?
-#    print "Waiting: " . scalar(@pending_processes) . " already pending, max_proc = $MakeEvent::max_proc, n_external = $MakeEvent::n_external_processes\n";
-    &MakeEvent::event_loop;	# Just pause for a moment, so we don't get
-				# too far ahead.
-  }
+  &MakeEvent::event_loop while @pending_processes;
 
-  return $proc;
+  $proc;
 }
 
 #
@@ -499,11 +448,8 @@ sub new {
 sub adjust_max_processes {
   $MakeEvent::max_proc += $_[0]; # Adjust the number of processes.
 
-  while (@pending_processes &&	# Were some processes waiting?
-	 $MakeEvent::n_external_processes < $MakeEvent::max_proc) {
-				# And we can now run them?
-    (shift @pending_processes)->start; # Start up a process now.
-  }
+  start( shift @pending_processes )
+    while @pending_processes && $MakeEvent::n_external_processes < $MakeEvent::max_proc;
 }
 
 #
@@ -522,7 +468,7 @@ use POSIX qw(:signal_h :errno_h :sys_wait_h);
 #
 sub start {
   my $self = $_[0];
-
+  MakeEvent::process_finished( $self ), return if $self->{STATUS};
   if( ::is_windows ) {		# On windows, we don't fork because the
 				# operating system doesn't support this well.
     if (@{$self->{PARAMS}}) {
@@ -531,8 +477,10 @@ sub start {
 
     my $cmd = $self->{CODE};	# Get the thing to execute.
     my $status;
-    if (!ref($cmd)) {		# Is this a string to execute as shell cmd?
-      system(format_exec_args($cmd));
+    if( ref $cmd ) {
+      $status = &$cmd();	# Call the subroutine.
+    } else {			# Is this a string to execute as shell cmd?
+      system format_exec_args( $cmd );
       if ($? > 255) {		# Non-zero exit status?
 	$status = $? >> 8;	# Use that as the status.
       }
@@ -545,16 +493,13 @@ sub start {
 	$status = 0;
       }
     }
-    else {
-      $status = &$cmd();	# Call the subroutine.
-    }
     MakeEvent::process_finished($self, $status);
 				# Store the status code.
     return;
   }
 
   my $pid;
-  $SIG{CHLD} = sub { ++$child_exited }; # Call the reaper subroutine in the
+  $SIG{CHLD} = sub { $child_exited = 1 }; # Call the reaper subroutine in the
 				# mainline code.
 
   if ($pid = fork()) {		# In the parent process?
@@ -591,8 +536,8 @@ sub start {
   }
 
   my $cmd = $self->{CODE};	# Get the thing to execute.
-  if (!ref($cmd)) {		# Is this a string to execute as shell cmd?
-    exec(format_exec_args($cmd));
+  unless( ref $cmd ) {		# Is this a string to execute as shell cmd?
+    exec format_exec_args( $cmd );
     die "exec $cmd failed--$!\n";
   }
 
@@ -614,51 +559,35 @@ sub start {
 #
 # Most of this code is adapted from the perl cookbook.
 #
-sub _reap_pid {
-  my ($pid) = @_;
-  my $proc = delete $running_processes{$pid};
-				# Get the structure defining the process.
-  $proc or
-    die "internal error: wait() returned a process not started by new MakeEvent::Process";
-  --$MakeEvent::n_external_processes;
-
-  my $status;
-  if ($? > 255) {		# Non-zero exit status?
-    $status = $? >> 8;	# Use that as the status.
-  }
-  elsif (($? & 127) != 0) {	# Exited with a signal?
-    $status = "signal " . ($? & 127);
-  }
-  else {			# No error.  (I don't know if it's possible
-				# for the process to dump core then exit with
-				# a status code of 0 and no signal.)
-    $status = 0;
-  }
-
-  MakeEvent::process_finished($proc, $status);
-}
 sub process_reaper {
-  my $pid;
-  while (($pid = waitpid(-1, &WNOHANG)) > 0) {
+  my @procs;
+  undef $child_exited;		# Clear the flag
+  while( (my $pid = waitpid -1, WNOHANG) > 0 ) {
+# Collect as many defunct processes as early as possible.
 #
 # Note again because of another bozo design decision in unix, waitpid may
 # actually return the PID of a process which was stopped, not exited.  So we
-# have to check for this.
+# have to check for this.  TODO: Is this true?  The POSIX manpage states
+# otherwise at WUNTRACED.
 #
 #    next unless WIFEXITED($?); # Make sure it really has exited.
-# The above causes a hang.  I don't know why.
-
-    _reap_pid($pid);
-
-#
-# If there were other processes waiting to be run, start one of them now that
-# the job slot is free.
-#
-    while (@pending_processes &&
-	   ($MakeEvent::n_external_processes < $MakeEvent::max_proc)) {
-      (shift @pending_processes)->start;
-    }
+# The above causes a hang, when the process did not exit normally.
+    push @procs, delete $running_processes{$pid} || die;
+				# Returned a process not started by new MakeEvent::Process?
+    $procs[-1]{STATUS} ||= $? > 255 ? $? >> 8 : "signal " . ($? & 127)
+      if $?;
   }
+
+  $MakeEvent::n_external_processes -= @procs;
+
+#
+# If there were other processes waiting to be run, start some of them now that
+# job slots are free.
+#
+  start shift @pending_processes
+    while @pending_processes && $MakeEvent::n_external_processes < $MakeEvent::max_proc;
+
+  MakeEvent::process_finished $_ for @procs;
 }
 
 #
@@ -669,12 +598,8 @@ sub process_reaper {
 #
 sub terminate_all_processes {
   $MakeEvent::max_proc = 0;
-  my @pids = keys %running_processes;
-  kill "TERM", @pids;
-  for my $pid (@pids) {
-    waitpid($pid, 0);
-    _reap_pid($pid);
-  }
+  kill TERM => keys %running_processes;
+  &process_reaper while %running_processes;
 }
 
 
@@ -689,12 +614,12 @@ sub terminate_all_processes {
 package MakeEvent::WaitingSubroutine;
 
 sub new {
-  my ($classname, $perl_subr, $args) = @_;
+  #my ($classname, $perl_subr, $args) = @_;
 
-  bless { CODE => $perl_subr,
-	  ARGS => $args,
+  bless { CODE => $_[1],
+	  ARGS => $_[2],
 	  INDENT => $::indent_level,
-	 }, $classname;
+	 }, $_[0];
 				# Make the structure for the process.
 }
 
@@ -712,46 +637,40 @@ sub new {
 #
 sub start {
   my $this_subr = $_[0];	# Get a reference to the process.
-
-  local $::indent_level = $this_subr->{INDENT};
-				# Set the indentation level properly.
-
-  my (@ret_vals) = &{$this_subr->{CODE}}(@{$this_subr->{ARGS}});
+  MakeEvent::process_finished( $this_subr ), return if @_ == 1 && $this_subr->{STATUS};
 
 #
-# Look at the return value and figure out what to do:
+# Look at the return values and figure out what to do:
 #
   my $status;
 
-  foreach (@ret_vals) {
-    if ($_) {			# Not 0 or undef?
-      if (ref($_) eq 'MakeEvent::WaitingSubroutine' ||
-	  ref($_) eq 'MakeEvent::Process') {
-				# Something else to wait for?
-	if (exists $_->{STATUS}) { # Did that thing already finish?
-	   next if $status ||= $_->{STATUS}; # Quit if there was some error.
-	}
-	else {			# Hasn't finished yet, we need to wait for
-				# it.
-	  $this_subr->{CODE} = \&TextSubs::CONST0;
+  if( $this_subr->{CODE} != \&TextSubs::CONST0 ) {
+    local $::indent_level = $this_subr->{INDENT};
+				# Set the indentation level properly.
+    for( $this_subr->{CODE}( @{$this_subr->{ARGS}} )) {
+      if( $_ ) {		# Not 0 or undef?
+	if( ref =~ /^MakeEvent::/s ) { # Something else to wait for?
+	  if( exists $_->{STATUS} ) { # Did that thing already finish?
+	    $status ||= $_->{STATUS}; # Pick up its status.
+	  } else {		# Hasn't finished yet, we need to wait for it.
+	    $this_subr->{CODE} = \&TextSubs::CONST0;
 				# Convert this subroutine into a dummy which
 				# isn't harmful to call again.
-	  push @{$_->{WAITING_FOR}}, $this_subr;
+	    push @{$_->{WAITING_FOR}}, $this_subr;
 				# Mark this handle as waiting for the specified
 				# other handle.
-	  ++$this_subr->{WAIT_COUNT}; # Remember that we're waiting for one
+	    ++$this_subr->{WAIT_COUNT}; # Remember that we're waiting for one
 				# more thing.
+	  }
+	} else {
+	  $status = $_;		# Must be a non-zero status.
 	}
-      }
-      else {
-	$status = $_;		# Must be a non-zero status.
       }
     }
   }
 
-  return if $this_subr->{WAIT_COUNT}; # Quit now if we're waiting for something
-				# else.
-  MakeEvent::process_finished($this_subr, $status);
+  MakeEvent::process_finished $this_subr, $status
+    unless $this_subr->{WAIT_COUNT}; # Quit now if we're waiting for something else.
 				# Activate anyone who's waiting for this
 				# process.
 }
@@ -761,5 +680,3 @@ sub start {
 =head1 AUTHOR
 
 Gary Holt (holt@LNC.usc.edu)
-
-=cut

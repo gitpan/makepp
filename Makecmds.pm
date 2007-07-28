@@ -1,4 +1,4 @@
-# $Id: Makecmds.pm,v 1.45 2007/04/27 20:08:26 pfeiffer Exp $
+# $Id: Makecmds.pm,v 1.49 2007/06/12 21:21:10 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains builtin commands which can be called from a rule.
@@ -9,7 +9,6 @@
 
 
 # TODO: autoload these commands only when needed
-# Why don't <> commands report unreadable files???
 # Use file_info -- or don't, because we'd have to refresh it before every new cmd.
 
 package Makesubs;		# Make these importable.
@@ -115,7 +114,30 @@ sub _rm {
 
 
 # Explicit variables for options shared by several commands.
-my( $noescape, $force, $inpipe );
+my( $noescape, $force, $inpipe, $print, $synclines, $last_file, $last_line );
+
+
+# Do buffered output of $_ with optional synclines.
+sub print {
+  if( defined and length ) {
+    if( $synclines ) {
+      if( $last_file ne $ARGV ) {
+	$print .= "#line $. \"$ARGV\"\n";
+	$last_file = $ARGV;
+	$last_line = $.;
+      } elsif( ++$last_line != $. ) {
+	$print .= "#line $.\n";
+	$last_line = $.;
+      }
+      s/\n(?!\z)/\n#line $.\n/g;
+    }
+    $print .= $_;
+    if( 8 * 1024 < length $print ) {
+      print $print or die $!;
+      $print = '';
+    }
+  }
+}
 
 
 # Frame which handles options, I/O and adds omnipresent --verbose.
@@ -133,7 +155,8 @@ sub frame(&@) {
      o => [qw(o output), \$output, 1],
      O => [qw(O outfail), \$outfail],
      r => ['r', qr/record[-_]?size/, \$separator, 1, sub { $separator = eval "\\$separator" }],
-     s => [qw(s separator), \$separator, 1]);
+     s => [qw(s separator), \$separator, 1],
+     S => ['S', qr/sync[-_]?lines/, \$synclines]);
 
   @opts = grep {		# Put stds last, so they don't override short opts.
     ref or !push @stdopts, $opt{$_};
@@ -153,8 +176,17 @@ sub frame(&@) {
     $inpipe =~ s/\|$//s;
     perform { open STDIN, '-|', $inpipe } "call `$inpipe|'";
   }
+  local $SIG{__WARN__} = sub {
+    if( $_[0] =~ /^Can't open (.*?): $! at/ ) {
+      die "$0: cannot open `$1'--$!\n";
+    } else {
+      warn $_[0];
+    }
+  };
 
   # Setup output context.
+  $print = '';
+  $last_file = '' if $synclines;
   local *STDOUT if $output;
   if( $output ) {
     my $first = ord $output;
@@ -193,6 +225,8 @@ sub frame(&@) {
     close STDIN or _closedie $inpipe;
     open STDIN, '/dev/null';	# placeholder file handle as long as not local
   }
+  print $print or die $! if length $print;
+  $print = '';			# In case of nested commands.
   if( $output ) {
     close STDOUT or $outfail && _closedie $output;
     perform { rename $inout, $output } "rename tempfile to `$output'" if $inout;
@@ -230,9 +264,14 @@ sub c_cat {
   local @ARGV = @_;
   frame {
     require File::Copy;
-    perform { File::Copy::copy( $_, \*STDOUT ) } "copy `$_'"
-      for @ARGV;
-  } 'f', qw(i I o O); # fails in 5.6: qw(f i I o O);
+    for( @ARGV ) {
+      if( $synclines ) {
+	print "#line 1 \"$_\"\n";
+	local $| = 1;		# Without this, copy manages to get in 1st.
+      }
+      perform { File::Copy::copy( $_, \*STDOUT ) } "copy `$_'";
+    }
+  } 'f', qw(i I o O S); # fails in 5.6: qw(f i I o O);
 }
 
 
@@ -272,47 +311,63 @@ sub c_mv { c_cp \1, @_ }
 
 sub c_cut {
   local @ARGV = @_;		# for <>
-  my( $delimiter, $characters, $fields, $lines, $matching, $printf ) = "\t";
+  my( $delimiter, $characters, $fields, $lines, $matching, $printf, $only_delim ) = "\t";
   my $err = "one of --characters, --fields or --lines must be given\n";
   frame {
     my $split = eval
-      'sub { @::F = ' . (!$characters ? "split /\Q$delimiter\E/ }" : ($] < 5.008) ? 'split // }' : 'unpack "(a1)*", $_ }');
+      'sub { @::F = ' . (!$characters ? "split /\Q$delimiter\E/, \$_, -1 }" :
+			 ($] < 5.008) ? 'split //, $_, -1 }' :
+			 'unpack "(a1)*", $_ }');
     my( @idxs, $eol );
     local @::F;	     # Use Perl's autosplit variable into Makeppfile's package
     for( $fields ) {
       @idxs = eval_or_die $_
-	unless /^[-+.,\d\s]+$/ && s/((?:,|^)\d+\.\.)-/$1\$#::F+1-/g;
+	unless /^[-+.,\d\s]+$/ &&
+	  s/((?:,|^)\d+\.\.)-/"$1\$#::F+" . (defined $lines ? '2-' : '1-')/eg;
     }
     if( defined $lines ) {
-      warn "options --matching or --printf make no sence with --lines\n" if $matching or defined $printf;
-      if( @idxs ) {
-	print +(<>)[@idxs] or die $!;
-      } else {
-	@::F = <>;
-	print @::F[(eval_or_die $fields)] or die $!; # () suppress overzealous Perl warning
+      warn "options --matching or --printf make no sence with --lines\n" if $matching || $only_delim || defined $printf;
+      while( <> ) {
+	push @::F, $_;
+	if( eof ) {
+	  for my $line (@idxs ? @idxs : eval_or_die $fields) {
+	    $line or die "$0: line numbers start at 1, not 0\n";
+	    $. = $line > 0 ? $line : @::F + 1 + $line; # Lines count from 1.
+	    $_ = $::F[$. - 1];
+	    &print;
+	  }
+	  close ARGV;
+	  @::F = ();
+	}
       }
     } elsif( defined $fields ) {
       while( <> ) {
 	$eol = _chomp $_;
 	&$split;
-	next if $matching && @::F == 1;
-	@::F = map { defined() ? $_ : '' } @::F[@idxs ? @idxs : eval_or_die $fields];
-	if( $printf ) {
-	  printf $printf, @::F or die $!;
+	if( @::F > 1 ) {
+	  @::F = map { defined() ? $_ : $matching ? next : '' } @::F[@idxs ? @idxs : eval_or_die $fields];
+	  $_ = $printf ?
+	    sprintf( $printf, @::F ) :
+	    join( $delimiter, @::F ) . $eol;
+	} elsif( $matching || $only_delim ) {
+	  next;
 	} else {
-	  print join( $delimiter, @::F ), $eol or die $!;
+	  $_ .= $eol;
 	}
+	&print;
+	close ARGV if $synclines && eof;
       }
     } else {
       die $err;
     }
-  } qw(E f i I o O r s),
+  } qw(E f i I o O r s S),
     [qw(c characters), \$characters, 1, sub { $delimiter = ''; warn $err if defined $fields; $fields = $characters }],
     [qw(d delimiter), \$delimiter, 1],
     [qw(f fields), \$fields, 1, sub { warn $err if defined $characters or defined $lines }],
     [qw(l lines), \$lines, 1, sub { warn $err if defined $fields; $fields = $lines }],
     [qw(m matching), \$matching],
-    [qw(p printf), \$printf, 1, sub { _escape $printf }];
+    [qw(p printf), \$printf, 1, sub { _escape $printf }],
+    ['s', qr/only[-_]?delimited/, \$only_delim];
 }
 
 
@@ -349,7 +404,7 @@ sub c_yes { c_echo \3, @_ }
 
 
 sub c_grep {
-  my $cmd = 0;
+  my $cmd;
   local @ARGV = @_;		# for <>
   $cmd = ${shift @ARGV} if ref $_[0];
   my( $fn, $n, $revert, $count, $list, $waste ) = (0, 0, 0);
@@ -362,11 +417,11 @@ sub c_grep {
     while( <> ) {
       if( $cmd ) {
 	&$prog;
-	print or die $! if $cmd == 2;
+	&print if $cmd == 2;
       } elsif( $revert == 1 ? !&$prog : &$prog ) {
 	$n++;
 	if( !$list ) {
-	  $count or print or die $!;
+	  $count or &print;
 	} elsif( $revert == 2 ) {
 	  $fn++ ;
 	} else {
@@ -380,11 +435,12 @@ sub c_grep {
 	print "$ARGV\n" or die $! if !$fn;
 	$fn = 0;
       }
+      close ARGV if $synclines && eof;
     }
     print "$n\n" or die $! if $count;
     close $waste if $waste;	# Sometimes needed on Solaris with V5.6.
     die "no matches\n" unless $cmd or $n or $count;
-  } qw(f i I o O r s),
+  } qw(f i I o O r s S),
     ($cmd ? () :
      ([qw(c count), \$count],
       ['l', qr/list|files[-_]?with[-_]?matches/, \$list],
@@ -419,9 +475,9 @@ sub c_install {
     } else {
       ($copy, $link) = $link ? (\&c_cp, '-l') :
 	$copy ? \&c_cp :
-	  $symbolic ? (\&c_ln, '-s') :
-	    $resolve ? (\&c_ln, '-r') :
-	      \&c_mv;
+	$symbolic ? (\&c_ln, '-s') :
+	$resolve ? (\&c_ln, '-r') :
+	\&c_mv;
       for( @ARGV ) {
 	&$copy( $link ? $link : (), $_, $dest );
 	-d( $dest ) ? s!^(?:.*/)?!$dest/! : ($_ = $dest);
@@ -442,7 +498,7 @@ sub c_install {
     [qw(d directory), \$directory],
     [qw(g group), \$gid, 1],
     [qw(l link), \$link],
-    [0, qr/log(?:file)?/, \$log, 1],
+    [undef, qr/log(?:file)?/, \$log, 1],
     [qw(m mode), \$mode, 1],
     [qw(o owner), \$uid, 1],
     ['S', qr/sym(?:bolic(?:[-_]?link)?|link)/, \$symbolic],
@@ -540,7 +596,7 @@ sub c_preprocess {
       } "preprocess `$_'";
     }
   } $command_line_vars,
-    qw(f o O),
+    qw(f o O S),
     [qw(a assignment), \$assignment],
     [qw(h hashref), \$tmp, 1, sub { $tmp = eval_or_die $tmp; $command_line_vars->{$_} = $tmp->{$_} for keys %$tmp }];
 }
@@ -582,7 +638,7 @@ sub c_sort {
     eval_or_die 'undef $a' if $uniq;
   } qw(f i I o O r s),
     [qw(c compare), \$cmp, 1],
-    ['n', qr/num(?:eric(?:[-_]?sort)?)?/, \$cmp, 0, q{ do { no warnings; $a <=> $b }}],
+    ['n', qr/num(?:eric(?:[-_]?sort)?)?/, \$cmp, undef, q{ do { no warnings; $a <=> $b }}],
 				# Eliminate ugly warning about trailing non-digits
     [qw(r reverse), \$rev],
     [qw(t transform), \$transform, 1],
@@ -636,23 +692,21 @@ sub c_template {
 	  $_ = <>;
 	}
       }
-      s/$pre (?:($re)(?:\((.*?)\))? | \{(.*?)\} | (\w[-\w.]*)(?:(\??)=(.*?) | \s*(\{.*\}))) $suf/
+      s/$pre (?:($re)(?:\((.*?)\))? | \{(.*?)\} | (\w[-\w.]*)(?:(\?)?=(.*?) | \s*(\{.*?\}))) $suf/
 	&$handler( $1, $2, $3, $4, $5, $6, $7 ) /xeg;
 				# Substitute anything containg @xyz@.
-      print or die $!;
+      &print;
+      close ARGV if $synclines && eof;
     }
-  } \%macros, qw(f i I o O),
+  } \%macros, qw(f i I o O S),
     [qw(h hashref), \$tmp, 1, sub { $tmp = eval_or_die $tmp; $macros{$_} = $tmp->{$_} for keys %$tmp }],
     [qw(s simple), \$pre, 1,
      sub {
-       my $split = substr $pre, 0, 1; $split = qr/\Q$split/;
-       (undef, $pre, $suf) = split $split, $pre;
-       undef $Pre;
+       (undef, $pre, $suf) = split quotemeta( substr $pre, 0, 1 ), $pre;
      }],
     [qw(m multiline), \$Pre, 1,
      sub {
-       my $split = substr $Pre, 0, 1; $split = qr/\Q$split/;
-       (undef, $Pre, $Suf, $afterPre, $afterSuf) = split $split, $Pre;
+       (undef, $Pre, $Suf, $afterPre, $afterSuf) = split quotemeta( substr $Pre, 0, 1 ), $Pre;
      }],
     [qw(d defined), \$re];
 }
@@ -695,12 +749,14 @@ sub c_uniq {
     no strict 'refs';
     local *a = \${"$Makesubs::rule->{MAKEFILE}{PACKAGE}::a"};
     local *b = \${"$Makesubs::rule->{MAKEFILE}{PACKAGE}::b"};
+    local *_ = \$b;		# For print.
     undef $a;
     while( $b = <> ) {
-      print $b or die $! if !defined $a or $cmp ? &$cmp() : $a ne $b;
+      &print if !defined $a or $cmp ? &$cmp() : $a ne $b;
       $a = $b;
+      close ARGV if $synclines && eof;
     }
-  } qw(f i I o O r s),
+  } qw(f i I o O r s S),
     [qw(c compare), \$cmp, 1];
 }
 

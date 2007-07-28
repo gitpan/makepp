@@ -80,7 +80,7 @@ sub c_clonetest {
 
 1;
 ###	D	755	1140344139	1140344139	answers
-###	186	644	1153678523	1172259305	answers/help
+###	195	644	1153678523	1180393463	answers/help
 cat options:
   -A, --arguments-file=arg
   -f, --force
@@ -88,6 +88,7 @@ cat options:
   -I, --infail
   -o, --output=arg
   -O, --outfail
+  -S, --sync-lines
   -v, --verbose
 chmod options:
   -A, --arguments-file=arg
@@ -112,7 +113,9 @@ cut options:
   -O, --outfail
   -p, --printf=arg
   -r, --record-size=arg
-  -s, --separator=arg
+  -s, --only-delimited
+      --separator=arg
+  -S, --sync-lines
   -v, --verbose
 echo options:
   -A, --arguments-file=arg
@@ -140,6 +143,7 @@ grep options:
   -O, --outfail
   -r, --record-size=arg
   -s, --separator=arg
+  -S, --sync-lines
   -v, --vice-versa, --revert-match
       --verbose
   -w, --waste-file=arg
@@ -181,6 +185,7 @@ perl options:
   -O, --outfail
   -r, --record-size=arg
   -s, --separator=arg
+  -S, --sync-lines
   -v, --verbose
 preprocess options:
   -a, --assignment
@@ -189,6 +194,7 @@ preprocess options:
   -h, --hashref=arg
   -o, --output=arg
   -O, --outfail
+  -S, --sync-lines
   -v, --verbose
 printf options:
   -A, --arguments-file=arg
@@ -211,6 +217,7 @@ sed options:
   -O, --outfail
   -r, --record-size=arg
   -s, --separator=arg
+  -S, --sync-lines
   -v, --verbose
 sort options:
   -A, --arguments-file=arg
@@ -239,6 +246,7 @@ template options:
   -o, --output=arg
   -O, --outfail
   -s, --simple=arg
+  -S, --sync-lines
   -v, --verbose
 touch options:
   -A, --arguments-file=arg
@@ -258,6 +266,7 @@ uniq options:
   -O, --outfail
   -r, --record-size=arg
   -s, --separator=arg
+  -S, --sync-lines
   -v, --verbose
 yes options:
   -A, --arguments-file=arg

@@ -1,6 +1,6 @@
 package Glob;
 
-# $Id: Glob.pm,v 1.24 2007/03/13 21:41:14 pfeiffer Exp $
+# $Id: Glob.pm,v 1.26 2007/06/29 22:10:56 pfeiffer Exp $
 use strict;
 
 use FileInfo qw(file_info chdir absolute_filename relative_filename $CWD_INFO);
@@ -162,7 +162,7 @@ sub zglob_fileinfo {
 # The remaining wildcards match only files within these directories.  Convert
 # them to regular expressions:
 #
-    my $file_regex_or_name = wild_to_regex($_);
+    my $file_regex_or_name = /[[?*]/ ? wild_to_regex($_) : $_;
 				# Convert to a regular expression.
 
 #
@@ -418,18 +418,20 @@ sub find_all_subdirs_recursively {
 #
 # Arguments:
 # The wildcard string to convert to a regular expression.
+# Optionally 1 to anchor the wildcard at the beginning or 2 at the end or 3 both.
 #
 # Returns:
 # The qr/regular expression/, if there was a wildcard, or the filename with
 # backslashes removed, if there were no wildcards.  The returned regular
 # expression does not have a leading '^' or a trailing '$'.
 #
-my %regexp_cache;
+my @regexp_cache;
 sub wild_to_regex {
   for( $_[0] ) {		# Alias the filename to $_.
-    return $regexp_cache{$_} if $regexp_cache{$_}; # Processed this before.
+    my $anchor = $_[1] || 0;
+    return $regexp_cache[$anchor]{$_} if $regexp_cache[$anchor]{$_}; # Processed this before.
 
-    if( /[\*\[\?]/ ) {	# Is it possible that there are wildcards?  If
+    if( $anchor || /[[?*]/ ) {	# Is it possible that there are wildcards?  If
 				# not, don't bother to do the more complicated
 				# parsing.
       my $is_wildcard = 0;	# Haven't seen a wildcard yet.
@@ -477,10 +479,15 @@ sub wild_to_regex {
 	  }
 	}
       }
-      return $regexp_cache{$_} = $FileInfo::case_sensitive_filenames ?
-	qr/$file_regex/ :
-	qr/$file_regex/i	# Make it case insensitive.
-	if $is_wildcard;	# It's a regular expression.
+      if( $is_wildcard || $anchor ) { # It's a regular expression.
+	if( $anchor ) {
+	  substr $file_regex, 0, 0, '^' if $anchor & 1;
+	  $file_regex .= '$' if $anchor > 1; # Cheaper than: & 2
+	}
+	return $regexp_cache[$anchor]{$_} = $FileInfo::case_sensitive_filenames ?
+	  qr/$file_regex/ :
+	  qr/$file_regex/i;	# Make it case insensitive.
+      }
     }
   }
 
@@ -584,10 +591,14 @@ sub wildcard_action_shared {
       shift @file_pieces;	# Discard the leading slash.
     }
 
-    while (@file_pieces) {	# Loop through leading non-wildcarded dirs:
-      my $name_or_regex = wild_to_regex $file_pieces[0];
-      last if ref $name_or_regex; # Quit if we hit the first wildcard.
-      $initial_finfo = file_info($name_or_regex, $initial_finfo);
+    while( @file_pieces ) {	# Loop through leading non-wildcarded dirs:
+      if( $file_pieces[0] eq '..' ) { # Common trivial case
+	$initial_finfo = $initial_finfo->{'..'} || $FileInfo::root;
+      } else {
+	my $name_or_regex = $file_pieces[0] =~ /[[?*]/ ? wild_to_regex( $file_pieces[0] ) : $file_pieces[0];
+	last if ref $name_or_regex; # Quit if we hit the first wildcard.
+	$initial_finfo = file_info $name_or_regex, $initial_finfo;
+      }
       shift @file_pieces;	# Get rid of that piece.
     }
 
@@ -621,14 +632,14 @@ sub wildcard_action_shared {
 	++$idx;
       }
 
-      my $remaining_path = join('/', @file_pieces);
-      if($call_for_existing) {
-	foreach (zglob_fileinfo($remaining_path, $initial_finfo, 1)) {
-	  $_->{PUBLISHED}=2 if $::rm_stale_files;
+      for( join '/', @file_pieces ) {
+	if( $call_for_existing ) {
+	  foreach( zglob_fileinfo $_, $initial_finfo, 1 ) {
+	    $_->{PUBLISHED}=2 if $::rm_stale_files;
 				# Don't also call $subr later if it looks like
 				# a source file now, but we find a rule for it.
-	  &$subr($_, 1);	# Call the subroutine on each file that matches
-        }			# right now.  We give an extra argument to
+	    &$subr($_, 1);	# Call the subroutine on each file that matches
+	  }			# right now.  We give an extra argument to
 				# zglob_fileinfo that says not to match soft-
 				# linked directories, so the behavior is at
 				# least consistent and we do not have subtle
@@ -641,14 +652,19 @@ sub wildcard_action_shared {
 				# Associate a wildcard checking subroutine with
 				# this directory, so that any subsequent files
 				# which match also cause the subroutine to
-				# be  called.
+				# be called.
+	}
+	my @deep = 1 if @file_pieces > 1 || /\*\*/;
+	my $anchor = 0;
+	if( @deep ) {
+	  s!^\*\*/?!! or $anchor++;
+	  s!/?\*\*$!! or $anchor += 2;
+	} else {
+	  s!^\*!! or $anchor++;
+	  s!/\*$!! or $anchor += 2;
+	}
+	push @{$initial_finfo->{$member}}, [wild_to_regex( $_, $anchor ), $subr, @deep];
       }
-      my $wild_regex = wild_to_regex $remaining_path;
-      push @{$initial_finfo->{$member}}, [$wild_regex, $subr];
-				# Note that wild_to_regex has quoted all the
-				# special characters (except some slashes),
-				# so it is safe to interpolate in the string
-				# like this.
     }
   }
 

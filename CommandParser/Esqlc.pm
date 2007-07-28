@@ -31,7 +31,7 @@ sub new {
 
 sub parse_arg {
   my( $words, $files ) = @_[2, 3];
-  my $scanner = $_[0]->{SCANNER};
+  my $scanner = $_[0]{SCANNER};
   for( $_[1] ) {
     if( s/^(sys_?)?include=//i ) { # Oracle Pro*C
       my $sys = $1;
@@ -45,8 +45,8 @@ sub parse_arg {
     } elsif( s/^define=//i ) { # Oracle Pro*C
       unshift @$words, "-D$_";
     } elsif( s/^config=(?=(\/|[a-z]:)?)//i ) { # Oracle Pro*C
-      $_ = "$_[0]->{DIRINFO}->{SHORTEST_FULLNAME}/$_" if !$1;
-      Makesubs::prebuild( file_info( $_ ), $_[0]->{RULE}{MAKEFILE}, $_[0]->{RULE}{RULE_SOURCE} );
+      substr $_, 0, 0, &CommandParser::dirinfo->{FULLNAME} . '/' unless $1;
+      Makesubs::prebuild( file_info( $_ ), $_[0]{RULE}{MAKEFILE}, $_[0]{RULE}{RULE_SOURCE} );
 				# Might be a generated file.
       if( open my $fh, $_ ) {
 	while( <$fh> ) {
@@ -63,7 +63,7 @@ sub parse_arg {
 }
 sub parse_opt {
   my $words = $_[2];
-  my $scanner = $_[0]->{SCANNER};
+  my $scanner = $_[0]{SCANNER};
   for( $_[1] ) {
     if( s/^E(?=[DU].+)// || s/^Y// ) {	# Informix or Yard
       unshift @$words, "-$_";
@@ -73,7 +73,7 @@ sub parse_opt {
 
 my @suffix_list = ('', '.h');
 sub xparse_command {
-  $_[0]->{SCANNER}->add_include_suffix_list( user => \@suffix_list );
+  $_[0]{SCANNER}->add_include_suffix_list( user => \@suffix_list );
   goto &CommandParser::Gcc::xparse_command;
 }
 

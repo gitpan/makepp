@@ -2,11 +2,13 @@
 
 makeppgraph -- Graphical analysis of the dependency graph
 
-=for vc $Id: makeppgraph.pod,v 1.7 2007/02/20 22:34:47 pfeiffer Exp $
+=for vc $Id: makeppgraph.pod,v 1.8 2007/05/14 21:51:46 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
 B<makeppgraph> S<[ I<option> ... ]> S<[ I<pattern> ... ]>
+
+B<mppg> S<[ I<option> ... ]> S<[ I<pattern> ... ]>
 
 =head1 DESCRIPTION
 

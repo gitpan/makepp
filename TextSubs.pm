@@ -1,4 +1,4 @@
-# $Id: TextSubs.pm,v 1.27 2007/05/06 09:43:23 pfeiffer Exp $
+# $Id: TextSubs.pm,v 1.31 2007/07/16 22:45:41 pfeiffer Exp $
 package TextSubs;
 require Exporter;
 @ISA = qw(Exporter);
@@ -149,21 +149,19 @@ Backquoted strings are terminated by a matching backquote that isn't escaped
 by a backslash.
 
 =cut
-sub split_on_whitespace {
-  split_on_whitespace_or_commands(0, $_[0]);
-}
+
 sub unquote_split_on_whitespace {
   # Can't call unquote when pushing because both use \G and at least in 5.6
   # localizing $_ doesn't localize \G
-  map unquote(), split_on_whitespace_or_commands(0, $_[0]);
+  map unquote(), &split_on_whitespace;
 }
 sub split_commands {
-  split_on_whitespace_or_commands(1, $_[0]);
+  split_on_whitespace( $_[0], 1 );
 }
-sub split_on_whitespace_or_commands {
+sub split_on_whitespace {
   my @pieces;
-  my $cmds=$_[0];
-  local $_ = $_[1];
+  my $cmds = @_ > 1;
+  local $_ = $_[0];
 
   pos = 0;			# Start at the beginning.
   $cmds ? /^[;|&]+/gc : /^\s+/gc;			# Skip over leading whitespace.
@@ -215,7 +213,7 @@ sub split_on_whitespace_or_commands {
     push @pieces, substr($_, $last_pos);
   }
 
-  return @pieces;
+  @pieces;
 }
 
 =head2 join_with_protection
@@ -232,12 +230,13 @@ from the shell.
 =cut
 
 sub join_with_protection {
-  my @args = @_;		# Avoid modifying @_
   join ' ',
     map {
-      s/\'/'\\''/g;
-      $_ eq '' || m|[^\w/.@%\-+=:]| ? "'$_'" : $_
-    } @args;
+      $_ eq '' ? "''" :
+      /'/ ? map { s/'/'\\''/g; "'$_'" } "$_" : # Avoid modifying @_
+      m|[^\w/.@%\-+=:]| ? "'$_'" :
+      $_;
+    } @_;
 }
 
 =head2 split_on_colon
@@ -303,13 +302,13 @@ sub split_on_colon {
 #
 sub split_path {
   my $var = $_[1] || 'PATH';
-  my $path = $_[2] || ($_[0] && $_[0]->{$var} || $ENV{$var});
-  if( !::is_windows() ) {
-    map { $_ eq '' ? '.' : $_ } split /:/, "$path:";
-  } else {
+  my $path = $_[2] || ($_[0] && $_[0]{$var} || $ENV{$var});
+  if( ::is_windows ) {
     map { tr!\\"!/!d; $_ eq '' ? '.' : $_ } $^O =~ /^MSWin/ ?
       split( /;/, "$path;" ) :		# "C:/a b";C:\WINNT;C:\WINNT\system32
       split_on_colon( "$path:" );	# "C:/a b":"C:/WINNT":/cygdrive/c/bin
+  } else {
+    map { $_ eq '' ? '.' : $_ } split /:/, "$path:";
   }
 }
 
@@ -497,6 +496,7 @@ that calling unquote() on $quoted_text will return the same string as
 $unquoted_text.
 
 =cut
+
 sub requote {
   local $_ = $_[0];		# Get a modifiable copy of the string.
   s/(["\\])/\\$1/g;		# Protect all backslashes and double quotes.
@@ -520,11 +520,11 @@ sub format_exec_args {
   for( $_[0] ) {
     return $_			# No Shell available.
       if ::is_windows() && $^O =~ /^MSWin/;
-    return ('/bin/sh', '-c', $_)
+    return ($ENV{SHELL}, '-c', $_)
       if ::is_windows() && $^O eq 'msys' ||
       	/[()<>\\"'`;&|*?[\]]/ || # Any shell metachars?
 	/\{.*,.*\}/ || # Pattern in Bash (blocks were caught by ';' above).
-	/^\s*(?:\w+=|[.:]\s|e(?:val|xec|xit)\b|source\b|test\b)/;
+	/^\s*(?:\w+=|[.:!]\s|e(?:val|xec|xit)\b|source\b|test\b)/;
 				# Special commands that only
 				# the shell can execute?
 
@@ -639,14 +639,13 @@ a ref (a sub).  Any other value is assigned to $var.
 =cut
 
 sub getopts(@) {
-#  package main;
   our %vars;
   my @specs = @_;
   my $hash = 'HASH' eq ref $specs[0];
   local *vars = shift @specs if $hash;
   my $strict = !ref $specs[0];
   shift @specs if $strict;
-  my @ret;
+  my( @ret, %short );
   while( @ARGV ) {
     for( shift @ARGV ) {	# alias to $_
       if( s/^-(-?)// ) {
@@ -679,7 +678,8 @@ sub getopts(@) {
 		${$$spec[2]}++;
 	      }
 	      print STDERR "$0: -$$spec[0] is short for --"._getopts_long($spec)."\n"
-		if $::verbose;
+		if $::verbose && !$short{$$spec[0]};
+	      $short{$$spec[0]} = 1;
 	    }
 	    ref $$spec[4] ? &{$$spec[4]} : (${$$spec[2]} = $$spec[4]) if exists $$spec[4];
 	    last;

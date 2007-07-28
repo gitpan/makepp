@@ -2,11 +2,13 @@
 
 makepplog -- Textual analysis of the build log
 
-=for vc $Id: makepplog.pod,v 1.4 2007/02/06 08:31:23 pfeiffer Exp $
+=for vc $Id: makepplog.pod,v 1.6 2007/07/28 18:43:22 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
 B<makepplog> I<option> ...
+
+B<mppl> I<option> ...
 
 =head1 DESCRIPTION
 
@@ -36,6 +38,12 @@ directories up from here, with the necessary number of F<../> entries.
 
 These options only work meaningfully when you call makepplog in the same
 directory makepp ran, or one near there.
+
+=item -f
+
+=item --follow
+
+As in C<tail> command, process more lines of logfile as it grows.
 
 =item -i
 

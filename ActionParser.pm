@@ -1,4 +1,4 @@
-# $Id: ActionParser.pm,v 1.24 2007/04/24 22:59:36 pfeiffer Exp $
+# $Id: ActionParser.pm,v 1.25 2007/05/17 11:50:46 pfeiffer Exp $
 
 =head1 NAME
 
@@ -49,7 +49,7 @@ package ActionParser;
 
 use TextSubs;
 use Rule;
-use CommandParser::Basic;
+use CommandParser;
 use FileInfo;
 use FileInfo_makepp;
 
@@ -303,7 +303,7 @@ In this base class, calls find_command_parser to determine which command
 parser to use.
 If the result is FALSE, then do nothing more.  (This can't
 happen for an object of the base class, since we always use a
-CommandParser::Basic.)
+plain CommandParser.)
 Otherwise, the resulting object's parse_command method is called, and
 we return that method's return value.
 
@@ -377,7 +377,7 @@ sub find_command_parser {
     }
   }
   else {   # No parser:
-    $parser = new CommandParser::Basic($rule, $dir);
+    $parser = new CommandParser($rule, $dir);
   }
   $parser;
 }

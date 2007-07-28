@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.71 2007/05/06 09:46:16 pfeiffer Exp $
+# $Id: Rule.pm,v 1.74 2007/07/16 18:44:04 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Rule;
@@ -379,7 +379,7 @@ sub add_any_dependency_ {
   $self->{$key}{$tag}{$src}{fix_file_($name)} = 1;
   if($finfo) {
     $self->add_dependency($finfo);
-    return ::wait_for(::build($finfo)) if $key eq 'META_DEPS';
+    return wait_for ::build $finfo if $key eq 'META_DEPS';
   }
   0; # success
 }
@@ -847,17 +847,7 @@ sub execute {
 # it out before executing the commands.
 #
   &touched_filesystem;		# In case there are side-effects
-  if (!$::parallel_make) {
-    print_build_cwd($build_cwd); # Make sure we notify user if we change
-				# directories.
-    return wait_for new MakeEvent::Process sub {
-      $self->execute_command($build_cwd, $actions, $all_targets, $all_dependencies); # Execute the command.
-    };
-				# Wait for the process, because we don't want
-				# to get ahead and start scanning files we
-				# can't build yet.  That could mix up output
-				# between make and the other process.
-  }
+  if( $::parallel_make ) {
 
 #
 # We're executing in parallel.	We can't print the directory name initially,
@@ -867,7 +857,7 @@ sub execute {
 # At present, we direct the output to a file, and then print it when we're
 # done.
 #
-  else {
+
     my $tmpfile = "/tmp/makepp.$$" . substr rand, 1;
 				# Make the name of a temporary file.
 				# Don't use f_mktemp, which is more expensive.
@@ -879,48 +869,40 @@ sub execute {
 # Child process.  Redirect our output to the temporary file and then start
 # the build.
 #
-#      close STDIN;
-# (Turns out we don't want to close STDIN, because then duping STDOUT causes
-# fd 0 to be opened, rather than 2, so STDERR is actually file handle 0.  This
-# caused a weird bug where error messages were not displayed on parallel
-# builds.)
-#      close STDOUT;
-#      close STDERR;
       open STDOUT, '>', $tmpfile or
 	die "$::progname: can't redirect standard output to $tmpfile--$!\n";
       open STDERR, '>&STDOUT' or die "can't dup STDOUT\n";
 				# Make stderr go to the same place.
       open STDIN, '< /dev/null' or
 	die "$::progname: can't redirect standard input to /dev/null--$!\n";
+      # Turns out we don't want to close STDIN, because then duping STDOUT
+      # causes fd 0 to be opened, rather than 2, so STDERR is actually file
+      # handle 0.  This caused a weird bug where error messages were not
+      # displayed on parallel builds.
       $self->execute_command($build_cwd, $actions, $all_targets, $all_dependencies); # Execute the action(s).
     };
 
-    when_done $proc_handle, sub {
 #
 # Gets executed in the parent process when the child has finished.
 #
-      if( open my $job_output, $tmpfile ) { # Is there anything?
-	print_build_cwd($build_cwd); # Display any directory change.
-	print <$job_output>;	# Dump it all to STDOUT.
-	$| = 1;
-	close $job_output;
-	unlink $tmpfile; # Get rid of it.
+    my $end_handler = sub {
+      if( -s $tmpfile ) {	# Is there anything?
+	print_build_cwd( $build_cwd ); # Display any directory change.
+	local $| = 1;		# Must flush before copy.
+	File::Copy::copy( $tmpfile, \*STDOUT );
       }
-      return 0;			# No error.
-    }, ERROR => sub {
-#
-# Process exited with an error.	 Again, print out the program's output, but
-# then exit with non-zero status.
-#
-      if( open my $job_output, $tmpfile ) { # Is there anything?
-	print_build_cwd($build_cwd); # Display any directory change.
-	print <$job_output>;	# Dump it all to STDOUT.
-	$| = 1;
-	close $job_output;
-	unlink $tmpfile; # Get rid of it.
-      }
-      $_[0];		# Propagate the error status.
+      unlink $tmpfile;		# Get rid of it.
+      $_[0];			# Propagate the status.
     };
+    when_done $proc_handle, $end_handler, ERROR => $end_handler;
+  } else {			# Not parallel.
+    print_build_cwd( $build_cwd ); # Display any directory change.
+    wait_for new MakeEvent::Process sub {
+      $self->execute_command($build_cwd, $actions, $all_targets, $all_dependencies); # Execute the command.
+    };				# Wait for the process, because we don't want
+				# to get ahead and start scanning files we
+				# can't build yet.  That could mix up output
+				# between make and the other process.
   }
 }
 
@@ -998,8 +980,16 @@ sub setup_environment {
 
 use POSIX;
 sub exec_or_die {
-  my ($action, $msg) = @_;
-  if($msg) {
+  my( $action, $silent ) = @_;
+  if( $silent ) {
+    { exec format_exec_args $action }
+				# Then execute it and don't return.
+				# This discards the extra make process (and
+				# probably saves lots of memory).
+    print STDERR "exec $action failed--$!\n"; # Should never get here.
+    close STDOUT; close STDERR;
+    POSIX::_exit(1);
+  } else {
     my $result = system( format_exec_args( $action ));
     if($result==-1) {
       print STDERR "exec $action failed--$!\n";
@@ -1009,18 +999,9 @@ sub exec_or_die {
     if((my $sig = $result & 0x7F) != 0) {
       ::suicide(::signame($sig));
     }
-    ::print_profile_end($msg);
+    ::print_profile_end( $action ) if $::profile;
     close STDOUT; close STDERR;
     POSIX::_exit($result ? ($result>>8 || 1) : 0);
-  }
-  else {
-    { exec( format_exec_args( $action )) };
-				# Then execute it and don't return.
-				# This discards the extra make process (and
-				# probably saves lots of memory).
-    print STDERR "exec $action failed--$!\n"; # Should never get here.
-    close STDOUT; close STDERR;
-    POSIX::_exit(1);
   }
 }
 
@@ -1079,7 +1060,7 @@ sub execute_command {
 				# some reason.
 
     if (defined $perl or defined $command) {
-      my $msg=::print_profile(defined $perl ? "perl $perl" : "&$command") unless $silent_flag;
+      ::print_profile( defined $perl ? "perl $perl" : "&$command" ) unless $silent_flag;
 				# This prints out makeperl as perl.  That is correct,
 				# because it has already been expanded to plain perl code.
       local $Makesubs::rule = $self;
@@ -1126,7 +1107,7 @@ sub execute_command {
 	  return 1 if $error_abort;
 	}
       }
-      ::print_profile_end($msg);
+      ::print_profile_end( defined $perl ? "perl $perl" : "&$command" ) if $::profile && !$silent_flag;
       next;			# Process the next action.
     }
 
@@ -1134,7 +1115,7 @@ sub execute_command {
       $action =~ s/\'/\'\\\'\'/g;
       $action = $self->{DISPATCH} . " sh -c '$action'";
     }
-    my $msg=::print_profile($action) unless $silent_flag;
+    ::print_profile( $action ) unless $silent_flag;
     if( ::is_windows ) {	# Can't fork or exec on windows.
       {
 	# NOTE: In Cygwin, TERM and HUP are automatically unblocked in the
@@ -1145,7 +1126,7 @@ sub execute_command {
 	system( format_exec_args( $action ));
       }
       $error_abort and $? and return ($?/256) || 1; # Quit if an error.
-      ::print_profile_end($msg);
+      ::print_profile_end( $action ) if $::profile && !$silent_flag;
       next;			# Process the next action.
     }
 
@@ -1155,12 +1136,11 @@ sub execute_command {
     if ($error_abort && !@actions) { # Is this the last action?
       $SIG{__WARN__} = $nop;	# Suppress annoying warning message here if the
 				# exec fails.
-      exec_or_die($action, $msg);
+      exec_or_die $action, $silent_flag;
 				# Then execute it and don't return.
 				# This discards the extra make process (and
 				# probably saves lots of memory).
-    }
-    else {			# We have more to do after the process
+    } else {			# We have more to do after the process
 				# finishes, so we need to keep running
 				# after the process starts.
 #
@@ -1177,7 +1157,7 @@ sub execute_command {
       unless ($pid) {		# Executed in child process:
 	$SIG{__WARN__} = $nop;	# Suppress annoying warning message here if
 				# the exec fails.
-	exec_or_die($action, $msg);
+	exec_or_die $action, $silent_flag;
       }
 
       $pid == -1 and die "fork failed--$!\n";
@@ -1214,14 +1194,14 @@ sub execute_command {
 # output--it helps them find the directory that the file containing the errors
 # is located in.
 #
+our $last_build_cwd = 0;	# Comparable to a ref.
 sub print_build_cwd {
   my $build_cwd = $_[0];
-  if (!$Rule::last_build_cwd ||	# No previous cwd?
-      $Rule::last_build_cwd != $build_cwd) { # Different from previous?
-    print "$::progname: Leaving directory `" . absolute_filename( $Rule::last_build_cwd ) . "'\n"
-      if $Rule::last_build_cwd;	# Don't let the directory stack fill up.
+  if( $last_build_cwd != $build_cwd ) { # Different from previous or no previous?
+    print "$::progname: Leaving directory `$last_build_cwd->{FULLNAME}'\n"
+      if $last_build_cwd;	# Don't let the directory stack fill up.
     print "$::progname: Entering directory `" . &absolute_filename . "'\n";
-    $Rule::last_build_cwd = $build_cwd;
+    $last_build_cwd = $build_cwd;
   }
 }
 
@@ -1485,11 +1465,9 @@ sub find_all_targets_dependencies {
 # file.
 #
 sub execute {
-  my $self = $_[0];
-
-  return MakeEvent::when_done sub {
-    my $target = $self->{TARGET};
-    if ($target->{ADDITIONAL_DEPENDENCIES}) {
+  MakeEvent::when_done sub {
+    my $target = $_[0];
+    if( $target->{ADDITIONAL_DEPENDENCIES} ) {
 				# If it has additional dependencies, then
 				# there was a rule, or at least we have to
 				# pretend there was.
@@ -1509,7 +1487,7 @@ sub execute {
     }
     ::print_error( 'No rule to make ', $target );
     -1;				# Return nonzero to indicate error.
-  };
+  }, [$_[0]{TARGET}];
 }
 
 #

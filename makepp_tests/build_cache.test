@@ -34,7 +34,7 @@ c_%: % : signature md5
 SUBDIRS = $(dir_noslash $(wildcard */Makeppfile))
 
 include mt
-###	73	755	1103935704	1103936054	makepp_test_script
+###	72	755	1103935704	1185522979	makepp_test_script
 #!/bin/sh
 #
 # Test a build cache.
@@ -45,11 +45,10 @@ MAKEPP="${PERL-perl} ${1-../../makepp}"  # Grab the path to makepp.
 export MAKEPP
 
 # Create the build cache:
-${PERL-perl} $MAKEPP_DIR/makeppbuiltin -MBuildCacheControl create ./build_cache
+${PERL-perl} $MAKEPP_DIR/makeppbuiltin -MBuildCacheControl create -s '' ./build_cache
 
 #
-# Now populate it.  First we test the makepp_build_cache_control populate
-# command, after building some junk with makepp.
+# Now build some junk with makepp.
 #
 $MAKEPP two_letter_files       # Make a bunch of files with the name [ab]?.
 
@@ -100,7 +99,7 @@ done
 # Corrupt one file in the build cache, and verify that the file is
 # correctly rejected.
 #
-for file in `find build_cache -name '*_aa'`; do
+for file in build_cache/*_aa; do
   echo \<$file\>;chmod +w $file
   echo an improper modification >> $file;cat $file;echo ====
 done

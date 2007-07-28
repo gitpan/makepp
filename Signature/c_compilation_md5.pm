@@ -1,4 +1,4 @@
-# $Id: c_compilation_md5.pm,v 1.18 2007/03/20 08:49:27 pfeiffer Exp $
+# $Id: c_compilation_md5.pm,v 1.19 2007/07/17 22:05:22 pfeiffer Exp $
 use strict;
 package Signature::c_compilation_md5;
 
@@ -153,23 +153,15 @@ sub md5sum_c_tokens {
 
       } elsif( /\G\"/gc ) {	# Quoted string?
 	my $quotepos = pos()-1;	# Remember where the string started.
-	while( pos() < length ) {
-	  /\G[^\\\"]+/sgc and next; # Skip over everything between the quotes.
-	  /\G\"/gc and last;	# Found the closing quote.
-	  /\G\\./sgc and next;	# Skip over characters after a backslash.
-	  die "How did I get here?";
-	}
-	$tokens .= substr $_, $quotepos, pos()-$quotepos;
+	1 while pos() < length and /\G[^\\\"]+/sgc || /\G\\./sgc;
+				# Skip over everything between the quotes.
+	$tokens .= substr $_, $quotepos, ++pos()-$quotepos;
 				# Add the string to the checksum.
       } elsif( /\G\'/gc ) {	# Single quote expression?
 	my $quotepos = pos()-1;	# Remember where the string started.
-	while( pos() < length ) {
-	  /\G[^\\\']+/gc and next; # Skip over everything between the quotes.
-	  /\G\'/gc and last;	# Found the closing quote.
-	  /\G\\./sgc and next;	# Skip over characters after a backslash.
-	  die "How did I get here?";
-	}
-	$tokens .= substr $_, $quotepos, pos()-$quotepos;
+	1 while pos() < length and /\G[^\\\"]+/sgc || /\G\\./sgc;
+				# Skip over everything between the quotes.
+	$tokens .= substr $_, $quotepos, ++pos()-$quotepos;
 				# Add the string to the checksum.
 
       } else {

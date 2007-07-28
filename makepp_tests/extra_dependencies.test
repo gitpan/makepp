@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	29	644	1164352699	967526331	Makeppfile
+###	30	644	1164352699	1179177721	Makeppfile
 #
 # This is a test of lines that specify extra dependencies but no rules.
 #
@@ -25,7 +25,8 @@ c:
 	&echo b -o b
 	&cat d -o>>c
 
-c: d
+c: $((				# Multiline list with comment, after rule.
+	d))
 
 d:
 	&echo $@ -o $@

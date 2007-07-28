@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.35 2007/03/20 08:53:21 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.37 2007/06/06 23:04:35 pfeiffer Exp $
 #
 # Key things to do before this is production-ready:
 #
@@ -104,86 +104,32 @@ use Makecmds;
 use Sys::Hostname;
 use POSIX ':errno_h';
 
-=head2 new BuildCache("/path/to/cache", $creation_options);
+=head2 new BuildCache("/path/to/cache");
 
-Builds a new build cache, or opens an existing build cache.  $creation_options
-is a reference to a hash whose values specify some properties of the build
-cache when it is created.  If the build cache already exists,
-$creation_options is ignored.  If the build cache does not yet exist, and
-$creation_options is specified, the build cache will be created.  If
-$creation_options is not specified and the build cache does not yet exist,
-then this will die with an error.
-
-The keys in $creation_options are:
-
-=over 4
-
-=item SUBDIR_CHARS
-
-For efficiency, the cached files are not all dumped into the same directory.
-If the file key is C<0123456789abcdef>, then it will be stored as something
-like F<01/0123/0123456789abcdef>. C<SUBDIR_CHARS> controls where the slashes
-are inserted into the key name.  It is a reference to a list of integers that
-contain the number of characters in the directory names.  For example,
-C<[2,4]> would mean that the top level directory name is the first 2
-characters of the key, the next level directory name is the next 2 characters
-of the key, and there are no more directories beneath that directory.
-
-=item ACCESS_PERMISSIONS
-
-The access permissions that the build cache is created with.  C<0700>
-means that only this user may have access to this build cache.	C<0770>
-means that this user and anyone in the group may have write access to
-the build cache.  C<0777> means that anyone may have access to the build
-cache.
-
-If you grant someone read-only access to the build cache, they will be able to
-use files in it, but not to add files to it.  If you grant read access, you
-should grant execute access, and vice versa, or you may get a bunch of weird
-failures.
-
-If you don't specify the access permissions, the normal umask settings apply.
-
-=back
+Opens an existing build cache.
 
 =cut
 
-our $build_cache_options_file = "build_cache_options.pl";
+our $options_file = 'build_cache_options.pl';
 
 sub new {
-  my ($class, $build_cache_dir, $creation_options) = @_;
+  my( $class, $build_cache_dir, $self ) = @_;
 
-  my $self = { DIR => $build_cache_dir };
+  $self ||= do "$build_cache_dir/$options_file";
+				# Load the creation options.
+  ref $self or
+    die "Build cache $build_cache_dir does not have a valid format\n  $build_cache_dir/$options_file is missing or corrupted\n";
 
-  if (-d $build_cache_dir) {	# Already exists?
-    $self = eval { do "$build_cache_dir/$build_cache_options_file" };
-				# Load the previous creation options.
-    $@ || !$self
-      and die "Build cache $build_cache_dir already exists but does not have a valid format\n  $build_cache_dir/$build_cache_options_file is missing or corrupted\n";
-    $self->{ACCESS_PERMISSIONS} = (stat $build_cache_dir)[2] & 0777; # 2 == real STAT_MODE
+  $build_cache_dir = file_info $build_cache_dir;
+
+  @$self{qw(DEV ACCESS_PERMISSIONS)} =
+    @{FileInfo::stat_array $build_cache_dir}[FileInfo::STAT_DEV, FileInfo::STAT_MODE];
+  $self->{ACCESS_PERMISSIONS} &= 0777;
 				# Use the current directory protections as the
 				# proper mask.
-  }
-  else {
-    $creation_options or die "cannot open build cache $build_cache_dir\n";
-#
-# Create the cache from scratch:
-#
-    $self->{SUBDIR_CHARS} ||= $creation_options->{SUBDIR_CHARS}
-      || [2,4];			# Pick a sensible default.
-    $self->{ACCESS_PERMISSIONS} ||= $creation_options->{ACCESS_PERMISSIONS} ||
-      ((~ umask) & 0777);     # Pick reasonable access restrictions.
-    Makecmds::c_mkdir( -pm => sprintf( '%o', $self->{ACCESS_PERMISSIONS} ), $build_cache_dir );
-    # Make the top level dir.
+  $self->{MKDIR_OPT} = sprintf '-pm%o', $self->{ACCESS_PERMISSIONS};
 
-    open my $fh, '>', "$build_cache_dir/$build_cache_options_file" or
-      die "can't make build cache options file $build_cache_dir/$build_cache_options_file--$!\n";
-    print $fh "{\nSUBDIR_CHARS => [", join(",", @{$self->{SUBDIR_CHARS}}), "]\n};\n";
-  }
-
-  $self->{STAT} = [ (stat $build_cache_dir)[FileInfo::STAT_VECTOR] ]; # Store some useful info about
-				# the directory.
-  $self->{DIRNAME} = FileInfo::absolute_filename( file_info( $build_cache_dir ));
+  $self->{DIRNAME} = FileInfo::absolute_filename $build_cache_dir;
 
   bless $self, $class;
 }
@@ -236,6 +182,7 @@ my $build_info_aged = 'temporary copy of build info was deleted, possibly by agi
 
 sub cache_file {
   my( $self, $input_finfo, $cache_fname, $reason ) = @_; # Name the arguments.
+				# 4th arg atime, only for mppbcc, accessed below.
   $reason or die;
 
   my $input_filename = FileInfo::absolute_filename_nolink( $input_finfo );
@@ -249,9 +196,11 @@ sub cache_file {
   # actually built together.  Either way, you run the risk of leaving behind
   # a build info file without an MD5_SUM, which makes --md5-check-bc unhappy.
 
-  substr $cache_fname, $_, 0, '/' for reverse @{$self->{SUBDIR_CHARS}};
-  $cache_fname = $self->{DIRNAME} . '/' . $cache_fname;
+  if( $cache_fname !~ /^\// ) {	# Not called from BuildCacheControl?
+    substr $cache_fname, $_, 0, '/' for reverse @{$self->{SUBDIR_CHARS}};
+    $cache_fname = $self->{DIRNAME} . '/' . $cache_fname;
 				# Get the name of the file to create.
+  }
 
 # Build info is currently stored in a file whose name is the same as the main
 # file, but with ".makepp" before the last directory and .mk as a suffix.
@@ -261,10 +210,10 @@ sub cache_file {
   my $build_info_fname = $cache_fname;
   $build_info_fname =~ s@/([^/]+)$@/$FileInfo::build_info_subdir@;
   -d $build_info_fname or
-    eval { Makecmds::c_mkdir( -pm => sprintf( '%o', $self->{ACCESS_PERMISSIONS} ), $build_info_fname ); } or do {
-    $$reason = ($! == POSIX::ENOENT || $! == POSIX::ESTALE) ? "$@ -- possibly due to aging (OK)" : $@;
-    return undef;
-  };
+    eval { Makecmds::c_mkdir( $self->{MKDIR_OPT}, $build_info_fname ) } or do {
+      $$reason = ($! == POSIX::ENOENT || $! == POSIX::ESTALE) ? "$@ -- possibly due to aging (OK)" : $@;
+      return undef;
+    };
 				# Make sure .makepp directory and parents exists.
 
   $build_info_fname .= "/$1.mk";
@@ -278,10 +227,7 @@ sub cache_file {
   # This is a string that it unique over all currently active processes that
   # might be able to write to the build cache, and it can't end in '.mk'.
   $unique_suffix ||= hostname . '_' . $$;
-  my $incoming_dirname = $self->{DIRNAME} . '/' . $incoming_subdir;
-  -d $incoming_dirname or
-    Makecmds::c_mkdir( -pm => sprintf( '%o', $self->{ACCESS_PERMISSIONS} ), $incoming_dirname );
-  my $temp_cache_fname = $incoming_dirname . '/' . $unique_suffix;
+  my $temp_cache_fname = "$self->{DIRNAME}/$incoming_subdir/$unique_suffix";
   my $temp_build_info_fname = $temp_cache_fname . '.mk';
 
   my $build_info = $input_finfo->{BUILD_INFO}; # Get the build info hash.
@@ -306,17 +252,18 @@ sub cache_file {
 #
 # If the build cache is not on the same file system as the file, then
 # copy the file.  If it is on the same file system, then make a hard link,
-# since that is faster and uses less disk space.
+# since that is faster and uses almost no disk space.
 #
 
-  my ($dev, $size, $mtime) = @{FileInfo::lstat_array( $input_finfo )}[FileInfo::STAT_DEV, FileInfo::STAT_SIZE, FileInfo::STAT_MTIME];
+  my( $dev, $size, $mtime ) =
+    @{FileInfo::lstat_array $input_finfo}[FileInfo::STAT_DEV, FileInfo::STAT_SIZE, FileInfo::STAT_MTIME];
   # If it's on the same filesystem, then link; otherwise, copy.
   my $target_src;
   my @files_to_unlink;
   my $result = eval {
     my $linking;
     my $target_prot = $file_prot;
-    if ($dev == $self->{STAT}[FileInfo::STAT_DEV] && !$::force_bc_copy) {
+    if ($dev == $self->{DEV} && !$::force_bc_copy) {
       $linking = 1;
       $target_src = $input_filename;
       $target_prot &= ~0222;	# Make it read only, so that no one can
@@ -330,7 +277,7 @@ sub cache_file {
 	require Signature::md5;
 	Signature::md5::signature($Signature::md5::md5, $input_finfo);
       }
-    } else {			# Hard link failed for some reason?
+    } else {			# Hard link not possible on different dev
       my $md5;
       if($::md5check_bc && !$build_info->{MD5_SUM}) {
 	require Digest::MD5;
@@ -348,14 +295,15 @@ sub cache_file {
 	$$reason = ($! == POSIX::ESTALE) ? $target_aged : "write $temp_cache_fname: $!";
 	return undef;
       }
-      # NOTE: We can't get the mtime of $temp_cache_fname from the stat that
-      # we do on the destination filehandle at the end of the copy, because
-      # that mtime could be based on the local clock instead of the clock of
-      # the machine on which the file is stored.
-      $mtime = (stat $temp_cache_fname)[9] or do {
-	$$reason = ($! == POSIX::ENOENT || $! == POSIX::ESTALE) ? $target_aged : "stat $temp_cache_fname: $!";
-	return undef;
-      };
+      utime $_[4] || time, $mtime, $temp_cache_fname or # Try to copy over mtime.
+	# NOTE: We can't get the mtime of $temp_cache_fname from the stat that
+	# we do on the destination filehandle at the end of the copy, because
+	# that mtime could be based on the local clock instead of the clock of
+	# the machine on which the file is stored.
+	$mtime = (stat $temp_cache_fname)[9] or do {
+	  $$reason = ($! == POSIX::ENOENT || $! == POSIX::ESTALE) ? $target_aged : "stat $temp_cache_fname: $!";
+	  return undef;
+	};
       $build_info->{MD5_SUM} = $md5->b64digest if $md5;
     }
     $build_info->{SIGNATURE} = $mtime . ',' . $size;
@@ -458,13 +406,13 @@ sub lookup_file {
   substr $cache_fname, $_, 0, '/' for reverse @{$self->{SUBDIR_CHARS}};
   $cache_fname = $self->{DIRNAME} . '/' . $cache_fname;
 				# Get the file name we're looking for.
-  my @file_stat = (lstat $cache_fname)[FileInfo::STAT_VECTOR]; # Does the file exist?
-  return undef unless @file_stat; # Quit if file does not exist.
 
-  my $bc_entry = { FILENAME => $cache_fname,
-		   STAT => \@file_stat }; # Make the hash that we return.
+  return if exists $self->{SYMLINK} && !-e $cache_fname; # Stale link?
 
-  bless $bc_entry, 'BuildCache::Entry';
+  my $dev = (lstat $cache_fname)[0]; # 0 == real STAT_DEV.  Does the file exist?
+
+  defined $dev and		# Quit if file does not exist.
+    bless { FILENAME => $cache_fname, DEV => $dev }, 'BuildCache::Entry';
 }
 
 =head2 copy_check_md5
@@ -621,7 +569,7 @@ sub fix_ok {
 # a file that had been in the cache for a long time, but that's OK.
   my ($self) = @_;
   # Re-stat, because this is the last chance we have to notice an update.
-  my $mtime = ((stat $self->{FILENAME})[FileInfo::STAT_VECTOR])[FileInfo::STAT_MTIME];
+  my $mtime = (stat $self->{FILENAME})[9]; # 9 == real STAT_MTIME
   $mtime && time - $mtime > 600
 }
 
@@ -663,7 +611,7 @@ sub copy_from_cache {
   Makecmds::c_mkdir( '-p', FileInfo::absolute_filename_nolink( $output_finfo->{'..'} ));
 
 # It's a real file.  If it's on the same file system, make it an extra hard
-# link since that's faster and takes up less disk space.  Otherwise, copy the
+# link since that's faster and takes up almost no disk space.  Otherwise, copy the
 # file.
 # We have to be very careful not to import a target without its build info
 # file, even if an interrupt arrives, because then it will look like a source
@@ -677,12 +625,18 @@ sub copy_from_cache {
     my ($size, $mtime);
     # TBD: Maybe we shouldn't fall back to copying if link fails.  There
     # should be a warning at least.
-    if( $self->{STAT}[FileInfo::STAT_DEV] == ((FileInfo::stat_array( $output_finfo->{'..'} ))->[FileInfo::STAT_DEV] || 0)
+    if( $self->{DEV} == ((FileInfo::stat_array( $output_finfo->{'..'} ))->[FileInfo::STAT_DEV] || 0)
 	&& !$::force_bc_copy &&
 				  # Same file system?
 	link($self->{FILENAME}, $output_fname)) {
       # Re-stat in case it changed since we looked it up.
-      ($size, $mtime) = ((stat $output_fname)[FileInfo::STAT_VECTOR])[FileInfo::STAT_SIZE, FileInfo::STAT_MTIME];
+      ($size, $mtime) = (stat $output_fname)[7, 9];
+      unless( defined $size ) {
+	$$reason = "cached file $self->{FILENAME} became a stale link after we looked it up (OK)";
+	unlink $output_fname;
+	unlink $cache_fname, $build_info_fname if fix_ok($self);
+	return undef;
+      }
       if($md5 && open(my $fh, '<', $self->{FILENAME})) {
 	$md5->addfile($fh);
       }
@@ -771,4 +725,3 @@ sub copy_from_cache {
 *copy_check_md5 = \&BuildCache::copy_check_md5;
 
 1;
-

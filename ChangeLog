@@ -1,4 +1,381 @@
+2007-07-28  Daniel Pfeiffer  <occitan@esperanto.org>
+
+Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.
+
+	* makepp_tests/stress_tests/build_cache_concurrent.test: Only
+	optionally fail on a collision, as it can take seconds to happen
+	on a single processor, beyond default duration.  Allow starting
+	any number of concurrent makepps, for huge stress.
+
+	* makepp_tests/build_cache.test: Create a flat build cache and
+	look for the files via Shell patterns, as find fails on
+	Vista (probably picked up a useless non-Cygwin find).
+
+	* makepp_tests/md5.test: Check if it created .obj so it can also
+	work with a Windows native compiler.
+
+	* BuildCacheControl.pm (c_stats): New command.
+
+	* pod/makepp_build_cache.pod: Remove deterring warning, since
+	build caches are well tested in the meanwhile.  Document stats.
+
+	* makepplog: Don't hang if makepp got killed and produced a truncated log file.
+	(-f, --follow): New option.
+
+	* Dump.pm: Use standard suppression of import mechanism.  Offer
+	more rewriting and options.
+
+2007-07-20  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* MakeEvent.pm ($child_exited): Use cheaper undef for false.
+	(process_finished): Mark failed non-CODE waiters as finished too,
+	else they can hang.
+	(wait_for): Simplify by using only one var, and maybe calling
+	reaper directly.
+
+	* makepp (perform): Don't sleep, event_loop does it for us.
+
+	* FileInfo.pm (absolute_filename): Don't output root as empty.
+	(file_info): Handle //server/share directly, instead of
+	complicating the loop.
+
+2007-07-17  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* FileInfo_makepp.pm (parse_build_info_file): Be a little less
+	strict about what is a corrupt file, making this a lot simpler.
+	(NEEDS_BUILD_UPDATE): Turn it into an exists flag.
+	(build_info_fname): Don't call absolute_filename.
+	(load_build_info_file): Unwind the convoluted conditions, which
+	allows to checks less.
+	(exists_or_can_be_built_norecurse, move_or_link_target): Cache
+	BUILD_INFO so we don't load it twice.
+
+	* makepp (build): Supply the dependency directly as the potential
+	error value.
+
+	* MakeEvent.pm (when_done): ERROR may be the status value.
+	(start): Don't actually call CONST0.
+
+	* Signature/c_compilation_md5.pm (md5sum_c_tokens): Parse strings
+	more cheaply.
+
+2007-07-16  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* TextSubs.pm (split_on_whitespace): Implement directly, instead
+	of dragging args through a wrapper.
+	(join_with_protection): Copy only strings we modify.
+
+	* MakeEvent.pm (MakeEvent::Process::new): Since @pending_processes
+	are ours, call start as a function, not via method lookup.
+	(process_reaper): Pickup all defuncts as early as possible (they
+	could hang around for minutes), then spawn new processes if
+	available, and only then do internal chores.
+
+	* FileInfo.pm: Rename SHORTEST_FULLNAME to FULLNAME to reflect
+	recent change of semantics.
+	(reset_shortest_fullname, traverse): Eliminate unused functions.
+
+	* CommandParser/Esqlc.pm (parse_arg): Rename SHORTEST_FULLNAME to
+	FULLNAME.  Call dirinfo, instead of assuming it's already cached
+	its value.
+
+	* makepp (log): Rename SHORTEST_FULLNAME to FULLNAME.
+
+	* Rule.pm (print_build_cwd): Optimize by initializing
+	last_build_cwd and by knowing that we only leave dirs we have
+	entered, so FULLNAME is set.
+	(execute): Flush before copy.
+
+2007-07-15  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* MakeEvent.pm (*::start): Fix a MAJOR bug (as old as makepp's cvs
+	history), whereby makepp -kj<n> would ignore failures if a later
+	dependency of the same target succeeded.  This would cause
+	whatever output was there after a failure to be picked up as
+	valid.
+	(*): Pass an extra argument to start, to prevent the above fix,
+	when juggling attributes to get the error handler run.
+	(when_done): Make the order of arguments compulsory and allow only
+	one function, which is how this was used anyway.  This eliminates
+	much copying and complex logic.
+	(process_reaper): Don't pass argument to POSIX constant.
+
+	* makepp (build): Don't go through when_done for undef handles.
+	(perform): Don't butcher the last n-1 processes in makepp -kj<n>.
+	This prevents the annoying [signal 15] messages after an error,
+	intead building all that can be.  Turns out this also prevents a
+	race (introduced 04-12-18) where, when a process came back and
+	made another startable, just as makepp was finishing,
+	critical_sections would be increased again.  This would either
+	cause an endless loop or even make makepp uninterruptible.
+	(print_profile): Eliminate msg stuff, now handled by caller.
+
+	* Rule.pm (execute): Use File::Copy instead of printing line by
+	line.
+	(exec_or_die, execute_command): Don't copy cmd around, just for
+	profiling.
+	(find_all_targets_dependencies): Keep sub constant, by not using
+	closure.
+
+	* makepp_tests/parallel_unix.test (z): New test case that -kj2 is
+	now reliable.
+
+2007-07-04  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* FileInfo.pm (read_directory, unlink): Also delete LSTAT and
+	other info about actual file, as otherwise lstat_array won't set
+	EXISTS and file_exists will fail even though the file had been
+	lstatted successfully.
+	(relative_filename): Cache relative pathes between directories.
+
+	* BuildCheck/exact_match.pm: Copy only those parameters that
+	actually get used.
+
+	* makepp_tests/run_tests.pl: Fix int in FileInfo too for HP/UX
+	64bits.
+
+2007-07-02  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* FileInfo.pm (file_info): Let split remove trailing slashes.
+
+	* BuildCheck/exact_match.pm (build_check): Check if file is in
+	build_cwd, rather than calling file_info.
+	(build_cache_key): Don't copy command twice.  As we append NAME to
+	the key anyway, store relative path of only the dir, and only if
+	not '.'.
+
+	* Scanner.pm (find): Check if file is in base, rather than calling
+	file_info.  Flatten if-nesting a bit.
+
+2007-06-29  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Glob.pm (wild_to_regex, wildcard_action_shared): Anchor
+	wildcards only at the beginning and/or (typically) at the end as
+	needed and remember whether they are to span multiple directories.
+	That way a typical wildcard becomes \.c$ rather than the old
+	expensive ^[^/]+\.c$
+
+	* FileInfo.pm (dereference): Eliminate the flaky heuristic whereby
+	the shorter of the two names applies to both files.  For one thing
+	this could mean that makepp uses a different name as it discovers
+	a shorter one.  For another, if the build dir name was shorter
+	than the repository name, when the repository file changed makepp
+	would recreate the link as a cycle onto itself.	
+	This was documented as giving varying automounted directories a
+	consistent name -- if there is a need for such a feature, it
+	should be made reliable through explicit aliasing.
+	(file_info): Optimize through less string copying.
+	(publish): Optimize by not, just for anchoring, interpolating
+	wildcard regexp into another one.
+
+	* FileInfo_makepp.pm (get_rule): Optimize by not, just for
+	anchoring, interpolating wildcard regexp into another one.
+
+	* BuildCacheControl.pm (c_clean): Don't short circuit $found loop,
+	so that chown or &$delete occur for all group members.
+
+2007-06-16  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Makefile.pm (parse_rule): Use PATTERN_RULES instead of
+	PATTERN_LEVEL to keep track of which rules were used to produce
+	present file.  This allows pattern rule chains of any
+	length.  (Bug #1738675 reported by Jeff Smith.)
+
+	* FileInfo_makepp.pm (set_rule): Flatten the nesting of ifs.  Use
+	PATTERN_RULES.
+
+	* Glob.pm (wildcard_action_shared): Optimize away intermediate copy.
+
+	* makepp_tests/pattern_rule.test: Test that we can have long
+	chains of pattern rules, but that the same rule doesn't get
+	applied twice.
+
+	* makepp, TextSubs.pm (format_exec_args): As a few
+	systems (including Solaris) still have a Posix uncompliant Bourne
+	Shell under /bin/sh, look for XPG4 Shell.
+
+	* pod/makepp_variables.pod (SHELL): Document it and its various
+	default values.
+
+2007-06-12  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* BuildCacheControl.pm (c_clean): New options --newgrp and
+	--symlink-check.  Wipe build info with no member.  Reset atime
+	only if we read the file, as this messes up ctime.
+	(c_show): Don't complain about --sort when --verbose.
+
+	* pod/makepp_build_cache.pod: Document new clean options.
+
+	* TextSubs.pm (format_exec_args): Allow negating a command with
+	"!".
+
+	* makepp_tests/conditionals.test (Makeppfile): Test that ! is
+	executable.
+
+	* Makecmds.pm (frame): Die on unreadable input files.
+	(print): Repeat #line when outputting a multiline text from same
+	source line.
+
+2007-06-07  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* BuildCacheControl.pm: Document new base functions.
+	(groupfind): Slight optimization.
+	(c_clean): New option -i, --build-info-check, no longer performed
+	automatically, as it's fairly expensive.  Remove option warning
+	unreachable since -M was introduced (2006-06-24).  Make build info
+	signature match member mtime again.
+
+	* BuildCache.pm (cache_file): Move mkdir incoming to mppbcc
+	create.  For copies try to retain mtime, from mppbcc clean also
+	atime.
+
+	* BuildCheck/exact_match.pm (build_cache_key): Again change /
+	substitute from option like `-' to `%'.
+
+2007-06-02  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* BuildCacheControl.pm (c_clean): Create inter BC links for build
+	info files with .mk suffix in every case, making the signature
+	match again.
+	(c_show): New option -s, --sort.  By default sort by name and age.
+	Add number of copies and symlinks for grouped BCs.
+
+	* pod/makepp_build_cache.pod (show): Describe new stuff
+	thoroughly.
+
+2007-05-29  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* BuildCacheControl.pm (c_clean): Copy fields to new files, making
+	chown work again, and preventing warnings.
+	(c_create): Test symlink with filenames that can't exist, not even
+	when forcing recreation of an existing bc.
+
+	* makepp_tests/additional_tests/2006_09_20_build_cache_none.test:
+	Test grouped bc.
+
+	* Makecmds.pm: Add -S, --synclines option to all filters except
+	sort.
+	(print): New function.
+	(c_cut): INCOMPATIBLE CHANGES: Adapt --lines to count from 1, as
+	Perl and #line directives do.  Fix lines to count per input file.
+	Change --matching and introduce -s, --only-delimited, with Posixly
+	correct default behaviour when not given.
+
+	* Makefile.pm (read_makefile): Support &preprocess -S.
+
+	* BuildCheck/exact_match.pm (build_cache_key): Change / substitute
+	from file system atypical `=' (which some ls jaggedly show as
+	`\=') to `-'.
+
+	* makepp (log): With mpp -v, don't try to start inexistent mpplog.
+
+	* pod/makepp_sandboxes.pod: Remove assertion that filesystem root
+	is marked --dont-build, as it doesn't seem to be true.
+
+2007-05-25  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makeppclean (deletable): Guard against stale inter-build-cache
+	symlinks.
+
+	* BuildCacheControl.pm: MAJOR REWRITE to support BC groups by way
+	of inter-BC symlinks on file systems which allow hard linking to
+	them and copies elsewhere.
+	(c_show): New option --pattern.  New format vaguely like ls -l.
+	Old format now requires --verbose.
+
+	* BuildCache.pm (new): Move creation to BuildCacheControl, and
+	allow that to load an augmented option file.
+	($options_file): Renames $build_cache_options_file to avoid
+	redundant package name.
+	(cache_file): Use precalculated MKDIR_OPT.
+	(lookup_file): Don't copy return value around.
+	(copy_from_cache): Use predetermined DEV.  Guard against undef
+	from stale intra-group symlinks.
+
+	* makepp (print_error): Use ::log to guard against early
+	invocations, before the fh is set up.
+
+	* TextSubs.pm (getopts): Don't issue same short opt verbose
+	message twice.
+
+	* makepp_tests/additional_tests/2006_09_20_build_cache_none.test:
+	Add dummy build_cache_options.pl to make it a valid BC.
+
+	* makepp_tests/run_tests.pl (hpux): Also fix BuildCacheControl.pm.
+
+	* pod/makepp_build_cache.pod, pod/makepp_release_notes.pod:
+	Document build cache grouping.
+
+2007-05-17  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* CommandParser/Basic.pm, ActionParser.pm, Makesubs.pm:
+	* CommandParser.pm: Eliminate CommandParser::Basic, the only
+	purpose of which was to mimic the base class.
+
+	* install.pl: Eliminate CommandParser::Basic, the only purpose of
+	which was to mimic the base class.  Highlight mpp* and upcase faq.
+
+	* pod/makepp_faq.pod: Add 2 questions.
+
+	* pod/makepp.pod, pod/makepp_command.pod: Mention mpp.
+
+2007-05-14  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makeppinfo: New build info reader.
+
+	* Makesubs.pm (f_find_program): Optionally return the path found.
+
+	* CommandParser.pm ($ignore_exe): New variable to restore
+	unreliable behaviour.
+	(parse_command, add_executable_dependency): Fix reliability hole
+	by also depending on the executable.  This is not the right place
+	to do it, because it only notices a path change when refiguring
+	this out for other reasons.  But at least it will notice when a
+	new version got installed over the old one.
+
+	* makepp: Use undef for false in getopts.
+	(parse_command_line): Fix last change to --dump-makefile.
+
+	* Makefile.pm (load): Adapt to --dump-makefile change.
+	(parse_rule): Eliminate warning, which contradicted make
+	compatibility.
+	(_read_makefile_line_stripped_1): Fix comment in $((...)) in a
+	line pushed back by previous rule.
+
+	* Makecmds.pm: Use undef for false in getopts.
+
+	* makeppbuiltin (getopts_help): Tolerate undef.
+
+	* makepp_tests/extra_dependencies.test: Test comment in $((...))
+	in a line pushed back by previous rule.
+
+	* makepp_tests/log_graph.test (makefile): Use
+	$CommandParser::ignore_exe, because otherwise the log file would
+	vary.
+
+	* install.pl: Install makepp_faq and abbrevs consisting of 'mpp'
+	plus the first letter of every following word, e.g. 'mppc' for
+	'makeppclean'.
+
+	* pod/makepp_faq.pod: New (still modest) doc.
+
+2007-05-11  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Makecmds.pm (c_template): Match @{...}@ minimally and simplify
+	slightly.
+
+	* Rule.pm (execute): Don't create two almost identical closures.
+
+	* install.pl: Add keywords to web pages.
+
+	* makepp_tests/builtins.test (&chmod): Exclude it only where it
+	doesn't work.
+
+	* makepplog (-?, --help): New option.
+
 2007-05-06  Daniel Pfeiffer  <occitan@esperanto.org>
+
+Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Signature/shared_object.pm (signature_shared_lib): Use own
 	build_info_key.

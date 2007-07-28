@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.106 2007/05/06 09:44:56 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.109 2007/06/15 22:25:23 pfeiffer Exp $
 package Makefile;
 
 use Glob qw(wildcard_action needed_wildcard_action);
@@ -695,18 +695,6 @@ sub load {
     $minfo->{'..'};		# Default directory is what contains the makefile.
   $mdinfo = FileInfo::dereference( $mdinfo ); # Resolve a soft link on the directory.
 
-  if( exists $mdinfo->{DUMP_MAKEFILE} ) {
-    if( !defined $mdinfo->{DUMP_MAKEFILE} ) {
-				# Autovivified for passing to getopts.
-      delete $mdinfo->{DUMP_MAKEFILE};
-    } elsif( !ref $mdinfo->{DUMP_MAKEFILE} ) {
-				# Requested for dumping and not yet opened.
-      open my $fh, '>', $mdinfo->{DUMP_MAKEFILE} or die "Failed to write $mdinfo->{DUMP_MAKEFILE}--$!";
-      push @::close_fhs, $fh;
-      $mdinfo->{DUMP_MAKEFILE} = $fh;
-    }
-  }
-
   $mdinfo->{MAKEINFO} ||= undef; # Indicate that we're trying to load a
 				# makefile from this directory.
 				# This prevents recursion with implicitly
@@ -847,7 +835,7 @@ sub load {
 				# before we saw the rule.
   }
 
-  chdir( $mdinfo );	# Get in the correct directory for wildcard
+  chdir( $mdinfo );		# Get in the correct directory for wildcard
 				# action routines.
 
 #
@@ -1234,10 +1222,6 @@ sub parse_rule {
   if ($idx >= 0) {		# Do we have this abhorrent syntax?
     $action = substr($after_colon[-1], $idx+1);
     substr( $after_colon[-1], $idx ) = '';
-
-    warn "obsolete syntax with action on same line as dependencies at `$makefile_line'\n"
-      unless $::nowarn_obsolete;
-				# Strongly discourage this stupid syntax.
     $action =~ s/^\s+//;	# Strip out any leading space.	If the action
 				# is entirely blank (as happens in some
 				# makefiles), this will eliminate it.
@@ -1310,7 +1294,7 @@ sub parse_rule {
 	 $last_line_was_blank) ||
 	($whitespace_len >= 8 &&
 	 $whitespace_len <= $target_whitespace_len)) {
-      $_ = (' ' x $target_whitespace_len) . $_;
+      substr $_, 0, 0, ' ' x $target_whitespace_len;
 				# Put the whitespace back (in case it's the
 				# next target).
       last;			# We've found the end of this rule.
@@ -1566,18 +1550,22 @@ sub parse_rule {
 #
       my ($finfo, $was_wildcard_flag) = @_;
 				# Get the arguments.
+
+      return if exists $finfo->{PATTERN_RULES} # Don't keep on applying same rule.
+	and grep $_ eq $makefile_line_dir, @{$finfo->{PATTERN_RULES}};
+      # Note, we could say 3 < grep ... to allow a certain depth of rules
+      # applied to their own output, e.g. '%a: %' to produce *aaa, but doing
+      # it here would only apply to files discovered after the rule.
+      # Additionally set_rule via wildcard_action would have to push to
+      # WILDCARD_ROUTINES before looping over existing files.  That can't
+      # currently be done because then we'd have the same rule twice, giving a
+      # warning.
+
       local $::implicitly_load_makefiles = ($self->{RECURSIVE_MAKE} ? 0 :
 						$::implicitly_load_makefiles);
 				# Turn off implicit makefile loading if there
 				# is an invocation of recursive make in this
-				# file.	 (This is not passed to the wildcard
-
-      my $pattern_level = $was_wildcard_flag ?
-	($finfo->{PATTERN_LEVEL} || 0) + 1 : 0;
-				# Count the number of successive pattern rules
-				# applied to produce this file.
-      return if $pattern_level > 3; # Don't keep on applying pattern rules
-				# to their own output.
+				# file.	 (This is not passed to the wildcard.)
 
       my $rule = new Rule($target_string, $after_colon[0], $action, $self, $makefile_line_dir);
       $rule->{MULTIPLE_RULES_OK} = 1 if $multiple_rules_ok;
@@ -1602,8 +1590,9 @@ sub parse_rule {
       defined($conditional_scanning) and
         $rule->{CONDITIONAL_SCANNING} = $conditional_scanning;
       $rule->{FOREACH} = $finfo; # Remember what to expand $(FOREACH) as.
-      $rule->{PATTERN_LEVEL} = $pattern_level if $was_wildcard_flag;
-				# Mark it as a pattern rule if it was actually
+      $rule->{PATTERN_RULES} = exists $finfo->{PATTERN_RULES} ?
+	[$makefile_line_dir, @{$finfo->{PATTERN_RULES}}] : [$makefile_line_dir]
+	if $was_wildcard_flag;	# Mark it as a pattern rule if it was actually
 				# done with a wildcard.
 
       my @targets = split_on_whitespace(expand_text($self, $target_string, $makefile_line));
@@ -1904,7 +1893,10 @@ sub read_makefile {
 	$self->{RE} = qr/$self->{RE}/;
       }
       if( !/^\s*($self->{RE})\b\s*(.*)/ ) {
-	print expand_text( $self, $_, $makefile_line );
+	$_ = expand_text( $self, $_, $makefile_line );
+	local $ARGV = $makefile_name;
+	local $. = $makefile_lineno;
+	&Makecmds::print;
 	next;
       } elsif( $1 eq 'include' or my $optional = ($1 eq '-include' || $1 eq '_include') ) {
 				# Do our own, since standard statement tries to build.
@@ -2156,18 +2148,20 @@ sub _read_makefile_line_stripped_1 {
 				# Strip out leading whitespace from line
 				# continuations.
 
-    unless ($_[0]) {
-      next if $next_line =~ /^#/; # Skip it if it begins with a comment.
-      # TODO: this breaks on ' #' within quoted strings:
-      $next_line =~ s/\s+#.*//; # Strip out comments.
-    }
+    next if !$_[0] && $next_line =~ /^#/; # Skip it if it begins with a comment.
+
     $line .= $next_line;	# Append it to the current line.
+    my $closedgroup = ($line !~ s/((?:^|[^\$])\$(?:\(\((?!.*\)\))|\{\{(?!.*\}\})|\[\[(?!.*\]\])).*?)\s*$/$1 /s);
+				# Allow $(( )) or ${{ }} to span lines.
+    # TODO: this breaks on ' #' within quoted strings:
+    $line =~ s/\s+#.*/ $closedgroup ? '' : ' ' /e # Strip out comments.
+      unless $closedgroup && $_[0];
+
     last if $line !~ s/\\\s*$/ / && # Quit unless there's a trailing \.
 				# Note that the trailing backslash has to be
 				# replaced by whitespace to conform with
 				# some makefiles I have seen.
-      $line !~ s/((?:^|[^\$])\$(?:\(\((?!.*\)\))|\{\{(?!.*\}\})|\[\[(?!.*\]\])).*?)\s*$/$1 /s;
-				# Also allow $(( )) or ${{ }} to span lines.
+      $closedgroup;
   }
 
   defined $line or return undef; # No point checking at end of file.

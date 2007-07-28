@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.32 2007/04/24 22:55:53 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.33 2007/05/29 20:46:02 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -153,6 +153,13 @@ length I<number> rather than line by line.
 Locally sets C<$/> for the current builtin.  This splits input on I<string>
 rather than line by line.
 
+=item -S
+
+=item --synclines
+
+Generate C<#line >I<C<NO>>C< ">I<C<FILE>>C<"> and C<#line >I<C<NO>> lines,
+understood by many C-like languages.
+
 =item -v
 
 =item --verbose
@@ -167,7 +174,8 @@ There are two motivations for having builtin commands in makepp.  The first is
 to offer a set of utilities, which, unlike Shell commands, are guaranteed to
 work the same everywhere, like C<&echo -n> or C<&mkdir -p>, and saving you the
 hassle of finding the path to C<&install> and figuring out its wildly varying
-options.
+options.  In a compilation environment, it's useful to have the C<--synclines>
+option, which normally only C<m4> provides, on all filters.
 
 The other is a question of efficiency.  In general costly fork/execs should be
 avoided where reasonably possible.  On Unix emulations like Cygwin or
@@ -218,9 +226,9 @@ Not built in, but L<C<&sed>|/_26grep> is comparable.
 
 Concatenates all the files into a single one.
 
-Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force, -i,
---inpipe=shellcommand, -I, --infail, -o, --output=filename, -O, --outfail, -v,
---verbose>
+Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force,
+-i, --inpipe=shellcommand, -I, --infail, -o, --output=filename, -O, --outfail,
+-S, --synclines, -v, --verbose>
 
 
 
@@ -271,7 +279,7 @@ TAB for fields and empty string for characters.
 
 Standard options: C<-A, --args-file, --arguments-file=filename, --force, -i,
 --inpipe=shellcommand, -I, --infail, -o, --output=filename, -O, --outfail, -r,
---record-size=number, -s, --separator=string, -v, --verbose>
+--record-size=number, --separator=string, -S, --synclines, -v, --verbose>
 
 =over
 
@@ -294,7 +302,7 @@ be ignored, however, because when this expression is evaluated the line has
 already been split to Perl's autosplit variable C<@::F>.  The numbers you
 return are in fact indices to that list.
 
-=item -s string
+=item -d string
 
 =item --delimiter=string
 
@@ -320,7 +328,8 @@ which must be given as C<--force>.
 =item --lines=list
 
 Print all the lines specified by I<list>.  I<List> is as described under C<-c,
---characters=list>.  This is definitely inefficient for big files, if you have
+--characters=list> with one major difference: The first line has number 1,
+there is no line 0.  This is definitely inefficient for big files, if you have
 a mixed positive to negative range in your list, as it reads everything to
 memory.  Otherwise Perl could optimize this, but I don't know if it does.
 
@@ -328,13 +337,21 @@ memory.  Otherwise Perl could optimize this, but I don't know if it does.
 
 =item --matching
 
-Print only matching lines.
+Print only matching lines, i.e. ones which have enough characters or fields.
+This implies C<--only-delimited>, which is why you will miss single-field
+lines with C<--fields=0>.
 
 =item -p format
 
 =item --printf=format
 
 Apply format (with \escapes) to all fields or characters.
+
+=item -s
+
+=item --only-delimited
+
+Print only lines containing delimiters.
 
 =back
 
@@ -456,9 +473,10 @@ there is no ignore-case option, since you would do that with C</I<regexp>/i>.
 
 Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force, -i,
 --inpipe=shellcommand, -I, --infail, -o, --output=filename, -O, --outfail, -r,
---record-size=number, -s, --separator=string, --verbose>
+--record-size=number, -s, --separator=string, -S, --synclines, --verbose>
 
-Only C<&grep> has extra options:
+The option C<&perl --synclines> only makes sence if you use
+C<&Makecmds::print> to output C<$_>.  Only C<&grep> has extra options:
 
 =over
 
@@ -521,8 +539,7 @@ L<C<&cut --lines>|/_26cut>:
 
 Note that 1..10 in C<&grep> is Perl's line number flip-flop operator, which
 annoyingly starts at 1.  Don't start at 0, or the flip-flop will never become
-true.  On the other hand the C<--lines> option takes a Perl list expression
-for forming a list slice, and thus starts at 0.  Complain to Larry :-(
+true.
 
 
 
@@ -782,7 +799,7 @@ might give:
     backslash continuation from being recognized.
 
 Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force, -o,
---output=filename, -O, --outfail, -v, --verbose>
+--output=filename, -O, --outfail, -S, --synclines, -v, --verbose>
 
 =over
 
@@ -991,9 +1008,9 @@ becomes
     foo many lines bar plain text 1 + 2 = 3
 
 
-Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force, -i,
---inpipe=shellcommand, -I, --infail, -o, --output=filename, -O, --outfail, -v,
---verbose>
+Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force,
+-i, --inpipe=shellcommand, -I, --infail, -o, --output=filename, -O, --outfail,
+-S, --synclines, -v, --verbose>
 
 =over
 
@@ -1062,7 +1079,7 @@ Discard all but one of successive equal lines.
 
 Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force, -i,
 --inpipe=shellcommand, -I, --infail, -o, --output=filename, -O, --outfail, -r,
---record-size=number, -s, --separator=string, -v, --verbose>
+--record-size=number, -s, --separator=string, -S, --synclines, -v, --verbose>
 
 =over
 

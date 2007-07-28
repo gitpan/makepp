@@ -2,7 +2,7 @@
 
 makepp_builtin -- Built in rules for makepp
 
-=for cvs $Id: makepp_builtin.pod,v 1.8 2006/04/18 21:27:23 pfeiffer Exp $
+=for vc $Id: makepp_builtin.pod,v 1.9 2007/05/29 20:06:20 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -32,9 +32,10 @@ on the command line.
 
 These variables are documented in L<makepp_variables/Predefined Variables>.
 If you have any questions about what any variable evaluates to, you can
-always put a line in your Makeppfile like this:
+always put a line like either of these lines in your Makeppfile:
 
     dummy := $(print $(CC))
+    &echo -- $(CC)		# Must be indented less than previous rule.
 
 which simply prints the value of the C<$(CC)> variable when the Makeppfile
 is loaded.  (Incidently, this is a useful way to debug any expression

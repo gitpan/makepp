@@ -1,4 +1,4 @@
-# $Id: Scanner.pm,v 1.42 2007/04/24 22:57:48 pfeiffer Exp $
+# $Id: Scanner.pm,v 1.43 2007/07/02 21:03:55 pfeiffer Exp $
 
 =head1 NAME
 
@@ -447,20 +447,7 @@ my %already_warned_missing;
 
 sub find {
   my ($self, undef, $tag, $name, $src)=@_;
-  if($name =~ m@^/@) {
-    if($self->{$tag}[INCLUDE_SFXS]) {
-      local $FileInfo::read_dir_before_lstat = 1;
-      for my $sfx (@{$self->{$tag}[INCLUDE_SFXS]}) {
-        my $finfo=file_info($name.$sfx);
-        return $finfo
-          if FileInfo::exists_or_can_be_built_or_remove( $finfo );
-      }
-    }
-    else {
-      return file_info($name);
-    }
-  }
-  else {
+  if( $name !~ m@^/@ ) {
     return $self->get_file_info($name) unless $tag;
     my( $src_dir, $key );
     local $FileInfo::read_dir_before_lstat = 1;
@@ -477,19 +464,29 @@ sub find {
 	for my $sfx ( @{$self->{$tag}[INCLUDE_SFXS]} ) {
 	  my $finfo = file_info($name.$sfx, $base);
 	  return $base->{SCANNER_CACHE}{$key} = $finfo if FileInfo::exists_or_can_be_built_or_remove( $finfo );
-	  $base->{SCANNER_CACHE}{$key} = undef;
+	  undef $base->{SCANNER_CACHE}{$key};
 	}
       } else {
 	if( exists $base->{SCANNER_CACHE}{$name} ) {
 	  return $base->{SCANNER_CACHE}{$name} if $base->{SCANNER_CACHE}{$name};
 	  next;
 	}
-	my $finfo = file_info($name, $base);
+	my $finfo = $base->{DIRCONTENTS}{$name} || file_info $name, $base;
 	return $base->{SCANNER_CACHE}{$name} = $finfo if FileInfo::exists_or_can_be_built_or_remove( $finfo );
-	$base->{SCANNER_CACHE}{$name} = undef;
+	undef $base->{SCANNER_CACHE}{$name};
       }
     }
+  } elsif( $self->{$tag}[INCLUDE_SFXS] ) {
+    local $FileInfo::read_dir_before_lstat = 1;
+    for my $sfx (@{$self->{$tag}[INCLUDE_SFXS]}) {
+      my $finfo=file_info($name.$sfx);
+      return $finfo
+	if FileInfo::exists_or_can_be_built_or_remove( $finfo );
+    }
+  } else {
+    return file_info($name);
   }
+
   if( $self->{$tag}[SHOULD_FIND] && !$already_warned_missing{$name}++ ) {
     my $path = '';
     if($self->{$tag}[INCLUDE_SFXS]) {

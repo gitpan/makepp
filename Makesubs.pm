@@ -1,4 +1,4 @@
-# $Id: Makesubs.pm,v 1.143 2007/05/06 09:47:09 pfeiffer Exp $
+# $Id: Makesubs.pm,v 1.145 2007/05/17 11:50:46 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains subroutines which can be called from a makefile.
@@ -26,7 +26,7 @@ use FileInfo qw(file_info absolute_filename relative_filename file_exists touche
 use FileInfo_makepp;
 use MakeEvent qw(wait_for when_done read_wait);
 use Glob qw(zglob zglob_fileinfo);
-use CommandParser::Basic;
+use CommandParser;
 use CommandParser::Gcc;
 
 ###############################################################################
@@ -70,7 +70,7 @@ sub scanner_swig {
 # the default scanner.
 #
 sub scanner_none {
-  CommandParser::Basic->new(@_[1..$#_]);
+  CommandParser->new(@_[1..$#_]);
 }
 
 #
@@ -90,7 +90,7 @@ sub scanner_skip_word {
       last;			# Don't go any further.
     }
   }
-  CommandParser::Basic->new($rule, $dir);
+  CommandParser->new($rule, $dir);
 }
 
 #
@@ -358,7 +358,7 @@ sub f_filter_out_dirs {
 }
 
 #
-# Find one of several executables in PATH.
+# Find one of several executables in PATH.  Optional 4th arg means to return found path.
 #
 sub f_find_program {
   my $makefile = $_[1];		# Access the other arguments.
@@ -367,7 +367,7 @@ sub f_find_program {
   my $first_round = 1;
   foreach my $name ( split ' ', $_[0]) {
     if( $name =~ /\// ) {	# Either relative or absolute?
-      return $name if $name =~ /\// &&
+      return $name if
 	FileInfo::exists_or_can_be_built file_info $name, $makefile->{CWD};
       next;
     }
@@ -380,8 +380,9 @@ sub f_find_program {
 	$dir = file_info $dir, $makefile->{CWD};
 	undef $dir if !FileInfo::is_or_will_be_dir $dir ;
       }
-      return $name
-	if $dir && FileInfo::exists_or_can_be_built file_info $name, $dir;
+      my $finfo = file_info $name, $dir;
+      return $_[3] ? absolute_filename( $finfo ) : $name
+	if $dir && FileInfo::exists_or_can_be_built $finfo;
     }
     $first_round = 0;
   }

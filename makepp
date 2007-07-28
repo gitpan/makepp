@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.140 2007/04/27 20:12:35 pfeiffer Exp $
+# $Id: makepp,v 1.149 2007/07/20 19:58:59 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 require 5.006;
@@ -193,7 +193,12 @@ my $invocation = join_with_protection($0, @ARGV);
 
 (our $progname = $0) =~ s@.*/@@; # Get the program name w/o directories.
 
-$ENV{SHELL} = '/bin/sh';	# Always use the Bourne shell.
+for( qw(/usr/xpg4/bin/sh /sbin/xpg4/sh /bin/sh) ) {
+  if( -x ) {
+    $ENV{SHELL} = $_;		# Always use a hopefully Posix shell.
+    last;
+  }
+}
 delete $ENV{PWD};		# This is dangerous.
 
 our %global_ENV = %ENV;		# Make a copy of the environment, because
@@ -262,7 +267,7 @@ our $verbose = 0;
 our $silent_execution;
 
 $SIG{__WARN__} = sub {
-  my $level = ($_[0] =~ /^(?:error|info): /) ? '' : 'warning: ';
+  my $level = ($_[0] =~ /^(?:error|info): /s) ? '' : 'warning: ';
 				# TODO: should we return if !$warn_level && $1 ne 'error'?
   print STDERR "$progname: $level$_[0]";
   if( $log_level == 2 ) {
@@ -447,8 +452,7 @@ sub build {
 # Build each of the dependencies:
 #
   my @build_handles;
-  my $build_deps = 1;
-  if(exists $rule->{SCAN_FAILED}) {
+  if( exists $rule->{SCAN_FAILED} ) {
     # If we couldn't even figure out what the dependencies are, then
     # propagate error status instead of running the rule. But if -k is
     # specified, then build the dependencies that we already know about.
@@ -471,24 +475,23 @@ sub build {
       'Not building ' . &absolute_filename .
       ' because the dependencies could not be computed' . $reason
     );
-    undef $build_deps unless $main::keep_going;
   }
-  if($build_deps) {
+  my $handle;
+  if( @$all_dependencies and $main::keep_going || ! exists $rule->{SCAN_FAILED} ) {
     local $indent_level = $indent_level + 2;
-    foreach my $dep (@$all_dependencies) {
 				# Temporarily change the indentation level
 				# when building dependencies.
-      my $handle;
-      $handle = when_done build($dep),
-        \&TextSubs::CONST0, ERROR => sub { $handle->{STATUS} = $dep };
+    foreach my $dep (@$all_dependencies) {
+      next if exists $dep->{BUILD_HANDLE} && !defined $dep->{BUILD_HANDLE};
+				# Don't wait for what's already been done.
+      $handle = when_done build( $dep ), \&TextSubs::CONST0, ERROR => $dep;
       $handle and push @build_handles, $handle;
 				# Don't bother saving it if it's blank.
     }
   }
 
-  my $handle = when_done(@build_handles, \&build_dependencies_done,
-			 [$oinfo, $all_targets, $all_dependencies,
-			  $command_string, $rule, $env, $dont_scan]);
+  $handle = when_done @build_handles, \&build_dependencies_done,
+    [$oinfo, $all_targets, $all_dependencies, $command_string, $rule, $env, $dont_scan];
   $handle && exists($handle->{STATUS}) && !$handle->{STATUS} and
     undef $handle;		# If the build operation already succeeded,
 				# don't keep the handle around.
@@ -519,23 +522,23 @@ sub build {
 # the when_done mechanism.
 #
 sub build_dependencies_done {
-    my ($oinfo, $all_targets, $all_dependencies, $command_string, $rule, $env, $dont_scan) = @_;
+  my ($oinfo, $all_targets, $all_dependencies, $command_string, $rule, $env, $dont_scan) = @_;
 
 #
 # This routine is only called if no errors were encountered in building the
 # dependencies.
 #
-    return undef if $error_found; # If we're quitting because of an error,
+  return undef if $error_found; # If we're quitting because of an error,
 				# don't start any new builds.  This can happen
 				# if we're doing a parallel build and we got
 				# an error in a different, unrelated target.
 
-    # If we're going to treat the target as a source file, then check to
-    # see if it has sprung into existence without makepp's knowledge.
-    may_have_changed( $oinfo ) if UNIVERSAL::isa $rule, 'DefaultRule';
+  # If we're going to treat the target as a source file, then check to
+  # see if it has sprung into existence without makepp's knowledge.
+  may_have_changed( $oinfo ) if UNIVERSAL::isa $rule, 'DefaultRule';
 
-    foreach (@$all_dependencies) {
-      FileInfo::check_for_change( $_ );	# Restat each dependency.  This will slow down
+  foreach( @$all_dependencies ) {
+    FileInfo::check_for_change( $_ );	# Restat each dependency.  This will slow down
 				# the build, but it's important for accuracy,
 				# because if a file has been edited or if
 				# a command altered a file without specifying
@@ -545,16 +548,16 @@ sub build_dependencies_done {
 				# time window where this can occur, but since
 				# we restat just before we execute the
 				# commands, it's much narrower.)
-      warn 'Target ', &absolute_filename, ' depends on temporary file ',
-	absolute_filename( $_ ), "\n"
-	if exists $_->{IS_TEMP};
-    }
+    warn 'Target ', &absolute_filename, ' depends on temporary file ',
+      absolute_filename( $_ ), "\n"
+      if exists $_->{IS_TEMP};
+  }
 
 #
 # Now check all the signatures of each target to see if it is up
 # to date.
 #
-    my $is_recursive_make = ($command_string =~ /\brecursive_makepp\b/);
+  my $is_recursive_make = ($command_string =~ /\brecursive_makepp\b/);
 				# Note that the above will catch invocations
 				# of the recursive_makepp program, and also
 				# invocations of makepp when
@@ -562,52 +565,50 @@ sub build_dependencies_done {
 				# because the latter adds a bogus
 				# --recursive_makepp option to the command
 				# line.
-    my $rebuild_needed = 0;	# Assume we don't need to rebuild.
-    my $dont_build = 0;		# Assume no files marked with --dont-build.
-    my $out_of_sandbox = 0;
+  my $rebuild_needed;		# Assume we don't need to rebuild.
+  my $dont_build;		# Assume no files marked with --dont-build.
+  my $out_of_sandbox;		# Assume no files marked with --out-of-sandbox.
 
-    my @targets_to_copy_from_repository; # If we have to copy any files in from
+  my @targets_to_copy_from_repository; # If we have to copy any files in from
 				# a repository, this is where we store them.
-    my @targets_to_copy_from_build_cache; # Targets to copy from a build cache.
+  my @targets_to_copy_from_build_cache; # Targets to copy from a build cache.
 
-    my $build_cwd = $rule->build_cwd;
-    my $build_check_method = $rule->build_check_method;
-    my $sig_method = $rule->signature_method; # Get which signature checking
+  my $build_cwd = $rule->build_cwd;
+  my $build_check_method = $rule->build_check_method;
+  my $sig_method = $rule->signature_method; # Get which signature checking
 				# algorithm we want to use.
 
-    if ($is_recursive_make) {
-      $rebuild_needed = 1;      # Always reexecute this command.
-      ::log BUILD_RECURSIVE => $all_targets
-	if $log_level;
-    }
-    elsif($dont_scan) {
-      $rebuild_needed = 1;      # Always reexecute this command.
-      ::log BUILD_FINAL => $all_targets
-	if $log_level;
-    }
-    else {
-    target_loop:
-      foreach my $target (@$all_targets) {
-        last if $rebuild_needed && $dont_build;
-        if (FileInfo::dont_build( $target )) {
-	  $dont_build = $target; # Remember not to clobber dont-build targets
-          next target_loop; # Skip to next target now.
-        }
-        if (!FileInfo::in_sandbox( $target )) {
-          $out_of_sandbox = $target;
-	  $dont_build = $target unless $sandbox_warn_flag;
+  if( $is_recursive_make ) {
+    $rebuild_needed = 1;	# Always reexecute this command.
+    ::log BUILD_RECURSIVE => $all_targets
+      if $log_level;
+  } elsif( $dont_scan ) {
+    $rebuild_needed = 1;      # Always reexecute this command.
+    ::log BUILD_FINAL => $all_targets
+      if $log_level;
+  } else {
+  target_loop:
+    foreach my $target (@$all_targets) {
+      last if $rebuild_needed && $dont_build;
+      if( FileInfo::dont_build $target ) {
+	$dont_build = $target; # Remember not to clobber dont-build targets
+	next target_loop; # Skip to next target now.
+      }
+      unless( FileInfo::in_sandbox $target ) {
+	$out_of_sandbox = $target;
+	$dont_build = $target unless $sandbox_warn_flag;
                                 # Remember not to overstep sandbox
-        }
-        next target_loop if $rebuild_needed;
-	next target_loop if exists $target->{IS_TEMP};
+      }
+      next target_loop if $rebuild_needed
+	or exists $target->{IS_TEMP};
 				# Temporary targets don't have to be up-to-date
-        if( exists $target->{IS_PHONY} ) { # If this is a phony target, then we always
+      if( exists $target->{IS_PHONY} ) { # If this is a phony target, then we always
                                 # rebuild.
-          $rebuild_needed = 1;
-	  ::log BUILD_PHONY => $target
-	    if $log_level;
-          next target_loop;	# Keep checking for dont_build.
-        }
+	$rebuild_needed = 1;
+	::log BUILD_PHONY => $target
+	  if $log_level;
+	next target_loop;	# Keep checking for dont_build.
+      }
 
 #
 # Sometimes when we're using repositories, we may need to execute a rule
@@ -618,111 +619,111 @@ sub build_dependencies_done {
 # command or the targets are erroneous, and we don't want to scatter
 # junk directories around.
 #
-        if( exists $target->{'..'}{DIR_IN_REPOSITORY} &&
-            !file_exists( $target->{'..'} )) {
+      if( exists $target->{'..'}{DIR_IN_REPOSITORY} &&
+	  !file_exists( $target->{'..'} )) {
 
-          FileInfo::mkdir( $target->{'..'} ); # Make it with parents.
-        }
+	FileInfo::mkdir( $target->{'..'} ); # Make it with parents.
+      }
 
-	my $is_src_file = UNIVERSAL::isa $rule, 'DefaultRule';
-        if ($build_check_method->build_check($target, $all_dependencies,
+      my $is_src_file = UNIVERSAL::isa $rule, 'DefaultRule';
+      if( $build_check_method->build_check( $target, $all_dependencies,
                                              $command_string, $build_cwd,
-                                             $sig_method, $env)) { # Need to rebuild?
-          if ($target->{ALTERNATE_VERSIONS}) { # Possibly copy from repository?
-            for( @{$target->{ALTERNATE_VERSIONS}} ) {
-	      next if FileInfo::dont_read $_;
-	      if ($rm_stale_files && $is_src_file && FileInfo::was_built_by_makepp $_ ) {
-		::log REP_SKIP => $_
-		  if $log_level;
-		next;
-	      }
-	      ::log REP_CHECK => $_
+                                             $sig_method, $env )) { # Need to rebuild?
+	if( $target->{ALTERNATE_VERSIONS} ) { # Possibly copy from repository?
+	  for( @{$target->{ALTERNATE_VERSIONS}} ) {
+	    next if FileInfo::dont_read $_;
+	    if( $rm_stale_files && $is_src_file && FileInfo::was_built_by_makepp $_  ) {
+	      ::log REP_SKIP => $_
 		if $log_level;
-              if ($is_src_file ||
+	      next;
+	    }
+	    ::log REP_CHECK => $_
+	      if $log_level;
+	    if( $is_src_file ||
                !$build_check_method->build_check_from_build_info( $_, $all_dependencies, $command_string, $build_cwd, $sig_method, $env )) {
-                push @targets_to_copy_from_repository, $_, $target;
+	      push @targets_to_copy_from_repository, $_, $target;
 				# Remember to copy this from repository.
-                next target_loop; # Move on to next target.
-              }
-            }
-          }
-          if (my $build_cache = !$populate_bc_only && $rule->build_cache) {
+	      next target_loop; # Move on to next target.
+	    }
+	  }
+	}
+	if( my $build_cache = !$populate_bc_only && $rule->build_cache ) {
                                 # Do we have a build cache we can look in?
-            my $bc_key = $build_check_method->
-              build_cache_key($target, $all_dependencies, $command_string,
-                              $build_cwd, $sig_method, $env);
-            if ($bc_key) {      # Got a valid key?
-              my $bc_entry = $build_cache->lookup_file($bc_key);
-              if ($bc_entry) { # Got a candidate entry in cache?
-		::log BC_FOUND => $target, $bc_key
-		  if $log_level;
-                push @targets_to_copy_from_build_cache, $bc_entry, $target;
-                next target_loop; # Move on to next target.
-              } else {
-		::log BC_NONE => $target, $bc_key
-		  if $log_level;
-	      }
-            } else {
-	      ::log BC_NO_KEY => $target
+	  my $bc_key = $build_check_method->
+	    build_cache_key( $target, $all_dependencies, $command_string,
+			     $build_cwd, $sig_method, $env );
+	  if( $bc_key ) {      # Got a valid key?
+	    my $bc_entry = $build_cache->lookup_file($bc_key);
+	    if( $bc_entry ) { # Got a candidate entry in cache?
+	      ::log BC_FOUND => $target, $bc_key
+		if $log_level;
+	      push @targets_to_copy_from_build_cache, $bc_entry, $target;
+	      next target_loop; # Move on to next target.
+	    } else {
+	      ::log BC_NONE => $target, $bc_key
 		if $log_level;
 	    }
-          }
-          $rebuild_needed = 1;	# We'll need to run the command.
-          next target_loop;	# Keep checking for dont_build.
-        }
+	  } else {
+	    ::log BC_NO_KEY => $target
+	      if $log_level;
+	  }
+	}
+	$rebuild_needed = 1;	# We'll need to run the command.
+	next target_loop;	# Keep checking for dont_build.
       }
     }
+  }
 
-    unless ($rebuild_needed) {
-      # At this point, it appears that we won't have to run the rule.
-      # However, we could have a problem when we attempt to import from
-      # the cache, and because there could be concurrent processes operating
-      # on the build cache, we can't predict ahead of time whether such a
-      # problem will occur.  The solution is to attempt the import first,
-      # and if it fails then fall back to rebuilding.
-      import_loop: while (@targets_to_copy_from_build_cache) { # Do the same for the build cache:
-	my ($target_src, $target_dst) = splice(@targets_to_copy_from_build_cache, 0, 2);
-        my $reason;
-	$target_src->copy_from_cache($target_dst, $rule, \$reason) or do {
-	  my $msg = 'Copy of ' . BuildCache::Entry::absolute_filename( $target_src ) . ' into ' .
-	    absolute_filename( $target_dst ) . " failed because $reason\n";
-	  &$::build_cache_error_hook($msg) if $::build_cache_error_hook;
-	  if($reason =~ /\(OK\)$/ && !$stop_on_race) {
-	    warn $msg."This might just mean that the build cache file was in an inconsistent state due to concurrent access, so we'll rebuild instead.\n";
-	    $rebuild_needed = 1;
-	    last import_loop;
-	  }
-	  else {
-	    # If something happens that we can't explain as a transient
-	    # phenomenon, then we *don't* want to just fall back to
-	    # rebuilding, because the user probably wants to know that the
-	    # build cache isn't operating normally.
-	    die $msg;
-	  }
-	};
+  unless( $rebuild_needed ) {
+    # At this point, it appears that we won't have to run the rule.
+    # However, we could have a problem when we attempt to import from
+    # the cache, and because there could be concurrent processes operating
+    # on the build cache, we can't predict ahead of time whether such a
+    # problem will occur.  The solution is to attempt the import first,
+    # and if it fails then fall back to rebuilding.
+  import_loop:
+    while (@targets_to_copy_from_build_cache) { # Do the same for the build cache:
+      my ($target_src, $target_dst) = splice @targets_to_copy_from_build_cache, 0, 2;
+      my $reason;
+      $target_src->copy_from_cache($target_dst, $rule, \$reason) or do {
+	my $msg = 'Copy of ' . BuildCache::Entry::absolute_filename( $target_src ) . ' into ' .
+	  absolute_filename( $target_dst ) . " failed because $reason\n";
+	&$::build_cache_error_hook($msg) if $::build_cache_error_hook;
+	if($reason =~ /\(OK\)$/ && !$stop_on_race) {
+	  warn $msg."This might just mean that the build cache file was in an inconsistent state due to concurrent access, so we'll rebuild instead.\n";
+	  $rebuild_needed = 1;
+	  last import_loop;
+	} else {
+	  # If something happens that we can't explain as a transient
+	  # phenomenon, then we *don't* want to just fall back to
+	  # rebuilding, because the user probably wants to know that the
+	  # build cache isn't operating normally.
+	  die $msg;
+	}
+      };
 
-	::log BC_COPY => $target_dst, $target_src
-	  if $log_level;
-	print "$progname: Imported `", absolute_filename( $target_dst ), "' from build cache\n"
-	  unless $quiet_flag;
-      }
+      ::log BC_COPY => $target_dst, $target_src
+	if $log_level;
+      print "$progname: Imported `", absolute_filename( $target_dst ), "' from build cache\n"
+	unless $quiet_flag;
     }
+  }
 
-    if ($rebuild_needed) {
-      if($dont_build) {
-        # NOTE: This can trip even if the target(s) that we need are up to date
-        # if some other target *not* marked for dont-build isn't up to date.
-        # This usually isn't a problem in practice, and it appears nontrivial
-        # to fix.
-        print_error(
-          'Not building ' . absolute_filename( $oinfo ) .
-          ' because ' . absolute_filename( $dont_build ) .
-          ' (a target of its rule) was marked for dont-build or out-of-sandbox'
-        );
-        return new MakeEvent::Process \&TextSubs::CONST1;
-      }
-      warn 'Building ', absolute_filename( $out_of_sandbox ), ", which is outside the sandbox\n"
-	if $out_of_sandbox;
+  if( $rebuild_needed ) {
+    if( $dont_build ) {
+      # NOTE: This can trip even if the target(s) that we need are up to date
+      # if some other target *not* marked for dont-build isn't up to date.
+      # This usually isn't a problem in practice, and it appears nontrivial
+      # to fix.
+      print_error(
+	'Not building ' . absolute_filename( $oinfo ) .
+        ' because ' . absolute_filename( $dont_build ) .
+        ' (a target of its rule) was marked for dont-build or out-of-sandbox'
+      );
+      return new MakeEvent::Process \&TextSubs::CONST1;
+    }
+    warn 'Building ', absolute_filename( $out_of_sandbox ), ", which is outside the sandbox\n"
+      if $out_of_sandbox;
 				# Do we actually need to rebuild something?
 # This causes problems if the files were deliberately linked in.
 #      foreach (@$all_targets) {
@@ -736,129 +737,127 @@ sub build_dependencies_done {
 #				# link in from automake.
 #	}
 #      }
-      if ($is_recursive_make) {	# If this is a recursive make invocation,
+    if( $is_recursive_make ) {	# If this is a recursive make invocation,
 				# we'll have to reexecute a build
 				# command for it, so don't inhibit that.
-	foreach my $target (@$all_targets) {
-	  delete $target->{BUILD_HANDLE};
-	}
+      foreach my $target (@$all_targets) {
+	delete $target->{BUILD_HANDLE};
       }
+    }
 
-      if (!$is_recursive_make && !$dry_run) {
-        # For the targets that are about to be built, flush out any potentially
-	# stale stuff (repository links and build info) from the filesystem.
-	foreach my $tinfo (@$all_targets) {
-	  next if exists $tinfo->{TEMP_BUILD_INFO};
-	  if( grep $_, FileInfo::build_info_string( $tinfo, qw'FROM_REPOSITORY LINKED_TO_CACHE' ) ||
-              !(exists $tinfo->{IS_PHONY} || FileInfo::is_writable_owner( $tinfo ))) {
+    unless( $is_recursive_make || $dry_run ) {
+      # For the targets that are about to be built, flush out any potentially
+      # stale stuff (repository links and build info) from the filesystem.
+      foreach my $tinfo (@$all_targets) {
+	next if exists $tinfo->{TEMP_BUILD_INFO};
+	if( grep $_, FileInfo::build_info_string( $tinfo, qw'FROM_REPOSITORY LINKED_TO_CACHE' ) ||
+	    !(exists $tinfo->{IS_PHONY} || FileInfo::is_writable_owner( $tinfo ))) {
 				# Marked read only?
-	    ::log REMOVE => $tinfo
-	      if $log_level;
-	    FileInfo::unlink( $tinfo );	# If it's from a repository, get rid of it.
+	  ::log REMOVE => $tinfo
+	    if $log_level;
+	  FileInfo::unlink $tinfo;	# If it's from a repository, get rid of it.
 				# It might be a bogus file from the past.
                                 # If it's from a build cache, delete it so
                                 # we don't corrupt the file in the build
                                 # cache.
-	  }
-	  FileInfo::clear_build_info( $tinfo );
 	}
+	FileInfo::clear_build_info $tinfo;
       }
-      $critical_sections++;
-      # TBD: It would be better to mark all the targets as invalid first,
-      # and then restore them when the command succeeded (and ideally restore
-      # the ones that weren't touched if it fails).  That way, we won't get
-      # confused if makepp stops very suddenly (e.g. kernel panic), even if
-      # none of the targets' timestamps changed.
-      my $execute_handle = $dry_run && !$is_recursive_make ?
-	$rule->print_command($command_string) :
-	$rule->execute($command_string, $all_targets, $all_dependencies);
+    }
+    $critical_sections++;
+    # TBD: It would be better to mark all the targets as invalid first,
+    # and then restore them when the command succeeded (and ideally restore
+    # the ones that weren't touched if it fails).  That way, we won't get
+    # confused if makepp stops very suddenly (e.g. kernel panic), even if
+    # none of the targets' timestamps changed.
+    my $execute_handle = $dry_run && !$is_recursive_make ?
+      $rule->print_command($command_string) :
+      $rule->execute($command_string, $all_targets, $all_dependencies);
 				# Start executing the command, or just print
 				# it if -n is enabled (unless it's recursive
 				# make).
-      my $handle = when_done $execute_handle, \&build_target_done, [@_[1..$#_]],
-	ERROR => sub {
-	  $error_found = $_[0]
-	    if $_[0] eq "signal $int_signo" || $_[0] eq "signal $quit_signo";
-	  $error_found ||= $_[0]      # Remember the error status.  This will
-	    unless $main::keep_going; # cause us to stop compilation as soon as
-				      # possible.
-	  $failed_count += @$all_targets;
-	  print_error( "Failed to build target", (@$all_targets>1 ? 's' : ''),
-		       map( ' `'.absolute_filename( $_ )."'", @$all_targets ),
-		       " [$_[0]]" );
-	  ::log RULE_FAILED => $rule
-	    if $::log_level;
+    my $handle = when_done $execute_handle, \&build_target_done, [@_[1..$#_]],
+      ERROR => sub {
+	$error_found = $_[0]
+	  if $_[0] =~ /^signal (?:$int_signo|$quit_signo)$/os;
+	$error_found ||= $_[0]      # Remember the error status.  This will
+	  unless $main::keep_going; # cause us to stop compilation as soon as
+				    # possible.
+	$failed_count += @$all_targets;
+	print_error( "Failed to build target", (@$all_targets>1 ? 's' : ''),
+		     map( ' `'.absolute_filename( $_ )."'", @$all_targets ),
+		     " [$_[0]]" );
+	::log RULE_FAILED => $rule
+	  if $::log_level;
 				# Sometimes it's hard to tell where the problem
 				# was if -k was specified unless we mark it
 				# in the log file.
   # TBD: We don't need to invalidate the build info of targets that we know
   # weren't touched by the command.  We can leverage the code that detects
   # when we need to retouch a file (also TBD) to accomplish this.
-	  foreach my $tinfo (@$all_targets) {
-	    next if exists $tinfo->{IS_PHONY}; # Skip phony targets.
-	    may_have_changed( $tinfo );	# Invalidate cached info.
+	foreach my $tinfo (@$all_targets) {
+	  next if exists $tinfo->{IS_PHONY}; # Skip phony targets.
+	  may_have_changed( $tinfo );	# Invalidate cached info.
     				# We don't really need to blow away BUILD_INFO,
 				# because we called clear_build_info earlier,
 				# but that doesn't slow things down too much.
-	    may_have_changed( FileInfo::dereference( $tinfo ));
+	  may_have_changed( FileInfo::dereference $tinfo );
     				# Since we don't know whether the command
 				# modified the link or its referent or both,
 				# need to invalidate both.
-	    if (!$is_recursive_make && !$dry_run) {
+	  unless( $is_recursive_make || $dry_run ) {
 				# Never store build information on recursive
 				# makes.  They always need to be rerun every
 				# time we run through the makefile.
-	      FileInfo::set_build_info_string( $tinfo,
-					       BUILD_SIGNATURE => 'FAILED',
-					       COMMAND => 'FAILED' );
-	    }
+	    FileInfo::set_build_info_string( $tinfo,
+					     BUILD_SIGNATURE => 'FAILED',
+					     COMMAND => 'FAILED' );
 	  }
-	  &FileInfo::update_build_infos # Flush the build info to disk.
-	    unless $dry_run;
-	  $critical_sections--;
-	  propagate_pending_signals;
-	  return $_[0];		# Propagate the status.
-	};
+	}
+	&FileInfo::update_build_infos # Flush the build info to disk.
+	  unless $dry_run;
+	$critical_sections--;
+	propagate_pending_signals;
+	return $_[0];		# Propagate the status.
+      };
 
-      return $handle;		# Not finished building until the rule has
+    return $handle;		# Not finished building until the rule has
 				# finished executing.
-    }
+  }
 
 #
 # We didn't actually need to rebuild anything.	We may have to copy or link
 # a target from the repository or build cache, however.
 #
-    while (@targets_to_copy_from_repository) {
-      my ($target_src, $target_dst) = splice(@targets_to_copy_from_repository, 0, 2);
+  while( @targets_to_copy_from_repository ) {
+    my ($target_src, $target_dst) = splice(@targets_to_copy_from_repository, 0, 2);
 				# Get where we move/link from and to.
-      my $status = FileInfo::move_or_link_target( $target_dst, $target_src );
+    my $status = FileInfo::move_or_link_target( $target_dst, $target_src );
 				# Move or link the target.
-      $status == 0 || return $status;
-    }
-    # Todo: should we not log $all_targets?
-    ::log UP_TO_DATE => $$all_targets[0]
-      if $log_level;
+    $status == 0 || return $status;
+  }
+  # Todo: should we not log $all_targets?
+  ::log UP_TO_DATE => $$all_targets[0]
+    if $log_level;
 
-    # We need to cache the scanner info even if the action wasn't executed,
-    # because the existing build info may have been generated with
-    # --nocache_scaninfo. Since FileInfo::set_build_info is intelligent, this
-    # shouldn't slow things down noticably if the scan info didn't change.
-    if(
-      UNIVERSAL::isa($build_check_method, 'BuildCheck::exact_match')
-    ) {
-      $rule->cache_scaninfo([
-        grep {
-	  !exists $_->{IS_PHONY} &&
-	  (FileInfo::build_info_string($_, 'CWD') || '') eq
-	    relative_filename( $build_cwd, $_->{'..'} )
-	} @$all_targets
-      ]);
-    }
+  # We need to cache the scanner info even if the action wasn't executed,
+  # because the existing build info may have been generated with
+  # --nocache_scaninfo. Since FileInfo::set_build_info is intelligent, this
+  # shouldn't slow things down noticably if the scan info didn't change.
+  if( UNIVERSAL::isa $build_check_method, 'BuildCheck::exact_match' ) {
+    $rule->cache_scaninfo([
+      grep {
+	!exists $_->{IS_PHONY} &&
+	(FileInfo::build_info_string($_, 'CWD') || '') eq
+	  relative_filename( $build_cwd, $_->{'..'} )
+      } @$all_targets
+    ]);
+  }
 
-    foreach my $tinfo (@$all_targets) {
-      FileInfo::set_rule($tinfo, undef);	# Discard the rule to save memory.
-    }
-    undef;			# Success, and nothing to wait for.
+  foreach my $tinfo (@$all_targets) {
+    FileInfo::set_rule($tinfo, undef);	# Discard the rule to save memory.
+  }
+  undef;			# Success, and nothing to wait for.
 }
 
 #
@@ -1120,7 +1119,7 @@ sub parse_command_line(\%@) {
   while( @ARGV ) {
     TextSubs::getopts \%command_line_vars, 1,
       @_,
-      ['c', qr/root(?:[-_]?dir(?:ectory)?)?/, \$tmp, 0, sub {
+      ['c', qr/root(?:[-_]?dir(?:ectory)?)?/, \$tmp, undef, sub {
 	 $tmp = Makefile::find_root_makefile_upwards( $CWD_INFO ) || $CWD_INFO->{ROOT}
 	   or die "$0: No RootMakeppfile(.mk) found above `", absolute_filename( $CWD_INFO ), "'\n";
 				# See if we find a RootMakeppfile from here.
@@ -1140,7 +1139,12 @@ sub parse_command_line(\%@) {
                                 # further targets are specified.
        }],
 
-      [0, qr/dump[-_]?makep*file/, \$CWD_INFO->{DUMP_MAKEFILE}, 1],
+      [undef, qr/dump[-_]?makep*file/, \$tmp, 1,
+       sub {
+	 open my $fh, '>', $tmp or die "Failed to write $tmp--$!";
+	 push @close_fhs, $fh;
+	 $CWD_INFO->{DUMP_MAKEFILE} = $fh;
+       }],
 
       ['f', qr/(?:make)?file/, \$tmp, 1, sub {
 				# Load a makefile without changing directory?
@@ -1168,7 +1172,7 @@ sub parse_command_line(\%@) {
 	 push @include_path, file_info $tmp;
        }],
 
-      [0, qr/load[-_]?make(?:pp)?file/, \$tmp, 1, sub {
+      [undef, qr/load[-_]?make(?:pp)?file/, \$tmp, 1, sub {
 	 $tmp = file_info $tmp;
 	 my $mdir = $tmp;	# Assume it is actually a directory.
 	 FileInfo::is_or_will_be_dir( $tmp ) or $mdir = $tmp->{'..'};
@@ -1182,7 +1186,7 @@ sub parse_command_line(\%@) {
       ['r', qr/no[-_]?builtin[-_]?rules/, \$command_line_vars{makepp_no_builtin}],
 				# Pretend this was give as a variable.
       [qw(R repository), \$tmp, 1, sub {
-	 if( $tmp =~ /^([^=]+)=(.*)/ ) { # Is it of the format dir=repository-dir?
+	 if( $tmp =~ /^([^=]+)=(.*)/s ) { # Is it of the format dir=repository-dir?
 	   load_repository(file_info($2), file_info($1));
 				# Load the given files into the repository.
 	 } else {		# It must be just a single directory.
@@ -1358,7 +1362,8 @@ sub log($@) {
   # there can be messages (e.g. from -R) before handling all options.
   if( !$logfh ) {
     if( $log_level != 2 ) {
-      open $logfh, "| $0log -pl -" or # Pass the mesages to makepplog for formatting.
+      (my $mppl = $0) =~ s/\w+$/makepplog/;
+      open $logfh, "| $mppl -pl -" or # Pass the mesages to makepplog for formatting.
 	die "$progname: can't pipe to `makepplog' for verbose option--$!\n";
     } else {
       if( !$logfile ) {
@@ -1404,7 +1409,7 @@ sub log($@) {
 	      undef $_->{LOGGED};
 	      undef $_->{'..'}{LOGGED};
 	      int() . "\03$_->{NAME}\03" .
-		int( $_->{'..'} ) . "\03" . ($_->{'..'}{SHORTEST_FULLNAME} || absolute_filename $_->{'..'} );
+		int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || absolute_filename $_->{'..'} );
 	    }
 	  } @$_;
 # The rest is a verbatim copy of the map block above.  This function is heavy
@@ -1424,7 +1429,7 @@ sub log($@) {
 	  undef $_->{LOGGED};
 	  undef $_->{'..'}{LOGGED};
 	  int() . "\03$_->{NAME}\03" .
-	    int( $_->{'..'} ) . "\03" . ($_->{'..'}{SHORTEST_FULLNAME} || absolute_filename $_->{'..'} );
+	    int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || absolute_filename $_->{'..'} );
 	}
       } @_ ),
       "\n";
@@ -1453,23 +1458,11 @@ sub flush_log {
 
 my $hires_time;
 sub print_profile {
-  my $msg = "@_";
-  if($profile) {
-    print 'Begin @' . &$hires_time() . " $msg\n";
-    return $msg;
-  }
-  else {
-    print "$msg\n";
-    return;
-  }
+  print $profile ? 'Begin @' . &$hires_time() . " $_[0]\n" : "$_[0]\n";
 }
 
 sub print_profile_end {
-  my ($msg) = @_;
-  if($msg) {
-    die unless $profile;
-    print 'End @' . &$hires_time() . " $msg\n";
-  }
+  print 'End @' . &$hires_time() . " $_[0]\n";
 }
 
 =head2 print_error
@@ -1487,15 +1480,15 @@ If any filename is printed, it should have be quoted as in `filename' or
 sub print_error {
   my( $log, $stderr ) = $log_level && '*** ';
   my $str = '';
-  if( $_[0] =~ /^erro(r)/ || $_[0] !~ /^\S+?:/ ) { # No name?
+  if( $_[0] =~ /^error()/ || $_[0] !~ /^\S+?:/ ) { # No name?
     $stderr = "$progname: ";
-    $str = 'error: ' if !$1;
+    $str = 'error: ' unless defined $1;
   }
   $str .= ref() ? $_->name : $_
     for @_;
   $str .= "\n" if $str !~ /\n\z/;
   print STDERR $stderr ? $stderr . $str : $str;
-  print $logfh $log . $str if $log_level == 2;
+  ::log $log . $str if $log_level == 2;
   flush_log;
 }
 
@@ -1540,14 +1533,6 @@ sub perform(@) {
         $orig = " (Original error was $orig)";
     }
 
-    # This relies on @pending_processes in MakeEvent.pm always being empty
-    # (which it is today, but that might change).  We need a way to drop the
-    # pending jobs, and for each dropped job decrement $critical_sections and
-    # call propagate_pending_signals.  Otherwise, a signal caught by makepp
-    # itself might vanish improperly.  If there is a problem, then
-    # $critical_sections will remain nonzero, which triggers a die at least.
-    &MakeEvent::Process::terminate_all_processes;
-
     if( $$ != $start_pid ) {
       print STDERR qq{makepp internal error: sub-process died or returned to outer scope.
 If we had not caught this, it would cause exit blocks to run multiple times.
@@ -1556,6 +1541,11 @@ Use POSIX::_exit instead.$orig Stopped};
       close STDERR;
       POSIX::_exit 3;
     }
+
+    # Wait for our last jobs to finish.  This can be the case when running
+    # with -kj<n>, a job failed and we ran out of queued jobs.
+    &MakeEvent::event_loop
+      while $MakeEvent::n_external_processes;
 
     die qq{makepp internal error: dangling critical section.
 This means that there was a live process in the background when makepp
@@ -1601,7 +1591,7 @@ perform eval {
        $global_build_cache = new BuildCache( $tmp );
                                 # Open up the build cache.
      }],
-    [0, qr/build[-_]?check(?:[-_]?method)?/, \$build_check_method_name, 1, sub {
+    [undef, qr/build[-_]?check(?:[-_]?method)?/, \$build_check_method_name, 1, sub {
        $default_build_check_method =
 	 eval "require BuildCheck::$build_check_method_name;
 	       \$BuildCheck::$build_check_method_name\::$build_check_method_name" or
@@ -1609,23 +1599,23 @@ perform eval {
 	 die "$progname: invalid build check method $build_check_method_name\n";
      }],
 
-    [0, qr/case[-_]?sensitive[-_]?filenames/, $FileInfo::case_sensitive_filenames],
+    [undef, qr/case[-_]?sensitive[-_]?filenames/, $FileInfo::case_sensitive_filenames],
 
-    [0, qr/do[-_]?build/, \$tmp, 1, sub {
+    [undef, qr/do[-_]?build/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
        undef $tmp->{DONT_BUILD};
        push @do_build, $tmp;
      }],
-    [0, qr/do[-_]?read/, \$tmp, 1, sub {
+    [undef, qr/do[-_]?read/, \$tmp, 1, sub {
        undef file_info( $tmp )->{DONT_READ};
      }],
-    [0, qr/dont[-_]?build/, \$tmp, 1, sub {
+    [undef, qr/dont[-_]?build/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
        $tmp->{DONT_BUILD} = 1;
        $dont_build_dir_flag = 1 if FileInfo::is_or_will_be_dir( $tmp );
 				# Remember that we have to check parent dirs
      }],
-    [0, qr/dont[-_]?read/, \$tmp, 1, sub {
+    [undef, qr/dont[-_]?read/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
        $tmp->{DONT_READ} = 1;
        $dont_read_dir_flag = 1 if FileInfo::is_or_will_be_dir( $tmp );
@@ -1634,17 +1624,17 @@ perform eval {
 
     ['e', qr/env(?:ironment)?[-_]?overrides?/, \$environment_override],
 
-    [0, qr/final[-_]?rules?[-_]?only/, \$final_rule_only],
-    [0, qr/force[-_]?copy[-_]?from[-_]?bc/, \$force_bc_copy],
-    [0, qr/force[-_]?rebuild/, \$force_rebuild], # Always rebuild.
-    [0, qr/force[-_]?rescan/, \$force_rescan],
+    [undef, qr/final[-_]?rules?[-_]?only/, \$final_rule_only],
+    [undef, qr/force[-_]?copy[-_]?from[-_]?bc/, \$force_bc_copy],
+    [undef, qr/force[-_]?rebuild/, \$force_rebuild], # Always rebuild.
+    [undef, qr/force[-_]?rescan/, \$force_rescan],
 
-    [0, 'gullible', \$gullible],
+    [undef, 'gullible', \$gullible],
 
-    [qr/[h?]/, 'help', undef, 0, \&usage],
+    [qr/[h?]/, 'help', undef, undef, \&usage],
 
-    [0, qr/implicit[-_]load[-_]?[Mm]akeppfile[-_]?only/, \$implicit_load_makeppfile_only],
-    [0, qr/(?:in(?:side)?[-_]?)?sand[-_]?box/, \$tmp, 1, sub {
+    [undef, qr/implicit[-_]load[-_]?[Mm]akeppfile[-_]?only/, \$implicit_load_makeppfile_only],
+    [undef, qr/(?:in(?:side)?[-_]?)?sand[-_]?box/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
        $tmp->{IN_SANDBOX} = 1;
        $sandbox_enabled_flag = 1; # default is now out-of-sandbox
@@ -1666,12 +1656,14 @@ perform eval {
 				# because if we are doing a recursive make,
 				# we have to increment max_proc, and we don't
 				# want to switch into parallel make mode.
+	 require File::Copy;	# Needed for reemitting collected output.
+				# Do it once here, so as to not recheck each time.
        }
      }],
 
     ['k', qr/keep[-_]?going/, \$keep_going],
 
-    [0, qr/log(?:[-_]?file)?/, \$logfile, 1],
+    [undef, qr/log(?:[-_]?file)?/, \$logfile, 1],
 
     ['m', qr/signature(?:[-_]?method)?/, $tmp, 1, sub {
        my $sig = eval "require Signature::$tmp;
@@ -1691,18 +1683,18 @@ perform eval {
        }
      }],
 
-    [0, qr/md5[-_]?(?:check[-_]?)?bc/, \$md5check_bc],
-    [0, qr/stop[-_]?(?:on[-_]?)?race/, \$stop_on_race],
+    [undef, qr/md5[-_]?(?:check[-_]?)?bc/, \$md5check_bc],
+    [undef, qr/stop[-_]?(?:on[-_]?)?race/, \$stop_on_race],
     ['n', qr/(?:just[-_]?print|dry[-_]?run|recon)/, \$dry_run],
-    [0, qr/no[-_]?cache[-_]?scaninfos?/, \$nocache_scaninfo],
-    [0, qr/no[-_]?case[-_]?sensitive[-_]?filenames/, \$FileInfo::case_sensitive_filenames, 0, 0],
-    [0, qr/no[-_]?implicit[-_]?load/, \$implicitly_load_makefiles, 0, 0],
-    [0, qr/no[-_]?log/, \$log_level, 0, 0], # Turn off logging.
-    [0, qr/no[-_]?populate[-_]?bc/, \$nopopulate_bc],
+    [undef, qr/no[-_]?cache[-_]?scaninfos?/, \$nocache_scaninfo],
+    [undef, qr/no[-_]?case[-_]?sensitive[-_]?filenames/, \$FileInfo::case_sensitive_filenames, undef, 0],
+    [undef, qr/no[-_]?implicit[-_]?load/, \$implicitly_load_makefiles, undef, 0],
+    [undef, qr/no[-_]?log/, \$log_level, undef, 0], # Turn off logging.
+    [undef, qr/no[-_]?populate[-_]?bc/, \$nopopulate_bc],
 				# don't populate bc with targets, just read from it
-    [0, qr/no[-_]?remake[-_]?makefiles/, \$remake_makefiles, 0, 0],
+    [undef, qr/no[-_]?remake[-_]?makefiles/, \$remake_makefiles, undef, 0],
 				# Don't remake makefiles automatically?
-    [0, qr/no[-_]?warn/, \$warn_level, 0, 0],
+    [undef, qr/no[-_]?warn/, \$warn_level, undef, 0],
 
 
     ['o', qr/(?:assume[-_]?old|old[-_]?file)/, \$tmp, 1, sub {
@@ -1711,15 +1703,15 @@ perform eval {
        $assume_unchanged_dir_flag = 1 if FileInfo::is_or_will_be_dir( $tmp );
 				# Remember that we have to check parent dirs
      }],
-    [0, qr/out[-_]?of[-_]?sand[-_]?box/, \$tmp, 1, sub {
+    [undef, qr/out[-_]?of[-_]?sand[-_]?box/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
        undef $tmp->{IN_SANDBOX};
        $in_sandbox_dir_flag = 1 if FileInfo::is_or_will_be_dir( $tmp );
 				# Remember that we have to check parent dirs
      }],
 
-    [0, qr/populate[-_]?bc[-_]?only/, \$populate_bc_only],
-    [0, 'profile', \$profile, 0, sub {
+    [undef, qr/populate[-_]?bc[-_]?only/, \$populate_bc_only],
+    [undef, 'profile', \$profile, undef, sub {
        if( !$hires_time ) {
 	 eval { require Time::HiRes };
 	 $hires_time = $@ ? sub { time } : \&Time::HiRes::time;
@@ -1730,26 +1722,26 @@ perform eval {
     [qw(q quiet), \$quiet_flag],
 
 
-    [0, 'recursive[-_]?makepp'],
+    [undef, 'recursive[-_]?makepp'],
 				# This is a dummy option simply used to make
 				# recursive invocations easily identifiable by
 				# searching the action string.	It does
 				# nothing.
-    [0, qr/re?m(?:ove)?[-_]?stale(?:[-_]?files)?/, \$rm_stale_files],
+    [undef, qr/re?m(?:ove)?[-_]?stale(?:[-_]?files)?/, \$rm_stale_files],
 
-    [0, qr/sand[-_]?box[-_]?warn(?:ing)?/, \$sandbox_warn_flag],
+    [undef, qr/sand[-_]?box[-_]?warn(?:ing)?/, \$sandbox_warn_flag],
     [qw(s silent), \$silent_execution],
-    [0, qr/stop(?:[-_]?after[-_]?load(?:ing|ed)?)?/, \$stop],
+    [undef, qr/stop(?:[-_]?after[-_]?load(?:ing|ed)?)?/, \$stop],
 
-    [0, qr/traditional[-_]?recursive[-_]?make/, \$traditional_recursive_make],
+    [undef, qr/traditional[-_]?recursive[-_]?make/, \$traditional_recursive_make],
 
-    [qw(v verbose), undef, 0, sub {
+    [qw(v verbose), undef, undef, sub {
        $verbose = 2;		# Value 2 queried only by Makecmds.
        $log_level = 1;		# Send the log to stdout instead.  Don't make
 				# this the option variable, as it must be
 				# exactly 1, not just true.
      }],
-    [0, 'version', undef, 0, \&FileInfo::version],
+    [undef, 'version', undef, undef, \&FileInfo::version],
 
     ['W', qr/(?:what[-_]?if|assume[-_]?new|new[-_]?file)/, \$tmp, 1, sub {
        file_info( $tmp )->{ASSUME_CHANGED} = 1;
@@ -2120,6 +2112,7 @@ The following options are also available:
       --load-makeppfile=arg
       --no-cache-scaninfos
       --out-of-sand-box=arg
+      --populate-bc-only
       --profile
       --recursive-makepp
       --remove-stale-files

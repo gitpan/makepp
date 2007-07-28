@@ -2,14 +2,9 @@
 
 makepp_build_cache -- How to set up and use build caches
 
-=for cvs $Id: makepp_build_cache.pod,v 1.14 2007/03/15 22:43:45 pfeiffer Exp $
+=for vc $Id: makepp_build_cache.pod,v 1.20 2007/07/28 18:20:13 pfeiffer Exp $
 
 =head1 DESCRIPTION
-
-B<WARNING!!!!  Build caches are still highly experimental!> If using a
-build cache causes your program to build incorrectly or melts your CPU
-or causes your computer to sink through the mantle into the earth's
-core, don't say we didn't warn you!
 
 A B<build cache> is a directory containing copies of previous targets that
 makepp already built.  When makepp is asked to build a new target, it sees if
@@ -184,6 +179,66 @@ can get it back quickly.
 
 
 
+=head2 Build cache grouping
+
+A group is a loose coupling of build caches.  It is loose in the sense that
+makepp doesn't deal with it, so as to not slow down its build cache
+management.  To benefit from this you have to use the L<offline utility|How to
+manage a build cache>.  Notably the C<clean> command also performs the
+replication.  If you give an unrealistic cleaning criterion, like
+C<--mtime=+1000>, no cleaning occurs, only replication.
+
+Grouping allows sharing files with more people, especially if you have your
+build caches on the developers' disks, to benefit from hard linking, which
+saves submission time and disk space.  Hard linking alone, however, is
+restricted to per disk benefits.
+
+With grouping the file will get replicated at some time after makepp submitted
+it to the build cache.  This means that the file will get created only once
+for all disks together.
+
+On file systems which allow hard linking to symbolic links -- which seems
+restricted to Linux and Solaris -- the file will additionally be physically
+present on one disk only.  Additionally it remains on each disk it got created
+on before you replicated, but only as long as it is in use on those disks.  In
+this scenario with symlinks you may choose one or more file systems on which
+you prefer your files to be physically.  Be aware that successfully built
+files may become unavailable, if the disk they are on physically goes offline.
+Rebuilding will remedy this, and the impact can be lessened by spreading the
+files over several preferred disks.
+
+Replication has several interesting uses:
+
+=over
+
+=item NFS (possible with copying too)
+
+You have a central NFS server which provides the preferred build cache.  Each
+machine and developer disk has a local build cache for fast submission.  You
+either mount back all the developer disks to the NFS server, and perform the
+replication and cleaning centrally, or you replicate locally on each NFS
+client machine, treating only the part of the group visible there.
+
+=item Unsafe disk (possible with copying too)
+
+If you compile on a RAM disk (hopefully editing your sources in a
+L<repository|makepp_repositories> on a safe disk), you can make the safe disks
+be the preferred ones.  Then replication will migrate the files to the safe
+disks, where they survive a reboot.  After every reboot you will have to
+recreate the RAM disk build cache and add it to the group (which will give a
+warning, harmless in this case, because the other group members still remember
+it).
+
+=item Full disk (hard linking to symbolic links only)
+
+If one of your disks is notoriously full, you can make the build caches on all
+the other disks be preferred.  That way replication will migrate the files
+away from the full disk, randomly to any of the others.
+
+=back
+
+
+
 =head2 How to use a build cache
 
 =head3 How to tell makepp to use the build cache
@@ -307,14 +362,15 @@ the build cache either.
 
 =head2 How to manage a build cache
 
-B<makepp_build_cache_control> is a utility that administers build caches for
+B<makepp_build_cache_control, mppbcc> is a utility that administers build caches for
 makepp.  What B<makepp_build_cache_control> does is determined by the first
 word of its argument.
 
     makepp_build_cache_control command ...
+    mppbcc command ...
 
-In fact this little shell script is a wrapper to the following command, which
-you might want to call directly in your cron jobs, where the path to
+In fact this little script is a wrapper to the following command, which you
+might want to call directly in your cron jobs, where the path to
 C<makeppbuiltin> might be needed:
 
     makeppbuiltin -MBuildCacheControl command ...
@@ -334,13 +390,39 @@ L<makepp_builtins>, are:
 
 =over 4
 
-=item create [option ...] /path/to/repository ...
+=item create [option ...] path/to/cache ...
 
 Creates the build caches with the given options.  Valid options are:
 
 Standard options: C<-v, --verbose>
 
 =over 4
+
+=item -e group
+
+=item --extend=group
+
+=item --extend-group=group
+
+Add the new build cache to the C<group>.  This may have been a single stand
+alone build cache upto now.
+
+=item -f
+
+=item --force
+
+This allows to create the cache even if F<path/to/cache> already existed.  If
+it was a file it gets deleted.  If it was a directory, it gets reused, with
+whatever content it had.
+
+=item -p
+
+=item --preferred
+
+This option is only meaningful if you have build caches in the group, which
+allow hard linking to symlinks.  In that case cleaning will migrate the
+members to the preferred disk.  You may create several caches within a group
+with this option, in which case the files will be migrated randomly to them.
 
 =item -s n1,n2,...
 
@@ -357,7 +439,11 @@ so each filename is 22 base64 digits plus the original filename.  If a build
 cache file name is F<0123456789abcdef012345_module.o>, it is actually stored
 in the build cache as F<01B</>23B</>456789abcdef012345_module.o> if you
 specify S<C<--subdir-chars 2,4>>.  In fact, S<C<--subdir-chars 2,4>> is the
-default.
+default, which is for a gigantic build cache of maximally 4096 dirs with
+416777216 subdirs.  Even S<C<--subdir-chars 1,2>> or S<C<--subdir-chars 1>>
+will get you quite far.  On a file system optimized for huge directories you
+might even say S<C<-s ''>> or S<C<--subdir-chars=>> to store all files at the
+top level.
 
 =item -m perms
 
@@ -371,10 +457,16 @@ make it group or world writable.  Permissions must be specified using octal
 notation.
 
 As these are directory permissions, if you grant any access, you must also
-grant execute access, or you will get a bunch of weird failures.  I.e. the
+grant execute access, or you will get a bunch of weird failures.  I.e. C<0700>
+means that only this user may have access to this build cache. C<0770> means
+that this user and anyone in the group may have write access to the build
+cache.  C<0777> means that anyone may have access to the build cache.  The
 sensible octal digits are 7 (write), 5 (read) or 0 (none).  3 (write) or 1
 (read) is also possible, allowing the cache to be used, but not to be browsed,
 i.e. it would be harder for a malicious user to find file names to manipulate.
+
+In a group of build caches each one has its own value for this, so you can
+enforce different write permissions on different disks.
 
 If you don't specify the permissions, your umask permissions at creation time
 apply throughout the lifetime of the build cache.
@@ -420,18 +512,6 @@ Standard options: C<-v, --verbose>
 
 =over
 
-=item -m spec
-
-=item --mtime spec
-
-=item --modification-time spec
-
-The last modification time of the file.  As explained elsewhere it is
-discouraged to have makepp update a file.  So the last modification will
-usually be the time of creation.  (But in the future makepp may optionally
-update the mtime when deleting files.  This is so that links on atime-less
-filesystems or copies can be tracked.)
-
 =item -a spec
 
 =item --atime spec
@@ -449,6 +529,81 @@ adds a lot of extra disk I/O which can be harmful on battery powered
 notebooks, or in disk speed optimization.
 (But this is potentially fixable -- see the UTIME_ON_IMPORT comment in
 BuildCache.pm.)
+
+=item -b
+
+=item --blend
+
+=item --blend-groups
+
+Usually each F</path/to/cache> you specify will separately treat the group of
+build caches it belongs to.  Each group gets treated only once, even if you
+specify several pathes from the same group.  With this option you temporarily
+blend all the groups you specify into one group.
+
+Doing this for clean may have unwanted effects, if you can hard link to
+symlinks, because it may migrate members from one group to another.
+Subsequent non blended cleans, may then clena them form the original group
+prematurely.
+
+=item -c spec
+
+=item --ctime spec
+
+=item --change-time spec
+
+The last change time of the file's inode.  In a linking situation this could
+be the time when the last user recreated the file differently, severing his
+link to the cache.  This could also be the time the C<--set-user> option below
+had to change the user.  On well behaved systems this could also be the time
+when the last tape backup or search index creation covered its marks by
+resetting the atime.
+
+=item -m spec
+
+=item --mtime spec
+
+=item --modification-time spec
+
+The last modification time of the file.  As explained elsewhere it is
+discouraged to have makepp update a file.  So the last modification will
+usually be the time of creation.  (But in the future makepp may optionally
+update the mtime when deleting files.  This is so that links on atime-less
+filesystems or copies can be tracked.)
+
+=item -g group
+
+=item --newgrp=group
+
+=item --new-group=group
+
+Set the effective and real group id to group (name or numeric).  Only root may
+be able to do this.  This is needed when you use grouped build caches, and you
+provide write access to the caches based on group id.  Usually that will not
+be root's group and thus replication would create unwritable directories
+without this option.
+
+This option is named after the equivalent utility C<newgrp> which alas can't
+easily be used in C<cron> jobs or similar setups.
+
+=item -i
+
+=item --build-info
+
+=item --build-info-check
+
+Check that the build info matches the member.  This test is fairly expensive
+so you might consider not giving this option in the daytime.
+
+=item -l
+
+=item --symlink-check
+
+=item --symbolic-link-check
+
+This option makes C<clean> read every symbolic link which has no external hard
+links to verify that it points to the desired member.  As this is somewhat
+expensive, it is sugested doing this only at night.
 
 =item -M spec
 
@@ -470,19 +625,6 @@ The timespec for C<--incoming-modification-time> must begin with C<+>,
 and defaults to C<+2h> (files at least 2 hours old are assumed to have been
 orphaned).
 
-=item -c spec
-
-=item --ctime spec
-
-=item --change-time spec
-
-The last change time of the file's inode.  In a linking situation this could
-be the time when the last user recreated the file differently, severing his
-link to the cache.  This could also be the time the C<--set-user> option below
-had to change the user.  On well behaved systems this could also be the time
-when the last tape backup or search index creation covered its marks by
-resetting the atime.
-
 =item -w
 
 =item --workdays
@@ -495,19 +637,13 @@ go from saturday 1:00 to monday 1:00, or southern hemisphere winter weekends
 from friday 23:00 to sunday 23:00 or however much your timezone changes the
 time.  Holidays are also not taken into account.
 
-=item -s spec
-
-=item --size spec
-
-The file size specification works just like time specifications, with C<+> for
-bigger than or C<-> for smaller than, except that the units must be C<c>
-(bytes, the default), C<k> (kilobytes), C<M> (megabytes) or C<G> (gigabytes).
-
 =item -p perlcode
 
 =item --perl=perlcode
 
 =item --predicate=perlcode
+
+TODO: adapt this description to group changes!
 
 This is the Swiss officer's knife.  The I<perlcode> is called in scalar
 context once for every cache entry (i.e. excluding directories and metainfo
@@ -518,6 +654,14 @@ C<_> filehandle.
 If I<perlcode> returns C<undef> it is as if it weren't there, that is the
 other options decide.  If it returns true the file is deleted.  If it returns
 false, the file is retained.
+
+=item -s spec
+
+=item --size spec
+
+The file size specification works just like time specifications, with C<+> for
+bigger than or C<-> for smaller than, except that the units must be C<c>
+(bytes, the default), C<k> (kilobytes), C<M> (megabytes) or C<G> (gigabytes).
 
 =item -u user
 
@@ -539,33 +683,6 @@ given several times during the daytime.
 
 =back
 
-=item show /path/to/cache-or-file ...
-
-This is a sort of recursive stat command, which shows the original owner too
-when the owner of the cached file has been changed and the metadata file
-retains the original owner (as per C<clean --set-user>).  It shows the given
-files, or all under the directories given.
-
-The information shown for each command allows you to get an impression which
-options to give to the C<clean> command.  The times are shown in readable
-form, as well as the number of days, hours or minutes the age of this file
-has just exceeded.
-
-Standard options: C<-f, --force, -o, --output=filename, -O, --outfail,
--v, --verbose>
-
-=over
-
-=item -d
-
-=item --deletable
-
-Show only deletable files, i.e. those with a link count of 1.
-
-=back
-
-=back
-
 There are different possible strategies, depending on how much space you have
 and on whether the build cache contains linked files or whether users only
 have copies.  Several strategies can be combined, by calling them one after
@@ -581,6 +698,216 @@ successive header changes, which never get version controlled, lead to lots of
 objects being rapidly created.  Something like an hourly run with
 C<--mtime=-2h --ctime=+1h> during the daytime will catch those guys the
 creator deleted within less than an hour, and nobody else has wanted since.
+
+=item show [option ...] /path/to/cache ...
+
+This is a sort of recursive C<ls -l> or C<stat> command, which shows the
+original owner too, for when the owner of the cached file has been changed and
+the metadata file retains the original owner (as per C<clean --set-user>).  It
+shows the given files, or all under the directories given.
+
+The fields are, in the short standard and the long verbose form:
+
+=over
+
+=item MODE, mode
+
+The octal mode of the cached file, which is usually as it got put in, minus
+the write bits.
+
+=item EL, ext-links
+
+The number external hard links there are to all members of the group combined.
+Only when this is 0, is the file eligible for cleaning.
+
+=item C, copies (only for grouped build caches)
+
+The number of copies of the identical file, across all build caches.  Ideally
+this is one on systems which permit hard linking to symbolic links, but that
+may temporarily not be possible, while there are external links to more than
+one copy (in which case we'd lose the link count if we deleted it.
+
+=item S, sym-links (only for grouped build caches)
+
+The number of symbolic links between build caches.  Ideally this is the number
+of build caches minus one on systems which permit hard linking to symbolic
+links.  But as explained for the previous field, there may be more copies than
+necessary, and thus less links.
+
+=item UID
+
+The owner of the cached file.  This may be changed with the C<clean --user>
+option.
+
+=item BI-UID
+
+The owner of the build info file.  This is not changed by clean, allowing to
+see who first built the file.
+
+=item SIZE
+
+The size (of one copy) in bytes.
+
+=item atime, mtime, ctime
+
+In the long verbose form you get the file access (read) time, the modification
+ time and the inode change time (e.g. when some user deleted his external link
+ to the cached file).  In the short standard form you get only one of the
+ three times in three separate columns:
+
+=item AD, MD, CD
+
+The week day of the access, modification or inode change.
+
+=item ADATE, MDATE, CDATE
+
+The date of the access, modification or inode change.
+
+=item ATIME, MTIME, CTIME
+
+The day time of the access, modification or inode change.
+
+=item MEMBER
+
+The full path of the cached file, including the key, from the cache root.
+
+=back
+
+With C<-v, --verbose> the information shown for each command allows you to get
+an impression which options to give to the C<clean> command.  The times are
+shown in readable form, as well as the number of days, hours or minutes the
+age of this file has just exceeded.  If you double the option, you
+additionally get the info for each group member.
+
+Standard options: C<-f, --force, -o, --output=filename, -O, --outfail,
+-v, --verbose>
+
+=over
+
+=item -a
+
+=item --atime
+
+=item --access-time
+
+Show the file access time, instead of file modification time in
+non-verbose mode.
+
+=item -b
+
+=item --blend
+
+=item --blend-groups
+
+Usually each F</path/to/cache> you specify will separately treat the group of
+build caches it belongs to.  Each group gets treated only once, even if you
+specify several pathes from the same group.  With this option you temporarily
+blend all the groups you specify into one group.
+
+=item -c
+
+=item --ctime
+
+=item --change-time
+
+Show the inode info change time, instead of file modification time in
+non-verbose mode.
+
+=item -d
+
+=item --deletable
+
+Show only deletable files, i.e. those with an external link count of 0.
+
+=item -p pattern
+
+=item --pattern=pattern
+
+I<Pattern> is a bash style file name pattern (i.e. ?, *, [], {,,}) matched
+against member names after the underscore separating them from the key.
+
+=item -s list
+
+=item --sort=list
+
+In non-verbose mode change the sorting order.  The list is a case insensitive
+comma- or space-separated order of column titles.  There are two special
+cases: "member" only considers the names after the key, i.e. the file names as
+they are outside of the cache.  And there is a special name "age", which
+groups whichever date and time is being shown.  This option defaults to
+"member,age".
+
+If you have a huge cache for which sorting takes intolerably long, or needs
+more memory than your processes are allowed, you can skip sorting by giving an
+empty list.
+
+=back
+
+=item stats [option ...] /path/to/cache ...
+
+This outputs several tables of statistics about the build cache contents.
+Each table is split into three column groups.  The first column varies for
+each table and is the row heading.  The other two groups pertain to sum of
+B<SIZE> of files and number of B<FILES> for that heading.  Directories and
+build info files are not counted, so this is a little less for size than
+actual disk usage and about half for number of files.
+
+Each of the latter two groups consists of three column pairs, one column with
+a value, and one for the percentage of the total that value represents.  The
+first pair shows either the size of files or the number of files.  The other
+two pairs show the B<CUMUL>ation, once from smallest to biggest and once the
+other way round.
+
+The first three tables, with a first column of B<AD>, B<CD> or B<MD> show
+access times, inode change times or modification times grouped by days.  Days
+are actually 24 hour blocks counting backwards from the start time of the
+stats command.  The row "0" of the first table will thus show the sum of sizes
+and the number of files accessed less than a day ago.  If no files were
+accessed then, there will be no row "0".  Row "1" in the third table will show
+the files modified (i.e. written to the build cache) between 24 and 48 hours
+ago.
+
+The next table, B<EL>, shows external links, i.e. how many build trees share a
+file from the build cache.  This is a measure of usefulness of the build
+cache.  Alas it only works when developers have a buld cache on their own
+disk, else they have to copy which leaves no global trail.  The more content
+has bigger external link counts, the bigger the benefit of the build cache.
+
+The next table, again B<EL>, shows the same information as the previous one,
+but weighted by the number of external links.  Each byte or file with an
+external link count of one counts as one.  But if the count is ten, the values
+are counted ten times.  That's why the headings change to B<*SIZE> and
+B<*FILES>.  This is a hypothetical value, showing how much disk usage or how
+many files there would be if the same build trees had all used no build cache.
+
+One more table, B<C:S> copies to symlinks, pertains to grouped caches only.
+Ideally all members exist in one copy, and one less symlinks than there are
+caches in the group.  Symlinks remain "0" until cleaning has replicated.
+There may be more than one copy, if either several people created the
+identical file before it was replicated, or if replication migrated the file
+to a preferred disk, but the original file was still in use.  Superfluous
+copies become symlinks when cleaning finds they have no more external links.
+
+=over
+
+=item -h
+
+=item --hours
+
+Display the first three tables in much finer granularity.  The column headings
+change to B<AH>, B<CH> or B<MH> accordingly.
+
+=item -p pattern
+
+=item --pattern=pattern
+
+I<Pattern> is a bash style file name pattern (i.e. ?, *, [], {,,}) matched
+against member names after the underscore separating them from the key.  All
+statistics are limited to matching files.
+
+=back
+
+=back
 
 
 
@@ -694,7 +1021,7 @@ readers.  Furthermore, typically in practice at least 99% of writes are visible
 everywhere within 1 second.)
 Because of this, we must tolerate the case in which the cached target and its
 build info file appear not to correspond.
-Furthermore, there is a perculiar race that can occur when a file is
+Furthermore, there is a peculiar race that can occur when a file is
 simultaneously aged and replaced, in which the files don't correspond even
 after the NFS cache flushes.
 This appears to be unavoidable.

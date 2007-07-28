@@ -2,7 +2,7 @@
 
 makepp_functions -- Functions in makepp
 
-=for vc $Id: makepp_functions.pod,v 1.34 2007/05/06 10:05:49 pfeiffer Exp $
+=for vc $Id: makepp_functions.pod,v 1.35 2007/07/28 18:35:44 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -11,7 +11,7 @@ L<B<b>asename|/basename>,E<nbsp>
 L<B<d>ir|/dir>, L</dir_noslash>,E<nbsp>
 L<B<f>ilesubst|/filesubst>, L</filter>, L</filter_out>, L</filter_out_dirs>, L</findfile>, L</findstring>,
  L</find_program>, L</find_upwards>, L</find_first_upwards>,
-  L</first_available>, L</first_word>,E<nbsp>
+  L</first_available>, L</firstword>,E<nbsp>
 L<B<i>f|/if>, L</iftrue>, L</infer_linker>, L</infer_objects>,E<nbsp>
 L<B<j>oin|/join>,E<nbsp>
 L<B<m>ake|/prebuild>, L<makemap|/map>, L<makeperl|/perl>, L</map>, L</mktemp>,E<nbsp>

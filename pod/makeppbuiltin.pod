@@ -2,13 +2,17 @@
 
 makeppbuiltin -- Stand-alone access to builtin commands in makepp
 
-=for vc $Id: makeppbuiltin.pod,v 1.4 2007/01/17 23:04:46 pfeiffer Exp $
+=for vc $Id: makeppbuiltin.pod,v 1.5 2007/05/14 21:51:46 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
 B<makeppbuiltin> S<[ I<metaoption> ... ]> I<command> -?|--help
 
+B<mppb> S<[ I<metaoption> ... ]> I<command> -?|--help
+
 B<makeppbuiltin> S<[ I<metaoption> ... ]> I<command> S<[ I<option> ... ]> S<[ I<argument> ... ]>
+
+B<mppb> S<[ I<metaoption> ... ]> I<command> S<[ I<option> ... ]> S<[ I<argument> ... ]>
 
 or
 

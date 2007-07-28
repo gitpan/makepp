@@ -2,11 +2,13 @@
 
 makeppclean -- Stand-alone cleanup script for makepp
 
-=for cvs $Id: makeppclean.pod,v 1.4 2007/01/17 23:04:46 pfeiffer Exp $
+=for cvs $Id: makeppclean.pod,v 1.5 2007/05/14 21:51:46 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
 B<makeppclean> S<[ -b ]> S<[ -l ]> S<[ -R ]> S<[ -r ]> S<[ -v ]> S<[ I<path> ... ]>
+
+B<mppc> S<[ -b ]> S<[ -l ]> S<[ -R ]> S<[ -r ]> S<[ -v ]> S<[ I<path> ... ]>
 
 =head1 DESCRIPTION
 

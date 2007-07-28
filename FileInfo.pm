@@ -2,7 +2,7 @@ package FileInfo;
 require Exporter;
 use Cwd;
 
-# $Id: FileInfo.pm,v 1.65 2007/04/24 22:51:42 pfeiffer Exp $
+# $Id: FileInfo.pm,v 1.71 2007/07/20 19:58:00 pfeiffer Exp $
 
 #use English;
 # Don't ever include this!  This turns out to slow down
@@ -200,7 +200,7 @@ our $empty_array = [];		# Only have one, instead of a new one each time
 # won't be confused by symbolic links with directories.
 #
 $root = bless { NAME => '',
-		SHORTEST_FULLNAME => '',
+		FULLNAME => '',
 		DIRCONTENTS => {},
 		EXISTS => 1
 	       };
@@ -252,13 +252,7 @@ $root = bless { NAME => '',
 #		Exists iff this is a directory and we have found all of the
 #		subdirectories under the current directory, i.e., we don't
 #		need to stat any more files to see if they are subdirectories.
-# SHORTEST_FULLNAME
-#		There can be multiple names for a directory if soft links are
-#		present.  Usually the shortest name is the most useful one,
-#		since it's less likely to be some weird name from the
-#		automounter.  When we form absolute filenames, we use the
-#		shortest name so it's more portable to different machines
-#		on the network.
+# FULLNAME	The absolute filename cached for performance.
 # WILDCARD_ROUTINES
 #		For a directory, this is a list of subroutines to be called
 #		whenever a new file springs into existence in this directory
@@ -266,6 +260,8 @@ $root = bless { NAME => '',
 #		can match files which didn't exist when the wildcard was
 #		invoked.  See Glob::wildcard_action() and FileInfo::publish()
 #		for details.
+# <number>	Used in directory finfos, to store the relative path to another
+#		directory, of which this is the integral address.
 #
 
 =head2 absolute_filename
@@ -277,12 +273,13 @@ Returns the absolute file name.
 =cut
 
 sub absolute_filename {
-  my $fstr = $_[0]->{SHORTEST_FULLNAME}; # Cached name?
-  defined($fstr) or
-    $fstr = $_[0]->{'..'}{SHORTEST_FULLNAME} . '/' . $_[0]->{NAME};
+  my $fstr = $_[0] == $root ? '/' :
+    $_[0]{FULLNAME} ||		# Cached name?
+    $_[0]{'..'}{FULLNAME} . '/' . $_[0]{NAME};
 				# All directories already have a cached name.
+
   if( ::is_windows ) {
-    $fstr =~ s@^/(?=[A-Za-z]:)@@;
+    $fstr =~ s@^/(?=[A-Za-z]:)@@s;
 				# Convert /C: to C:.  We converted the other
 				# way so we could use unix file name syntax
 				# everywhere.
@@ -313,7 +310,7 @@ sub absolute_filename_nolink {
 
   return $ret_str
     if ::is_windows and
-    $ret_str =~ /^[A-Za-z]:/;	# Leave initial C: without /.
+    $ret_str =~ /^[A-Za-z]:/s;	# Leave initial C: without /.
 
   "/$ret_str";
 }
@@ -367,52 +364,20 @@ what that link points to.  If the file is not a symbolic link, returns the
 original FileInfo structure.
 
 =cut
+
 sub dereference {
   my $finfo = $_[0];		# Get the argument as a FileInfo struct.
   $finfo->{LSTAT} or &lstat_array;	# Get the flags.
-  my( $absolute_filename, $link_absolute_filename );
   for( 0..20 ) {
     exists $finfo->{LINK_DEREF} or return $finfo;
 				# Not a symbolic link.
 #    return $finfo if exists $finfo->{ALTERNATE_VERSIONS};
 				# Treat a repository link as not a link.
-    $absolute_filename = $link_absolute_filename || &absolute_filename;
     $finfo = $finfo->{LINK_DEREF} ||= # Have we already dereferenced it?
       file_info( readlink absolute_filename_nolink( $finfo ), $finfo->{'..'} );
-#
-# See if using the symbolic link is a shorter way of referring to the
-# file than the absolute path.	If so, use the shorter way.  This will usually
-# get rid of junk from the automounter, and other stuff that may vary from
-# machine to machine on the network.
-#
-    $link_absolute_filename = absolute_filename( $finfo );
-    if( length( $absolute_filename ) < length( $link_absolute_filename )) {
-				# Found a shorter way to refer to the file?
-      reset_shortest_fullname( $finfo, $absolute_filename );
-				# Reset the cached name there and in any of
-				# its subdirectories.
-    }
     $finfo->{LSTAT} or lstat_array( $finfo );
   }
-  die 'symlink: infinite loop trying to resolve symbolic link ', $absolute_filename, "\n";
-}
-
-# reset_shortest_fullname( $fileinfo, $newname )
-#
-# Since we use absolute_filename so often, we cache it for all directories.
-# When we discover a shorter name for a directory, we have to change the
-# cached absolute filename for everything underneath it.
-# This subroutine does that.  Arguments:
-# a) The fileinfo for the file whose cache should be changed.
-# b) The new name.
-#
-sub reset_shortest_fullname {
-  $_[0]->{SHORTEST_FULLNAME} = $_[1]; # Store the new name.
-  if ($_[0]->{DIRCONTENTS}) { # It's a directory.  Process all subdirs:
-    foreach my $dirinfo (values %{$_[0]->{DIRCONTENTS}}) {
-      reset_shortest_fullname($dirinfo, $_[1] . '/' . $dirinfo->{NAME});
-    }
-  }
+  die 'symlink: infinite loop trying to resolve symbolic link ', &absolute_filename, "\n";
 }
 
 =head2 file_exists
@@ -425,11 +390,10 @@ and undef if it doesn't.
 =cut
 
 sub file_exists {
-  defined $_[0]->{EXISTS} or
-				# See if we already know whether it exists.
+  exists $_[0]{EXISTS} or	# See if we already know whether it exists.
     &lstat_array;		# Stat it to see if it exists.	This will set
 				# the EXISTS flag.
-  $_[0]->{EXISTS} ? $_[0] : undef;
+  $_[0]{EXISTS} ? $_[0] : undef;
 }
 
 =head2 file_info
@@ -461,20 +425,16 @@ before using the above code snippet.
 =cut
 
 sub file_info {
-  my $file = $_[0];		# Access the file name.
-  return $file if ref($file) eq 'FileInfo'; # Don't do anything if we were
-				# already passed a FileInfo structure.
-
-  $file =~ s@([^/])/+$@$1@;	# Strip trailing slashes.
-
-  $case_sensitive_filenames or
-    $file = lc($file);		# Switch to all lower case to avoid
+  return $_[0] if ref $_[0];	# Don't do anything if we were already
+				# passed a FileInfo structure.
+  my $file = $case_sensitive_filenames ? $_[0] : lc $_[0];
+				# Copy the file name only if we continue.
+				# Switch to all lower case to avoid
 				# confounds with mix case.
-  my @path_components;
-  my $dinfo = $_[1] || $CWD_INFO; # The fileinfo we start from.
+  my $dinfo;			# The fileinfo we start from.
 
-  if( ::is_windows ) {
-    if ($file =~ s@^/(/[^/]+/[^/]+)/?@@) {
+  if( $file =~ s@^/@@s ) {
+    if( ::is_windows && $file =~ s@^(/[^/]+/[^/]+)/?@@s ) {
 				# If we get a //server/share syntax, treat the
 				# "/server/share" piece as one directory, since
 				# it is never legal to try to access //server
@@ -482,34 +442,37 @@ sub file_info {
 				# This has the odd effect of making the top
 				# level directory's filename actually have
 				# a couple of slashes in it, but that's ok.
-      @path_components = ($1, split(/\/+/, $file));
-
-      $dinfo = $root;
-    } elsif ($file =~ /^[A-Za-z]:/) { # ActiveState Perl, others convert to /cygdrive/c or /c
-      $dinfo = $root;		# Treat "C:" as if it's in the root directory.
-      $file =~ s|\\|/| if $file !~ /\//; # Sometimes gives 'C:\'
-      @path_components = split(/\/+/, $file);
+      $dinfo = $root->{DIRCONTENTS}{$1} ||=
+	bless { NAME => $1, '..' => $root };
+      unless( exists $dinfo->{DIRCONTENTS} ) {
+	mark_as_directory($dinfo); # Let the wildcard routines know that we
+				# discovered a new directory.
+	publish($dinfo);	# Alert any wildcard routines.
+      }
     } else {
-      $file =~ s@^/@@ and $dinfo = $root;
-      @path_components = split(/\/+/, $file);
+      $dinfo = $root;
     }
   } else {
-    $file =~ s@^/+@@ and $dinfo = $root;
-    @path_components = split(/\/+/, $file);
+    if( ::is_windows && $file =~ /^[A-Za-z]:/s ) {
+      $dinfo = $root;		# Treat "C:" as if it's in the root directory.
+      $file =~ tr|\\|/| if $file !~ /\//; # Sometimes gives 'C:\'
+    } else {
+      $dinfo = $_[1] || $CWD_INFO;
+    }
   }
 
-  foreach (@path_components) { # Handle each piece of the filename.
+  for( split /\/+/, $file ) { # Handle each piece of the filename.
 #
 # Also, we now know the parent is (or possibly will be) a directory, so we
 # need to publish it as a directory.  This is necessary so wildcard routines
 # install themselves appropriately in the directory.
 #
-    unless (exists($dinfo->{DIRCONTENTS})) {
+    unless( exists $dinfo->{DIRCONTENTS} ) {
 				# If the DIRCONTENTS field doesn't exist, then
 				# we haven't checked yet whether the parent is
 				# a directory or not.
-      my $orig_dinfo = $dinfo;
       if( is_symbolic_link( $dinfo )) { # Follow symbolic links.
+	my $orig_dinfo = $dinfo;
 	$dinfo = dereference( $dinfo ); # Get where it points to.
 	mark_as_directory($dinfo); # Remember that this is a directory.
 	$orig_dinfo->{DIRCONTENTS} = $dinfo->{DIRCONTENTS};
@@ -528,13 +491,10 @@ sub file_info {
 # At this point, $dinfo points to the the parent directory.  Now handle the
 # file:
 #
-    if ($_ eq '..') {		# Go up a directory?
+    if( $_ eq '..' ) {		# Go up a directory?
       $dinfo = $dinfo->{'..'} || $root;
 				# Don't go up above the root.
-    } elsif ($_ eq '.') {	# Stay in same directory?
-				# Do nothing.
-
-    } else {
+    } elsif( $_ ne '.' ) {	# Do nothing in same directory.
       $dinfo = ($dinfo->{DIRCONTENTS}{$_} ||=
 		bless { NAME => $_, '..' => $dinfo->{LINK_DEREF} || $dinfo });
 				# Point to the entry for the file, or make one
@@ -591,7 +551,7 @@ sub is_or_will_be_dir {
   my $dinfo = $_[0];
   my $result = $dinfo->{DIRCONTENTS} ||
     (($dinfo->{LSTAT} || &lstat_array),
-     ((exists $dinfo->{LINK_DEREF} ? &dereference : $dinfo)->{LSTAT}->[STAT_MODE] || 0) & S_IFDIR) ?
+     ((exists $dinfo->{LINK_DEREF} ? &dereference : $dinfo)->{LSTAT}[STAT_MODE] || 0) & S_IFDIR) ?
       $dinfo : undef;
   if($FileInfo::directory_first_reference_hook) {
     $dinfo=$dinfo->{'..'} unless $result;
@@ -681,10 +641,10 @@ you might not be able to read the file.
 =cut
 
 sub have_read_permission {
-  if (exists($_[0]->{HAVE_READ_PERMISSION})) { # Use cached value.
-    return $_[0]->{HAVE_READ_PERMISSION};
+  if (exists($_[0]{HAVE_READ_PERMISSION})) { # Use cached value.
+    return $_[0]{HAVE_READ_PERMISSION};
   }
-  $_[0]->{HAVE_READ_PERMISSION} = -r &absolute_filename;
+  $_[0]{HAVE_READ_PERMISSION} = -r &absolute_filename;
 }
 
 =head2 is_symbolic_link
@@ -698,7 +658,7 @@ is a symbolic link.
 
 sub is_symbolic_link {
   &lstat_array;			# Get status info.
-  exists $_[0]->{LINK_DEREF} ? $_[0] : undef;
+  exists $_[0]{LINK_DEREF} ? $_[0] : undef;
 }
 
 =head2 is_writable
@@ -768,10 +728,10 @@ Sets up $finfo to be a soft link to the file contained in $other_finfo.
 
 =cut
 sub symlink {
-  CORE::symlink relative_filename( $_[1], $_[0]->{'..'} ),
+  CORE::symlink relative_filename( $_[1], $_[0]{'..'} ),
 		&absolute_filename_nolink
     or die 'error linking ' . absolute_filename( $_[1] ) . ' to ' . &absolute_filename . "--$!\n";
-  $_[0]->{EXISTS} = 1;		# We know this file exists now.
+  $_[0]{EXISTS} = 1;		# We know this file exists now.
 }
 
 =head2 touched_filesystem
@@ -801,8 +761,8 @@ sub lstat_array {
   my $fileinfo = $_[0];		# Get the fileinfo structure.
 
   my $stat_arr = $fileinfo->{LSTAT}; # Get the cached value.
-  if (!defined($stat_arr)) {	# No cached value?
-    if($read_dir_before_lstat) {
+  unless( defined $stat_arr ) {	# No cached value?
+    if( $read_dir_before_lstat ) {
       my $dirinfo = $fileinfo->{'..'};
       if($dirinfo && (!$dirinfo->{READDIR} || $dirinfo->{READDIR}!=$epoch)) {
 	read_directory( $dirinfo );
@@ -932,7 +892,7 @@ sub mkdir {
 Returns the directory containing the file.
 
 =cut
-sub parent { $_[0]->{'..'} }
+sub parent { $_[0]{'..'} }
 
 =head2 read_directory
 
@@ -945,7 +905,7 @@ Rereads the given directory so we know what files are actually in it.
 sub read_directory {
   my $dirinfo = $_[0];		# Find the directory.
 
-  delete @{$_}{qw(EXISTS IS_READABLE)}
+  delete @{$_}{qw(LINK_DEREF EXISTS IS_READABLE LSTAT HAVE_READ_PERMISSION IS_WRITABLE)}
     for values %{$dirinfo->{DIRCONTENTS}};
 				# Forget what we used to know about which
 				# files exist.
@@ -987,12 +947,22 @@ file name is returned.
 
 sub relative_filename {
   my $fileinfo = $_[0];		# Get the filename.
+  return '/' if $fileinfo == $root && !$_[2]; # Special case this.
+
   my $dir = $_[1] || $CWD_INFO;
 
-  $fileinfo == $root && !$_[2] and return '/'; # Special case this.
+  return $_[2] ? 0 : '.' if $fileinfo == $dir; # Take care of this annoying special case
+				# first.
   return $_[2] ? 0 : $fileinfo->{NAME} if $fileinfo->{'..'} == $dir;
 				# Optimize for the special case where the
 				# file is in the given directory.
+
+
+  unless( $_[2] ) {
+    return $dir->{int $fileinfo} if exists $dir->{int $fileinfo};
+    return $dir->{int $fileinfo->{'..'}} . '/' . $fileinfo->{NAME}
+      if exists $dir->{int $fileinfo->{'..'}};
+  }
 
 #
 # Find the longest common prefix in the directories.  We can't take the
@@ -1000,10 +970,7 @@ sub relative_filename {
 # and .. doesn't do what you'd expect if symbolic links are involved.  So
 # we compare only the physical directories.
 #
-  $fileinfo == $dir and return $_[2] ? 0 : '.'; # Take care of this annoying special case
-				# first.
-
-  my( @dirs1, @dirs2 );
+  my( $orig_dir, @dirs1, @dirs2 ) = $dir;
   # Get a list of directories for the file.
   while( $fileinfo != ($fileinfo->{ROOT} || $root) ) {
     push @dirs1, $fileinfo;
@@ -1028,8 +995,10 @@ sub relative_filename {
       push @dirs2, $dir;
       $dir = $dir->{'..'};
     }
-    return &absolute_filename	# May as well use absolute filename,
-      unless $_[2] or @dirs1 && @dirs2 && $dirs2[-1] == $dirs1[-1]; # when only thing in common is the root.
+    return ($orig_dir->{int $_[0]{'..'}} = absolute_filename $_[0]{'..'}) . '/' . $_[0]{NAME}
+				# May as well use absolute filename,
+      unless $_[2] or @dirs1 && @dirs2 && $dirs2[-1] == $dirs1[-1];
+				# when only thing in common is the root.
   }
 
   while (@dirs1 && @dirs2) {	# Peel off the top level directories
@@ -1039,9 +1008,17 @@ sub relative_filename {
   }
 
  DONE:
-  $_[2] ? @dirs1 + @dirs2 :
-    join '/', ('..') x @dirs2, map $_->{NAME}, reverse @dirs1;
+  if( $_[2] ) {
+    @dirs1 + @dirs2;
+  } elsif( @dirs1 ) {
+    my $file = shift @dirs1;
+    ($orig_dir->{int $_[0]{'..'}} = join '/', ('..') x @dirs2, map $_->{NAME}, reverse @dirs1) .
+      '/' . $file->{NAME};
 				# Form the relative filename.
+  } else {
+    $orig_dir->{int $_[0]} = join '/', ('..') x @dirs2;
+				# Form the relative filename.
+  }
 }
 
 =head2 stat_array
@@ -1092,38 +1069,6 @@ sub dir_stat_array {
   goto &stat_array;
 }
 
-=head2 traverse
-
-   FileInfo::traverse sub {
-      my (@finfos) = @_;
-
-      foreach (@finfos) { ... do something }
-   }
-
-Traverses through what we know of the entire file system.  The subroutine is
-called with C<@_> as an unsorted array of all the FileInfo structures that are
-contained in that directory.  The subroutine is invoked on parent directories
-before it is ivoked on child directories.
-
-=cut
-
-sub traverse {
-  my ($subr, $dirinfo) = @_;
-
-  my @dirs = $dirinfo || $root; # Start at root of hierarchy if not
-				# specified.
-  while( @dirs ) {
-    $dirinfo = pop @dirs;
-    &$subr(values %{$dirinfo->{DIRCONTENTS}}); # Call subroutine on this directory.
-    push @dirs,
-      grep { $_->{DIRCONTENTS} && !is_symbolic_link( $_ ) }
-				# Don't traverse it if it's a symbolic link,
-				# because then we'll find the same files twice.
-      values %{$dirinfo->{DIRCONTENTS}}; # Look in each subdirectory of
-				# this directory.
-  }
-}
-
 =head2 unlink
 
    FileInfo::unlink( $fileinfo );
@@ -1136,10 +1081,10 @@ sub unlink {
   my $fileinfo = $_[0];		# Get the FileInfo struct.
 
   CORE::unlink &absolute_filename_nolink; # Delete the file.
-  undef $_[0]->{EXISTS};	# Mark the file as non-existent.  Don't
+  delete @{$_[0]}{qw(EXISTS LSTAT SIGNATURE LINK_DEREF HAVE_READ_PERMISSION IS_READABLE)};
+				# Mark the file as non-existent.  Don't
 				# delete the fileinfo struct because it
 				# might contain make build info or other stuff.
-  delete @{$_[0]}{qw(LSTAT SIGNATURE)};	# Invalidate the stat information.
 }
 
 ###############################################################################
@@ -1156,8 +1101,8 @@ sub unlink {
 # Argument: the FileInfo structure of the thing we discovered is a directory.
 #
 sub mark_as_directory {
-  $_[0]->{DIRCONTENTS} ||= {}; # Mark as a directory.
-  $_[0]->{SHORTEST_FULLNAME} = &absolute_filename;
+  $_[0]{DIRCONTENTS} ||= {}; # Mark as a directory.
+  $_[0]{FULLNAME} = &absolute_filename;
 				# We cache the absolute filename for all
 				# directories for performance reasons.
 }
@@ -1180,35 +1125,37 @@ sub mark_as_directory {
 # but a rule for the file was learned.
 #
 sub publish {
-  my ($finfo, $level) = @_;
-  $level ||= 0;
-  return if ($finfo->{PUBLISHED} || 0) > $level;
+  return if exists $_[0]{IS_PHONY} # Don't do anything if it's a phony target.
+    or exists $_[0]{PUBLISHED} && $_[0]{PUBLISHED} > ($_[1] || 0);
 				# Don't do anything if we already published
 				# this file.
-  return if exists $finfo->{IS_PHONY};	# Don't do anything if it's a phony target.
-  $finfo->{PUBLISHED} = $level+1;
+  my( $finfo ) = @_;
+  $finfo->{PUBLISHED} = ($_[1] || 0) + 1;
 
   my $fname = $finfo->{NAME};	# Form the relative filename.
   my $dirinfo = $finfo->{'..'};	# Find the directory that contains it.
+  my $leaf = 1;
   my $stale;
 
   while ($dirinfo) {		# Go until we hit the top level.
     for( @{$dirinfo->{WILDCARD_ROUTINES}} ) {
 				# Check each wildcard match specified to start
 				# in this directory.
-      my( $re, $wild_rtn ) = @$_;
-      next if $fname !~ /^$re$/;
+      # my( $re, $wild_rtn, $deep ) = @$_;
+      next unless $leaf || $_->[2];
+      next if $fname !~ $_->[0];
       if( $::rm_stale_files ) {
-	$stale = &is_stale if !defined $stale;
+	$stale = &is_stale unless defined $stale;
 	next if $stale;
 	$finfo->{PUBLISHED} = 2;
       }
-      &$wild_rtn($finfo, 1);	# Call the wildcard action routine if it matches.
+      $_->[1]( $finfo, 1 );	# Call the wildcard action routine if it matches.
     }
 
-    $fname = $dirinfo->{NAME} . '/' . $fname;
+    substr $fname, 0, 0, $dirinfo->{NAME} . '/';
 				# Form the relative filename of the next level.
     $dirinfo = $dirinfo->{'..'}; # Go up a level.
+    undef $leaf;
   }
 }
 
@@ -1260,9 +1207,7 @@ in_sandbox (1 arg)
 may_have_changed (1 arg)
 parent (1 arg)
 publish (1 or 2 args)
-reset_shortest_fullname (2 args)
 touched_filesystem (0 args)
-traverse (1 or 2 args)
 update_build_infos (0 args)
 
 Secondary functions, which have been checked to hand down no further args, no

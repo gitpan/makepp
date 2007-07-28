@@ -2,7 +2,7 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.46 2007/05/06 10:16:23 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.48 2007/05/25 09:38:12 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -13,6 +13,11 @@ makepp_release_notes -- Major changes in each version of makepp
 =item *
 
 Makepp has become noticeably faster.
+
+=item *
+
+Also install abbreviations consisting of 'mpp' plus the first letter of every
+following word, e.g. 'mppc' for 'makeppclean'.
 
 =item *
 
@@ -200,12 +205,12 @@ Ported to MinGW.
 
 =item *
 
-Experimental new build caches, to cache files that are identical.  This
-means that if you change a file and revert, then you can have makepp
-drop back to the immediately preceding .o file without rebuilding.  Or
-you can share builds of identical files between separate source trees.
-This feature is still very very experimental and the interface is not
-yet final.
+Experimental new build caches, to cache files that are identical.  This means
+that if you change a file and revert, then you can have makepp drop back to
+the immediately preceding .o file without rebuilding.  Or you can share builds
+of identical files between separate source trees.  This feature is still
+experimental and the interface is not yet final.  Newly added grouping of
+build caches.
 
 =back
 

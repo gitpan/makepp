@@ -2,7 +2,7 @@
 
 makepp_incompatibilities -- Incompatibilities between makepp and GNU make
 
-=for vc $Id: makepp_incompatibilities.pod,v 1.16 2007/05/06 10:35:46 pfeiffer Exp $
+=for vc $Id: makepp_incompatibilities.pod,v 1.17 2007/06/15 22:24:29 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -95,7 +95,10 @@ is not as useful with makepp since you don't need to do that anyway.
 
 =item *
 
-The C<SHELL> variable is currently ignored.  Makepp always uses F</bin/sh>.
+The C<SHELL> variable is currently partially ignored.  Makepp always uses
+F</bin/sh> unless C</usr/xpg4/bin/sh> or C</sbin/xpg4/sh> is found or unless
+you export the C<SHELL> variable in your makefile.  But if you do, the command
+parser might not fully understand what your shell command does.
 
 =item *
 

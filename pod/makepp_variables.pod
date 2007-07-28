@@ -2,7 +2,7 @@
 
 makepp_variables -- How to use variables in makepp
 
-=for vc $Id: makepp_variables.pod,v 1.24 2007/05/06 10:05:13 pfeiffer Exp $
+=for vc $Id: makepp_variables.pod,v 1.25 2007/06/15 22:24:29 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -19,7 +19,7 @@ L<B<M>AKE|/MAKE>, L</MAKECMDGOALS>, L</MAKEINFO>,E<nbsp>
 L<B<o>utput|/output>, L</outputs>,E<nbsp>
 L<B<P>WD|/PWD>,E<nbsp>
 L<B<R>M|/RM>, L</ROOT>,E<nbsp>
-L<B<s>orted_dependencies|/sorted_dependencies>, L</sorted_inputs>, L</stem>,E<nbsp>
+L<B<S>HELL|SHELL>, L</sorted_dependencies>, L</sorted_inputs>, L</stem>,E<nbsp>
 L<B<t>arget|/target>, L</targets>,E<nbsp>
 L<B<Y>ACC|/YACC>,E<nbsp>
 C<=>,
@@ -790,6 +790,15 @@ instead.
 The relative path to the root of your build system, i.e. the directory further
 up in which you have a C<RootMakeppfile(.mk)>.  If you don't have one, this
 variable is empty.
+
+=item SHELL
+
+This variable is only respected if you C<export> it.  In that case it is the
+Shell which is used to execute not-builtin actions with some special character
+in it (plain ones being execed directly).
+
+I<Default:> The first found among C</usr/xpg4/bin/sh> (e.g. Solaris) or
+C</sbin/xpg4/sh> (e.g. Reliant Unix) or C</bin/sh>.
 
 =item YACC
 

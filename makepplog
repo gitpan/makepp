@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 
-# $Id: makepplog,v 1.13 2007/04/20 20:49:05 pfeiffer Exp $
+# $Id: makepplog,v 1.15 2007/07/28 18:42:53 pfeiffer Exp $
 
 # Shall we put a period after each message?  Or once for all before the \n when printing?
 my %log_msg =
@@ -148,6 +148,7 @@ use TextSubs ();
 
 my( $cwd, $instdir, $keylist, $noindent, $rename, $uniq );
 my( @logfiles, $outfile );
+my $follow = 0;
 my $prefix = '';
 my $showkey = '';
 
@@ -156,6 +157,7 @@ my $showkey = '';
   TextSubs::getopts
     ['c', qr/current[-_]?working[-_]?dir(?:ectory)/, \$cwd, 0, 0],
     ['C', qr/current[-_]?working[-_]?dir(?:ectory)[-_]?and[-_]?up/, \$cwd, 1],
+    [qw(f follow), \$follow],
     ['i', qr/install(?:ation)?[-_]?dir(?:s|ectory|ectories)/, \$instdir],
     ['k', qr/key(?:s|list)/, \$keylist, 1],
     [qw(K showkey), \$showkey],
@@ -163,8 +165,36 @@ my $showkey = '';
     ['n', qr/no[-_]?indent/, \$noindent],
     [qw(o output), \$outfile, 1],
     [qw(p prefix), \$prefix, 0, 'makepplog: '],
-    ['u', qr/uniq(?:ue)?/, \$uniq];
+    ['u', qr/uniq(?:ue)?/, \$uniq],
+
+    [qr/[h?]/, 'help', undef, 0, \&usage];
 }
+
+$| = 1 if $follow > 1;
+
+sub usage { print << 'END_OF_USAGE'; exit 0 }
+Usage: makepplog [-options]
+-c or --current-working-dir or --current-working-directory
+	Make all files under current dir, be relative to it.
+-C N or --current-working-dir-and-up=N or --current-working-directory-and-up=N
+	Make all files under current N dirs up, be relative to this one.
+-i or --install-dir or --installation-directory
+	Replace path to makepp internal files with ...
+-k LIST or --keys=LIST or --keylist=LIST
+	Show only messages with or !without keys, comma separated, bash patterns.
+-K or --showkey
+	Prepend every message with its internal key (to see what to select)
+-l FILE or --log=FILE or --logfile=FILE
+	Alternate file or dir to get log from, can be given more than once.
+-n or --no-indent
+	Don't show scanner nesting with indentation.
+-o FILE or --output=FILE
+	Redirect output.
+-p or --prefix
+	Prefix every line with makepplog:
+-u or --uniq or --unique
+	Don't repeat lines about inclusion or scanning.
+END_OF_USAGE
 
 $ENV{HOME} and FileInfo::dereference( FileInfo::file_info( $ENV{HOME} ));
 				# Make sure we get a symbolic name for the
@@ -202,6 +232,7 @@ open STDOUT, '>', $outfile if $outfile;
 
 my %want;
 my( %incl, %scan );		# Redundant message counters for --uniq
+FILE:
 for( @logfiles ) {
   open my $log, $_ or die "$0: can't open `$_'--$!\n";
 
@@ -220,7 +251,7 @@ for( @logfiles ) {
       tr/a-z/A-Z/;
       s/(?=[?*])/./g;
       s/\{/(?:/g and
-	tr/,}/|)/ || die "--keylist contained '{', but no matching '}'\n";
+	tr/,}/|)/ || die "makepplog: error: -K, --keylist contained '{', but no matching '}'\n";
       for my $re ( split ) {
 	if( $re =~ s/^!\s*// ) {
 	  @want{keys %log_msg} = () if !%want;
@@ -238,6 +269,7 @@ for( @logfiles ) {
 
   my $indent = '';
   my( %dir_name, %file_name, $incl, @incl );
+ RETRY:
   while( <$log> ) {
 
     if( $noindent ) {
@@ -249,7 +281,16 @@ for( @logfiles ) {
     }
 
     if( /\01/ ) {		# A key/finfos line?
-      substr $_, -1, 1, '\n' . <$log> while !/\01$/m;
+      until( /\01\r?\n/m ) {
+	if( defined( my $more = <$log> )) {
+	  s/\n\Z/\\n/;
+	  $_ .= $more;
+	} elsif( $follow ) {
+	  sleep 1;
+	} else {
+	  die "makepplog: error: record is incomplete, use -f, --follow while makepp runs\n";
+	}
+      }
       # Extract the name definitions
       while( s/([\da-f]+)\03([^\01-\03]+)(?:\03([^\01-\03]+)(?:\03([^\01-\03]*))?)?/$1/ ) {
 	#my( $key, $name, $dirkey, $dirname ) = ( $1, $2, $3, $4 ) -- expensive copy op
@@ -277,7 +318,6 @@ for( @logfiles ) {
       my( $key, @args ) = split /\01/;
       pop @args;		# Remove the newline we kept to work around
 				# the stupid end handling of split.
-
       if( exists $want{$key} ) {
 
 	# Merge adjacent INCL statements, which is currently hard to do in makepp.
@@ -319,8 +359,13 @@ for( @logfiles ) {
       } elsif( !exists $log_msg{$key} ) {
 	print "$indent$_"; # In case a non structured line somehow contained ^A.
       }
+      next FILE if $follow && $key eq 'N_FILES';
     } else {
       print "$indent$_";
     }
+  }
+  if( $follow ) {
+    sleep 1;
+    goto RETRY;
   }
 }

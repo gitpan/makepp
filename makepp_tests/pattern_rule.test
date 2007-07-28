@@ -1,5 +1,9 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	64	644	1175559408	1175558557	Makeppfile
+###	3	644	1181596243	1181903567	makepp_test_script.pl
+eval { makepp 'abc.inaa' } and die;
+eval { makepp 'a.xaa' } and die;
+makepp;
+###	92	644	1175559408	1181906278	Makeppfile
 #
 # This makeppfile tests pattern rules.
 #
@@ -8,7 +12,12 @@
 
 INFILES = abc def xyz
 
-all: $(INFILES).out2 a.x b.x xyz.lc live.yoghurt
+all: $(INFILES).out2 a.x b.x xyz.lc live.yoghurt abc.ina a.xa a.n
+
+# Potential endless loop shall abort both based on files already existing and
+# on ones to be discovered in the future.
+%a: %
+	&cp -l $(input) $(output)
 
 # static pattern rule
 a.x b.x : %.x : %.y
@@ -63,6 +72,29 @@ xyz.out: xyz.in subdir/percent_subdirs_test
 	&cp -l $(input) $(output)
 
 %.lc: %.Uc
+	&cp -l $(input) $(output)
+
+# Long chain, partially ordered forward, partially backward:
+%.q: %.r
+	&cp -l $(input) $(output)
+%.p: %.q
+	&cp -l $(input) $(output)
+%.o: %.p
+	&cp -l $(input) $(output)
+%.n: %.o
+	&cp -l $(input) $(output)
+
+%.r: %.s
+	&cp -l $(input) $(output)
+%.s: %.t
+	&cp -l $(input) $(output)
+%.t: %.u
+	&cp -l $(input) $(output)
+%.u: %.v
+	&cp -l $(input) $(output)
+%.v: %.w
+	&cp -l $(input) $(output)
+%.w: %.x
 	&cp -l $(input) $(output)
 ###	1	644	1175559408	965501121	abc.in
 abc
@@ -136,6 +168,6 @@ live.yoghurt
 must be present for good live yoghurt
 rich, creamy goodness
 ###	1	644	1175559408	1175559390	answers/n_files
-17 0
+29 0
 ###	1	444	1175559408	1104356247	answers/xyz.lc
 xyz

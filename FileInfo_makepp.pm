@@ -2,7 +2,7 @@ package FileInfo;
 
 use FileInfo;			# Override some subroutines from the
 				# generic FileInfo package.
-# $Id: FileInfo_makepp.pm,v 1.74 2007/04/24 22:52:58 pfeiffer Exp $
+# $Id: FileInfo_makepp.pm,v 1.77 2007/07/17 22:13:41 pfeiffer Exp $
 
 #
 # This file defines some additional subroutines for the FileInfo package that
@@ -43,6 +43,7 @@ signatures of the dependencies.
 See also: set_build_info_string
 
 =cut
+
 sub build_info_string {
   return undef unless &file_exists;
 
@@ -81,17 +82,20 @@ sub get_rule {
     my $finfo = $_[0];
     my $fname = $finfo->{NAME};
     my $dirinfo = $finfo->{'..'};
+    my $leaf = 1;
     DIR: while ($dirinfo) {
       WILD: for( @{$dirinfo->{NEEDED_WILDCARD_ROUTINES}} ) {
-	my( $re, $wild_rtn ) = @$_;
-	next WILD if $fname !~ /^$re$/;
-	&$wild_rtn($finfo, 1);
+	# my( $re, $wild_rtn, $deep ) = @$_;
+	next unless $leaf || $_->[2];
+	next WILD if $fname !~ $_->[0];
+	$_->[1]( $finfo, 1 );
 	last DIR;
       }
-      $fname = $dirinfo->{NAME} . '/' . $fname;
+      substr $fname, 0, 0, $dirinfo->{NAME} . '/';
       $dirinfo = $dirinfo->{'..'};
+      undef $leaf;
     }
-    $_[0]{RULE}
+    $_[0]{RULE};
   }
 }
 
@@ -141,7 +145,7 @@ sub exists_or_can_be_built_norecurse {
   # where the signature method might be overridden.
   if( &is_symbolic_link ) {
     &dont_build or
-      &load_build_info_file;	# blow away bogus repository links
+      $finfo->{BUILD_INFO} ||= &load_build_info_file; # blow away bogus repository links
   } elsif ($finfo->{EXISTS} &&
       !&have_read_permission) { # File exists, but can't be read, and
 				# isn't a broken symbolic link?
@@ -328,13 +332,13 @@ sub move_or_link_target {
 
   # NOTE: Even if the symlink is already correct, we need to copy over the
   # build info, because it may have changed since the link was created.
-  my $binfo = $src_finfo->{BUILD_INFO} ||
+  my $binfo = $src_finfo->{BUILD_INFO} ||=
     load_build_info_file($src_finfo) || {};
 				# Get the build information for the old file.
   my %build_info = %$binfo;	# Make a copy of everything.
   $build_info{FROM_REPOSITORY} = relative_filename( $src_finfo, $dest_finfo->{'..'} );
 				# Remember that we got it from a repository.
-  $dest_finfo->{NEEDS_BUILD_UPDATE} = 1; # Haven't updated the build info.
+  undef $dest_finfo->{NEEDS_BUILD_UPDATE}; # Remember to update the build info.
   $dest_finfo->{BUILD_INFO} = \%build_info;
   push @build_infos_to_update, $dest_finfo;
 				# Update it soon.
@@ -492,13 +496,13 @@ sub set_build_info_string {
     $i += 2;
     die if $key eq 'END';
 
-    if(!defined($binfo->{$key}) || $binfo->{$key} ne $val) {
+    unless( defined $binfo->{$key} && $binfo->{$key} eq $val ) {
       $update = 1;
       $binfo->{$key} = $val;
     }
   }
-  if($update) {
-    $finfo->{NEEDS_BUILD_UPDATE} = 1;
+  if( $update ) {
+    undef $finfo->{NEEDS_BUILD_UPDATE};
 				# Remember that we haven't updated this
 				# file yet.
     push @build_infos_to_update, $finfo;
@@ -514,8 +518,9 @@ need to call this if you modify the BUILD_INFO hash directly; if you call
 set_build_info_string, it's already handled for you.
 
 =cut
+
 sub mark_build_info_for_update {
-  $_[0]{NEEDS_BUILD_UPDATE} = 1;
+  undef $_[0]{NEEDS_BUILD_UPDATE};
 				# Remember that we haven't updated this
 				# file yet.
   push @build_infos_to_update, $_[0];
@@ -597,6 +602,7 @@ overrides anything.
 =back
 
 =cut
+
 sub set_rule {
   my ($finfo, $rule) = @_; # Name the arguments.
 
@@ -611,77 +617,51 @@ sub set_rule {
 
   my $rule_is_default = ($rule->source =~ /\bmakepp_builtin_rules\.mk:/);
 
-  exists $finfo->{IS_PHONY} &&		# If we know this is a phony target, don't
+  exists $finfo->{IS_PHONY} &&	# If we know this is a phony target, don't
     $rule_is_default and	# ever let a default rule attempt to build it.
       return;
 
-  my $oldrule = $finfo->{RULE};	# Is there a previous rule?
+  if( my $oldrule = $finfo->{RULE} ) {	# Is there a previous rule?
 
-  if ($oldrule && $oldrule->{LOAD_IDX} < $oldrule->{MAKEFILE}{LOAD_IDX}) {
-    undef $oldrule;		# If the old rule is from a previous load
+    if( $oldrule->{LOAD_IDX} < $oldrule->{MAKEFILE}{LOAD_IDX}) {
+      undef $oldrule;		# If the old rule is from a previous load
 				# of a makefile, discard it without comment.
-    delete $finfo->{BUILD_HANDLE}; # Avoid the warning message below.  Also,
+      delete $finfo->{BUILD_HANDLE}; # Avoid the warning message below.  Also,
 				# if the rule has genuinely changed, we may
 				# need to rebuild.
-  }
+    } else {
+      return if $rule_is_default; # Never let a builtin rule override a rule in the makefile.
+      if( $oldrule->source !~ /\bmakepp_builtin_rules\.mk:/ ) { # The old rule isn't a default rule.
+	::log RULE_ALT => $rule, $oldrule, $finfo
+	  if $::log_level;
 
-  if ($oldrule) {
-    my $oldrule_is_default = ($oldrule->source =~ /\bmakepp_builtin_rules\.mk:/);
-    if ($rule_is_default) {	# Never let a builtin rule override a rule
-      return;			# in the makefile.
-    }
-    elsif (!$oldrule_is_default) { # If the old rule isn't a default rule:
-      ::log RULE_ALT => $rule, $oldrule, $finfo
-	if $::log_level;
-
-      my $new_rule_recursive = ($rule->{COMMAND_STRING} || '') =~ /\$[({]MAKE[)}]/;
-      my $old_rule_recursive = ($oldrule->{COMMAND_STRING} || '') =~ /\$[({]MAKE[)}]/;
+	my $new_rule_recursive = ($rule->{COMMAND_STRING} || '') =~ /\$[({]MAKE[)}]/;
+	my $old_rule_recursive = ($oldrule->{COMMAND_STRING} || '') =~ /\$[({]MAKE[)}]/;
 				# Get whether the rules are recursive.
 
-      if ($new_rule_recursive && !$old_rule_recursive) {
+	if( $new_rule_recursive && !$old_rule_recursive ) {
 				# This rule does not override anything if
 				# it invokes a recursive make.
-	::log RULE_IGN_MAKE => $rule
-	  if $::log_level;
-	return;
-      }
+	  ::log RULE_IGN_MAKE => $rule
+	    if $::log_level;
+	  return;
+	}
 
-      if ($old_rule_recursive && !$new_rule_recursive) {
-	::log RULE_DISCARD_MAKE => $oldrule
-	  if $::log_level;
+	if( $old_rule_recursive && !$new_rule_recursive ) {
+	  ::log RULE_DISCARD_MAKE => $oldrule
+	    if $::log_level;
 
-	delete $finfo->{BUILD_HANDLE};
+	  delete $finfo->{BUILD_HANDLE};
 				# Don't give a warning message about a rule
 				# which was replaced, because it's ok in this
 				# case to use a different rule.
-      }
-      else {
-	if (!$oldrule->{PATTERN_LEVEL}) {	# Old rule not a pattern rule?
-	  if ($rule->{PATTERN_LEVEL}) { # New rule is?
-	    ::log RULE_IGN_PATTERN => $rule
-	      if $::log_level;
-	    return;
-	  }
-	  else {
-	    warn 'conflicting rules `', $rule->source, "' and `", $oldrule->source, "' for target ",
-	      &absolute_filename, "\n"
-	      unless exists($rule->{MULTIPLE_RULES_OK}) &&
-		exists($oldrule->{MULTIPLE_RULES_OK}) &&
-		$rule->{COMMAND_STRING} eq $oldrule->{COMMAND_STRING};
-	      # It's not safe to suppress this warning solely because the
-	      # command string is the same, because it might expand differently
-	      # in different makefiles.	 But if the rules are marked to allow
-	      # this, then we suppress anyway.
-	  }
-
-	}			# End if old rule was an explicit rule.
-	else {
+	} elsif( exists $oldrule->{PATTERN_RULES} ) {
 	  #
 	  # Apparently both are pattern rules.	Figure out which one should override.
 	  #
-	  if ($rule->{MAKEFILE} != $oldrule->{MAKEFILE}) { # Skip comparing
-				# the cwds if they are from the same makefile.
-            if( relative_filename( $rule->build_cwd, $finfo->{'..'}, 1 ) <
+	  if( $rule->{MAKEFILE} != $oldrule->{MAKEFILE} ) { # Compare the cwds
+				# if they are from different makefiles.
+	    if( relative_filename( $rule->build_cwd, $finfo->{'..'}, 1 ) <
 		relative_filename( $oldrule->build_cwd, $finfo->{'..'}, 1 )) {
 	      ::log RULE_NEARER => $rule
 		if $::log_level;
@@ -690,21 +670,34 @@ sub set_rule {
 		if $::log_level;
 	      return;
 	    }
-	  } else {		# If they're from the same makefile, use the
+	  } elsif( !exists $rule->{PATTERN_RULES} || @{$rule->{PATTERN_RULES}} < @{$oldrule->{PATTERN_RULES}} ) {
+				# If they're from the same makefile, use the
 				# one that has a shorter chain of inference.
-	    if (($rule->{PATTERN_LEVEL} || 0) < $oldrule->{PATTERN_LEVEL}) {
-	      ::log RULE_SHORTER => $rule
-		if $::log_level;
-	    } elsif (($rule->{PATTERN_LEVEL} || 0) > $oldrule->{PATTERN_LEVEL}) {
-	      ::log RULE_SHORTER => $oldrule
-		if $::log_level;
-	      return;
-	    } else {
-	      warn 'rule `', $rule->source, "' produces ", &absolute_filename,
-		" in two different ways\n"
+	    ::log RULE_SHORTER => $rule
+	      if $::log_level;
+	  } elsif( @{$rule->{PATTERN_RULES}} > @{$oldrule->{PATTERN_RULES}} ) {
+	    ::log RULE_SHORTER => $oldrule
+	      if $::log_level;
+	    return;
+	  } else {
+	    warn 'rule `', $rule->source, "' produces ", &absolute_filename,
+	      " in two different ways\n"
 		if $rule->source eq $oldrule->source;
-	    }
 	  }
+	} elsif( exists $rule->{PATTERN_RULES} ) { # New rule is?
+	  ::log RULE_IGN_PATTERN => $rule
+	    if $::log_level;
+	  return;
+	} else {
+	  warn 'conflicting rules `', $rule->source, "' and `", $oldrule->source, "' for target ",
+	    &absolute_filename, "\n"
+	      unless exists($rule->{MULTIPLE_RULES_OK}) &&
+		exists($oldrule->{MULTIPLE_RULES_OK}) &&
+		$rule->{COMMAND_STRING} eq $oldrule->{COMMAND_STRING};
+	  # It's not safe to suppress this warning solely because the
+	  # command string is the same, because it might expand differently
+	  # in different makefiles.  But if the rules are marked to allow
+	  # this, then we suppress anyway.
 	}
       }
     }
@@ -718,7 +711,7 @@ sub set_rule {
 #    ::print_log(0, $rule, ' applies to target ', $finfo);
 
   $finfo->{RULE} = $rule;	# Store the new rule.
-  $finfo->{PATTERN_LEVEL} = $rule->{PATTERN_LEVEL} if $rule->{PATTERN_LEVEL};
+  $finfo->{PATTERN_RULES} = $rule->{PATTERN_RULES} if $rule->{PATTERN_RULES};
 				# Remember the pattern level, so we can prevent
 				# infinite loops on patterns.  This must be
 				# set before calling publish(), or we'll get
@@ -766,6 +759,7 @@ source code.
 =back
 
 =cut
+
 sub signature {
   my $stat = $_[0]{LSTAT};
   $stat = &stat_array if !$stat || exists $_[0]{LINK_DEREF};
@@ -806,18 +800,17 @@ sub write_build_info_file {
     $contents .= $key . '=' . $val . "\n";
   }
   # This provides proof that the writing of the build info file was not
-  # interrupted. It's compatible if you back-rev to makepp 1.19.
+  # interrupted.
   print $fh $contents . 'END=' or return undef;
   close($fh) or return undef;
 }
 
 sub update_build_infos {
   foreach my $finfo (@build_infos_to_update) {
-    next unless $finfo->{NEEDS_BUILD_UPDATE};
+    next unless exists $finfo->{NEEDS_BUILD_UPDATE};
 				# Skip if we already updated it.  If two
 				# build info strings for the same file are
 				# changed, it can get on the list twice.
-#    print 'Updating build info for ', $finfo->name, "\n";
     delete $finfo->{NEEDS_BUILD_UPDATE}; # Do not update it again.
     unless( in_sandbox( $finfo )) {
       # If we cached some info about a file outside of our sandbox, then
@@ -865,6 +858,7 @@ END { &update_build_infos }
 Returns TRUE iff the file was put there by makepp and not since modified.
 
 =cut
+
 sub was_built_by_makepp {
   defined and return 1
     for build_info_string( $_[0], qw'BUILD_SIGNATURE FROM_REPOSITORY' );
@@ -880,6 +874,7 @@ now there is no rule for it, or it is not from a repository and the only
 rule for it is to get it from a repository.
 
 =cut
+
 sub _valid_alt_versions {
   my $alts = $_[0]{ALTERNATE_VERSIONS};
   return unless $alts && @$alts;
@@ -946,29 +941,18 @@ BEGIN {
 #
 
 
-sub build_info_fname {
-  absolute_filename( $_[0]{'..'} ) . "/$build_info_subdir/$_[0]{NAME}.mk";
-}
+sub build_info_fname { "$_[0]{'..'}{FULLNAME}/$build_info_subdir/$_[0]{NAME}.mk" }
 
 sub parse_build_info_file {
-  my ($fh) = @_;
-  my ($end, $corrupt, %build_info);
-  for( <$fh> ) {		  # Read another line.  Why do some tests fail with 'while'?
-    if( $end || !/(.+?)=(.*)/ ) { # Check the format.
-      $corrupt = 1;
-      last;
-    }
-    if($1 eq 'END') {		# From check above
-      $end = 1;
-      $corrupt = 1 if $2 ne '' && $2 ne "\r";
-      next;
-    }
+  my( $fh ) = @_;
+  my %build_info;
+  for( <$fh> ) {		# Read another line.  TODO: Why do some tests fail with 'while'?
+    return unless /(.+?)=(.*)/;	# Check the format.
+    return \%build_info if $1 eq 'END';
     ($build_info{$1} = $2) =~
-      tr/\cC\r/\n/d;	       # Strip out the silly windows-format lines too.
+      tr/\cC\r/\n/d;		# Strip out the silly windows-format lines too.
   }
-
-  return undef if $corrupt || !$end;
-  \%build_info;
+  undef;
 }
 
 #
@@ -983,60 +967,56 @@ sub load_build_info_file {
     return undef;
 
   my $finfo = $_[0];
-  my $sig = &signature || ''; # Calculate the signature for the file, so
+  my $sig = &signature || '';	# Calculate the signature for the file, so
 				# we know whether the build info has changed.
-  my $build_info = parse_build_info_file($fh);
-  warn $build_info_fname . ": build info file corrupted\n" unless $build_info;
+  my $build_info = parse_build_info_file $fh;
+  if( defined $build_info ) {
+    my $sig_match = ($build_info->{SIGNATURE} || '') eq $sig;
 
-  # Retain previous repository information if no new info given.
-  $_[0]{ALTERNATE_VERSIONS} = [file_info $build_info->{FROM_REPOSITORY}, $_[0]{'..'}]
-    if !$_[0]{ALTERNATE_VERSIONS} && $build_info->{FROM_REPOSITORY};
+    if( exists $build_info->{FROM_REPOSITORY} ) {
+      # Retain previous repository information if no new info given.
+      $_[0]{ALTERNATE_VERSIONS} ||= [file_info $build_info->{FROM_REPOSITORY}, $_[0]{'..'}];
 
-  # If we linked the file in from a repository, but it was since modified in
-  # the repository, then we need to remove the link to the repository now,
-  # because otherwise we won't remove the link before the target gets built.
-  # Note that this code may need to track changes to is_stale.
-  my $sig_mismatch = (!$build_info || ($build_info->{SIGNATURE} || '') ne $sig);
-  if(
-    !&dont_build &&
-    ($sig_mismatch ||
-      !$finfo->{ALTERNATE_VERSIONS} || !@{$finfo->{ALTERNATE_VERSIONS}}
-    ) && $build_info && exists($build_info->{FROM_REPOSITORY})
-  ) {
-    if( dereference( $finfo ) == file_info( $build_info->{FROM_REPOSITORY}, $finfo->{'..'} )) {
-      my $absname = &absolute_filename;
-      unless( &in_sandbox ) {
-	warn $::sandbox_warn_flag ? '' : 'error: ',
-	  "Can't remove outdated repository link " . &absolute_filename . " because it's out of my sandbox\n";
-	die unless $::sandbox_warn_flag;
+      # If we linked the file in from a repository, but it was since modified in
+      # the repository, then we need to remove the link to the repository now,
+      # because otherwise we won't remove the link before the target gets built.
+      # Note that this code may need to track changes to is_stale.
+      unless( $sig_match && $finfo->{ALTERNATE_VERSIONS} && @{$finfo->{ALTERNATE_VERSIONS}} || &dont_build ) {
+	if( dereference( $finfo ) == file_info( $build_info->{FROM_REPOSITORY}, $finfo->{'..'} )) {
+	  unless( &in_sandbox ) {
+	    warn $::sandbox_warn_flag ? '' : 'error: ',
+	      "Can't remove outdated repository link " . &absolute_filename . " because it's out of my sandbox\n";
+	    die unless $::sandbox_warn_flag;
+	  }
+	  ::log REP_OUTDATED => $finfo
+	    if $::log_level;
+	  FileInfo::unlink( $finfo );
+	} else {
+	  undef $sig_match;	# The symlink was modified outside of makepp
+	}
       }
-      ::log REP_OUTDATED => $finfo
-	if $::log_level;
-      FileInfo::unlink( $finfo );
     }
-    else {
-      $sig_mismatch = 1;	# The symlink was modified outside of makepp
-    }
-  }
 
-  if( $sig_mismatch ) {		# Exists but has the wrong signature?
-    if( $build_info->{SYMLINK} ) {
+    unless( $sig_match ) {	# Exists but has the wrong signature?
+      if( $build_info->{SYMLINK} ) {
 				# Signature is that of linked file.  The symlink
 				# is checked before possibly rebuilding it.
-      $build_info->{SIGNATURE} = $sig;
-      $finfo->{TEMP_BUILD_INFO} = $build_info;
-      return undef;		# Rule::execute will bend this straight.
-    } else {
-      ::log OUT_OF_DATE => $finfo
-	if $::log_level;
-      CORE::unlink($build_info_fname); # Get rid of bogus file.
-      # NOTE: We assume that if we failed to unlink $finfo, then we'll fail to
-      # unlink $build_info_fname as well, so that the FROM_REPOSITORY turd will
-      # remain behind, which is what we want. Furthermore, because we remember
-      # that we tried to unlink $finfo, it should appear to makepp that it
-      # no longer exists, which is also what we want.
+	$build_info->{SIGNATURE} = $sig;
+	$finfo->{TEMP_BUILD_INFO} = $build_info; # Rule::execute will pick it up.
+      } else {
+	::log OUT_OF_DATE => $finfo
+	  if $::log_level;
+	CORE::unlink($build_info_fname); # Get rid of bogus file.
+	# NOTE: We assume that if we failed to unlink $finfo, then we'll fail to
+	# unlink $build_info_fname as well, so that the FROM_REPOSITORY turd will
+	# remain behind, which is what we want. Furthermore, because we remember
+	# that we tried to unlink $finfo, it should appear to makepp that it
+	# no longer exists, which is also what we want.
+      }
       return undef;
     }
+  } else {
+    warn "$build_info_fname: build info file corrupted\n";
   }
   $build_info;
 }

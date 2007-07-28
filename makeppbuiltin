@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #use strict;			# TODO: explore why this breaks the builtins.
 
-# $Id: makeppbuiltin,v 1.10 2007/01/05 21:38:53 pfeiffer Exp $
+# $Id: makeppbuiltin,v 1.11 2007/05/14 21:49:50 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 
@@ -86,7 +86,7 @@ sub getopts_help(@) {
     my $short = $_->[0];	# Show only the 1st short opt (e.g. --fields & --force)
     $_ = (($short && !$short{$short}) ? "$_->[0], --$long" : $long) .
       ($_->[3] ? '=arg' : '');
-    $short{$short} ||= 1;
+    $short{$short} ||= 1 if $short;
   }
   for( sort { lc( substr $a, 0, 1 ) cmp lc( substr $b, 0, 1 ) ||
 	      substr( $b, 0, 1 ) cmp substr( $a, 0, 1 ) ||

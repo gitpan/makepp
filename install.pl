@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.64 2007/01/05 21:36:34 pfeiffer Exp $
+# $Id: install.pl,v 1.68 2007/05/17 11:51:25 pfeiffer Exp $
 #
 
 use Config;
@@ -160,8 +160,8 @@ if($findbin) {
 @sig_num{split ' ', $Config{sig_name}} = split ' ', $Config{sig_num};
 $USR1 = $sig_num{USR1}; $USR1 = $USR1; 	# suppress used-only-once warning
 
-substitute_file( $_, $bindir, 0755 ) for
-  qw(makepp makeppbuiltin makeppclean makeppgraph makepplog makepp_build_cache_control);
+substitute_file( $_, $bindir, 0755, 1 ) for
+  qw(makepp makeppbuiltin makeppclean makeppgraph makeppinfo makepplog makepp_build_cache_control);
 
 substitute_file( $_, $datadir, 0644 ) for
   qw(recursive_makepp FileInfo_makepp.pm);
@@ -178,8 +178,8 @@ foreach $module (qw(AutomakeFixer BuildCache BuildCacheControl FileInfo Glob Mak
 		    BuildCheck/symlink BuildCheck/target_newer
 		    BuildCheck/only_action
 
-		    CommandParser CommandParser/Basic CommandParser/Esqlc
-		    CommandParser/Gcc CommandParser/Swig CommandParser/Vcs
+		    CommandParser CommandParser/Esqlc CommandParser/Gcc
+		    CommandParser/Swig CommandParser/Vcs
 
 		    Scanner Scanner/C Scanner/Esqlc Scanner/Swig Scanner/Vera
 		    Scanner/Verilog
@@ -305,6 +305,7 @@ if ($htmldir_val ne 'none') {
 	       builtin => 'Builtin Rules',
 	       builtins => 'Builtin Commands',
 	       command => 'Command Options',
+	       faq => 'FAQ',
 	       tutorial_compilation => 'Compilation Tutorial',
 	       makeppbuiltin => 'makeppbuiltin',
 	       makeppclean => 'makeppclean',
@@ -327,8 +328,9 @@ if ($htmldir_val ne 'none') {
 	    'makepp_tutorial.html' => 2,
 	    'makepp_tutorial_compilation.html' => 3,
 	    'makepp_cookbook.html' => 4,
-	    'makepp_speedup.html' => 5,
-	    'perl_performance.html' => 6,
+	    'makepp_faq.html' => 5,
+	    'makepp_speedup.html' => 6,
+	    'perl_performance.html' => 7,
 	    'makeppbuiltin.html' => '~0',
 	    'makeppclean.html' => '~1',
 	    'makeppgraph.html' => '~2',
@@ -364,14 +366,14 @@ if ($htmldir_val ne 'none') {
 			   --podpath=. --podroot=. --htmlroot=. --css=makepp.css --infile', $_, '--outfile', $tmp;
     open my( $tmpfile ), $tmp;
     s/pod$/html/;
-    my $img = '<img src="makepp.gif" width=142 height=160 title=makepp border=0>';
+    my $img = '<img src="makepp.gif" width="142" height="160" title="makepp" border="0">';
     $img = "<a href='" . ($home ? '/' : '.') . "'>$img</a>" if $home || length() > 11;
     my $nav = "<table id='Nav'><tr><th>$img<th></tr><tr><th></th></tr>
   <tr><th>
     <a href='http://sourceforge.net/projects/makepp/'>at
     <img src='sflogo.png' width='88' height='31'
-	 border='0' align='middle' alt='SourceForge'></a></th></tr>
-  <tr><th><form method=GET action='http://google.com/search'>
+	 border='0' align='middle' alt='SourceForge' /></a></th></tr>
+  <tr><th><form method='GET' action='http://google.com/search'>
     <input type='hidden' name='as_sitesearch' value='makepp.sourceforge.net' />
     <input type='text' name='as_q' size='14' /><br />
     <button type='submit'><img src='google.png' width='16' height='16' align='middle' alt='Google'> Site Search</button>
@@ -410,7 +412,8 @@ if ($htmldir_val ne 'none') {
 	  s!</ul>\s+</ul>!</ul>! &&
 	  s!<ul>\s+<ul>!<ul>!;
 	}
-	$_ = "<link rel=icon href='url.png' type='image/png'>
+	$_ = "<link rel='icon' href='url.png' type='image/png' />
+<meta name='keywords' content='makepp, make++, Make, build tool, repository, cache, Perl, Make alternative, Make replacement, Make enhancement, Make improvement, Make substitute, dmake, gmake, GNU Make, nmake, pmake, easymake, imake, jmake, maketool, mmake, omake, ppmake, PVM gmake, shake, SMake, ant, maven, cook, jam, Cons, SCons, cc -M, gcc -MM, g++ -MM, makedepend, makedep, mkdep, CCache, Compilercache, cachecc1, Make::Cache, automake' />
 </head><body>$nav<h1>$title</h1>\n<p><b>$_</p>$index";
       } elsif ( s/<pre>\n// ) {
 	$pre = 1;
@@ -453,15 +456,16 @@ if ($htmldir_val ne 'none') {
 	  s/^ {1,7}\t(\t*)(?!#)/$1    / or s/^    ?//;
 
 	  if( /^\s+$/ ) {
-	    $empty_line = '<span class=tall>&nbsp;</span>';
+	    $empty_line = '<span class="tall">&nbsp;</span>';
 	    next;
 	  } else {
 	    # don't parse comments
-	    $end = s/(#(?: .*?)?)((?:<\/pre>)?)$// ? "<span class=comment>$1</span>$empty_line$2" : $empty_line;
+	    $end = s/(#(?: .*?)?)((?:<\/pre>)?)$// ? "<span class='comment'>$1</span>$empty_line$2" : $empty_line;
 	    $empty_line = '';
 	  }
 
-	  s!^([%\$]? ?)(makepp(?:builtin|clean|_build_cache_control)?)\b!$1<b>$2</b>!g or
+	  s!^([%\$]? ?)(makepp(?:builtin|clean|log|graph|_build_cache_control)?)\b!$1<b>$2</b>!g or
+	  s!^([%\$]? ?)(mpp(?:[bclg]c{0,2})?)\b!$1<b>$2</b>!g or
 				# g creates BOL \G for keywords
 	    highlight_keywords;
 	  highlight_variables;
@@ -578,7 +582,7 @@ print "makepp successfully installed.\n";
 # c) The protection to give the file when it's installed.
 #
 sub substitute_file {
-  my ($infile, $outdir, $prot) = @_;
+  my ($infile, $outdir, $prot, $abbrev) = @_;
 
   local *INFILE;
   open(INFILE, $infile) || die "$0: can't read file $infile--$!\n";
@@ -602,6 +606,14 @@ sub substitute_file {
   close(INFILE);
 
   chmod $prot, "$outdir/$infile";
+  for( $abbrev ) {
+    last unless defined;
+    $_ = $infile;
+    no warnings 'uninitialized';
+    s/makepp(?:_?(.)[^_]+(?:_(.)[^_]+(?:_(.)[^_]+)?)?)?/mpp$1$2$3/;
+    link "$outdir/$infile", "$outdir/$_"
+      or symlink "$outdir/$infile", "$outdir/$_";
+  }
 }
 
 #

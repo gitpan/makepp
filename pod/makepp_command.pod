@@ -2,11 +2,12 @@
 
 makepp_command -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.31 2007/01/17 23:04:46 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.32 2007/05/17 11:48:40 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
-    makepp [-options] [VAR=value] target1 target2 ...
+    makepp [-options] [VAR=value] [target1 target2 ...]
+    mpp [-options] [VAR=value] [target1 target2 ...]
 
 L<--B<a>ssume-new|/_2DW_filename>,
   L<--assume-old|/_2Do_filename>,E<nbsp>

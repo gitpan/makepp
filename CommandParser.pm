@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.22 2007/04/24 22:58:33 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.24 2007/05/17 11:50:47 pfeiffer Exp $
 
 =head1 NAME
 
@@ -11,7 +11,8 @@ CommandParser - Base class for makepp command parsers
 
 =head1 DESCRIPTION
 
-C<CommandParser> is a base class for makepp(1) command parsers.
+C<CommandParser> is a base class for makepp(1) command parsers.  When used
+directly, it does nothing except add a dependency on the executable.
 
 The parser for a particular command should derive from this class.
 The parser should instantiate objects of type C<Scanner> for
@@ -22,6 +23,7 @@ the languageZ<>(s) of the files that it scans for include directives.
 use strict;
 package CommandParser;
 use TextSubs ();
+use Makesubs ();
 
 =head1 METHODS
 
@@ -55,6 +57,7 @@ Splits the command into words, prints a log message, and calls xparse_command.
 
 =cut
 
+our $ignore_exe;		# Emergency override.
 sub parse_command {
   my( $self, $command, $setenv_hash ) = @_;
 
@@ -62,18 +65,24 @@ sub parse_command {
     if $::log_level;
 
   my @cmd_words = TextSubs::unquote_split_on_whitespace($command);
-  $self->add_executable_dependency($cmd_words[0]);
-  $self->xparse_command(\@cmd_words, $setenv_hash);
+  unless( $ignore_exe ) {
+    # TODO: This test is redundant with scanner_skip_word:
+    if( $cmd_words[0] =~ /^(?:\.|do|e(?:val|xec)|if|source|t(?:hen|ime)|while)$/ ) {
+      $self->add_executable_dependency( $cmd_words[1] ) if @cmd_words > 1;
+    } elsif( $cmd_words[0] !~ /^(?:test)$/ ) {
+      $self->add_executable_dependency( $cmd_words[0] );
+    }
+  }
+  $self->xparse_command( \@cmd_words, $setenv_hash );
 }
 
 =head2 add_executable_dependency
 
 Gets called before xparse_command with the first command word as the
 argument.
-By default, it adds a dependency on the file given by the word, but only
-if it has a relative directory name and contains no shell metacharacters.
-It then adds runtime dependencies, if any, and calls
-add_more_executable_dependencies (which the subclass can override)
+By default, it adds a dependency on the file given by the word, but only if it
+contains no shell metacharacters.  It then adds runtime dependencies, if any,
+and calls add_more_executable_dependencies (which the subclass can override)
 with the directory name of the executable.
 
 =cut
@@ -82,8 +91,17 @@ sub add_executable_dependency {
   my( $self, $exe ) = @_;
   # Ignore the executable if it has shell metacharacters, because we
   # won't easily be able to figure out what it is.
-  if($exe=~m@/@ && $exe!~m|[^-+=@%^\w:,./]|) {
-    $self->add_simple_dependency($exe) unless $exe=~m@^/@;
+  if( $exe !~ m|[^-+=@%^\w:,./]| ) {
+    # TODO: This is not the best spot to do this, because the path doesn't get
+    # rechecked if the command doesn't change.  It would be better to do this
+    # like searching for includes.
+    if( $exe !~ m@/@ ) {
+      my $CWD_INFO = $FileInfo::CWD_INFO; # Might load a makefile and chdir there:
+      $exe = Makesubs::f_find_program( $exe, $self->{RULE}{MAKEFILE}, $self->{RULE}{RULE_SOURCE}, 1 );
+      FileInfo::chdir( $CWD_INFO );
+      return if $exe eq 'not-found';
+    }
+    $self->add_simple_dependency($exe);
     my $dirinfo = $self->dirinfo;
     my $finfo = file_info($exe, $dirinfo);
     my @runtime_deps = values %{$finfo->{RUNTIME_DEPS} || {}};
@@ -99,7 +117,7 @@ sub add_executable_dependency {
   }
 }
 
-sub add_more_executable_dependencies {}
+*add_more_executable_dependencies = \&TextSubs::CONST0;
 
 =head2 input_filename_regexp
 
@@ -153,10 +171,7 @@ build the target.
 
 =cut
 
-sub xparse_command {
-  my $class = ref $_[0];
-  die "Derived class $class did not override xparse_command";
-}
+*xparse_command = \&TextSubs::CONST1;
 
 =head2 rule
 

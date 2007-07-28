@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 
-# $Id: makeppclean,v 1.8 2007/04/11 19:33:57 pfeiffer Exp $
+# $Id: makeppclean,v 1.9 2007/05/25 09:41:57 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 use Config;
@@ -110,6 +110,8 @@ my @deletable;			# Files must be first remembered for deletion,
 				# no longer have a checkable build info.
 my @deletable_dirs;
 sub deletable {
+  my $build_info = &FileInfo::build_info_fname;
+  return 1 if -l $build_info && !-e _; # Stale inter-build-cache symlink?
   defined and return 1
     for FileInfo::build_info_string $_[0], @info_strings;
   if( $_[0]->{TEMP_BUILD_INFO} ) { # Stale symlink?
