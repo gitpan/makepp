@@ -2,18 +2,18 @@
 
 makepp_statements -- Various statements in a makefile
 
-=for vc $Id: makepp_statements.pod,v 1.30 2007/05/06 10:06:29 pfeiffer Exp $
+=for vc $Id: makepp_statements.pod,v 1.32 2007/09/04 23:43:24 topnerd Exp $
 
 =head1 DESCRIPTION
 
-L<B<a>nd|/Conditionals>,E<nbsp>
+L<B<a>nd|/Conditionals>, L</autoload>,E<nbsp>
 L<B<b>uild_cache|/build_cache>, L</build_check>,E<nbsp>
 L<B<d>efine|define>,E<nbsp>
 L<B<e>lse|/Conditionals>, L<enddef|/define>, L<endef|/define>, L<endif|/Conditionals>,
   L</export>,E<nbsp>
 L<B<g>lobal|/global>,E<nbsp>
 L<B<i>fdef|/ifdef>, L</ifeq>, L</ifmakeperl>, L<ifndef|/ifdef>, L<ifneq|/ifeq>,
-  L<ifnsys|/ifsys>, L</ifperl>, L</ifsys>, L</include>, L</_include>,E<nbsp>
+  L<ifnsys|/ifsys>, L<ifntrue|/iftrue>, L</ifperl>, L</ifsys>, L</iftrue>, L</include>, L</_include>,E<nbsp>
 L<B<l>oad_makefile|/load_makefile>,E<nbsp>
 L<B<m>ake|/prebuild>, L<perl|/makeperl>, L</makesub>,E<nbsp>
 L<B<n>o_implicit_load|/no_implicit_load>,E<nbsp>
@@ -103,9 +103,9 @@ statements:
 
 which are equivalent.  Of course you can quote the strings as needed.
 
-C<ifeq> and its friends C<ifneq>, C<ifdef>, C<ifndef>, C<ifperl> and
-C<ifmakeperl> are primarily useful when you have to build a program under
-several different conditions.  For example,
+C<ifeq> and its friends C<ifneq>, C<ifdef>, C<ifndef>, C<ifperl>,
+C<ifmakeperl>, C<ifsys> and C<iftrue> are primarily useful when you have
+to build a program under several different conditions.  For example,
 
     BUILD_TYPE := debug    # "debug" or "production"
  
@@ -226,6 +226,13 @@ what the current platform matches by typing the following command at the
 Shell:
 
     perl -MConfig -e'print "$^O @Config{qw(archname myarchname)} "'; uname -mps
+
+=item iftrue expression
+
+=item ifntrue expression
+
+Tests if the expression evaluates to some value other than zero or the empty
+string.
 
 =back
 
@@ -435,6 +442,36 @@ See L<makepp_extending> for more details and examples.
 =head2 Simple Statements
 
 =over 4
+
+=item autoload filename ...
+
+Specifies one or more makefiles to load should an attempt to find a rule for
+a file in this directory otherwise fail.
+This is useful when the makefile has rules whose definitions depend (possibly
+indirectly) on a file in another directory that depends (possibly indirectly)
+on other files in this directory (built by rules that do I<not> depend
+on the file in the other directory).
+
+For example, your F<Makeppfile> might look like this:
+
+    rules-to-build-files-that-otherdir/x-depends-on
+
+    more_rules.makeppfile: otherdir/x
+        action-to-build-more_rules.makeppfile
+
+    autoload more_rules.makeppfile
+
+Note that we cannot reliably replace C<autoload> with C<include> here,
+because if something other than the rule for F<more_rules.makeppfile>
+tries to build F<otherdir/x> first, then F<more_rules.makeppfile> will
+probably fail because F<otherdir/x> won't exist yet, because there is
+already an attempt to build it underway when F<Makeppfile> is implicitly
+loaded on its behalf.
+
+WARNING: Be very careful about doing things in an autoloaded makefile that
+change the behavior of rules in the directory's other makefileZ<>(s), as this
+will cause that behavior to depend on whether or not some previously built
+target caused makefiles to be autoloaded.
 
 =item build_cache /path/to/build/cache
 

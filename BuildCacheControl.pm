@@ -1,4 +1,4 @@
-# $Id: BuildCacheControl.pm,v 1.18 2007/07/28 18:19:03 pfeiffer Exp $
+# $Id: BuildCacheControl.pm,v 1.23 2008/05/17 14:21:36 pfeiffer Exp $
 
 package BuildCacheControl;
 use strict;
@@ -11,7 +11,7 @@ use FileInfo qw(file_info absolute_filename);
 use BuildCache;
 use FileInfo_makepp;
 use Makecmds;
-use POSIX;
+use POSIX ':errno_h';
 
 BEGIN {
   *DEV = \&TextSubs::CONST0;
@@ -26,6 +26,9 @@ BEGIN {
   *CTIME = sub() { 10 };
 
   *::propagate_pending_signals = \&TextSubs::CONST0 unless defined &::propagate_pending_signals;
+
+  no warnings;
+  *ESTALE = \&BuildCache::ESTALE; # Overridden on Win ActiveState.
 }
 
 =head2 group 'path/to/build_cache', ...
@@ -70,12 +73,14 @@ sub group(@) {
 
     my $opt = "$_/$BuildCache::options_file";
     unless( -r $opt ) {		# Disk or NFS server  might be down.
-      push @unreachable, $_ if $! == POSIX::ENOENT || $! == POSIX::ENOTDIR;
+      push @unreachable, $_ if $! == ENOENT || $! == ENOTDIR;
       undef $bc{int $dinfo};	# Note it so we don't warn for it again.
       warn "Can't read $opt--$!\n";
       next;
     }
-    my @tmp = do $opt or die $@ =~ / $opt / ? $@ : "$opt: $@";
+# do() fails to return list on one instance of 5.6.1, hence alternative on next line:
+#    my @tmp = do $opt or die $@ =~ / $opt / ? $@ : "$opt: $@";
+    open my $fh, '<', $opt; local $/; my @tmp = eval <$fh> or die $@ =~ / $opt / ? $@ : "$opt: $@";
     $tmp[-1]{'..'} = $dinfo;	# [0] for non grouped, [1] for grouped.
     $dinfo->{BC} = new BuildCache $_, $tmp[-1];
 
@@ -195,7 +200,7 @@ sub groupfind(&;$) {
       }
       unless( defined -l "$dirs[$i]/$_" ) { # What's wrong, concurrent clean?
 	my $msg = "$0: lstat $_: $!\n";
-	if( $! == POSIX::ENOENT || $! == POSIX::ESTALE ) {
+	if( $! == ENOENT || $! == ESTALE ) {
 	  warn $msg;
 	  next;
 	}
@@ -543,7 +548,7 @@ sub c_create {
 	my( $y, $z ) = ("$_->{DIRNAME}/.y", "$_->{DIRNAME}/.z");
 				# Prepend '.' which doesn't occur in bc keys, in
 				# case we are forcing creation of an existing cache.
-	my $symlink = symlink 'x', $y;
+	my $symlink = eval { symlink 'x', $y };
 	$symlink &&= link $y, $z; # Can we link to a stale symlink?  Stale, as some systems
 				# link to the linked file, which only works on same fs.
 	unlink $y, $z;
@@ -868,7 +873,7 @@ EOF
 sub ::helpfoot { die <<'EOF' }
 
 Look at @htmldir@/makepp_build_cache.html for more details,
-or at http://makepp.sourceforge.net/1.50/makepp_build_cache.html
+or at http://makepp.sourceforge.net/@BASEVERSION@/makepp_build_cache.html
 or type "man makepp_build_cache".
 EOF
 

@@ -30,16 +30,6 @@ b: e
 
 x: $(wildcard x*/*)
 	&echo $(inputs) -o $(output)
-###	D	755	1067451878	966133204	answers
-###	4	644	1067451878	970329283	answers/c
-a
-b
-d
-e
-###	1	644	1067451878	966133204	answers/n_files
-2 0
-###	1	644	1122590442	1122590513	answers/x
-x1/f1 x2/f2
 ###	D	755	1067451878	970329180	repository
 ###	1	644	1067451878	966130046	repository/a
 a
@@ -55,3 +45,13 @@ e
 ###	D	755	1067451878	966314901	repository2/subdir
 ###	1	644	1067451878	966314901	repository2/subdir/d
 d
+###	D	755	1067451878	966133204	answers
+###	4	644	1067451878	970329283	answers/c
+a
+b
+d
+e
+###	1	644	1067451878	1190053924	answers/n_files
+2 1 0
+###	1	644	1122590442	1122590513	answers/x
+x1/f1 x2/f2

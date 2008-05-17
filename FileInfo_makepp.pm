@@ -2,7 +2,7 @@ package FileInfo;
 
 use FileInfo;			# Override some subroutines from the
 				# generic FileInfo package.
-# $Id: FileInfo_makepp.pm,v 1.77 2007/07/17 22:13:41 pfeiffer Exp $
+# $Id: FileInfo_makepp.pm,v 1.83 2008/04/18 22:45:39 pfeiffer Exp $
 
 #
 # This file defines some additional subroutines for the FileInfo package that
@@ -66,22 +66,23 @@ sub build_info_string {
   my $rule = get_rule( $finfo, $no_last_chance );
 
 Returns the rule to build the file, if there is one, or undef if there is none.
-If $no_last_chance is set, then don't consider last chance rules.
+If $no_last_chance is set, then don't consider last chance rules or autoloads.
 
 =cut
 
 sub get_rule {
   return undef if &dont_build;
-  Makefile::implicitly_load($_[0]{'..'}); # Make sure we've loaded a makefile
+  my $mdir = $_[0]{'..'};
+  Makefile::implicitly_load($mdir); # Make sure we've loaded a makefile
 				# for this directory.
   # If we know the rule now, then return it.  Otherwise, try to find a
   # "backwards inference" rule.
-  $_[0]{RULE} || ($_[1] ? undef : 1) && $n_last_chance_rules && do {
+  exists $_[0]{RULE} ? $_[0]{RULE} : ($_[1] ? undef : 1) && $n_last_chance_rules && do {
     # NOTE: Similar to FileInfo::publish(), but we stop on the first match,
     # and there is no stale handling.
     my $finfo = $_[0];
     my $fname = $finfo->{NAME};
-    my $dirinfo = $finfo->{'..'};
+    my $dirinfo = $mdir;
     my $leaf = 1;
     DIR: while ($dirinfo) {
       WILD: for( @{$dirinfo->{NEEDED_WILDCARD_ROUTINES}} ) {
@@ -95,7 +96,18 @@ sub get_rule {
       $dirinfo = $dirinfo->{'..'};
       undef $leaf;
     }
-    $_[0]{RULE};
+    $finfo->{RULE} or do {
+      if( my $minfo = $mdir->{MAKEINFO} ) {
+	AUTOLOAD: while( my $auto = shift @{$minfo->{AUTOLOAD} || []} ) {
+	  ::log AUTOLOAD => $finfo;
+	  my $afile = file_info($auto, $mdir);
+	  Makefile::load( $afile, $mdir, {}, '', [],
+			  $minfo->{ENVIRONMENT}, undef, 'AUTOLOAD' );
+	  last AUTOLOAD if exists $finfo->{RULE};
+	}
+      }
+      $finfo->{RULE}
+    }
   }
 }
 
@@ -170,7 +182,7 @@ sub exists_or_can_be_built_norecurse {
   undef;
 }
 sub exists_or_can_be_built {
-  # If $phony is set, then return phony targets too.
+  # If $phony is set, then return only phony targets, which are otherwise ignored.
   # If $stale is set, then return stale generated files too, even if
   # $::rm_stale_files is set.
   # If $no_last_chance is set, then don't return generated files if the only
@@ -201,7 +213,7 @@ sub exists_or_can_be_built {
 				# by indicating that files with extra
 				# dependencies are buildable, even if there
 				# isn't an actual rule for them.
-    &get_rule($finfo, $no_last_chance) ||
+    (&get_rule($finfo, $no_last_chance) && (!exists $finfo->{IS_PHONY} xor $phony)) ||
     (!$already_loaded_makefile &&
      &exists_or_can_be_built_norecurse);
 				# Rule for building it (possibly undef'ed if
@@ -209,9 +221,9 @@ sub exists_or_can_be_built {
 				# looked stale to begin with, it could have
 				# been built by calling get_rule.
   # Exists in repository?
-  if($finfo->{ALTERNATE_VERSIONS}) {
-    for my $version (@{$finfo->{ALTERNATE_VERSIONS}}) {
-      $result=exists_or_can_be_built_norecurse($version, $phony, $stale);
+  if( exists $finfo->{ALTERNATE_VERSIONS} ) {
+    for( @{$finfo->{ALTERNATE_VERSIONS}} ) {
+      $result = exists_or_can_be_built_norecurse( $_, $phony, $stale );
       return $result || undef if defined $result;
     }
   }
@@ -229,7 +241,10 @@ sub exists_or_can_be_built_or_remove {
   if( $finfo->{EXISTS} || &signature ) {
     ::log DEL_STALE => $finfo
       if $::log_level;
-    die "Internal error" unless &was_built_by_makepp;
+    unless(&was_built_by_makepp) {
+      die "`".&absolute_filename."' is both a source file and a phony target" if exists $finfo->{IS_PHONY};
+      die "Internal error";
+    }
     # TBD: What if the unlink fails?
     &FileInfo::unlink;
     # Remove the build info file as well, so that it won't be treated as
@@ -295,18 +310,17 @@ build rule.
 #}
 
 
-=head2 move_or_link_target
+=head2 get_from_rep
 
-  $status = move_or_link_target($finfo, $repository_file);
+  $status = get_from_rep($finfo, $repository_file);
 
-Links a file in from a repository or variant build cache into the current
-directory.
+Links a file in from a repository into the current directory.
 
 Returns 0 if successful, nonzero if something went wrong.
 
 =cut
 
-sub move_or_link_target {
+sub get_from_rep {
   my ($dest_finfo, $src_finfo) = @_;
 
   if ($dest_finfo->{DIRCONTENTS}) { # Is this a directory?
@@ -374,7 +388,7 @@ sub move_or_link_target {
     }
     &FileInfo::unlink;		# Get rid of anything that might already
 				# be there.
-    if( is_symbolic_link $src_finfo ) {
+    if( !$::symlink_in_rep_as_file && is_symbolic_link $src_finfo ) {
 				# Must not fetch symlinks from repository, because
 				# they can point to another file in the repository
 				# of which we have a different version locally.
@@ -390,8 +404,8 @@ sub move_or_link_target {
       ::print_error( 'Cannot link ', $src_finfo, ' to ', $dest_finfo, ":\n$@" );
       return 1;			# Indicate failure.
     }
-  }
-  else {
+    ++$::rep_hits;
+  } else {
     ::log 'REP_EXISTING'
       if $::log_level;
   }
@@ -606,6 +620,8 @@ overrides anything.
 sub set_rule {
   my ($finfo, $rule) = @_; # Name the arguments.
 
+  return if &dont_build($finfo);
+
   if (!defined($rule)) {	# Are we simply discarding the rule now to
 				# save memory?	(There's no point in keeping
 				# the rule around after we've built the thing.)
@@ -812,7 +828,7 @@ sub update_build_infos {
 				# build info strings for the same file are
 				# changed, it can get on the list twice.
     delete $finfo->{NEEDS_BUILD_UPDATE}; # Do not update it again.
-    unless( in_sandbox( $finfo )) {
+    if( !in_sandbox( $finfo ) || ($::virtual_sandbox_flag && !$finfo->{BUILDING}) ) {
       # If we cached some info about a file outside of our sandbox, then
       # don't flush the info, but don't write it either, because then we could
       # have a race with another makepp process. (That's what sandboxing is
@@ -876,19 +892,18 @@ rule for it is to get it from a repository.
 =cut
 
 sub _valid_alt_versions {
-  my $alts = $_[0]{ALTERNATE_VERSIONS};
-  return unless $alts && @$alts;
+  return unless exists $_[0]{ALTERNATE_VERSIONS};
   return 1 unless $::rm_stale_files;
-  for my $alt (@$alts) {
-    return 1 unless was_built_by_makepp( $alt );
-  }
-  return;
+  was_built_by_makepp $_
+    or return 1
+    for @{$_[0]{ALTERNATE_VERSIONS}};
 }
 # is_stale( $finfo )
 # Note that load_build_info_file may need to track changes to is_stale.
 sub is_stale {
-  !exists($_[0]{RULE}) && !$_[0]{ADDITIONAL_DEPENDENCIES} &&
-    !&dont_build && &was_built_by_makepp && !&_valid_alt_versions;
+  (exists $_[0]{IS_PHONY} ||
+   !exists($_[0]{RULE}) && !$_[0]{ADDITIONAL_DEPENDENCIES}
+  ) && !&dont_build && &was_built_by_makepp && !&_valid_alt_versions;
 }
 
 =head2 assume_unchanged
@@ -927,9 +942,11 @@ BEGIN {
     $fail ||= 'undef';
     my $key = uc $fn;
     eval "sub $fn {
-      exists( \$_[0]{$key} ) ? \$_[0]{$key} :
-	(!\$::${fn}_dir_flag || \$_[0] == \$FileInfo::root) ? $fail :
-	(\$_[0]{$key} = $fn( \$_[0]{'..'} ));
+      exists( \$_[0]{$key} ) ?
+	\$_[0]{$key} :
+      (\$::${fn}_dir_flag && \$_[0] != \$FileInfo::root) ?
+	(\$_[0]{$key} = $fn( \$_[0]{'..'} )) :
+	$fail;
     }";
   }
 }
@@ -975,22 +992,32 @@ sub load_build_info_file {
 
     if( exists $build_info->{FROM_REPOSITORY} ) {
       # Retain previous repository information if no new info given.
-      $_[0]{ALTERNATE_VERSIONS} ||= [file_info $build_info->{FROM_REPOSITORY}, $_[0]{'..'}];
+      $finfo->{ALTERNATE_VERSIONS} ||= [file_info $build_info->{FROM_REPOSITORY}, $finfo->{'..'}];
 
       # If we linked the file in from a repository, but it was since modified in
       # the repository, then we need to remove the link to the repository now,
       # because otherwise we won't remove the link before the target gets built.
       # Note that this code may need to track changes to is_stale.
-      unless( $sig_match && $finfo->{ALTERNATE_VERSIONS} && @{$finfo->{ALTERNATE_VERSIONS}} || &dont_build ) {
-	if( dereference( $finfo ) == file_info( $build_info->{FROM_REPOSITORY}, $finfo->{'..'} )) {
-	  unless( &in_sandbox ) {
+      unless( $sig_match && exists $finfo->{ALTERNATE_VERSIONS} || &dont_build ) {
+	if( &dereference == file_info $build_info->{FROM_REPOSITORY}, $finfo->{'..'} ) {
+	  if( &in_sandbox || !-e &absolute_filename ) {
+	    # If the symlink points nowhere, then there is no race here even
+	    # if it is out of sandbox, because the result is the same no matter
+	    # who wins the race.  However, this probably isn't 100%
+	    # bulletproof, because some makepp process other than the one that
+	    # deletes the file might think that it still exists after it and
+	    # its build info file have been removed.  That's probably still
+	    # better than getting permanently stuck when a repository file is
+	    # deleted.
+	    ::log REP_OUTDATED => $finfo
+	      if $::log_level;
+	    FileInfo::unlink( $finfo );
+	  }
+	  else {
 	    warn $::sandbox_warn_flag ? '' : 'error: ',
 	      "Can't remove outdated repository link " . &absolute_filename . " because it's out of my sandbox\n";
 	    die unless $::sandbox_warn_flag;
 	  }
-	  ::log REP_OUTDATED => $finfo
-	    if $::log_level;
-	  FileInfo::unlink( $finfo );
 	} else {
 	  undef $sig_match;	# The symlink was modified outside of makepp
 	}
@@ -1017,6 +1044,7 @@ sub load_build_info_file {
     }
   } else {
     warn "$build_info_fname: build info file corrupted\n";
+    CORE::unlink($build_info_fname); # Get rid of bogus file.
   }
   $build_info;
 }

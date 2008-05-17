@@ -1,15 +1,17 @@
-#!/usr/bin/perl -w
+#!/home/utils/perl-5.8.8/bin/perl -w
+
 use strict;
 
-# $Id: makepplog,v 1.15 2007/07/28 18:42:53 pfeiffer Exp $
+# $Id: makepplog,v 1.25 2008/05/17 14:08:37 pfeiffer Exp $
 
 # Shall we put a period after each message?  Or once for all before the \n when printing?
 my %log_msg =
  (
+  AUTOLOAD => 'Autoloading for target %s',
   BC_COPY => 'Copied %s from build cache file %s',
-  BC_EXPORT => 'Target %s exported to build cache',
+  BC_EXPORT => 'Target %s exported to build cache file %s',
   BC_FOUND => 'Found match for %s in build cache with key %s',
-  BC_LINK => 'Target %s hard-linked into build cache and write-protected',
+  BC_LINK => 'Target %s hard-linked into build cache file %s and write-protected',
   BC_NONE => 'No entry for %s in build cache with key %s',
   BC_NO_KEY => 'Not checking build cache for %s because it has no key',
 
@@ -50,7 +52,9 @@ my %log_msg =
   MAYBE_STALE => 'Ignoring possibly stale generated file %s',
   NOT_FOUND => '%s not found in $PATH at %s',
   NOT_IN_SANDBOX => 'Not updating build info for %s because it\'s not in my sandbox',
-  N_FILES => '%d files updated and %d targets failed',
+  N_CACHE_HITS => '%d files imported from build cache',
+  N_FILES => '%d files updated, %d phony targets built and %d targets failed',
+  N_REP_HITS => '%d files imported from repositories',
   OUT_OF_DATE => 'Discarding out-of-date or corrupt build info file %s',
   PARSE => 'Parsing command %s from directory %s for rule %s',
   PREBUILD => 'Pre-building %s from %s',
@@ -105,7 +109,11 @@ my @obsolete_msg;
 $obsolete_msg[0] =
  {
   INCL => 'Including %s',
-  INCL_BY => '%s included by %s',
+  INCL_BY => '%s included by %s'
+ };
+$obsolete_msg[1] =
+ {
+  N_FILES => '%d files updated and %d targets failed'
  };
 
 
@@ -122,13 +130,13 @@ BEGIN {
 #
   $datadir = $0;		# Assume it's running from the same place that
 				# we're running from.
-  unless ($datadir =~ s@/[^/]+$@@) { # No path specified?
+  unless( $datadir =~ s@/[^/]+$@@ ) { # No path specified?
 				# See if we can find ourselves in the path.
-    foreach (split(/:/, $ENV{'PATH'}), '.') {
+    foreach( split( /:/, $ENV{'PATH'} ), '.' ) {
 				# Add '.' to the path in case the user is
-				# running it with "perl makepplog" even if
+				# running it with "perl makepp" even if
 				# . is not in his path.
-      if (-f "$_/FileInfo.pm") { # Found something we need?
+      if( -f "$_/Glob.pm" ) {	# Found something we need?
 	$datadir = $_;
 	last;
       }
@@ -146,7 +154,7 @@ use Utils;
 use FileInfo_makepp;
 use TextSubs ();
 
-my( $cwd, $instdir, $keylist, $noindent, $rename, $uniq );
+my( $cwd, $instdir, $keylist, $noindent, $rename, $tabulate, $uniq );
 my( @logfiles, $outfile );
 my $follow = 0;
 my $prefix = '';
@@ -165,6 +173,7 @@ my $showkey = '';
     ['n', qr/no[-_]?indent/, \$noindent],
     [qw(o output), \$outfile, 1],
     [qw(p prefix), \$prefix, 0, 'makepplog: '],
+    [qw(t tabulate), \$tabulate],
     ['u', qr/uniq(?:ue)?/, \$uniq],
 
     [qr/[h?]/, 'help', undef, 0, \&usage];
@@ -174,17 +183,19 @@ $| = 1 if $follow > 1;
 
 sub usage { print << 'END_OF_USAGE'; exit 0 }
 Usage: makepplog [-options]
--c or --current-working-dir or --current-working-directory
+Render and optionally filter what makepp logged about the last build.
+
+-c, --current-working-dir or --current-working-directory
 	Make all files under current dir, be relative to it.
--C N or --current-working-dir-and-up=N or --current-working-directory-and-up=N
+-C N, --current-working-dir-and-up=N or --current-working-directory-and-up=N
 	Make all files under current N dirs up, be relative to this one.
--i or --install-dir or --installation-directory
+-i, --install-dir or --installation-directory
 	Replace path to makepp internal files with ...
--k LIST or --keys=LIST or --keylist=LIST
-	Show only messages with or !without keys, comma separated, bash patterns.
+-k LIST, --keys=LIST or --keylist=LIST
+	Show only messages with, !without or ^without keys, {bash,patterns}.
 -K or --showkey
 	Prepend every message with its internal key (to see what to select)
--l FILE or --log=FILE or --logfile=FILE
+-l FILE, --log=FILE or --logfile=FILE
 	Alternate file or dir to get log from, can be given more than once.
 -n or --no-indent
 	Don't show scanner nesting with indentation.
@@ -192,17 +203,19 @@ Usage: makepplog [-options]
 	Redirect output.
 -p or --prefix
 	Prefix every line with makepplog:
--u or --uniq or --unique
+-t or --tabulate
+	Put each list item on a new line.
+-u, --uniq or --unique
 	Don't repeat lines about inclusion or scanning.
-END_OF_USAGE
 
-$ENV{HOME} and FileInfo::dereference( FileInfo::file_info( $ENV{HOME} ));
-				# Make sure we get a symbolic name for the
-				# home directory, if there is one.
+Look at @htmldir@/makepplog.html for more details,
+or at http://makepp.sourceforge.net/@BASEVERSION@/makepplog.html
+or type "man makepplog".
+END_OF_USAGE
 
 my %instdir;
 sub instdir {
-  if( s!^(/.+)(?=/makepp_(?:builtin_rules|default_makefile)\.mk(:|$))!...! && $2 ) {
+  if( s!^((?:[a-z]:)?/.+)(?=/makepp_(?:builtin_rules|default_makefile)\.mk(:|$))!...! && $2 ) {
     my $instdir = $1;
     s<(:\d+\()((/?)[^\)]*)> {
       my $ret = $1;
@@ -231,10 +244,11 @@ open STDOUT, '>', $outfile if $outfile;
 
 
 my %want;
-my( %incl, %scan );		# Redundant message counters for --uniq
+my( %incl, %cached_dep, %scan ); # Redundant message counters for --uniq
+my $warned_corrupt;
 FILE:
-for( @logfiles ) {
-  open my $log, $_ or die "$0: can't open `$_'--$!\n";
+for my $logfile ( @logfiles ) {
+  open my $log, $logfile or die "$0: can't open `$_'--$!\n";
 
   $_ = <$log>;
   s/^(\d+)\01//;		# Strip log version.
@@ -250,10 +264,13 @@ for( @logfiles ) {
       last if !defined;
       tr/a-z/A-Z/;
       s/(?=[?*])/./g;
-      s/\{/(?:/g and
-	tr/,}/|)/ || die "makepplog: error: -K, --keylist contained '{', but no matching '}'\n";
+      if( s/\{/(?:/g ) {
+	tr/,}/|)/ or die "makepplog: error: -k, --keylist contained '{', but no ',' or '}'\n";
+      } else {
+	/,/ and die "makepplog: error: -k, --keylist contained ',', but no '{...}'\n";
+      }
       for my $re ( split ) {
-	if( $re =~ s/^!\s*// ) {
+	if( $re =~ s/^[!^]// ) {
 	  @want{keys %log_msg} = () if !%want;
 	  delete @want{grep /^$re$/, keys %want};
 	} else {
@@ -264,11 +281,11 @@ for( @logfiles ) {
 
     @want{keys %log_msg} = () if !%want;
   }
-  s!^/.+(?=/makepp\b)!...! if $instdir;
+  s!^(?:[a-z]:)?/.+(?=/makepp\b)!...!i if $instdir;
   print;
 
   my $indent = '';
-  my( %dir_name, %file_name, $incl, @incl );
+  my( %dir_name, %file_name, $incl, @incl, $cached_dep, @cached_dep );
  RETRY:
   while( <$log> ) {
 
@@ -302,6 +319,10 @@ for( @logfiles ) {
 	      $file_name{$3} = $_;
 	    }
 	  }
+	  unless(defined $dir_name{$3}) {
+	      $dir_name{$3} = '???';
+	      warn "Corrupt log file (probably because of concurrent write access to $logfile)" unless $warned_corrupt++;
+	  }
 	  for( "$dir_name{$3}/$2" ) {
 	    $dir_name{$1} = $_;	# Might be a dir.
 	    &$rename() if $rename;
@@ -319,9 +340,10 @@ for( @logfiles ) {
       pop @args;		# Remove the newline we kept to work around
 				# the stupid end handling of split.
       if( exists $want{$key} ) {
+	next if $uniq && $key =~ /^SCAN/ && $scan{$key}{$file_name{$args[0]}}++;
 
-	# Merge adjacent INCL statements, which is currently hard to do in makepp.
 	if( $log_version && $key eq 'INCL' ) {
+	  # Merge adjacent INCL statements, which is currently hard to do in makepp.
 	  next
 	    if $uniq && $incl{$file_name{$args[0]}}{$file_name{$args[1]}}++;
 	  if( !defined $incl ) {
@@ -332,17 +354,40 @@ for( @logfiles ) {
 	    push @incl, $args[1];
 	    next;
 	  }
-	} elsif( $uniq && $key =~ /^SCAN/ && $scan{$key}{$file_name{$args[0]}}++ ) {
-	  next;
 	}
 	if( defined $incl ) {
 	  # If we get here the previous message was INCL, and this one is not, or is, but for a different file.
 	  $showkey &&= 'INCL ';
 	  printf "$prefix$showkey$indent$log_msg{INCL}\n",
 	    "`$file_name{$incl}'",
-	    '`' . (join "', `", map $file_name{$_}, @incl) . "'";
+	    '`' . (join $tabulate ? "',\n$prefix$showkey$indent  `" : "', `", map $file_name{$_}, @incl) . "'";
 	  goto INCL if $key eq 'INCL'; # Next one follows right behind.
 	  undef $incl;
+	}
+
+	if( $key eq 'CACHED_DEP' ) {
+	  # Merge adjacent CACHED_DEP statements, which is currently hard to do in makepp.
+	  next
+	    if $uniq && $cached_dep{$file_name{$args[1]}}{$file_name{$args[0]}}++;
+	  if( !defined $cached_dep ) {
+	  CACHED_DEP:
+	    ($cached_dep[0], $cached_dep) = @args;
+	    next;
+	  } elsif( $cached_dep eq $args[1] ) {
+	    push @cached_dep, $args[0];
+	    next;
+	  }
+	}
+
+	if( defined $cached_dep ) {
+	  # If we get here the previous message was CACHED_DEP, and this one is not, or is, but for a different file.
+	  $showkey &&= 'CACHED_DEP ';
+	  printf "$prefix$showkey$indent$log_msg{CACHED_DEP}\n",
+	    '`' . (join $tabulate ? "',\n$prefix$showkey$indent  `" : "', `", map $file_name{$_}, @cached_dep) . "'",
+	    "`$file_name{$cached_dep}'";
+	  goto CACHED_DEP if $key eq 'CACHED_DEP'; # Next one follows right behind.
+	  undef $cached_dep;
+	  @cached_dep = ();
 	}
 
 	# Output the actual message.
@@ -353,7 +398,8 @@ for( @logfiles ) {
 	    map {
 	      $_ eq '' ? '' :
 		'`' .
-		(join "', `", map exists $file_name{$_} ? $file_name{$_} : do { &$rename() if $rename; $_ }, split /\02/) .
+		(join $tabulate ? "',\n$prefix$showkey$indent  `" : "', `",
+		 map exists $file_name{$_} ? $file_name{$_} : do { &$rename() if $rename; $_ }, split /\02/) .
 		"'";
 	    } @args;
       } elsif( !exists $log_msg{$key} ) {

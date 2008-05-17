@@ -1,4 +1,4 @@
-# $Id: makepp_builtin_rules.mk,v 1.21 2006/10/09 18:29:11 pfeiffer Exp $
+# $Id: makepp_builtin_rules.mk,v 1.24 2008/05/08 21:00:49 pfeiffer Exp $
 # Please do NOT use this as an example of how to write a makefile.  This is
 # NOT A typical makefile.
 #
@@ -23,6 +23,8 @@
 #
 _CPP_SUFFIXES := cxx c++ cc cpp
 _OBJ_SUFFIX = .o
+_OUTPUT = -o $(output)
+_EXE_SUFFIX =
 
 ifperl $FileInfo::case_sensitive_filenames
   #
@@ -31,34 +33,24 @@ ifperl $FileInfo::case_sensitive_filenames
   #
   _CPP_SUFFIXES += C
 endif
-ifperl ::is_windows()
+ifperl ::is_windows
 
-  ifneq $(filter %cl %bcc32, $(CC) $(CXX))
-  or ifneq $(filter %fl, $(FC))
+  iftrue $(filter %cl %cl.exe %bcc32 %bcc32.exe %fl %fl.exe, $(CC) $(CXX) $(FC))
     _OBJ_SUFFIX = .obj
+    _OUTPUT =
   endif
 
-  ifndef makepp_no_builtin_linker
-  or ifeq $(makepp_no_builtin_linker) 0
+  ifntrue $(makepp_no_builtin_linker)
     _EXE_SUFFIX = .exe
     #
     # We want "makepp xyz" to make xyz.exe if this is Windows.
-    # This is a hack hack hack to make a phony target xyz that depends on
-    # xyz.exe.  We must mark xyz as a phony target *after* we have associated
-    # a rule with the target, or else the rule will not work because makepp
-    # specifically rejects builtin rules for phony targets (to prevent disasters).
-    # (See code in set_rule().)  So we evaluate $(phony ) only after the
-    # rule has been set.  This kind of shenanigan is never necessary in normal
-    # makefiles because there are no special restrictions about rules from anywhere
-    # except this file.
     #
-    $(basename $(foreach)): $(foreach) : foreach *.exe
-	@makeperl { '$(phony $(output))' }
+    $(basename $(foreach)): : foreach *.exe
+	$(_exe_magic_)
   endif
 endif
 
-ifndef makepp_no_builtin_linker
-or ifeq $(makepp_no_builtin_linker) 0
+ifntrue $(makepp_no_builtin_linker)
   #
   # Link commands
   # We could split this up into keywords/builtins common to all Shells
@@ -69,40 +61,40 @@ or ifeq $(makepp_no_builtin_linker) 0
 		esac eval exec exit export fg fi for getopts hash if jobs kill login \
 		newgrp pwd read readonly return set shift stop suspend test then \
 		times trap type ulimit umask unset until wait while)$(_OBJ_SUFFIX))
-	$(infer_linker $(inputs)) $(inputs) $(LDLIBS) $(LDFLAGS) $(LIBS) -o $(output)
+	$(infer_linker $(inputs)) $(inputs) $(LDLIBS) $(LDFLAGS) $(LIBS) $(_OUTPUT)
 	noecho makeperl {{
-	  print "Warning: on unix, to run a program called '$(basename $(foreach))', you usually must type\n";
-	  print "  ./$(basename $(foreach))\n";
-	  print "rather than just '$(basename $(foreach))'.\n";
+	  warn "On Unix, to run a program called `$(basename $(foreach))', you usually must type\n" .
+	    "  ./$(basename $(foreach))\n" .
+	    "rather than just `$(basename $(foreach))'.\n";
 	}}
 
   $(basename $(foreach))$(_EXE_SUFFIX): $(infer_objects $(foreach), *$(_OBJ_SUFFIX))
 	:foreach *$(_OBJ_SUFFIX)
-	$(infer_linker $(inputs)) $(inputs) $(LDLIBS) $(LDFLAGS) $(LIBS) -o $(output)
+	$(infer_linker $(inputs)) $(inputs) $(LDLIBS) $(LDFLAGS) $(LIBS) $(_OUTPUT)
 endif
 
 #
 # C++ compilation:
 #
-ifneq $(percent_subdirs)
+iftrue $(makepp_percent_subdirs)
 $(basename $(foreach))$(_OBJ_SUFFIX) : $(foreach) : foreach **/*.$(_CPP_SUFFIXES)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) $(_OUTPUT)
 else
 $(basename $(foreach))$(_OBJ_SUFFIX) : $(foreach) : foreach *.$(_CPP_SUFFIXES)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) $(_OUTPUT)
 endif
 
 #
 # C compilation:
 #
 %$(_OBJ_SUFFIX): %.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $(input) $(_OUTPUT)
 
 #
 # Fortran compilation:
 #
 %$(_OBJ_SUFFIX): %.f
-	$(FC) $(FFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
+	$(FC) $(FFLAGS) $(CPPFLAGS) -c $(input) $(_OUTPUT)
 
 #
 # The rules for yacc and lex are marked :build_check target_newer because we

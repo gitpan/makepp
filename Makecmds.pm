@@ -1,4 +1,4 @@
-# $Id: Makecmds.pm,v 1.49 2007/06/12 21:21:10 pfeiffer Exp $
+# $Id: Makecmds.pm,v 1.55 2008/05/17 14:26:14 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains builtin commands which can be called from a rule.
@@ -33,35 +33,13 @@ sub run(@) {
     if !defined do $0 and $@ || $!;
 }
 
-#
-# Execute an external Perl script within a child of the running interpreter.
-#
-sub run_forked(@) {
-  warn "run_forked is deprecated, run script as external action\n";
-  if( !::is_windows() || $^O !~ /^MSWin/ ) {
-    my $pid = fork;
-    if( $pid == -1 ) {
-      die "could not fork: $!\n";
-    } elsif( $pid ) {
-      waitpid $pid, 0;
-    } else {
-      &run;
-      close STDOUT; close STDERR;
-      POSIX::_exit 0;		# We didn't die.
-    }
-  } else {
-    system ::PERL, '-S', @_
-      and die 'system ', ::PERL, "@_ failed: $?";
-  }
-}
-
 
 
 # builtin commands
 package Makecmds;
 
 sub eval_or_die($) {
-  $File::maybe_open++;
+  $Rule::unsafe = 1;
   Makesubs::eval_or_die $_[0], $Makesubs::rule->{MAKEFILE}, $Makesubs::rule->{RULE_SOURCE};
 }
 
@@ -114,7 +92,7 @@ sub _rm {
 
 
 # Explicit variables for options shared by several commands.
-my( $noescape, $force, $inpipe, $print, $synclines, $last_file, $last_line );
+my( $noescape, $force, $inpipe, $print, $print_nl, $synclines, $last_file, $last_line );
 
 
 # Do buffered output of $_ with optional synclines.
@@ -122,18 +100,22 @@ sub print {
   if( defined and length ) {
     if( $synclines ) {
       if( $last_file ne $ARGV ) {
+	$print_nl or $print .= "\n";
 	$print .= "#line $. \"$ARGV\"\n";
 	$last_file = $ARGV;
 	$last_line = $.;
       } elsif( ++$last_line != $. ) {
+	$print_nl or $print .= "\n";
 	$print .= "#line $.\n";
 	$last_line = $.;
       }
-      s/\n(?!\z)/\n#line $.\n/g;
+      s/\n(?!\z)/\n#line $.\n/g; # Multiple lines generated from one source line.
+      $print_nl = /\n\z/;	# Did we end with a nl?
     }
-    $print .= $_;
+    $print .= $_;		# Buffer up to about 8kb.
     if( 8 * 1024 < length $print ) {
-      print $print or die $!;
+      # Mixing this with a final print is ok, as buffering comes last.  syswrite is faster only from 3kb upwards.
+      syswrite select, $print or die $!;
       $print = '';
     }
   }
@@ -185,7 +167,7 @@ sub frame(&@) {
   };
 
   # Setup output context.
-  $print = '';
+  $print = ''; $print_nl = 1;
   $last_file = '' if $synclines;
   local *STDOUT if $output;
   if( $output ) {
@@ -264,14 +246,21 @@ sub c_cat {
   local @ARGV = @_;
   frame {
     require File::Copy;
-    for( @ARGV ) {
-      if( $synclines ) {
-	print "#line 1 \"$_\"\n";
-	local $| = 1;		# Without this, copy manages to get in 1st.
+    if( $synclines ) {
+      local $/ = \8192;
+      while( <> ) {
+	if( $. == 1 ) { # Can't use &print, as that "corrects" \n to same #line directive
+	  print $print_nl ? '' : "\n", "#line 1 \"$ARGV\"\n$_";
+	} else {
+	  print;
+	}
+	$print_nl = /\n\z/;	# Did we end with a nl?
+	close ARGV if eof;
       }
-      perform { File::Copy::copy( $_, \*STDOUT ) } "copy `$_'";
+    } else {
+      perform { File::Copy::copy( $_, \*STDOUT ) } "copy `$_'" for @ARGV;
     }
-  } 'f', qw(i I o O S); # fails in 5.6: qw(f i I o O);
+  } 'f', qw(i I o O S); # fails in 5.6: qw(f i I o O S);
 }
 
 
@@ -290,9 +279,9 @@ sub c_cp {
   my $mv;	     # must separate my from if, or it survives multiple calls
   local @ARGV = @_;
   $mv = shift @ARGV if ref $_[0];
-  my $dest = pop @ARGV;
   my $link;
   frame {
+    my $dest = @ARGV == 1 ? '.' : pop @ARGV;
     require File::Copy;
     my $cmd = $mv ? 'move' : 'copy';
     $mv = $mv ? \&File::Copy::move : \&File::Copy::syscopy;
@@ -316,7 +305,7 @@ sub c_cut {
   frame {
     my $split = eval
       'sub { @::F = ' . (!$characters ? "split /\Q$delimiter\E/, \$_, -1 }" :
-			 ($] < 5.008) ? 'split //, $_, -1 }' :
+			 ::is_perl_5_6 ? 'split //, $_, -1 }' :
 			 'unpack "(a1)*", $_ }');
     my( @idxs, $eol );
     local @::F;	     # Use Perl's autosplit variable into Makeppfile's package
@@ -509,11 +498,11 @@ sub c_install {
 
 sub c_ln {
   local @ARGV = @_;
-  my $dest = pop @ARGV;
-  $dest =~ s|/+$||;
-  my $d = -d $dest;
   my( $symbolic, $resolve );
   frame {
+    my $dest = @ARGV == 1 ? '.' : pop @ARGV;
+    $dest =~ s|/+$||;
+    my $d = -d $dest;
     for( @ARGV ) {
       my $dirdest = $d ? $dest . '/' . Makesubs::f_notdir $_ : $dest;
       _rm $dirdest if $force && ($d ? -l( $dirdest ) || -e _ : defined $d);
@@ -569,6 +558,7 @@ sub c_mkdir {
 
 my $package_seed = 0;
 sub c_preprocess {
+  $Rule::unsafe = 1;		# Chdir`s and might perform some Perl code.
   local @ARGV = @_;
   my( $command_line_vars, $assignment, $tmp ) = {};
   frame {
@@ -651,9 +641,12 @@ sub c_sort {
 sub c_template {
   local @ARGV = @_;		# for <>
   my( %macros, $tmp );
-  my( $pre, $suf, $Pre, $Suf, $afterPre, $afterSuf, $re ) = ('@', qr/@(?:\\\n)?/, qw(@@ @@ @@));
+  my( $pre, $suf, $Pre, $Suf, $afterPre, $afterSuf, $re ) = qw(@ @(?:\\\\\n)? @@ @@ @@);
   frame {
     $re = $re ? join( '|', keys %macros ) : qr/\w[-\w.]*/;
+    # Always have a () for multiline, in lst case one that never matches
+    my $pre_re = length( $Pre ) ? (length( $pre ) ? qr/$Pre()|$pre/ : qr/$Pre()/) : qr/$pre|$pre()/;
+    my $suf_re = length( $Suf ) ? (length( $suf ) ? qr/(?(2)(?:$Suf()|$suf)|$suf)/ : qr/$Suf()/) : qr/$suf/;
     my $handler = sub {
       if( defined $_[3] ) {	# @macro=def@
 	if( exists $macros{$_[3]} ) {
@@ -683,18 +676,29 @@ sub c_template {
       }
     };
     while( <> ) {
-      if( $Pre and s/(.*?) $Pre (?:($re)(?:\((.*?)\))? | \{(.*?)\}) $Suf//x ) {
-				# Substitute anything containg @@xyz@@ ... @@
-	my( $before, $name, $args, $perl ) = ($1, $2, $3, $4);
-	my $end = $afterSuf ? qr/$name$afterSuf/ : '';
-	while() {
-	  last if s/.*?$afterPre$end/ $before . &$handler( $name, $args, $perl ) /e;
-	  $_ = <>;
+      my $line;
+      while( s/(.*?) $pre_re (?:($re)(?:\((.*?)\))? | \{(.*?)\} | (\w[-\w.]*)(?:(\?)?=(.*?) | \s*(\{.*?\}))) $suf_re//x ) {
+	if( defined $line ) {
+	  $line .= $1;
+	} else {
+	  $line = $1;
 	}
+	# my( $name, $args, $perl, $def, $optdef, $value, $defcode )
+	@_ = ($3, $4, $5, $6, $7, $8, $9);
+	if( defined $2 && defined $10 ) { # multiline?
+	  my $end = $afterSuf ? qr/$_[0]$afterSuf/ : '';
+	  until( s/.*?$afterPre$end// ) {
+	    if( eof ) {
+	      warn "$ARGV:$.: $Pre$_[0]$Suf unterminated\n";
+	      $_ = '';
+	      last;
+	    }
+	    $_ = <>;
+	  }
+	}
+	$line .= &$handler;
       }
-      s/$pre (?:($re)(?:\((.*?)\))? | \{(.*?)\} | (\w[-\w.]*)(?:(\?)?=(.*?) | \s*(\{.*?\}))) $suf/
-	&$handler( $1, $2, $3, $4, $5, $6, $7 ) /xeg;
-				# Substitute anything containg @xyz@.
+      substr $_, 0, 0, $line if defined $line;
       &print;
       close ARGV if $synclines && eof;
     }

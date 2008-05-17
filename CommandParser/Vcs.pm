@@ -164,12 +164,12 @@ sub xparse_command {
       my $file=shift @words;
       $self->add_simple_dependency($file);
     }
-    elsif(/^-y(.*)/) {
-      my $vdir=$1 || shift @words;
+    elsif(/^-y$/) {
+      my $vdir=shift @words;
       $scanner->add_include_dir("vlog", $vdir);
     }
-    elsif(/^-v(.*)/) {
-      my $file=$1 || shift @words;
+    elsif(/^-v$/) {
+      my $file=shift @words;
       push(@libs, $file);
     }
     elsif($file_regexp && /$file_regexp/) {
@@ -227,9 +227,7 @@ sub xparse_command {
   require Makesubs;
   foreach (@Makesubs::system_include_dirs) {
     for my $tag ("user", "sys") {
-      $vera_scanner->add_include_dir($tag,
-	$_->absolute_filename
-      );
+      $vera_scanner->add_include_dir( $tag, $_ );
     }
   }
 

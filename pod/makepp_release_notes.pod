@@ -2,7 +2,7 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.48 2007/05/25 09:38:12 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.51 2008/05/17 14:54:51 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -12,28 +12,26 @@ makepp_release_notes -- Major changes in each version of makepp
 
 =item *
 
+New variable $/ for portable directory separator.  Lots of Windows fixes,
+including C<-j> (parallel builds) for Cygwin and MinGW and smart recursive
+builds on Cygwin.
+
+=item *
+
 Makepp has become noticeably faster.
 
 =item *
 
 Also install abbreviations consisting of 'mpp' plus the first letter of every
-following word, e.g. 'mppc' for 'makeppclean'.
+following word, e.g. 'mppc' for L<makeppclean|makeppclean>.
 
 =item *
 
-$[VARIABLE] or $[function ...] is evaluated when reading a makefile line, so
-the variable may contain makepp syntax.
-
-=item *
-
-$( ) is now always a list in rc-style substitution, so that C<-I$(
-$(DIRLIST))> will leave no lonely option when DIRLIST is empty.
-
-=item *
-
-New L<makepplog|makepplog> utility to see the log data readably, needed due to
-a changed file format.  New L<makeppgraph|makeppgraph> utility to graphically
-analyze dependencies, includes and partially the reasons for a rebuild.
+New L<makepplog, mppl|makepplog> utility to see the log data readably, needed
+due to a changed file format.  New L<makeppgraph, mppg|makeppgraph> utility to
+graphically analyze dependencies, includes and partially the reasons for a
+rebuild.  New L<makeppinfo, mppi|makeppinfo> utility to see somewhat
+cryptically what makepp knows about some file.
 
 =item *
 
@@ -60,8 +58,8 @@ C<makepp_simple_concatenation> and C<makepp_percent_subdirs>.
 
 =item *
 
-New action syntax C<&perl_function 'arg1' arg2 ...> and C<&external-perl-script
-'arg1' arg2 ...>  New Perl function C<run>.
+New action syntax C<&perl_function 'arg 1' arg2 ...> and
+C<&external-perl-script 'arg 1' arg2 ...>  New Perl function C<run>.
 
 There are the following L<builtin commands|makepp_builtins>: C<&chmod>,
 C<&cp>, C<&cut>, C<&echo>, C<&expr>, C<&grep>, C<&install>, C<&ln>, C<&mkdir>,
@@ -69,10 +67,14 @@ C<&mv>, C<&perl>, C<&preprocess>, C<&printf>, C<&rm>, C<&sed>, C<&sort>,
 C<&template>, C<&touch>, C<&uninstall>, C<&uniq> and C<&yes>, which can
 replace Unix commands of the same name, and more or less also the following:
 C<awk>, C<chgrp>, C<chown>, C<head>, C<m4>, C<rmdir>, C<tail> and C<tr>.  They
-are also available L<stand-alone|makeppbuiltin> from the Shell.  Note that,
-unlike earlier CVS versions, C<&cut -f>, C<&grep -v> and C<&sort -r> now
-behave as in Unix.  They can also be used as functions, e.g. C<$(&cat file)>,
-or as L<statements|makepp_statements/Commands>, or standalone.
+are also available L<stand-alone|makeppbuiltin> from the Shell.  They can also
+be used as functions, e.g. C<$(&cat file)>, or as
+L<statements|makepp_statements/Commands>, or standalone.
+
+Note that, unlike earlier CVS versions, C<&cut -f>, C<&grep -v> and C<&sort
+-r> now behave as in Unix.  Note that in earlier CVS versions of C<&template>
+C<@@> was processed before C<@>, but now lines are consistently handled front
+to back.
 
 =item *
 
@@ -140,6 +142,16 @@ when visiting F<Makeppfile>.
 
 =item *
 
+$[VARIABLE] or $[function ...] is evaluated when reading a makefile line, so
+the variable may contain makepp syntax.
+
+=item *
+
+$( ...) is now always a list in rc-style substitution, so that C<-I$(
+$(DIRLIST))> will leave no lonely option when DIRLIST is empty.
+
+=item *
+
 You can now double-paren functions and multi-line lists, allowing things like
 S<C<$((perl if( $a < 5 ) { ... }))>>.
 
@@ -171,7 +183,7 @@ string.
 
 =item *
 
-New statements C<ifperl>, C<ifmakeperl>, C<ifsys> and C<ifnsys>.
+New statements C<ifperl>, C<ifmakeperl>, C<iftrue>, C<ifntrue>, C<ifsys> and C<ifnsys>.
 
 =item *
 

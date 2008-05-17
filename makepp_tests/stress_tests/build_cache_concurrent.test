@@ -1,10 +1,9 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	4	644	1148062992	1103934737	is_relevant.pl
-$md5 and link 'is_relevant.pl', 'linktest' # This test alas relies heavily on links.
-  and (stat 'is_relevant.pl')[1] == (stat 'linktest')[1]
-					# Some systems emulate them by copying :-(
-  and (fork ? wait>0 : exit(1))		# Make sure we can fork.
-###	55	755	1103935704	1185561231	makepp_test_script.pl
+###	3	644	1148062992	1210873871	is_relevant.pl
+is_windows < 1			# ActiveState can crash
+  and !no_link
+  and fork ? wait>0 : exit	# Make sure we can fork.
+###	65	755	1103935704	1185997009	makepp_test_script.pl
 # Environment variables STRESS_PREFIX0 .. STRESS_PREFIX<n> without gaps specify
 # command prefixes for that many parallel running makepp instances, one each in
 # dir0 .. dir<n>.
@@ -12,10 +11,12 @@ $md5 and link 'is_relevant.pl', 'linktest' # This test alas relies heavily on li
 # The prefixes would typically be "ssh hostname" or "0" for local execution.
 # The first two default to "0".
 
-my $insist = $ENV{STRESS_INSIST};	   # Fail unless we had stress.
-my $minutes = $ENV{STRESS_MINUTES} || 0.5; # Approximate
-my $iters = 100*$minutes;
+my $insist = $ENV{STRESS_INSIST};	# Fail unless we had stress.
+my $end = time + ($ENV{STRESS_SECONDS} || 30); # Approximate -- adjust MAKEPP_TEST_TIMEOUT!
 my $cache = $ENV{STRESS_BUILD_CACHE} || 'build_cache';
+my $no_clean = $ENV{STRESS_NO_CLEAN};	# Allow a parallelly running test to clean a grouped cache.
+my $force_copy = defined $ENV{STRESS_FORCE_COPY} ? $ENV{STRESS_FORCE_COPY} : .5;
+					# Probability to --force-copy-from-bc (0: none, 1: always)
 
 my $i = 0;
 my @hosts = (0, 0);		# Do at least 2 local tests.
@@ -23,59 +24,67 @@ while( defined( my $val = $ENV{"STRESS_PREFIX$i"} )) {
   $hosts[$i++] = $val;
 }
 
-makepp \'builtin', '-MBuildCacheControl', 'create', $cache;
+makepp \'builtin', '-MBuildCacheControl', 'create', $cache
+  unless -d $cache;
 
 $i = 0;
 # Fork a child for every host.
+my %pids;
 for( @hosts ) {
   mkdir "dir$i" or die;
   cp 'Makeppfile.in', "dir$i/Makeppfile";
-  unless( fork ) {		# We're the child now
+  my $pid = fork;
+  unless( $pid ) {		# We're the child now
     my @cmd = ($ENV{PERL}, './stress_test.pl',
-	       "dir$i", $iters, 0.5, $ENV{PERL}, $::makepp_path, $cache);
+	       "dir$i", $end, 0.5, $force_copy, $ENV{PERL}, $::makepp_path, $cache);
     if( $_ ) {			# Host prefix given for this one.
       chomp(my $pwd = `/bin/pwd`);
-      my $cmd = "$_ \"sh -c 'cd $pwd && exec @cmd'\"";
-      print "$cmd\n";
-      exec $cmd;
-    } else {
-      exec @cmd;
+      @cmd = "$_ \"sh -c 'cd $pwd && exec @cmd'\"";
     }
+    print "@cmd\n";
+    exec @cmd;
     die "exec failed: $!\n";
   }
+  die "fork failed: $!\n" if $pid < 0;
+  undef $pids{$pid};
   $i++;
 }
 
-# Back in the parent.
-for(1..20*$minutes) {
-  select undef, undef, undef, 2.5;
-  makepp \'builtin', '-MBuildCacheControl', qw{clean --mtime +-1 --in-mtime +-1}, $cache;
-}
-print STDERR "clean done\n";
+use POSIX qw(:sys_wait_h);
 
-for( @hosts ) {
-  wait; die if $?;
+# Back in the parent.
+while( 1 ) {
+  select undef, undef, undef, rand 2.5;
+  for( keys %pids ) {
+    if( waitpid $_, WNOHANG ) {
+      die if $?;
+      delete $pids{$_};
+    }
+  }
+  %pids or last;
+  $no_clean or
+    makepp \'builtin', '-MBuildCacheControl', qw{clean --verbose --mtime +-1 --in-mtime +-1}, $cache;
 }
 
 unlink 'answers/build_cache_stress' unless $insist || -f 'build_cache_stress';
 
 1;
-###	17	755	1103935704	1185560282	stress_test.pl
+###	17	755	1103935704	1185978476	stress_test.pl
 use Cwd 'chdir';
 
-@ARGV==6 or die;
-my ($subdir, $iters, $sleep, $perl, $makepp, $cache) = @ARGV;
+@ARGV==7 or die;
+my ($subdir, $end, $sleep, $force_copy, $perl, $makepp, $cache) = @ARGV;
 
 chdir $subdir or die;
 srand($$);
 my $upcache = ($cache =~ m@^/@) ? $cache : "../$cache";
 
-for(1..$iters) {
+do {
   unlink qw{short_file long_file};
-  -e qw{short_file} || -e qw{long_file} and die;
-  select(undef, undef, undef, rand($sleep));
-  system $perl, $makepp, "--build_cache=$upcache", rand(2)>1 ? '--force-copy-from-bc' : () and die;
-}
+  -e 'short_file' || -e 'long_file' and die;
+  select undef, undef, undef, rand $sleep;
+  system $perl, $makepp, "--build_cache=$upcache", rand() < $force_copy ? '--force-copy-from-bc' : () and die;
+} while $end > time;
 print STDERR "$subdir done\n";
 exit 0;
 ###	19	644	1103936101	1185560328	Makeppfile.in
@@ -83,14 +92,14 @@ perl_begin
   $::build_cache_error_hook = sub {
     # If this file doesn't show up, then there hasn't been any stress, so the
     # test isn't doing its job (and thus it fails even if it reveals no bugs).
-    open(my $fh, '>', '../build_cache_stress') or die "$!";
+    open my $fh, '>', '../build_cache_stress' or die $!;
   };
   $block = "long lines file\n" x 1024;
 perl_end
 
 $(phony check): short_file long_file.wc
-	diff short_file ../answers/dir1/short_file
-	diff long_file.wc ../answers/dir1/long_file.wc
+	&grep '/^short file/' short_file
+	&grep /^65536/ long_file.wc
 
 short_file long_file:
 	&echo -o short_file "short file"

@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	69	644	1067451878	1066078494	Makeppfile
+###	67	644	1067451878	1209131346	Makeppfile
 #
 # This file tests the perl(_begin) statement, the sub statement,
 # the perl function and perl actions.
@@ -40,7 +40,6 @@ perl				# A double-paren perl statement.
 
 perl {
   $::pid = $$;
-  run_forked qw(script.pl statement-script.out a);
   run qw(script.pl statement-script.out b);
 }
 
@@ -66,7 +65,6 @@ multiline:
 rule-script.out:
 	makeperl {{
 	  $$::pid = $$$$;		# How much is that in Euros? :-)
-	  run_forked qw(script.pl $(output) c);
 	}}
 	&script.pl $(output) d
 ###	2	755	1067451878	1066077772	script.pl
@@ -76,16 +74,14 @@ print $f "$0: running $ARGV[1] (", $::pid == $$ ? 'same' : 'different', " pid)\n
 ###	2	644	1067451878	1066078500	answers/function
 zyx:cba foobar
 ghijkl
-###	1	644	1067451878	1066077772	answers/n_files
-5 0
+###	1	644	1067451878	1190053907	answers/n_files
+5 1 0
 ###	2	644	1067451878	1066078086	answers/multiline
 multi1
 multi2
-###	2	644	1104006511	1104006511	answers/statement-script.out
-script.pl: running a (different pid)
+###	1	644	1104006511	1209131381	answers/statement-script.out
 script.pl: running b (same pid)
-###	2	644	1067451878	1066077772	answers/rule-script.out
-script.pl: running c (different pid)
+###	1	644	1067451878	1209131415	answers/rule-script.out
 script.pl: running d (same pid)
 ###	1	644	1067451878	1066078086	answers/statements
 xyz abc def foo bar

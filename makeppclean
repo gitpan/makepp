@@ -1,10 +1,9 @@
 #!/usr/bin/perl -w
 use strict;
 
-# $Id: makeppclean,v 1.9 2007/05/25 09:41:57 pfeiffer Exp $
+# $Id: makeppclean,v 1.12 2008/05/17 14:08:36 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
-use Config;
 use POSIX ();
 
 #
@@ -31,13 +30,13 @@ BEGIN {
 #
   $datadir = $0;		# Assume it's running from the same place that
 				# we're running from.
-  unless ($datadir =~ s@/[^/]+$@@) { # No path specified?
+  unless( $datadir =~ s@/[^/]+$@@ ) { # No path specified?
 				# See if we can find ourselves in the path.
-    foreach (split(/:/, $ENV{'PATH'}), '.') {
+    foreach( split( /:/, $ENV{'PATH'} ), '.' ) {
 				# Add '.' to the path in case the user is
-				# running it with "perl makeppclean" even if
+				# running it with "perl makepp" even if
 				# . is not in his path.
-      if (-f "$_/FileInfo.pm") { # Found something we need?
+      if( -f "$_/Glob.pm" ) {	# Found something we need?
 	$datadir = $_;
 	last;
       }
@@ -79,10 +78,6 @@ sub print_warning {
 sub print_log {
   &print_msg if $verbose;
 }
-
-$ENV{HOME} and FileInfo::dereference( file_info( $ENV{HOME} ));
-				# Make sure we get a symbolic name for the
-				# home directory, if there is one.
 
 my $n_files_removed = 0;
 my $recurse;
@@ -217,6 +212,10 @@ makepp are removed.  'path ...' defaults to '.'.  Options may be:
 	Prints log information to STDERR.
 --version
 	Print out the current version.
+
+Look at @htmldir@/makeppclean.html for more details,
+or at http://makepp.sourceforge.net/@BASEVERSION@/makeppclean.html
+or type "man makeppclean".
 END_OF_USAGE
   exit 0;
 }

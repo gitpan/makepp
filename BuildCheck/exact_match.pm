@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.24 2007/07/04 07:38:04 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.26 2007/09/18 21:50:39 pfeiffer Exp $
 use strict;
 package BuildCheck::exact_match;
 
@@ -95,7 +95,7 @@ sub _check_env {
     @old_env_list = split /\01/, $env_deps, -1;
     @old_env_vals = split /\01/, $env_vals, -1;
   }
-  @old_env_vals = '' if !@old_env_vals && @old_env_list == 1; # TODO: what is this for?
+  @old_env_vals = '' if !@old_env_vals && @old_env_list == 1; # There is no delimiter when the single value is the empty string.
   my @new_env_list = sort keys %$env;
   my @new_env_vals = @{$env}{@new_env_list};
   my @save_env_list = @new_env_list;
@@ -195,7 +195,7 @@ sub build_check {
 # If we get here, we have to scan through all of the dependencies
 # to see if any of them has changed.
 #
-  my @old_dep_list = map $build_cwd->{DIRCONTENTS}{$_} || file_info( $_, $build_cwd ),
+  my @old_dep_list = map exists $build_cwd->{DIRCONTENTS} && $build_cwd->{DIRCONTENTS}{$_} || file_info( $_, $build_cwd ),
     split /\01/, $sorted_deps;
 
   if (@old_dep_list != @$sorted_dependencies) { # Different # of dependencies?
@@ -226,7 +226,7 @@ sub build_check {
     next if $changed_dependencies;
 
     my $sig = $sig_method->signature($dep);
-    if (!defined($sig) || $sig ne $old_dep_sigs[$depidx]) {
+    if (!defined($sig) || $sig ne ($old_dep_sigs[$depidx] || '')) {
       ::log BUILD_CHANGED => $tinfo, $dep
 	if $::log_level;
       $changed_dependencies = 1;

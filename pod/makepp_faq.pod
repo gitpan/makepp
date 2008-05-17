@@ -2,7 +2,7 @@
 
 makepp_faq -- Frequently asked questions about makepp
 
-=for vc $Id: makepp_faq.pod,v 1.4 2007/06/29 22:21:48 pfeiffer Exp $
+=for vc $Id: makepp_faq.pod,v 1.5 2007/10/22 19:19:22 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -40,6 +40,14 @@ of the produced file was not yet the one the it finally had.  On the next run
 makepp noticed the difference and considered the file unduly modified.  This
 got resolved with a mount option of C<acregmin=0>, making attributes visible
 immediately.
+
+This can also happen with repositories, e.g. if someone else has built in the
+repository with C<umask 066> or using a compiler that bars others from reading
+the produced file.  This will also happen if either the repository or your
+build tree shares a common path prefix with some dependencies
+(e.g. F</opt/repository> and F</opt/sometool>, in which case makepp will
+remember the path once as relative, and once as absolute, looking like changed
+dependencies.
 
 =head2 Miscellaneous
 

@@ -1,4 +1,4 @@
-# $Id: Makesubs.pm,v 1.145 2007/05/17 11:50:46 pfeiffer Exp $
+# $Id: Makesubs.pm,v 1.156 2008/05/17 14:42:51 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains subroutines which can be called from a makefile.
@@ -34,17 +34,14 @@ use CommandParser::Gcc;
 # Command scanners included with makepp:
 #
 
-my %dir_warnings;
-my %already_warned_missing;
 #
 # Scan C command, looking for sources and includes and libraries.
 # (Don't use 'our', because it does bad things to eval calls in this file.)
 #
 # TODO: is $ENV{INCLUDE} a reliable alternative on native Windows?  And if
 # ActiveState is to call MinGW gcc, must makepp translate directory names?
-@Makesubs::system_include_dirs =
-  ( -d('/usr/local/include') ? file_info('/usr/local/include') : (),
-    -d('/usr/include') ? file_info('/usr/include') : () );
+our @system_include_dirs = grep -d, qw(/usr/local/include /usr/include);
+our @system_lib_dirs = grep -d, qw(/usr/local/lib /usr/lib /lib);
 
 sub scanner_c_compilation {
   CommandParser::Gcc->new(@_[1..$#_]);
@@ -102,20 +99,25 @@ sub scanner_skip_word {
   (
    # These words usually introduce another command
    # which actually is the real compilation command:
+   condor_compile => \&scanner_skip_word,
+   diet		=> \&scanner_skip_word, # dietlibc
+   distcc	=> \&scanner_skip_word,
+   fast_cc	=> \&scanner_skip_word,
+   ignore_error	=> \&scanner_skip_word,
    libtool	=> \&scanner_skip_word,
-   sh		=> \&scanner_skip_word,
+   noecho	=> \&scanner_skip_word,
    purecov	=> \&scanner_skip_word,
    purify	=> \&scanner_skip_word,
    quantify	=> \&scanner_skip_word,
-   ignore_error	=> \&scanner_skip_word,
-   noecho	=> \&scanner_skip_word,
-   fast_cc	=> \&scanner_skip_word,
-   condor_compile => \&scanner_skip_word,
+   sh		=> \&scanner_skip_word,
    time		=> \&scanner_skip_word,
-   distcc	=> \&scanner_skip_word,
    if		=> \&scanner_skip_word, # Sometimes people do things like
    then		=> \&scanner_skip_word, # "if gcc main.o -labc -o my_program; ..."
+   elif		=> \&scanner_skip_word,
    else		=> \&scanner_skip_word,
+   do		=> \&scanner_skip_word,
+   while	=> \&scanner_skip_word,
+   until	=> \&scanner_skip_word,
 
    # All the C/C++ compilers we have run into so far:
    cc		=> \&scanner_c_compilation,
@@ -144,6 +146,7 @@ sub scanner_skip_word {
    cpp		=> \&scanner_c_compilation, # The C/C++ preprocessor.
    cl		=> \&scanner_c_compilation, # MS Visual C/C++
    bcc32	=> \&scanner_c_compilation, # Borland C++
+   insure	=> \&scanner_c_compilation, # Parasoft Insure++
 
    vcs		=> \&scanner_vcs_compilation,
 
@@ -152,8 +155,12 @@ sub scanner_skip_word {
    esqlc	=> \&scanner_esqlc_compilation,
    proc		=> \&scanner_esqlc_compilation,
    yardpc	=> \&scanner_esqlc_compilation,
+
    swig         => \&scanner_swig
 );
+
+@Makesubs::scanners{ map "$_.exe", keys %Makesubs::scanners } = values %Makesubs::scanners
+  if ::is_windows;
 
 # True while we are within a define statement.
 our $s_define;
@@ -359,6 +366,13 @@ sub f_filter_out_dirs {
 
 #
 # Find one of several executables in PATH.  Optional 4th arg means to return found path.
+# Does not consider last chance rules or autoloads if PATH is used.
+#
+# On Windows this is ugly, because an executable xyz is usually not present,
+# instead there is xyz.exe.  If we want the full path with the builtin rules
+# we need to depend on xyz as long as xyz.exe hasn't been built, because
+# that's where Unix makefiles put the dependencies.  To make matters worse,
+# stat may lie about xyz when only xyz.exe exists.
 #
 sub f_find_program {
   my $makefile = $_[1];		# Access the other arguments.
@@ -366,23 +380,42 @@ sub f_find_program {
   my @pathdirs;			# Remember the list of directories to search.
   my $first_round = 1;
   foreach my $name ( split ' ', $_[0]) {
-    if( $name =~ /\// ) {	# Either relative or absolute?
-      return $name if
-	FileInfo::exists_or_can_be_built file_info $name, $makefile->{CWD};
+    if( $name =~ /\// || ::is_windows > 1 && $name =~ /\\/ ) { # Either relative or absolute?
+      my $finfo = file_info $name, $makefile->{CWD};
+      my $exists = FileInfo::exists_or_can_be_built $finfo;
+      if( ::is_windows && $name !~ /\.exe$/ ) {
+	my( $exists_exe, $finfo_exe );
+	$exists_exe = FileInfo::exists_or_can_be_built $finfo_exe = file_info "$name.exe", $makefile->{CWD}
+	  if !$exists ||
+	    $_[3] && $FileInfo::stat_exe_separate ? !$finfo->{EXISTS} : !open my $fh, '<', absolute_filename $finfo;
+				# Check for exe, but don't bother returning it, unless full path wanted.
+				# If stat has .exe magic, EXISTS is meaningless.
+	return $_[3] ? absolute_filename( $finfo_exe ) : $name if $exists_exe;
+      }
+      return $_[3] ? absolute_filename( $finfo ) : $name if $exists;
       next;
     }
-    @pathdirs = TextSubs::split_path( $makefile->{EXPORTS} ) if !@pathdirs;
+    @pathdirs = TextSubs::split_path( $makefile->{EXPORTS} ) unless @pathdirs;
     foreach my $dir (@pathdirs) { # Find the programs to look for in the path:
       # Avoid publishing nonexistent dirs in the path.  This works around
       # having unquoted drive letters in the path looking like relative
       # directories.
       if( $first_round ) {
 	$dir = file_info $dir, $makefile->{CWD};
-	undef $dir if !FileInfo::is_or_will_be_dir $dir ;
+	undef $dir unless FileInfo::is_or_will_be_dir $dir;
       }
+      next unless $dir;
       my $finfo = file_info $name, $dir;
-      return $_[3] ? absolute_filename( $finfo ) : $name
-	if $dir && FileInfo::exists_or_can_be_built $finfo;
+      my $exists = FileInfo::exists_or_can_be_built $finfo, undef, undef, 1;
+      if( ::is_windows && $name !~ /\.exe$/ ) {
+	my( $exists_exe, $finfo_exe );
+	$exists_exe = FileInfo::exists_or_can_be_built $finfo_exe = file_info( "$name.exe", $dir ), undef, undef, 1
+	  if !$exists ||
+	    $_[3] && $FileInfo::stat_exe_separate ? !$finfo->{EXISTS} : !open my $fh, '<', absolute_filename $finfo;
+				# Check for exe, but don't bother returning it, unless full path wanted.
+	return $_[3] ? absolute_filename( $finfo_exe ) : $name if $exists_exe;
+      }
+      return $_[3] ? absolute_filename( $finfo ) : $name if $exists;
     }
     $first_round = 0;
   }
@@ -504,7 +537,7 @@ sub f_firstword {
 #
 sub f_first_available {
   foreach my $fname (split(' ', $_[0])) {
-    FileInfo::exists_or_can_be_built( file_info( $fname )) and return $fname;
+    FileInfo::exists_or_can_be_built( file_info( $fname, $_[1]->{CWD} )) and return $fname;
   }
   '';
 }
@@ -783,10 +816,11 @@ sub f_map {
 #
 # make a temporary file name, similarly to the like named Unix command
 #
-my @temp_files;
+our @temp_files;
 END { FileInfo::unlink $_ for @temp_files }
 sub f_mktemp {
   my( $template, $makefile ) = @_;
+  $makefile ||= \%Makesubs::;	# Any old hash for default LAST_TEMP_FILE & CWD
   return $makefile->{LAST_TEMP_FILE} || die "No previous call to \$(mktemp)\n" if $template eq '/';
   $template ||= 'tmp.';
   my $Xmax = 9;
@@ -804,8 +838,8 @@ sub f_mktemp {
 			 -26 + ord 'A');
     }
     $makefile->{LAST_TEMP_FILE} = $template . $X;
-    $finfo = file_info $makefile->{LAST_TEMP_FILE}, $makefile && $makefile->{CWD};
-				# Default to global CWD, to make this easier to use in makepp.
+    $finfo = file_info $makefile->{LAST_TEMP_FILE}, $makefile->{CWD};
+				# Default to global CWD, to make this easier to use without makefile.
     if( !$finfo->{MKTEMP}++ and !FileInfo::file_exists $finfo ) {
       push @temp_files, $finfo;
       return $makefile->{LAST_TEMP_FILE};
@@ -1041,11 +1075,19 @@ sub f_shell {
   $makefile->cd;	# Make sure we're in the correct directory.
   my $shell_output = '';
   if( ::is_windows ) {		# Doesn't support forking well?
-    $shell_output = `$str`;	# Run the shell command.
+    if( ::is_windows != 1 ) {
+      $shell_output = `$str`;	# Run the shell command.
+    } else {			# ActiveState not using command.com, but `` still does
+      my @cmd = format_exec_args $str;
+      if( @cmd == 3 ) {		# sh -c
+	substr $cmd[2], 0, 0, '"';
+	$cmd[2] .= '"';
+      }
+      $shell_output = `@cmd`;
+    }
     $? == 0 or
-      die "error $? running shell command `$str'\n";
-  }
-  else {
+      warn "shell command `$str' returned `$?' at `$makefile_line'\n";
+  } else {
 #
 # We used to use perl's backquotes operators but these seem to have trouble,
 # especially when doing parallel builds.  The backquote operator doesn't seem
@@ -1070,7 +1112,7 @@ sub f_shell {
       exec(format_exec_args($str));
       die "exec $str failed--$!\n";
     }, ERROR => sub {
-      die "shell command \"$str\" returned $_[0] at `$makefile_line'\n";
+      warn "shell command `$str' returned `$_[0]' at `$makefile_line'\n";
     };
 
     close OUTHANDLE;		# In parent, get rid of the output handle.
@@ -1281,12 +1323,7 @@ sub f_foreach {
   my ($text, $makefile, $makefile_line) = @_; # Name the arguments.
   if ($text !~ /\S/) {		# No argument?
     defined($Makesubs::rule) && defined($Makesubs::rule->{FOREACH}) or
-      return '$(foreach)';	# Just delay the expansion.
-				# TODO: we should never get here, because we're just
-				# defining one instance for that "target", and, worse,
-				# if the target is $(myfunc $(foreach)), myfunc will
-				# get this string literally.
-#    die "\$(foreach) used outside of rule, or in a rule that has no :foreach clause\n";
+      die "\$(foreach) used outside of rule, or in a rule that has no :foreach clause\n";
     return relative_filename $Makesubs::rule->{FOREACH}, $Makesubs::rule->build_cwd;
   }
 
@@ -1379,22 +1416,41 @@ sub f_xargs {
   join "\n", @pieces;
 }
 
+# Internal function for builtin rule on Windows.
+# This is a hack hack hack to make a phony target xyz that indirectly depends on
+# xyz.exe.  We must mark xyz as a phony target *after* we have associated
+# a rule with the target, or else the rule will not work because makepp
+# specifically rejects builtin rules for phony targets (to prevent disasters).
+# (See code in set_rule().)  So we evaluate $(phony ) only after the
+# rule has been set.  This kind of shenanigan is never necessary in normal
+# makefiles because there are no special restrictions about rules from anywhere
+# except this file
+*f__exe_magic_ = sub {
+  undef $Makesubs::rule->{EXPLICIT_TARGETS}[0]{IS_PHONY};
+  my $exe_rule = file_info( $Makesubs::rule->{EXPLICIT_TARGETS}[0]{NAME} . '.exe', $Makesubs::rule->build_cwd )->get_rule;
+  $exe_rule->{DEPENDENCY_STRING} .= " $Makesubs::rule->{DEPENDENCY_STRING}";
+  f_make( $Makesubs::rule->{EXPLICIT_TARGETS}[0]{NAME} . '.exe',
+	  $Makesubs::rule->{MAKEFILE},
+	  $Makesubs::rule->{RULE_SOURCE} );
+  '';
+} if ::is_windows;
+
 #
 # $(MAKE) needs to expand to the name of the program we use to replace a
 # recursive make invocation.  We pretend it's a function with no arguments.
 #
 sub f_MAKE {
-  if ($::traditional_recursive_make) { # Do it the bozo way?
-    unless ($Makesubs::make_name) { # Haven't figured it out yet?
+  if( $::traditional_recursive_make ) { # Do it the bozo way?
+    unless( $Makesubs::make_name ) {	# Haven't figured it out yet?
       $Makesubs::make_name = $0;	# Get the name of the program.
-      unless ($Makesubs::make_name =~ m@^/@) { # Not absolute?
+      unless( $Makesubs::make_name =~ m@^/@ ) { # Not absolute?
 #
 # We have to search the path to figure out where we came from.
 #
-	foreach (TextSubs::split_path(), '.') {
-	  my $finfo = file_info("$_/$0", $::original_cwd);
-	  if( file_exists( $finfo )) { # Is this our file?
-	    $Makesubs::make_name = absolute_filename( $finfo );
+	foreach( TextSubs::split_path(), '.' ) {
+	  my $finfo = file_info "$_/$0", $::original_cwd;
+	  if( file_exists $finfo ) { # Is this our file?
+	    $Makesubs::make_name = absolute_filename $finfo;
 	    last;
 	  }
 	}
@@ -1408,14 +1464,13 @@ sub f_MAKE {
 				# a recursive make command.  It doesn't
 				# actually do anything.
   } else {
-    if( ::is_windows ) {
-      die "makepp: recursive make without --traditional-recursive-make not supported on this platform\n";
-    }
+    die "makepp: recursive make without --traditional-recursive-make only supported on Cygwin Perl\n"
+      if ::is_windows < -1 || ::is_windows > 0;
 
     my $makefile = $_[1];	# Get the makefile we're run from.
 
     my $recursive_makepp = ::PERL . ' ' .
-      absolute_filename( file_info( $::datadir, $::original_cwd )) .
+      absolute_filename( file_info $::datadir, $::original_cwd ) .
 	'/recursive_makepp ';
 				# Sometimes we can be run as ../makepp, and
 				# if we didn't hard code the paths into
@@ -1446,6 +1501,7 @@ sub f_MAKE {
 				# $& is a perl variable whose value is '$', so
 				# we don't want to look for the perl variable
 				# $&.
+   '/' => sub { ::is_windows > 1 ? '\\' : '/' },
 
    '@D' => sub { f_dir_noslash f_target },
    '@F' => sub { f_notdir f_target },
@@ -1859,6 +1915,19 @@ sub prebuild {
 }
 
 #
+# Register an autoload.
+# Usage from the makefile:
+#    autoload filename ...
+#
+sub s_autoload {
+  my ($text_line, $makefile, $makefile_line) = @_; # Name the arguments.
+
+  ++$FileInfo::n_last_chance_rules;
+  my (@fields) = split_on_whitespace($makefile->expand_text($text_line, $makefile_line));
+  push @{$makefile->{AUTOLOAD} ||= []}, @fields;
+}
+
+#
 # Register an action scanner.
 # Usage from the makefile:
 #    register_scanner command_word scanner_subroutine_name
@@ -2032,12 +2101,13 @@ sub f_AR()	{ 'ar' }
 sub f_ARFLAGS()	{ 'rv' }
 sub f_AS()	{ 'as' }
 my $CC;
-sub f_CC	{ $CC ||= $_[1]->expand_expression('find_program gcc egcc pgcc c89 cc' . (::is_windows()?' cl bcc32':''), $_[2]) }
-sub f_CFLAGS	{ $_[1]->expand_expression('if $(filter %gcc, $(CC)), -g -Wall, ' . (::is_windows()?' $(if $(filter %cl %bcc32, $(CC)), , -g)':'-g'), $_[2]) }
+sub f_CC	{ $CC ||=
+		    $_[1]->expand_expression('find_program gcc egcc pgcc c89 cc' . (::is_windows?' cl bcc32':''), $_[2]) }
+sub f_CFLAGS	{ $_[1]->expand_expression('if $(filter %gcc, $(CC)), -g -Wall, ' . (::is_windows?' $(if $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC)), , -g)':'-g'), $_[2]) }
 sub f_CURDIR	{ absolute_filename( $_[1]{CWD} ) }
 my $CXX;
-sub f_CXX	{ $CXX ||= $_[1]->expand_expression('find_program g++ c++ pg++ cxx CC ' . (::is_windows()?'cl bcc32':'aCC'), $_[2]) }
-sub f_CXXFLAGS	{ $_[1]->expand_expression('if $(filter g++ c++, $(CXX)), -g -Wall, ' . (::is_windows()?' $(if $(filter %cl %bcc32, $(CXX)), , -g)':'-g'), $_[2]) }
+sub f_CXX	{ $CXX ||= $_[1]->expand_expression('find_program g++ c++ pg++ cxx ' . (::is_windows?'cl bcc32':'CC aCC'), $_[2]) }
+sub f_CXXFLAGS	{ $_[1]->expand_expression('if $(filter %g++ %c++, $(CXX)), -g -Wall, ' . (::is_windows?' $(if $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CXX)), , -g)':'-g'), $_[2]) }
 my $F77;
 sub f_F77	{ $F77 ||= $_[1]->expand_expression('find_program f77 g77 fort77', $_[2]) }
 sub f_FC	{ $_[1]->expand_variable('F77', $_[2]) }

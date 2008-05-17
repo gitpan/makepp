@@ -12,5 +12,5 @@ __HERE
 $(phony fail):
 	perl { die }
 ###	D	775	1083171684	1083171707	answers/
-###	1	664	1083171707	1083171707	answers/n_files
-0 0
+###	1	664	1083171707	1190055864	answers/n_files
+0 1 0

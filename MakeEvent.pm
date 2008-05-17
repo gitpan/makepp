@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: MakeEvent.pm,v 1.20 2007/07/20 19:59:31 pfeiffer Exp $
+# $Id: MakeEvent.pm,v 1.22 2008/05/17 14:38:05 pfeiffer Exp $
 
 package MakeEvent;
 
@@ -469,28 +469,22 @@ use POSIX qw(:signal_h :errno_h :sys_wait_h);
 sub start {
   my $self = $_[0];
   MakeEvent::process_finished( $self ), return if $self->{STATUS};
-  if( ::is_windows ) {		# On windows, we don't fork because the
+  if( ::is_windows > 0 ) {	# On Win ActiveState, we don't fork because the
 				# operating system doesn't support this well.
     if (@{$self->{PARAMS}}) {
       die "makepp: internal error: parameters to MakeEvent::Process not supported on windows\n";
     }
 
     my $cmd = $self->{CODE};	# Get the thing to execute.
-    my $status;
+    my $status = 0;
     if( ref $cmd ) {
       $status = &$cmd();	# Call the subroutine.
     } else {			# Is this a string to execute as shell cmd?
-      system format_exec_args( $cmd );
-      if ($? > 255) {		# Non-zero exit status?
+      system format_exec_args $cmd;
+      if( $? > 255 ) {		# Non-zero exit status?
 	$status = $? >> 8;	# Use that as the status.
-      }
-      elsif (($? & 127) != 0) {	# Exited with a signal?
+      } elsif( $? & 127 ) {	# Exited with a signal?
 	$status = "signal " . ($? & 127);
-      }
-      else {			# No error.  (I don't know if it's possible
-				# for the process to dump core then exit with
-				# a status code of 0 and no signal.)
-	$status = 0;
       }
     }
     MakeEvent::process_finished($self, $status);
@@ -502,7 +496,8 @@ sub start {
   $SIG{CHLD} = sub { $child_exited = 1 }; # Call the reaper subroutine in the
 				# mainline code.
 
-  if ($pid = fork()) {		# In the parent process?
+  &::flush_log if ::is_perl_5_6;
+  if( $pid = fork ) {		# In the parent process?
     $running_processes{$pid} = $self; # Store this for later.
     ++$MakeEvent::n_external_processes; # Keep track of how many things are running.
     return;
@@ -536,13 +531,20 @@ sub start {
   }
 
   my $cmd = $self->{CODE};	# Get the thing to execute.
-  unless( ref $cmd ) {		# Is this a string to execute as shell cmd?
-    exec format_exec_args( $cmd );
+  my $result = 0;
+  if( ref $cmd ) {		# Is this a subroutine?
+    local @Makesubs::temp_files; # Might call f_mktemp, but _exit bypasses END
+    $result = &$cmd();		# Call the subroutine.
+    unlink $_ for @Makesubs::temp_files;
+  } elsif( ::is_windows ) {	# Fork is only emulated, hence we can't exec
+    system format_exec_args $cmd;
+    $result = int( $? / 256 ) || 255 if $?;
+  } else {
+    exec format_exec_args $cmd;
     die "exec $cmd failed--$!\n";
   }
 
-  my $result = &$cmd();			# Call the subroutine.
-  close STDOUT; close STDERR;
+  close $_ for @::close_fhs;
   POSIX::_exit $result;
 }
 

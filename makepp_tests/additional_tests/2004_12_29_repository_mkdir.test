@@ -1,18 +1,10 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	1	755	1104359644	1210886405	makepp_test_script.pl
+makepp qw(-R test_subdir=. -F test_subdir)
 ###	3	644	1104360682	1104360682	Makeppfile
 $(phony all): subdir1/testfile
 subdir1/testfile :
 	&echo $@ -o $@
-###	9	755	1104359644	1104359644	makepp_test_script
-#!/bin/sh
-#
-# This script tests creation of the output directories when a repository
-# is active but we can't import the files from the repository.
-#
-MAKEPP="${PERL-perl} ${1-../../../makepp}"  # Grab the path to makepp.
-export MAKEPP
-
-exec $MAKEPP -R test_subdir=. -F test_subdir
 ###	D	755	1104360699	1104360701	answers/
 ###	D	755	1104360691	1104360803	answers/test_subdir/
 ###	D	755	1104360691	1104360803	answers/test_subdir/subdir1/

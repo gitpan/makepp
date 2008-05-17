@@ -1,7 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	644	1151611756	1151603416	makepp_test_script.pl
 makepp 'over1=over1', 'over2=over2', 'over4=not4', 'bar=not ok';
-###	263	644	1171960619	1178275761	RootMakeppfile
+###	263	644	1171960619	1209404479	RootMakeppfile
 #
 # This makefile tests variable setting and expansion as completely as we can.
 #
@@ -98,7 +98,7 @@ rc_expansion:
 SHELLVAR != echo Percy Bryce Shell
 
 shell_command:
-    ifnsys MSWin*
+    ifperl ::is_windows < 2
 	exec > $@; \
 	echo "$(shell echo she sells Bourne shells) "; \
 	echo $(shell echo by the C shore) ''
@@ -207,7 +207,7 @@ export $(subst 2,4, $(var)) = y4
 YY = y2
 
 x:
-    ifnsys MSWin*
+    ifperl ::is_windows < 2
 	echo "$$FOO1 $$FOO2 $$FOO3 $$FOO4 $$XX $$Z " > $@ # Call external echo to test export.
     else
 	echo %FOO1% %FOO2% %FOO3% %FOO4% %XX% %Z% > $@
@@ -387,8 +387,8 @@ b c
 number 1 number 2 number 3 number 4 number 5 number 6
 a.o b.c c
 default automatic undefined automatic environment file
-###	1	644	1067451880	1060488818	answers/n_files
-22 0
+###	1	644	1067451880	1190053951	answers/n_files
+22 1 0
 ###	4	644	1067451880	965337095	answers/patsubst_test
 a.c b.c c.c d.c
 a.c b.c c.c d.c

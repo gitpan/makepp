@@ -1,18 +1,18 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	184	421	1162935563	1181388256	Makeppfile
+###	189	421	1162935563	1210354077	RootMakeppfile
 #
-# This file tests the builtin commands except &cat used abundantly elsewhere.
+# This file tests the builtin commands.
 #
 
 # Test &rm by specifying dirs first and deleting answers for files we never create
 $(phony all): a b c \
     dir2/c dir2/d dir2/subdir/c dir2/subdir/d dir2/subdir/d1 install_log \
-    cut.out echo.out sed.out expr.out grep.out sort.out template.out uniq.out uc.out \
+    c[au]t.out echo.out sed.out expr.out grep.out sort.out template.out uniq.out uc.out \
     preprocess.out
 	&rm -fv bogus answers/bogus answers/bogus/subdir answers/bogus/file answers/bogus/subdir/file
 
 IGNINST =
-ifperl ((stat 'Makeppfile')[2] & 01777) != 0421
+ifperl ((stat 'RootMakeppfile')[2] & 01777) != 0421
   CHMOD = @&echo chmod not working, //server/share?
   CHMODTEST =
   perl { unlink 'answers/install_log' }
@@ -33,7 +33,7 @@ a b:
 # Test that &ln -f removes an empty dir and &chmod
 c: dir1/c b
 	&ln -v --force $(input) .
-	&ln -fv Makeppfile dir1
+	&ln -fv RootMakeppfile dir1
 	$(CHMOD) 750 c
 	$(CHMODTEST)
 
@@ -70,6 +70,11 @@ what = just
 	&perl 'print "$$.\n"' $(input) --output=$(output)
 	&sed -v s/$$what/only/o $(input) --output=>>$(output)
 	&sed -v 'chomp; $$_ .= "|" . reverse . "\n"' -o +<$(output)
+
+
+# Test complicated variant of &cat with missing newline and multi line file.
+cat.out: sed.in uniq.in
+	&cat --sync-lines $(inputs 1 2 1) -o $(output)
 
 
 # Test various variants of &cut
@@ -113,11 +118,11 @@ grep.out grep.o grep.ou: grep.in
 	&grep --vice-versa -s, /a/ grep.in -o '>>grep.o'
 	&grep -r3 /a/ grep.in -o '>>grep.o'
 	&grep -vco '>>grep.o' &choose_a template.tmpl
-	&grep -l /[Jj]ust/ Makeppfile sed.in template.tmpl -o '>>grep.o'
+	&grep -l /[Jj]ust/ RootMakeppfile sed.in template.tmpl -o '>>grep.o'
 	&echo -o '>>grep.o'
-	&grep -vl /[Jj]ust/ Makeppfile sed.in template.tmpl -o '>>grep.o'
+	&grep -vl /[Jj]ust/ RootMakeppfile sed.in template.tmpl -o '>>grep.o'
 	&echo -o '>>grep.o'
-	&grep -vvl /[Jj]ust/ Makeppfile grep.in template.tmpl uniq.in -o '>>grep.o'
+	&grep -vvl /[Jj]ust/ RootMakeppfile grep.in template.tmpl uniq.in -o '>>grep.o'
 	&cp -vfl grep.o grep.ou
 	&cp -v grep.ou grep.ou1
 	&mv -v grep.ou1 $(output)
@@ -167,7 +172,7 @@ uniq.out: uniq.in sed.in
 	&uniq -S $(inputs 1 1) -o >>$(output) # Must reemit file name first time.
 
 install_log:
-	&rm -f .install_log
+	&rm -f .install_log installog
 	&install --directory --mode=750 dest
 	$(IGNINST)&install -v --mode=640 grep.in dest
 	$(IGNINST)&install -vc --log installog --mode=666 sed.in dest/foobar
@@ -237,7 +242,7 @@ $()include plain text
 ifeq $(v1),5
     -include $( preprocess.test) # Force expand text, which didn't initially work.
 endif
-###	1	644	1107332258	1105995922	sed.in
+###	-1	644	1107332258	1105995922	sed.in
 just some text
 ###	7	644	1107332258	1106072810	template.tmpl
 Just a silly test to see if @THIS@ and @aaa@
@@ -280,6 +285,17 @@ d
 ###	0	644	1107332258	1105741350	answers/b
 ###	1	644	1107332258	1105873176	answers/c
 c
+###	-10	644	1191603652	1191603922	answers/cat.out
+#line 1 "sed.in"
+just some text
+#line 1 "uniq.in"
+aa
+aa
+b
+bb
+bcd
+#line 1 "sed.in"
+just some text
 ###	42	644	1134924208	1180381669	answers/cut.out
  ! " # $ % & ' ( ) * + , - .
 1 2 3 4 5 6 7 8 9 : ; < = >
@@ -335,11 +351,11 @@ y y
 aha,bar,with a,4
 foo,without
 ahaar,h a3
-Makeppfile
+RootMakeppfile
 sed.in
 template.tmpl
 
-Makeppfile
+RootMakeppfile
 template.tmpl
 
 grep.in
@@ -356,7 +372,7 @@ date
   copy `sed.in' to `.../dest/foobar'
   set mode for `.../dest/foobar'
 ###	1	644	1107332258	1106296317	answers/n_files
-23 0
+24 1 0
 ###	27	644	1153678733	1153342165	answers/preprocess.out
 
 # empty & comment not gone

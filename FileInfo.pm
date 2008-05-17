@@ -2,7 +2,7 @@ package FileInfo;
 require Exporter;
 use Cwd;
 
-# $Id: FileInfo.pm,v 1.71 2007/07/20 19:58:00 pfeiffer Exp $
+# $Id: FileInfo.pm,v 1.78 2008/05/17 14:08:35 pfeiffer Exp $
 
 #use English;
 # Don't ever include this!  This turns out to slow down
@@ -165,26 +165,33 @@ coming from a case-sensitive file system.
 This routine is just a guess.  We look at the current directory to see if it
 looks case sensitive, and switch makepp into the appropriate mode.
 
+=head2 $stat_exe_separate
+
+On Windows this is true if you can't stat 'xyz', when only 'xyz.exe' exists.
+That is ActiveState at least until 5.10.0 and possibly older Cygwin versions.
+
 =cut
 
 our $case_sensitive_filenames;
+our $stat_exe_separate;
 BEGIN {
-  my $testfilename = '.makepp_test';
-  my $i = 0;			# Unlikely filename, but just to be sure...
-  $i++ while -e "$testfilename$i" || -e uc "$testfilename$i";
-  $testfilename .= $i;
+  my $test_fname = '.makepp_test';
+  substr $test_fname, 12, -1, substr rand, 1 while
+    -e $test_fname || -e uc $test_fname or
+    ::is_windows and -e "$test_fname.exe" || -e uc "$test_fname.exe";
+  $test_fname .= '.exe' if ::is_windows;
   {
-    open my $fh, '>', $testfilename or # Create the file.
-      return $case_sensitive_filenames = !::is_windows;
+    open my $fh, '>', $test_fname or # Create the file.
+      return $case_sensitive_filenames = $stat_exe_separate = ::is_windows;
 				# If that doesn't work for some reason, assume
 				# we are case insensitive if windows, and case
 				# sensitive for unix.
   }
 
-  $case_sensitive_filenames = !-e uc $testfilename; # Look for it with different case.
-  unlink $testfilename;
+  $case_sensitive_filenames = !-e uc $test_fname; # Look for it with different case.
+  $stat_exe_separate = !-e substr $test_fname, 0, -4 if ::is_windows;
+  unlink $test_fname;
 }
-
 
 # Set this (probably locally) to attempt to avoid lstat calls by reading the
 # directory first if the cached directory listing might be stale.  This may
@@ -339,7 +346,7 @@ sub chdir {
   my $status = CORE::chdir absolute_filename_nolink( $newdir );
 
   unless ($status) {
-    if ($newdir->{ALTERNATE_VERSIONS}) { # Was it from a repository?
+    if( exists $newdir->{ALTERNATE_VERSIONS} ) { # Was it from a repository?
       FileInfo::mkdir( $newdir );	 # Make it.
       $status = CORE::chdir absolute_filename_nolink( $newdir );
     }
@@ -433,6 +440,8 @@ sub file_info {
 				# confounds with mix case.
   my $dinfo;			# The fileinfo we start from.
 
+  $file =~ tr|\\|/| if ::is_windows > 0 && $file !~ /\//; # Sometimes gives 'C:\'
+
   if( $file =~ s@^/@@s ) {
     if( ::is_windows && $file =~ s@^(/[^/]+/[^/]+)/?@@s ) {
 				# If we get a //server/share syntax, treat the
@@ -455,7 +464,6 @@ sub file_info {
   } else {
     if( ::is_windows && $file =~ /^[A-Za-z]:/s ) {
       $dinfo = $root;		# Treat "C:" as if it's in the root directory.
-      $file =~ tr|\\|/| if $file !~ /\//; # Sometimes gives 'C:\'
     } else {
       $dinfo = $_[1] || $CWD_INFO;
     }
@@ -496,7 +504,7 @@ sub file_info {
 				# Don't go up above the root.
     } elsif( $_ ne '.' ) {	# Do nothing in same directory.
       $dinfo = ($dinfo->{DIRCONTENTS}{$_} ||=
-		bless { NAME => $_, '..' => $dinfo->{LINK_DEREF} || $dinfo });
+		bless { NAME => $_, '..' => exists $dinfo->{LINK_DEREF} ? dereference $dinfo : $dinfo });
 				# Point to the entry for the file, or make one
 				# if there is not one already.
     }
@@ -657,7 +665,7 @@ is a symbolic link.
 =cut
 
 sub is_symbolic_link {
-  &lstat_array;			# Get status info.
+  exists $_[0]{LSTAT} || &lstat_array; # Get status info.
   exists $_[0]{LINK_DEREF} ? $_[0] : undef;
 }
 
@@ -701,13 +709,19 @@ sub is_writable {
     $) = $FileInfo::orig_gid;
     return $retval;
   }
-  my $test_fname = Makesubs::f_mktemp( &absolute_filename_nolink . '/.makepp_testfile' );
-				# Try to create a file with an unlikely name
+  my $test_fname = &absolute_filename_nolink . '/.makepp_test';
+  my $len = length $test_fname;
+  substr $test_fname, $len, -1, substr rand, 1 while
+    -e $test_fname;		# Try to create a file with an unlikely name
 				# which goes away automatically at the end.
 
-  return $dirinfo->{IS_WRITABLE} = 1
-    if open my $fh, '>', $test_fname; # Can we create such a file?
-  undef $dirinfo->{IS_WRITABLE};
+  if( open my $fh, '>', $test_fname ) { # Can we create such a file?
+      close $fh;
+      unlink $test_fname;
+      $dirinfo->{IS_WRITABLE} = 1;
+  } else {
+      undef $dirinfo->{IS_WRITABLE};
+  }
 }
 
 =head2 is_writable_owner
@@ -763,17 +777,15 @@ sub lstat_array {
   my $stat_arr = $fileinfo->{LSTAT}; # Get the cached value.
   unless( defined $stat_arr ) {	# No cached value?
     if( $read_dir_before_lstat ) {
-      my $dirinfo = $fileinfo->{'..'};
-      if($dirinfo && (!$dirinfo->{READDIR} || $dirinfo->{READDIR}!=$epoch)) {
-	read_directory( $dirinfo );
-      }
-      unless($fileinfo->{EXISTS}) {
+      $fileinfo->{'..'} and
+	($fileinfo->{'..'}{READDIR} || 0) != $epoch and
+	read_directory( $fileinfo->{'..'} );
+      $fileinfo->{EXISTS} or
 	return $fileinfo->{LSTAT} = $empty_array;
-      }
     }
-    $stat_arr = $fileinfo->{LSTAT} = [ (lstat &absolute_filename_nolink)[STAT_VECTOR] ];
-				# Restat the file, and cache the info.
-    if (@$stat_arr != 0) {	# File actually exists?
+    if( lstat &absolute_filename_nolink ) { # Restat the file, and cache the info.
+				# File actually exists?
+      $stat_arr = $fileinfo->{LSTAT} = [ (lstat _)[STAT_VECTOR] ];
       if( -l _ ) {		# Profit from the open stat structure, unless it's a symlink.
 	undef $fileinfo->{LINK_DEREF};
       } else {
@@ -785,21 +797,21 @@ sub lstat_array {
 # directory so all the wildcard routines know about it.	 Otherwise we'll miss
 # a lot of files.
 #
-	if( !$fileinfo->{DIRCONTENTS} && # Not previously known as a directory?
-	    -d _ ) {		# Now it's a dir?
+	-d _ and		# Now it's a directory?
+	  $fileinfo->{DIRCONTENTS} || # Previously known as a dir?
 	  &mark_as_directory;	# Tell the wildcard system about it.
-	}
       }
-      while( !$fileinfo->{EXISTS} ) {
+      until( $fileinfo->{EXISTS} ) {
 	$fileinfo->{EXISTS} = 1;
 	publish( $fileinfo );	# If we now know the file exists but we didn't
 				# use to know that, activate any waiting
 				# subroutines.
 	$fileinfo = $fileinfo->{'..'};
       }
+    } else {
+      $stat_arr = $fileinfo->{LSTAT} = $empty_array;
     }
   }
-
   $stat_arr;
 }
 
@@ -959,6 +971,7 @@ sub relative_filename {
 
 
   unless( $_[2] ) {
+    # NOTE: We know that $fileinfo != $root here.
     return $dir->{int $fileinfo} if exists $dir->{int $fileinfo};
     return $dir->{int $fileinfo->{'..'}} . '/' . $fileinfo->{NAME}
       if exists $dir->{int $fileinfo->{'..'}};
@@ -995,7 +1008,7 @@ sub relative_filename {
       push @dirs2, $dir;
       $dir = $dir->{'..'};
     }
-    return ($orig_dir->{int $_[0]{'..'}} = absolute_filename $_[0]{'..'}) . '/' . $_[0]{NAME}
+    return ($orig_dir->{int $_[0]{'..'}} = $_[0]{'..'}{FULLNAME}) . '/' . $_[0]{NAME}
 				# May as well use absolute filename,
       unless $_[2] or @dirs1 && @dirs2 && $dirs2[-1] == $dirs1[-1];
 				# when only thing in common is the root.
@@ -1038,7 +1051,7 @@ link refers to.
 
 sub stat_array {
   my $finfo = $_[0];
-  my $stat_arr = &lstat_array; # Get lstat value.
+  my $stat_arr = $finfo->{LSTAT} || &lstat_array; # Get lstat value.
 
   for( 0..20 ) {
     @$stat_arr or return $empty_array;
@@ -1101,6 +1114,7 @@ sub unlink {
 # Argument: the FileInfo structure of the thing we discovered is a directory.
 #
 sub mark_as_directory {
+  return if $_[0] == $root;
   $_[0]{DIRCONTENTS} ||= {}; # Mark as a directory.
   $_[0]{FULLNAME} = &absolute_filename;
 				# We cache the absolute filename for all
@@ -1181,6 +1195,10 @@ if ($> == 0) {			# Are we running as root?
 				# Use the UID of whoever owns the current
 				# directory.
 }
+
+$ENV{HOME} ||= (::is_windows > 0 ? $ENV{USERPROFILE} : eval { (getpwuid $<)[7] }) || '.';
+dereference file_info $ENV{HOME};
+				# Make sure we get a symbolic name for the home directory.
 
 1;
 

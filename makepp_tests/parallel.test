@@ -1,4 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	1	755	1067749983	1210350510	is_relevant.pl
+is_windows < 1			# ActiveState doesn't separate STDOUTs and stumbles over mpp -j
 ###	10	755	1067451877	1184533865	makepp_test_script.pl
 # This is a test of parallel make.  In order to test that make is actually
 # executing jobs in parallel, we rely on timing to synchronize jobs, which
@@ -84,5 +86,5 @@ c
 ###	2	644	1067451877	971218393	answers/c
 c
 b
-###	1	644	1067451877	971218421	answers/n_files
-7 2
+###	1	644	1067451877	1190051786	answers/n_files
+7 0 2

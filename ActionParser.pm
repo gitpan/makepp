@@ -1,4 +1,4 @@
-# $Id: ActionParser.pm,v 1.25 2007/05/17 11:50:46 pfeiffer Exp $
+# $Id: ActionParser.pm,v 1.29 2008/05/17 14:52:43 pfeiffer Exp $
 
 =head1 NAME
 
@@ -158,8 +158,8 @@ sub parse_rule {
       ($cmd) = unquote_split_on_whitespace( $cmd );
       my $makefile_cmd = $rule->{MAKEFILE}{PACKAGE} . "::c_$cmd";
       if( defined &{$makefile_cmd} ) { # Function directly or indirectly from makefile?
-	require B;
-	$rule->add_dependency( $] < 5.008 ?
+	require B if !::is_perl_5_6;
+	$rule->add_dependency( ::is_perl_5_6 ?
 			       $rule->makefile->{MAKEFILE} :
 			       file_info B::svref_2object( \&$makefile_cmd )->START->file, $rule->build_cwd
 			      );
@@ -171,7 +171,7 @@ sub parse_rule {
 	my $finfo = file_info $cmd, $rule->makefile->{CWD}; # Relative path.
 	$finfo = file_info Makesubs::f_find_program( $cmd, $rule->makefile, $rule->{RULE_SOURCE} ),
 	  $rule->makefile->{CWD}	# Find in $PATH.
-	  if $cmd !~ /\// && !FileInfo::exists_or_can_be_built $finfo;
+	  if ($cmd !~ /\// || ::is_windows > 1 && $cmd !~ /\\/) && !FileInfo::exists_or_can_be_built $finfo;
 	$rule->add_dependency( $finfo );
       }
       next;
@@ -349,18 +349,27 @@ backward compatibility.
 
 sub find_command_parser {
   my ($self,$command, $rule, $dir, $found)=@_;
-  $command =~ /^\s*(\S+)\s*/;    # Get and store the first word.
-  my $firstword = $1 || '';
+  my $firstword;
+  if( $command =~ /^\s*(\S+)/ ) {	# Get and store the first word.
+    if( ::is_windows < 2 && $1 =~ /['"\\]/ ) {	# Cheap way was not good enough.
+      ($firstword) = unquote +(split_on_whitespace $command)[0];
+    } elsif( ::is_windows > 1 && $1 =~ /"/ ) {
+      ($firstword) = split_on_whitespace $command;
+      $firstword =~ tr/"//d;	# Don't unquote \, which is Win dir separator
+    } else {
+      $firstword = $1;
+    }
+  }
   my $parser;
-  {
+  if( defined $firstword ) {
     no strict 'refs';
     my $scanner_hash = \%{$rule->{MAKEFILE}{PACKAGE} . '::scanners'};
     $parser = $scanner_hash->{$firstword};
-                                  # First try it unmodified.
-    unless ($parser) {           # If that fails, strip out the
-                                  # directory path and try again.
-      $firstword =~ s@^.*/@@ and  # Is there a directory path?
-        $parser ||= $scanner_hash->{$firstword};
+				# First try it unmodified.
+    unless ($parser) {		# If that fails, strip out the
+				# directory path and try again.
+      $firstword =~ s@^.*/@@ || ::is_windows > 1 && $firstword =~ s@^.*\\@@ and  # Is there a directory path?
+        $parser = $scanner_hash->{$firstword};
     }
   }
   if ($parser) {               # Did we get one?
@@ -375,8 +384,7 @@ sub find_command_parser {
 	if $::log_level;
       $rule->mark_scaninfo_uncacheable;
     }
-  }
-  else {   # No parser:
+  } else {   # No parser:
     $parser = new CommandParser($rule, $dir);
   }
   $parser;

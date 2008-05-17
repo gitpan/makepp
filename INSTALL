@@ -1,5 +1,5 @@
 Prerequistes for installation:
-  You must have perl 5.005 or newer somewhere on your system.
+  You must have perl 5.6 or newer somewhere on your system.
 
 Installation instructions:
 
@@ -25,5 +25,3 @@ Or you can also do:
 	make install
 
 which will run the regression tests as well.
-
-(You must run this procedure with perl 5.005 or newer.)  

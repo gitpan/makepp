@@ -13,16 +13,22 @@ unlink 'answers/n_files'	# This file system emulates symlinks by copying.  Thus
 { open my $fh, '>a/a1.h'; print $fh "int i;\n" }
 unlink 'a/a2.h';
 makepp;
-###	18	644	1165597567	1169489714	RootMakeppfile
+###	24	644	1165597567	1186006155	RootMakeppfile
 makepp_percent_subdirs = 1
 
 $(phony all): a/a.i c.i
 
+ifeq $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC))
+  LN = &ln -fr
+else
+  LN = &cp			# These don't understand Cygwin symlinks
+endif
+
 include/%.h: a/%.h
-	&ln -fr $(input) include
+	$(LN) $(input) include
 
 include/%.h: b/%.h
-	&ln -fr $(input) include
+	$(LN) $(input) include
 
 d.h a/a2.h:
 	&touch $@
@@ -54,7 +60,7 @@ c.i: c.c :smartscan
 #include "d.h"
 #endif
 ###	D	755	1169470547	1169470547	answers/
-###	1	644	1169470547	1169470547	answers/n_files_1
-8 0
-###	1	644	1169470587	1169470587	answers/n_files
-2 0
+###	1	644	1169470547	1190056014	answers/n_files_1
+8 1 0
+###	1	644	1169470587	1190056004	answers/n_files
+2 1 0

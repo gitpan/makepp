@@ -11,14 +11,6 @@ rename 'rootdir/RootMakeppfile', 'rootdir/Makeppfile';
 makepp '-Crootdir';
 
 makepp;
-###	D	755	1143323853	1143323853	rootdir/
-###	2	644	1143324379	1143323853	rootdir/RootMakeppfile
-x: ../outside/y
-	&cp -l $(input) x
-###	D	755	1143323853	1143323853	outside/
-###	2	644	1143324382	1143323853	outside/Makeppfile
-y:
-	&echo foo bar -o y
 ###	9	644	1143324076	990028520	Makeppfile
 $(phony all): a c
 
@@ -29,17 +21,14 @@ a: subdir1/b
 
 c: subdir2/d subdir2/subsubdir/e
 	&cat $^ -o $@
-###	D	755	1067451875	990028444	answers/
-###	D	755	1143323853	1143323853	answers/rootdir/
-###	1	644	1143324537	1143323853	answers/rootdir/x
-foo bar
-###	1	644	1067451875	990028444	answers/a
-b
-###	2	644	1067451875	990028444	answers/c
-d
-e
-###	1	644	1067451875	990028440	answers/n_files
-3 0
+###	D	755	1143323853	1143323853	rootdir/
+###	2	644	1143324379	1143323853	rootdir/RootMakeppfile
+x: ../outside/y
+	&cp -l $(input) x
+###	D	755	1143323853	1143323853	outside/
+###	2	644	1143324382	1143323853	outside/Makeppfile
+y:
+	&echo foo bar -o y
 ###	D	755	1067451875	990028507	subdir1/
 ###	2	644	1067451875	990027944	subdir1/Makeppfile
 b:
@@ -66,3 +55,14 @@ e:
 	&echo 'Bogus garbage from wrongly loaded makefile' -o $@
 ###	1	644	1067451875	990028075	subdir2/subsubdir/e_orig
 e
+###	D	755	1067451875	990028444	answers/
+###	D	755	1143323853	1143323853	answers/rootdir/
+###	1	644	1143324537	1143323853	answers/rootdir/x
+foo bar
+###	1	644	1067451875	990028444	answers/a
+b
+###	2	644	1067451875	990028444	answers/c
+d
+e
+###	1	644	1067451875	1190053838	answers/n_files
+3 1 0

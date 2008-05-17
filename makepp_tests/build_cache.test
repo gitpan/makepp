@@ -1,4 +1,64 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	59	755	1103935704	1210345644	makepp_test_script.pl
+makepp \'builtin', qw(-MBuildCacheControl create --subdir-chars= ./build_cache);
+
+#
+# Now build some junk with makepp.
+#
+makepp 'two_letter_files';	# Make a bunch of files with the name [ab]?.
+
+#
+# Now check whether makepp can automatically add files to the build cache
+# if we let it.
+#
+unlink 'mt';
+makepp qw(--build-cache build_cache derived_files);
+
+#
+# Now verify that rebuilding the file with different contents does not wipe
+# out the value in the build cache, but it can be brought back without
+# difficulty.
+#
+unlink <*_build_record>;
+makepp qw(--build-cache build_cache derived_files EXTRA_WORD=test2);
+# Rebuild the files.
+-e $_.'_build_record' or die $_ for <c_??>;
+				# This should rebuild everything.
+
+unlink <*_build_record>;	# Get rid of the build record from the last build.
+makepp qw(--build-cache build_cache derived_files);
+				# Rebuild the files.  This should bring back
+				# the old ones from the cache, and they should
+				# not have been overwritten by the new ones.
+-e $_.'_build_record' and die $_ for <subdir1/c_??>;
+
+#
+# Test copying the build files into a different subdirectory than they
+# were created in.
+#
+makepp qw(--build-cache build_cache -F subdir1 derived_files);
+-e $_.'_build_record' and die $_ for <subdir1/c_??>;
+
+                                    # Do it again with the altered files.
+makepp qw(--build-cache build_cache -F subdir2 derived_files EXTRA_WORD=test2);
+-e $_.'_build_record' and die $_ for <subdir2/c_??>;
+
+#
+# Corrupt one file in the build cache, and verify that the file is
+# correctly rejected.
+#
+for( <build_cache/*_aa> ) {
+  print "<$_>\n";chmod 0755, $_;
+  open my $fh, '>>', $_;
+  print $fh "an improper modification\n";
+  close $fh;
+  cp $_, \*STDOUT;
+  print "====\n";
+}
+
+makepp qw(--build-cache build_cache -F subdir3 aa);
+
+1;                          # No error.
 ###	34	644	1103934641	1103934641	Makeppfile
 #
 # Test of the build cache.
@@ -34,79 +94,15 @@ c_%: % : signature md5
 SUBDIRS = $(dir_noslash $(wildcard */Makeppfile))
 
 include mt
-###	72	755	1103935704	1185522979	makepp_test_script
-#!/bin/sh
-#
-# Test a build cache.
-#
-MAKEPP_DIR=`dirname ${1-../../makepp}`
-
-MAKEPP="${PERL-perl} ${1-../../makepp}"  # Grab the path to makepp.
-export MAKEPP
-
-# Create the build cache:
-${PERL-perl} $MAKEPP_DIR/makeppbuiltin -MBuildCacheControl create -s '' ./build_cache
-
-#
-# Now build some junk with makepp.
-#
-$MAKEPP two_letter_files       # Make a bunch of files with the name [ab]?.
-
-#
-# Now check whether makepp can automatically add files to the build cache
-# if we let it.
-#
-rm -f mt
-$MAKEPP --build-cache build_cache derived_files || exit 1
-
-#
-# Now verify that rebuilding the file with different contents does not wipe
-# out the value in the build cache, but it can be brought back without
-# difficulty.
-#
-rm *_build_record
-$MAKEPP --build-cache build_cache derived_files EXTRA_WORD=test2 || exit 1
-                                    # Rebuild the files.
-for file in c_??; do test -f ${file}_build_record || exit 1; done
-                                    # This should rebuild everything.
-
-rm *_build_record                   # Get rid of the build record from the last build.
-$MAKEPP --build-cache build_cache derived_files || exit 1
-                                    # Rebuild the files.  This should bring
-                                    # back the old ones from the cache,
-                                    # and they should not have been
-                                    # overwritten by the new ones.
-for file in subdir1/c_??; do
-   test -f ${file}_build_record && exit 1 # Should not have extra file.
-done
-
-#
-# Test copying the build files into a different subdirectory than they
-# were created in.
-#
-$MAKEPP --build-cache build_cache -F subdir1 derived_files || exit 1
-for file in subdir1/c_??; do
-   test -f ${file}_build_record && exit 1 # Should not have extra file.
-done
-
-                                    # Do it again with the altered files.
-$MAKEPP --build-cache build_cache -F subdir2 derived_files EXTRA_WORD=test2 || exit 1
-for file in subdir2/c_??; do
-   test -f ${file}_build_record && exit 1 # Should not have extra file.
-done
-
-#
-# Corrupt one file in the build cache, and verify that the file is
-# correctly rejected.
-#
-for file in build_cache/*_aa; do
-  echo \<$file\>;chmod +w $file
-  echo an improper modification >> $file;cat $file;echo ====
-done
-
-$MAKEPP --build-cache build_cache -F subdir3 aa
-
-exit 0                          # No error.
+###	D	755	1103935490	1103936160	subdir1/
+###	L	H	0	0	subdir1/Makeppfile
+Makeppfile
+###	D	755	1103935490	1103936160	subdir2/
+###	L	H	0	0	subdir2/Makeppfile
+Makeppfile
+###	D	755	1103935620	1103936160	subdir3/
+###	L	H	0	0	subdir3/Makeppfile
+Makeppfile
 ###	D	755	1103936101	1103936159	answers/
 ###	2	644	1103936084	1103936090	answers/aa
 aa
@@ -247,12 +243,3 @@ bd
 aa
 ###	1	644	1103936091	1103936091	answers/subdir3/aa_build_record
 aa
-###	D	755	1103935490	1103936160	subdir1/
-###	L	S	0	0	subdir1/Makeppfile
-../Makeppfile
-###	D	755	1103935490	1103936160	subdir2/
-###	L	S	0	0	subdir2/Makeppfile
-../Makeppfile
-###	D	755	1103935620	1103936160	subdir3/
-###	L	S	0	0	subdir3/Makeppfile
-../Makeppfile

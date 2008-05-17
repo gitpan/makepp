@@ -2,7 +2,7 @@
 
 makepp_variables -- How to use variables in makepp
 
-=for vc $Id: makepp_variables.pod,v 1.25 2007/06/15 22:24:29 pfeiffer Exp $
+=for vc $Id: makepp_variables.pod,v 1.28 2008/05/10 09:17:23 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -15,7 +15,8 @@ L<B<F>77|/F77>, L</FC>, L</foreach>,E<nbsp>
 L<B<g>lobal|/global>,E<nbsp>
 L<B<i>nput|/input>, L</inputs>,E<nbsp>
 L<B<L>D|/LD>, L</LEX>, L</LIBTOOL>,E<nbsp>
-L<B<M>AKE|/MAKE>, L</MAKECMDGOALS>, L</MAKEINFO>,E<nbsp>
+L<B<M>AKE|/MAKE>, L</MAKECMDGOALS>, L</MAKEINFO>, L</makepp_percent_subdirs>,
+  L</makepp_require_phony>, L</makepp_simple_concatenation>,E<nbsp>
 L<B<o>utput|/output>, L</outputs>,E<nbsp>
 L<B<P>WD|/PWD>,E<nbsp>
 L<B<R>M|/RM>, L</ROOT>,E<nbsp>
@@ -32,6 +33,7 @@ C<$^>,
 C<$*>,
 C<$+>,
 C<$?>,
+C<$/>,
 C<$E<lt>>
 
 Makefiles typically use variables in many places.  One important reason for
@@ -383,9 +385,8 @@ complete rules and/or conditionals:
 
 =head3 rc-style substitution
 
-By default, makepp uses rc-style substitution (so called
-because it was pioneered by the rc shell).  This is best illustrated
-by an example:
+By default, makepp uses rc-style substitution (so called because it was
+pioneered by the rc shell).  This is best illustrated by an example:
 
     MODULES = a b c d
  
@@ -685,6 +686,18 @@ that makepp supports.  For example,
 See the documentation on L<the foreach clause in
 rules|makepp_rules/Foreach rules> for more details and examples.
 
+=item $/
+
+This is essentially a constant, either C</>, or on native Windows C<\>.  You
+need it, if you want to start a program portably, e.g. one you built in the
+current directory:
+
+    myoutput:
+ 	.$/myprog >$(output)
+
+For filenames passed as arguments it is not so necessary as Windows can handle
+Unix syntax there.
+
 =back
 
 =head2 Predefined Variables
@@ -774,6 +787,28 @@ provided.  Empty when implicitly building default target.
 
 I<Default:> C<makeinfo>.
 
+=item makepp_percent_subdirs
+
+Set this to some true value (like C<1>) to have C<%> in targets or
+dependencies match across more than one directory.
+
+I<Default:> undefined
+
+=item makepp_require_phony
+
+Set this to some true value (like C<1>) to prevent implicit phonyness (i.e. if
+a rule succeeds without producing its target).  This variable should be true
+by default, to prevent broken dependency chains, but that would break backward
+compatibility with sloppy makefiles.
+
+I<Default:> undefined
+
+=item makepp_simple_concatenation
+
+Set this to some true value (like C<1>) to prevent L</rc-style substitution>.
+
+I<Default:> undefined
+
 =item PWD
 
 An alias for L</CURDIR>.
@@ -795,7 +830,9 @@ variable is empty.
 
 This variable is only respected if you C<export> it.  In that case it is the
 Shell which is used to execute not-builtin actions with some special character
-in it (plain ones being execed directly).
+in it (plain ones being execed directly).  On Windows ActiveState Perl, if you
+have a Unix-like Shell, you must instead set your SHELL variable to a value
+ending in C<sh> or C<sh.exe> before calling makepp.
 
 I<Default:> The first found among C</usr/xpg4/bin/sh> (e.g. Solaris) or
 C</sbin/xpg4/sh> (e.g. Reliant Unix) or C</bin/sh>.

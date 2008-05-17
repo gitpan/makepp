@@ -47,10 +47,10 @@ chmod u+w dir/b dir
 ###	1	644	1079872401	1079872401	dir/d/d
 ddd
 ###	D	755	1164319650	1079870636	.makepp/
-###	3	644	1164319650	1167411378	.makepp/log
+###	3	644	1164319650	1190056091	.makepp/log
 This is a dummy file present so as to satisfy makepp's test harness.
 
-N_FILES00
+N_FILES000
 ###	D	755	1079988067	1079987490	answers/
 ###	56	755	1120163193	1079987473	answers/dir.pl
 #! /usr/bin/env perl
@@ -194,8 +194,6 @@ spar: can't open >`dir/b': Permission denied
 spar: can't mkdir `dir/a': Permission denied
 spar: can't open >`dir/a/a': No such file or directory
 spar: dir.spar:10: trailing garbage ignored
-###	1	644	1079987495	1079814608	answers/n_files
-0 0
 ###	71	644	1120163292	1167363038	answers/spar-mode.el
 (setq auto-mode-alist `(("\\.spar$\\|/makepp.+\\.test$" . spar-mode)
 			,@auto-mode-alist))

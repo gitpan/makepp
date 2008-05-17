@@ -1,4 +1,28 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	23	644	1143572799	1208276444	Makeppfile
+fake_simv: in.vc : scanner vcs_compilation
+	-true -f $<		# true inexistant on native Win
+	&touch $@
+
+in.vc:
+	&echo 'in.v\n-y .\n-v in.vlib\n+libext+.v+' -fo $@
+
+in.v:
+	&echo "`include \"in.vh\"" -fo $@
+	&echo "module in;" -o >>$@
+	&echo "reg a;" -o >>$@
+	&echo "submod inst1(a);" -o >>$@
+	&echo "libmod inst2(a);" -o >>$@
+	&echo "endmodule" -o >>$@
+
+submod.v:
+	&echo 'module submod(a);\ninput a;\nendmodule' -o $@
+
+in.vlib:
+	&echo 'module libmod(a);\ninput a;\nendmodule' -o $@
+
+in.vh:
+	&echo "`define IN 1" -fo $@
 ###	D	755	1141170787	1141170770	answers
 ###	6	644	1141170733	1141170733	answers/in.v
 `include "in.vh"
@@ -22,29 +46,3 @@ endmodule
 module submod(a);
 input a;
 endmodule
-###	25	644	1143572799	1141169888	Makeppfile
-$(phony default): fake_simv
-
-fake_simv: in.vc : scanner vcs_compilation
-	true -f $<
-	&touch $@
-
-in.vc:
-	&echo 'in.v\n-y .\n-v in.vlib\n+libext+.v+' -fo $@
-
-in.v:
-	&echo "`include \"in.vh\"" -fo $@
-	&echo "module in;" -o >>$@
-	&echo "reg a;" -o >>$@
-	&echo "submod inst1(a);" -o >>$@
-	&echo "libmod inst2(a);" -o >>$@
-	&echo "endmodule" -o >>$@
-
-submod.v:
-	&echo 'module submod(a);\ninput a;\nendmodule' -o $@
-
-in.vlib:
-	&echo 'module libmod(a);\ninput a;\nendmodule' -o $@
-
-in.vh:
-	&echo "`define IN 1" -fo $@

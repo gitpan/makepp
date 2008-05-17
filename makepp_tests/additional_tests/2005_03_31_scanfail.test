@@ -1,6 +1,10 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	13	644	1159374480	1112306838	Makeppfile
-$(phony default): x.o
+###	17	644	1159374480	1186006640	Makeppfile
+ifeq $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC))
+  $(phony default): x.o
+else
+  $(phony default): x.obj
+endif
 
 ifndef NORULE
  x.x:

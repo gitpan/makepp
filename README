@@ -9,14 +9,12 @@ systems such as Cygwin under Windows NT, since it currently depends Unix
 filename and directory conventions.  Suggestions for porting and code
 contributions are welcome.
 
-makepp is written entirely in perl.  It requires version 5.005_03 of
-perl or better.  It's distributed under the terms of the perl Artistic
-License, which means that it's freely available to anyone for just about
+makepp is written entirely in perl.  It requires version 5.6 of perl or
+better.  It's distributed under the terms of the perl Artistic License or GPL
+2 or newer, which means that it's freely available to anyone for just about
 any purpose.
 
 Some perl versions have bugs that cause makepp to fail.  These are:
-o perl 5.005_02 does not work at all.  This used to be the default on many
-  solaris installations
 o perl 5.6.0 fails in really weird ways on the x86 (and maybe other
   platforms) on large builds.
 o perl 5.6.1 has failed for us in different ways on different architectures.
@@ -29,7 +27,7 @@ For the latest distribution, manual pages, and information about mailing
 lists, please see the makepp home page, http://makepp.sourceforge.net.
 
 Features:
-    
+
 o Makepp supports almost all makefile syntax that GNU make supports.
   Makepp is compatible enough with GNU make and stable enough to compile
   large packages, such as KDE 2.0.  (For details, see the manual section
@@ -73,8 +71,8 @@ o Makepp writes a log file explaining all of its build decisions,
 
 o Wildcards refer not only to files which already exist but to
   files which don't exist yet but which can be made.  Thus you can
-  specify 
-  
+  specify
+
     libmine.so: *.o
 
   and the compilation will work properly even if none of the
@@ -86,7 +84,7 @@ o Makepp can automatically separate your source and object directories,
   also build separate copies of your program with different compilation
   options or on different architectures, automatically keeping the
   output files separate--you don't have to modify your makefiles at all.
-	
+
 o You can ask makepp to infer what object files are necessary for
   your program if your source files follow the simple convention that
   the implementation of all the classes and functions in a .h file is

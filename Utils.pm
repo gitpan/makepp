@@ -2,14 +2,20 @@
 require 5.006;
 use strict;
 
-# $Id: Utils.pm,v 1.3 2007/02/28 21:31:28 pfeiffer Exp $
+# $Id: Utils.pm,v 1.7 2008/05/17 14:08:38 pfeiffer Exp $
 
 # This is syntactically needed by many modules but not called in utils.
 sub log;
 
-eval 'sub is_windows() {' . ($^O =~ /^(?:cygwin$|msys$|MSWin)/ ? 1 : '') . '}';
-
 ($::progname = $0) =~ s@.*/@@; # Get the program name w/o directories.
+my %progname =
+ (b => 'builtin',
+  bcc => '_build_cache_control',
+  c => 'clean',
+  g => 'graph',
+  i => 'info',
+  l => 'log');
+$::progname =~ s/^mpp([bcgil]|bcc)$/makepp$progname{$1}/;
 
 use TextSubs ();
 

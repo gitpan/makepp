@@ -40,9 +40,9 @@ use mymodule;
 # Normally from the command line the commands can inherit nothing from the
 # context of their makefile (since there is none).  But here we rerun tests
 # that do have such a context, so get it from the makefile.
-open my $mf, 'Makeppfile';
+open my $mf, 'RootMakeppfile' or die $!;
 while( <$mf> ) {
-  eval if
+  print, eval if
     /^sub / or
     s/^perl /eval / or
     s/^(\w+) *= *(.*)/our \$$1 = '$2'/;
@@ -64,7 +64,7 @@ sub c_clonetest {
   }
 
   # We don't know how many files we created, but just to satisfy the test harness:
-  Makecmds::c_sed 's/(\d+) (\d+)/N_FILES\01$1\01$2\01/', 'answers/n_files', '-o', '.makepp/log';
+  Makecmds::c_sed 's/(\d+) (\d+) (\d+)/N_FILES\01$1\01$2\01$3\01/', 'answers/n_files', '-o', '.makepp/log';
 
   # Now do as makeppbuiltin does with --help.
   @ARGV = '--help';

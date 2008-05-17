@@ -1,21 +1,4 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	16	664	1164313913	1125528668	Makeppfile
-$(phony all): sort run
-
-sort: sort.o
-	&touch $@
-	&echo $@ -o $@_build_record
-
-sort.o:
-	&touch $@
-	&echo $@ -o $@_build_record
-
-$(phony run): my_true
-	./$<
-
-my_true:
-	&echo -o $@ "#!/bin/sh"
-	&chmod 755 $@
 ###	61	664	1164313904	1125528381	makepp_test_script.pl
 # Create the build cache:
 makepp \'builtin', qw{-MBuildCacheControl create ./build_cache};
@@ -78,3 +61,25 @@ makepp qw{--build-cache build_cache};
 -f 'sort.o_build_record' && die 8;
 
 1
+###	21	664	1164313913	1209736023	Makeppfile
+$(phony all): sort run
+
+sort: sort.o
+	&touch $@
+	&echo $@ -o $@_build_record
+
+sort.o:
+	&touch $@
+	&echo $@ -o $@_build_record
+
+$(phony run): my_true
+	.$/$<
+
+my_true:
+    ifperl ::is_windows < 2
+	&echo -o $@ "#!/bin/sh"
+	&chmod 755 $@
+    else
+	&touch $@
+	&echo -o $@.bat "@echo"	# Not a clean dep-chain...
+    endif

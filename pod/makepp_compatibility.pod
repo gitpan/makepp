@@ -2,7 +2,7 @@
 
 makepp_compatibility -- Compatibility list for makepp
 
-=for vc $Id: makepp_compatibility.pod,v 1.12 2006/12/03 23:04:54 pfeiffer Exp $
+=for vc $Id: makepp_compatibility.pod,v 1.14 2008/05/17 14:54:45 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -36,54 +36,48 @@ list below.  The first two lines are special, based on the OS field being
 empty.  This is converted to html by install.pl and readable as is in other
 formats.
 
-		#||	5.6		#||||||||			5.8					#
+		#||	5.6		#||||||||			5.8					# 5.10  #
 
-		# .0	| .1	| .2	# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	#
+		# .0	| .1	| .2	# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	# .0	#
 
- GNU/Linux (x86)# x	| x	| x	# x	| x	| x	| x	| x	|	| x	| x	| x	#
+ GNU/Linux (x86)# x	| x	| req	# x	| x	| x	| x	| x	|	| x	| x	| x	# x	#
 
- GNU/Linux (amd64)#	|	|	#	|	|	|	|	| x	|	|	|	#
+ GNU/Linux (amd64)#	|	|	#	|	|	|	|	| x	|	|	|	#	#
 
- GNU/Linux (alpha)#	| x	|	#	|	|	|	|	|	|	|	|	#
+ GNU/Linux (alpha)#	| x	|	#	|	|	|	|	|	|	|	|	#	#
 
- FreeBSD (x86)	#	| x	|	#	|	|	|	|	|	|	|	|	#
+ FreeBSD (x86)	#	| x	|	#	|	|	|	|	|	|	|	|	#	#
 
- OpenBSD (x86)	#	|	|	# x	|	|	|	|	|	|	|	|	#
-
-
- Solaris (Sparc)# x	| Sun	|	# x	| x	| x	| x	| x	| x	| x	| x	| x	#
-
- Solaris (64bit)#	|	|	#	| x	|	|	|	|	|	|	| x	#
-
- Solaris (x86)	#	| x	|	#	| x	|	|	|	|	|	|	| x	#
-
- AIX (PPC)	#	|	|	# x	|	|	|	|	|	|	| x	| x	#
-
- HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	#
-
- Darwin (PPC)	# x	|	|	#	|	|	|	|	|	|	|	|	#
-
- Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	#
+ OpenBSD (x86)	#	|	|	# x	|	|	|	|	|	|	|	|	#	#
 
 
- BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	#
+ Solaris (Sparc)# x	| req	|	# x	| x	| x	| x	| x	| x	| x	| x	| x	# x	#
+
+ Solaris (64bit)#	|	|	#	| x	|	|	|	|	|	|	| x	#	#
+
+ Solaris (x86)	#	| x	|	#	| x	|	|	|	|	|	|	| x	#	#
+
+ AIX (PPC)	#	|	|	#	| x	| x	|	|	|	|	| x	| x	#	#
+
+ HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	#	#
+
+ Darwin (PPC)	# x	|	|	#	|	|	|	|	|	|	|	|	#	#
+
+ Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	#	#
 
 
- Cygwin (x86)	#	|	|	#	|	|	|	|	| Win	| Win	|	|	#
+ BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	#	#
 
- MinGW Msys	#	| Win	|	#	|	|	|	|	|	|	|	|	#
 
- Windows	#	| Win	|	#	|	|	|	|	|	| Win	|	|	#
+ Cygwin (x86)	#	|	|	#	|	|	|	|	|	|	| Win	| x	# x	#
+
+ MinGW MSYS	#	| Win	|	#	|	|	|	|	|	|	|	|	#	#
+
+ Windows	# Win	| Win	|	# x	| x	| x	| x	| x	|	| x	| x	| x	# x	#
 
 =for html </table>
 
 =over
-
-=item Sun
-
-On one machine, Perl 5.6.1 systematically swallows two warnings that occur
-within a Perl rule action.  On another Sun machine Perl 5.6.1 passes this
-test.
 
 =item HPUX
 
@@ -92,28 +86,58 @@ badly.  Therefore the test suite, if it recognized that its running on a 64
 bit Perl, will rewrite several sources so as to have a workaround for this
 problem.
 
+=item req
+
+Some instances of 5.6 at least on Linux and Solaris will dump in a Perl
+require statement.  Strangely this only happens in one test, so you are
+probably ok using these Perls.
+
 =item Win
 
 There are 3 different Perl environments on Windows, which normally extend one
 another when installed in parallel.  Here they have been tested with a minimal
-PATH, so as to separate them completely: Cygwin fairly closely emulates
-GNU/Linux and gives the best results.  It cannot do B<recursive> makes (but
-who would want them, since they are known to be a broken paradigm) and
-B<parallel> builds.  For unexplored reasons B<makeppclean> is broken.
+PATH, so as to separate them completely:
+
+=over
+
+=item *
+
+Cygwin fairly closely emulates GNU/Linux and gives the best results.  Perl
+5.8.7 has a small problem with environment vars, making one test fail.  In the
+long gone past, parallel builds didn't work, but it hasn't be verified which
+version of Cygwin or Perl made them usable.
+
+=item *
 
 MinGW stays close to Windows, giving it only a Unixy look and feel.  It has a
-clever workaround for lack of symbolic and normal links, namely copying
-instead (C<&ln> has stolen this idea).  Alas this is not good enough for the
-B<repository> mechanism, so that isn't available, in addition to the Cygwin
-deficiencies.
+clever workaround for lack of symbolic links, namely copying instead (C<&ln>
+has stolen this idea).  Alas this is not good enough for the B<repository>
+mechanism, so that isn't available, in addition to the Cygwin deficiencies.
 
-Last there is ActiveState Perl on native Windows.  This essentially works, but
-almost a third of the unskipped tests fail.  Probably not because of makepp
-problems, but because the tests were historically written with Unix in mind.
-On Windows most customary Unix commands are missing, and the "shell" is
-extremely primitive.  A maximal use of makepp's builtin commands and embedded
-Perl can increase makefile portability.  Any analysis, hints and patches by
-Windows specialists are welcome!
+Strangely they are still rebuilding solely 5.6.1 (which fails only in the
+makeppgraph test), at least with MD5 support.  But with very few packages
+(MSYS) to install, this gives you a nice small Unix-like environment.
+
+=item *
+
+On ActiveState Perl with only native Windows most customary Unix commands are
+missing, and the "shell" is extremely primitive.  A maximal use of makepp's
+builtin commands and embedded Perl can increase makefile portability.  While
+Winodws programs can handle normal slashes as directory separators, this does
+not work for command names.  Those should be written as F<dir$/command>, where
+C<$/> is a forward or backward slash, depending on the environment.  If you
+tell makepp, via the SHELL variable, where to find a a Unix-like Shell, you
+don't have these worries.
+
+It cannot do smart B<recursive> makes (but who would want them, since they are
+known to be a broken paradigm) and B<parallel> builds.  Perl 5.6.0 fails on
+quite a few tests, especially with $SHELL, 5.6.1 fails on two tests.  The test
+suite, if it is running on 5.8.6 or lower, will rewrite FileInfo.pm so as to
+have a needed workaround for an lstat bug.
+
+
+
+=back
 
 =item Nest
 
@@ -147,8 +171,8 @@ before they are visible on disk, which confuses makepp about the success of
 the commands it executes.  Several tests fail due to this.  On the bright
 side, timestamps have a precision of 100 nanoseconds (though the observed
 obtainable differences are only about a centisecond).  This is much better
-than Unix'es customary seconds -- alas perl's C<stat> function has no access
-to this very welcome precision.
+than most older Unix file systems -- alas perl's C<stat> function has no
+access to this very welcome precision.
 
 =item Windows Server Share on Cygwin
 
@@ -164,8 +188,7 @@ a more realistic Windows SMB server, where the situation might be different.
 
 A few special characters are not allowed in filenames.  Linking and symbolic
 linking fails.  The file permission mask and owner are mount options, while
-the time stamps are not settable.  Only a handful of tests which attempt to
-change these things fail.
+the time stamps are not settable.  One test fails.
 
 =back
 

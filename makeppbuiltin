@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #use strict;			# TODO: explore why this breaks the builtins.
 
-# $Id: makeppbuiltin,v 1.11 2007/05/14 21:49:50 pfeiffer Exp $
+# $Id: makeppbuiltin,v 1.13 2008/05/17 14:26:14 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 
@@ -15,13 +15,13 @@ BEGIN {
 #
   $datadir = $0;		# Assume it's running from the same place that
 				# we're running from.
-  unless ($datadir =~ s@/[^/]+$@@) { # No path specified?
+  unless( $datadir =~ s@/[^/]+$@@ ) { # No path specified?
 				# See if we can find ourselves in the path.
-    foreach (split(/:/, $ENV{'PATH'}), '.') {
+    foreach( split( /:/, $ENV{'PATH'} ), '.' ) {
 				# Add '.' to the path in case the user is
-				# running it with "perl makeppbuiltin" even if
+				# running it with "perl makepp" even if
 				# . is not in his path.
-      if (-f "$_/FileInfo.pm") { # Found something we need?
+      if( -f "$_/Glob.pm" ) {	# Found something we need?
 	$datadir = $_;
 	last;
       }
@@ -35,7 +35,6 @@ BEGIN {
   unshift @INC, $datadir;
 }
 
-sub PERL { '' }			# Needed only syntactically.
 $Makesubs::rule->{MAKEFILE}{PACKAGE} = '';
 
 use Utils;
@@ -63,14 +62,14 @@ sub metahelp { print STDERR "usage: $0", <<'EOF' }
   -I|--include=dir	dir to load module from
   -M|--module=module	module with your functions
 Look at @htmldir@/makeppbuiltin.html for wrapper details,
-or at http://makepp.sourceforge.net/1.50/makeppbuiltin.html
+or at http://makepp.sourceforge.net/@BASEVERSION@/makeppbuiltin.html
 or type "man makeppbuiltin".
 EOF
 
 sub helpfoot { die <<'EOF' }
 
 Look at @htmldir@/makepp_builtins.html for command details,
-or at http://makepp.sourceforge.net/1.50/makepp_builtins.html
+or at http://makepp.sourceforge.net/@BASEVERSION@/makepp_builtins.html
 or type "man makepp_builtins".
 EOF
 

@@ -55,8 +55,8 @@ v1 v2_later v3_later
 ###	2	644	1067451879	1055985005	answers/f.derived
 f v1 v2_later v3_later
 v1 v2_later v3_modified
-###	1	644	1067451879	1058051944	answers/n_files
-16 0
+###	1	644	1067451879	1190053945	answers/n_files
+16 1 0
 ###	2	644	1067451879	1055985004	answers/a.derived
 a v1a v3_later v2_later v3_later
 v1 v2_later v3_later

@@ -21,29 +21,91 @@ if(defined $Config{sig_name}) {
   }
 }
 
+my $source_path;
+my $old_cwd;
+my $dot;
+my $verbose;
+my $dotted;
+our $makepp_path;
+
 # Global constants for compile time check.
 BEGIN {
-  eval 'sub is_windows() {' . ($^O =~ /^(?:cygwin$|msys$|MSWin)/ ? 1 : '') . '}';
-  mkdir 'x';
-  my $symlink = eval { symlink 'x', 'y' } && # Dies on MSWin32.
-    (stat 'x')[1] == (stat 'y')[1]; # MinGW emulates symlink by recusive copy, useless for repository.
-  rmdir 'x';
-  unlink 'y' or rmdir 'y';
+
+  open OSTDOUT, '>&STDOUT' or die $!;
+  open OSTDERR, '>&STDERR' or die $!;
+
+  $old_cwd = cwd;		# Remember where we were so we can cd back here.
+
+  if( $0 =~ m@/@ ) {		# Path specified?
+    ($source_path = $0) =~ s@/[^/]+$@@; # Get the path to our script.
+  } elsif( $ENV{PATH} =~ /[;\\]/ ) { # Find it in Win $PATH:
+    foreach (split(/;/, $ENV{PATH}), '.') {
+      my $dir = $_ || '.';	# Blank path element is .
+      if( -e "$dir\\$0" ) {
+	$source_path = $dir;
+	last;
+      }
+    }
+  } else {				# Find it in $PATH:
+    foreach (split(/:/, $ENV{PATH}), '.') {
+      my $dir = $_ || '.';	# Blank path element is .
+      if( -x "$dir/$0" ) {
+	$source_path = $dir;
+	last;
+      }
+    }
+  }
+  $source_path or die "$0: something's wrong, can't find path to executable\n";
+  $source_path =~ m@^/@ or $source_path = "$old_cwd/$source_path";
+				# Make path absolute.
+  $source_path =~ s@/(?:\./)+@/@;
+  $source_path =~ s@/\.$@@;
+  1 while
+    ($source_path =~ s@/\.(?=/|$)@@) || # Convert x/./y into x/y.
+    ($source_path =~ s@/[^/]+/\.\.(?=/|$)@@); # Convert x/../y into y.
+
+  shift if $dot = @ARGV && $ARGV[0] eq '-d';
+
+  if( $verbose = @ARGV && $ARGV[0] eq '-v' ) {
+    shift;
+    printf "%sPerl V%vd %dbits - %s %s\n",
+      $Config{cf_email} =~ /(Active)(?:Perl|State)/ ? $1 : '',
+      $^V, $Config{ptrsize} * 8, $^O, $Config{archname};
+  }
+
+  if( $ARGV[0] =~ /\/makepp$/ ) {
+    $makepp_path = shift;
+  } else {
+    $makepp_path = $source_path;
+    $makepp_path =~ s@/([^/]+)$@/makepp@; # Get the path to the makepp
+				# executable, which should always be in the
+				# directory above us unless given as arg.
+  }
+
+  push @INC, substr $makepp_path, 0, rindex $makepp_path, '/';
+  require TextSubs;
+
+  mkdir 'd';
+  my $symlink = (stat 'd')[1] &&	# Do we have inums?
+    eval { symlink 'd', 'e' } &&	# Dies on MSWin32.
+    (stat _)[1] == (stat 'e')[1];	# MinGW emulates symlink by recursive copy, useless for repository.
+  rmdir 'd';
+  unlink 'e' or rmdir 'e';
   eval 'sub no_symlink() {' . ($symlink ? '' : 1) . '}';
-  open my $fh, '>x';
-  my $link = eval { link 'x', 'y' } && # might die somewhere
-    (stat 'x')[1] == (stat 'y')[1]; # vfat emulates link by copy, useless for build_cache.
-  unlink 'x', 'y';
+  open my $fh, '>f';		# Use different filename because rmdir may fail on Win
+  close $fh;
+  my $link = eval { link 'f', 'g' } &&	# might die somewhere
+    ((stat 'f')[1] ?	# Do we have inums?
+      (stat _)[1] == (stat 'g')[1] : # vfat emulates link by copy, useless for build_cache.
+
+      (stat _)[3] == 2 && (stat 'g')[3] == 2); # Link count right?
+  unlink 'f', 'g';
   eval 'sub no_link() {' . ($link ? '' : 1) . '}';
+  # Under 5.6.2 (at least on linux) we cannot repeatedly test for require :-(
+  eval 'sub no_md5() {' . ($] > 5.007 || eval { require Digest::MD5; 1 } ? 0 : 1) . '}';
 }
 
-my $perl = $ENV{PERL};
-if( !$perl ) {
-  $perl = $Config{perlpath};	# Prefer appended version number for precision.
-  my $version = sprintf '%vd', $^V;
-  $perl .= $version if -x "$perl$version";
-  $ENV{PERL} = $perl;
-}
+$ENV{PERL} ||= PERL;
 #delete $ENV{'MAKEPPFLAGS'};     # These environment variables can possibly
 #delete $ENV{'MAKEFLAGS'};       # mess up makepp tests.
 # For some reason, with perl 5.8.4, deleting the environment variables doesn't
@@ -51,26 +113,6 @@ if( !$perl ) {
 $ENV{"${_}FLAGS"} = ''
   for qw(MAKEPP MAKE MAKEPPBUILTIN MAKEPPCLEAN MAKEPPLOG MAKEPPGRAPH);
 
-$old_cwd = cwd;			# Remember where we were so we can cd back
-				# here.
-
-my $source_path;
-
-if ($0 =~ m@/@) {		# Path specified?
-  ($source_path = $0) =~ s@/[^/]+$@@; # Get the path to our executable.
-}
-else {				# Find it in $PATH:
-  foreach (split(/:/, $ENV{PATH}), '.') {
-    my $dir = $_ || '.';	# Blank path element is .
-    if (-x "$dir/$0") {
-      $source_path = $dir;
-      last;
-    }
-  }
-}
-$source_path or die "$0: something's wrong, can't find path to executable\n";
-$source_path =~ m@^/@ or $source_path = "$old_cwd/$source_path";
-				# Make path absolute.
 
 if( $Config{ptrsize} == 8 && $^O eq 'hpux' ) {
   # This is a very bad hack!  On HP/UX use64bitall is broken (at least 5.8.0,
@@ -80,7 +122,7 @@ if( $Config{ptrsize} == 8 && $^O eq 'hpux' ) {
   # keys, which are luckily disjoint from those where we do calculations with
   # int.
   chdir "$source_path/..";
-  for( qw(BuildCheck/exact_match.pm BuildCacheControl.pm CommandParser.pm FileInfo.pm FileInfo_makepp.pm Makefile.pm Rule.pm Scanner.pm makepp) ) {
+  for( qw(BuildCheck/exact_match.pm BuildCacheControl.pm CommandParser.pm FileInfo.pm FileInfo_makepp.pm Makefile.pm Rule.pm Scanner.pm makepp makeppinfo) ) {
     next if -f "$_~";		# Already converted
     rename $_, "$_~";
     open my $in, "$_~";
@@ -96,43 +138,62 @@ if( $Config{ptrsize} == 8 && $^O eq 'hpux' ) {
     }
   }
   chdir $old_cwd;
+} elsif( is_windows > 0 && $] < 5.008007 ) {
+  # This is a very bad hack!  On Win Active State "lstat 'file'; lstat _" is broken.
+  chdir "$source_path/..";
+  for( qw(FileInfo.pm) ) {
+    next if -f "$_~";		# Already converted
+    rename $_, "$_~";
+    open my $in, "$_~";
+    open my $out, '>', $_;
+    local $_;
+    while( <$in> ) {
+      s/\blstat\b/stat/g;
+      s/-l _/0/g;
+      print $out $_;
+    }
+  }
+  chdir $old_cwd;
 }
 
 for( $ENV{PATH} ) {
-  my $sep = $^O =~ /^MSWin/ ? ';' : ':';
+  my $sep = is_windows > 0 ? ';' : ':';
   s/^\.?$sep+//;			# Make sure we don't rely on current dir in PATH.
   s/$sep+\.?$//;
   s/$sep+\.?$sep+/$sep/;
   $_ = "$source_path$sep$_";
 }
-1 while
-  ($source_path =~ s@/\.(?=/|$)@@) || # Convert x/./y into x/y.
-  ($source_path =~ s@/[^/]+/\.\.(?=/|$)@@); # Convert x/../y into y.
 
-local $makepp_path = $source_path;
-$makepp_path =~ s@/([^/]+)$@/makepp@; # Get the path to the makepp executable,
-				# which should always be in the directory
-				# above us.
+
+#
+# Equivalent of system() except that it handles INT signals correctly.
+#
+# If the first argument is a reference to a string, that is the command to report as failing, if it did fail.
+#
+sub system_intabort {
+  my $cmd = ref( $_[0] ) && shift;
+  system @_;
+  kill 'INT', $$ if $sigint && $? == $sigint;
+  if( $? && $cmd ) {
+    if( $? == -1 ) {
+      die "failed to execute $$cmd: $!\n"
+    } elsif( $? & 127 ) {
+      die sprintf "$$cmd died with signal %d%s coredump\n",
+	($? & 127),  ($? & 128) ? ' and' : ', no';
+    } else {
+      die sprintf "$$cmd exited with value %d\n", $? >> 8;
+    }
+  }
+  return $?;
+}
 
 sub makepp(@) {
   my $suffix = ${shift()} if ref $_[0];
   print "makepp$suffix @_\n";
-  system $perl, $makepp_path.$suffix, @_ and die "makepp$suffix failed\n";
+  system_intabort \"makepp$suffix", PERL, -f 'makeppextra.pm' ? '-Mmakeppextra' : (), $makepp_path.$suffix, @_;
   1;				# Command succeeded.
 }
 
-my $dot;
-if( $dot = @ARGV && $ARGV[0] eq '-d' ) {
-  shift;
-}
-my $verbose;
-if( $verbose = @ARGV && $ARGV[0] eq '-v' ) {
-  shift;
-  printf "%sPerl V%vd %dbits - %s %s\n",
-    $Config{cf_email} =~ /(Active)(?:Perl|State)/ ? $1 : '',
-    $^V, $Config{ptrsize} * 8, $^O, $Config{archname};
-}
-$makepp_path = shift if $ARGV[0] =~ /\/makepp$/;
 @ARGV or @ARGV = <*.test *.tar *.tar.gz>;
 				# Get a list of arguments.
 
@@ -188,7 +249,7 @@ sub un_spar() {
     %SPAR::mode = ();
 }
 
-my $dotted;
+
 # With -d report '.' for success, 's' for skipped because of symlink failure,
 # 'w' for not applicable on windows, '-' for otherwise skipped.
 sub dot($$) {
@@ -196,23 +257,29 @@ sub dot($$) {
   $dotted = $dot;
 }
 
-# Under 5.6.2 (at least on linux) we cannot repeatedly test for require :-(
-local $md5 = $] > 5.007 || eval { require Digest::MD5; 1 };
 
-open OSTDOUT, '>&STDOUT' or die "$!";
-open OSTDERR, '>&STDERR' or die "$!";
 sub execute($$;$) {
   open STDOUT, ">$_[1]" or die "$_[1]: $!";
   open STDERR, '>&STDOUT' or die "$!";
   my $ret =
     -r( "$_[0].pl" ) ? !do "$_[0].pl" :
-    -x( $_[0] ) ? system_intabort("./$_[0]", $makepp_path) :
-    $_[2] ? system_intabort($perl, $makepp_path) :
+    -x( $_[0] ) ? system_intabort "./$_[0]", $makepp_path :
+    $_[2] ? system_intabort PERL, $makepp_path :
     0;
   warn $@ if $@;		# This goes to log file
   open STDOUT, '>&OSTDOUT' or die "$!";
   open STDERR, '>&OSTDERR' or die "$!";
   $ret || $@;
+}
+
+# on some (Windowsish) filesystems rmtree may temporarily fail
+sub slow_rmtree($) {
+  for my $tree ( grep -d, @_ ) {
+    eval { rmtree $tree } && last
+      or $_ < 9 && select undef, undef, undef, .1
+      for 0..9;
+    die $@ if $@;
+  }
 }
 
 sub n_files(;$$) {
@@ -222,21 +289,30 @@ sub n_files(;$$) {
   open my $outfh, '>', $outf if $outf;
   while( <$logfh> ) {
     &$code if $code;
-    if( /^[\02\03]?N_FILES\01(\d+)\01(\d+)\01$/ ) {
+    if( /^[\02\03]?N_FILES\01(\d+)\01(\d+)\01(\d+)\01$/ ) {
       if( $outf ) {
-	print $outfh "$1 $2\n";
+	print $outfh "$1 $2 $3\n";
       } else {
-	return "$1 $2\n";
+	return "$1 $2 $3\n";
       }
     }
   }
   close $logfh;			# Might happen too late for Windows.
 }
 
+my $have_shell = -x '/bin/sh';
+
 test_loop:
 foreach $tarfile (@ARGV) {
   my $testname = $tarfile;
-  my( $tarcmd, $dirtest );
+  my( $tarcmd, $dirtest, $warned );
+  $SIG{__WARN__} = sub {
+    warn defined $dotted ? "\n" : '',
+      $warned ? '' : "$testname: warning: ",
+      $_[0];
+    undef $dotted;
+    $warned = 1;
+  };
   if( -d $tarfile ) {
     chdir $tarfile;
     $dirtest = 1;
@@ -253,7 +329,7 @@ foreach $tarfile (@ARGV) {
       dot s => "skipped $testname because symbolic links do not work\n";
       next;
     }
-    if( (no_link || !$md5) && $testname =~ /build_cache/ ) {
+    if( (no_link || no_md5) && $testname =~ /build_cache/ ) {
       if( no_link ) {
 	dot l => "skipped $testname because links do not work\n";
       } else {
@@ -261,7 +337,7 @@ foreach $tarfile (@ARGV) {
       }
       next;
     }
-    if( !$md5 && $testname =~ /md5/ ) {
+    if( no_md5 && $testname =~ /md5/ ) {
       dot m => "skipped $testname because MD5 is not available\n";
       next;
     }
@@ -275,7 +351,7 @@ foreach $tarfile (@ARGV) {
     elsif ($testname =~ /\.bz2$/) { # Tar file compressed harder?
       $tarcmd = "bzip2 -dc $tarfile | tar xf -";
     }
-    rmtree ['tdir', "$testname.failed"];
+    slow_rmtree 'tdir', "$testname.failed";
     mkdir "tdir", 0755 or die "$0: can't make directory tdir--$!\n";
 				# Make a directory.
     chdir "tdir" or die "$0: can't cd into tdir--$!\n";
@@ -285,9 +361,9 @@ foreach $tarfile (@ARGV) {
   $log="../$log" if $log !~ /^\//;
   eval {
     local $SIG{ALRM} = sub { die "timed out\n" };
-    alarm( $ENV{MAKEPP_TEST_TIMEOUT} || 600 );
+    eval { alarm $ENV{MAKEPP_TEST_TIMEOUT} || 600 }; # Dies in Win Active State 5.6
     if( $tarcmd ) {
-      system_intabort($tarcmd) && # Extract the tar file.
+      system_intabort $tarcmd and # Extract the tar file.
 	die "$0: can't extract testfile $tarfile\n";
     } elsif( !$dirtest ) {
       open DATA, $tarfile or die "$0: can't open $tarfile--$!\n";
@@ -299,27 +375,23 @@ foreach $tarfile (@ARGV) {
     open STDOUT, '>', $log or die "write $log: $!";
     open STDERR, '>&STDOUT' or die $!;
     eval {
+      unless( $have_shell ) {
+	die "skipped x\n" if
+	  -f 'is_relevant' or
+	  -f 'makepp_test_script' or
+	  -f 'cleanup_script';
+      }
       -r( 'is_relevant.pl' ) ? do 'is_relevant.pl' :
-	-x( 'is_relevant' ) ? !system_intabort( './is_relevant', $makepp_path ) :
+	-x( 'is_relevant' ) ? !system_intabort './is_relevant', $makepp_path :
 	1
 	or die "skipped r\n";
       if( -r 'makepp_test_script.pl' ) {
 	do 'makepp_test_script.pl' or
 	  die 'makepp_test_script.pl ' . ($@ ? "died: $@" : "returned false\n");
+      } elsif( -x 'makepp_test_script' ) {
+	system_intabort \'makepp_test_script', './makepp_test_script', $makepp_path;
       } else {
-	my $script = -x 'makepp_test_script';
-	system_intabort( $script ? './makepp_test_script' : $perl, $makepp_path );
-	if( $? ) {
-	  my $cmd = $script ? 'makepp_test_script' : 'makepp';
-	  if( $? == -1 ) {
-	    die "failed to execute $cmd: $!\n"
-	  } elsif( $? & 127 ) {
-	    die sprintf "$cmd died with signal %d, %s coredump\n",
-	      ($? & 127),  ($? & 128) ? 'with' : 'without';
-	  } else {
-	    die sprintf "$cmd exited with value %d\n", $? >> 8;
-	  }
-	}
+	makepp;
       }
     };
     open STDOUT, '>&OSTDOUT' or die $!;
@@ -329,6 +401,7 @@ foreach $tarfile (@ARGV) {
 #
 # Now look at all the final targets:
 #
+    my @errors;
     use File::Find;
     find sub {
 	return if $_ eq 'n_files'; # Skip the special file.
@@ -344,7 +417,7 @@ foreach $tarfile (@ARGV) {
 	  or die "$mtfile\n";
 	my $mtfile_contents = <MTFILE>; # Read in the whole file.
 	$mtfile_contents =~ s/\r//g; # For cygwin, strip out the extra CRs.
-	$mtfile_contents eq $tfile_contents or die "$mtfile\n";
+	$mtfile_contents eq $tfile_contents or push @errors, $mtfile;
     }, 'answers' if -d 'answers';
     close TFILE;
     close MTFILE;
@@ -357,79 +430,74 @@ foreach $tarfile (@ARGV) {
 				# Get rid of the log file so we don't
 				# get confused if the next test doesn't make
 				# a log file for some reason.
-    defined($n_files_updated) or die ".makepp/log\n";
+    defined($n_files_updated) or push @errors, '.makepp/log';
 
     if (open my $n_files, 'answers/n_files' ) { # Count of # of files updated?
       $_ = <$n_files>;
-      $_ eq $n_files_updated or die "n_files\n";
+      $_ eq $n_files_updated or push @errors, 'n_files';
     }
 
 #
 # Also search through the log file to make sure there are no perl messages
 # like "uninitialized value" or something like that.
 #
-    if (open my $logfile, $log) {
-      while (defined($_ = <$logfile>)) {
-	/at (\S+) line \d+/ and $1 !~ /[Mm]akep*file$|\.mk$/ and die "$log\n";
+    if( open my $logfile, $log ) {
+      while( <$logfile> ) {
 	# Have to control a few warnings before we can unleash this:
-	#/makepp: warning/ and die "$log\n";
-	/(?:internal|generated) error/ and die "$log\n";
+	#/makepp: warning/
+	if( /at (\S+) line \d+/ && $1 !~ /[Mm]akep*file$|\.mk$/ || /(?:internal|generated) error/ ) {
+	  push @errors, $log;
+	  last;
+	}
       }
     }
-    alarm 0;
+    eval { alarm 0 };
+    die 'wrong file' . (@errors > 1 ? 's' : '') . ': ' . join( ', ', @errors) . "\n" if @errors;
   };
 
   if ($@) {
-    if ($@ =~ /skipped/) {	# Skip this test?
+    if ($@ =~ /skipped(?: (.))?/) {	# Skip this test?
       chop( my $loc = $@ );
-      dot '-', "$loc $testname\n";
+      dot $1 || '-', "$loc $testname\n";
       if( !$dirtest ) {
 	$@ = '';		# Else Perl 5.6.1 rereports this.
 	execute 'cleanup_script', ">$log";
-	rmtree 'tdir';		# Get rid of the test directory.
+	slow_rmtree 'tdir';		# Get rid of the test directory.
       }
       chdir $old_cwd;		# Get back to the old directory.
       next;
     } elsif ($@ =~ /^\S+$/) {	# Just one word?
       my $loc = $@;
       $loc =~ s/\n//;		# Strip off the trailing newline.
-      print "\n" if $dotted;
+      print "\n" if defined $dotted;
       print "FAILED $testname (at $loc)\n";
-      $dotted = 0;
+      undef $dotted;
     } else {
-      print "\n" if $dotted;
+      print "\n" if defined $dotted;
       print "FAILED $testname: $@";
-      $dotted = 0;
+      undef $dotted;
     }
     ++$n_failures;
     close TFILE; close MTFILE;	# or cygwin will hang
     chdir $old_cwd;		# Get back to the old directory.
     rename tdir => "$testname.failed";
+    last if $testname eq 'aaasimple'; # If this one fails something is very wrong
   } else {
     dot '.', "passed $testname\n";
     if( !$dirtest ) {
       execute 'cleanup_script', ">$log";
       chdir $old_cwd;		# Get back to the old directory.
-      rmtree 'tdir';		# Get rid of the test directory.
+      slow_rmtree 'tdir';		# Get rid of the test directory.
     } else {
       chdir $old_cwd;		# Get back to the old directory.
     }
   }
 }
-print "\n" if $dotted;
+print "\n" if defined $dotted;
 
 printf "%ds real  %.2fs user  %.2fs system  children: %.2fs user  %.2fs system\n", time - $^T, times
   if $verbose;
 exit $n_failures;
-
-#
-# Equivalent of system() except that it handles INT signals correctly.
-#
-sub system_intabort {
-  system @_;
-  kill 'INT', $$ if $sigint && $?==$sigint;
-  return $?;
-}
 
 
 =head1 NAME
@@ -450,7 +518,9 @@ for a standard reason outputs a letter instead of a dot.  The letters are B<l>
 or B<m> for build cache tests that were skipped because links don't work or
 MD5 is not available, B<s> for a repository test skipped because symbolic
 links don't work or B<w> for a Unix test skipped because you are on Windows.
-If a test itself decides it is to be skipped, it outputs a B<->.
+An B<x> means the test can't be executed because that would require a Shell.
+If the test declares itself to not be relevant, that gives an B<r>.
+Other reasons may be output as B<->.
 
 With the -v option it also gives info about the used Perl version and system,
 handy when parallely running this on many setups, and the used time for the
@@ -527,6 +597,12 @@ should use &echo and other builtins for efficiency anyway.
 
 If this file does not exist, then we simply execute the command
 S<C<$PERL makepp>>, so makepp builds all the default targets in the makefile.
+
+=item makeppextra.pm
+
+If present this module is loaded into perl before the script by the makepp
+function.  See F<additional_tests/2003_11_14_timestamp_md5.test> for an
+example of output redirection.
 
 =item F<Makefile> or F<Makeppfile>
 

@@ -9,9 +9,15 @@
 load_makefile subdir1 VAR1="a b c"
 
 $(phony all): subdir1/$( a b c)
+###	D	755	1067451881	1060835822	subdir1
+###	4	644	1164353486	1060835783	subdir1/Makeppfile
+X := $(print $(VAR1))
+
+$(VAR1):
+	&echo $@ -o $@
 ###	D	755	1067451881	1060835819	answers
-###	1	644	1067451881	1060835819	answers/n_files
-3 0
+###	1	644	1067451881	1190055489	answers/n_files
+3 1 0
 ###	D	755	1067451881	1060835811	answers/subdir1
 ###	1	644	1067451881	1060835793	answers/subdir1/a
 a
@@ -19,9 +25,3 @@ a
 b
 ###	1	644	1067451881	1060835793	answers/subdir1/c
 c
-###	D	755	1067451881	1060835822	subdir1
-###	4	644	1164353486	1060835783	subdir1/Makeppfile
-X := $(print $(VAR1))
-
-$(VAR1):
-	&echo $@ -o $@

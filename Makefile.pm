@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.109 2007/06/15 22:25:23 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.116 2008/05/08 21:33:39 pfeiffer Exp $
 package Makefile;
 
 use Glob qw(wildcard_action needed_wildcard_action);
@@ -51,16 +51,13 @@ our $c_preprocess = 0;		# Set to 1 (parse assignments) or 2 in &preprocess.
 # Targets that we ignore:
 #
 my %ignored_targets;
-foreach (qw(.DEFAULT .PRECIOUS .INTERMEDIATE .SECONDARY
-	    .DELETE_ON_ERROR .IGNORE .SILENT .EXPORT_ALL_VARIABLES
-	    .NOEXPORT .POSIX)) {
-  $ignored_targets{$_} = 1;
+@ignored_targets{qw(.DEFAULT .DELETE_ON_ERROR .EXPORT_ALL_VARIABLES .IGNORE
+	.INTERMEDIATE .NOEXPORT .POSIX .PRECIOUS .SECONDARY .SILENT)} = ();
 				# These targets should be ignored.  In fact,
 				# they will be even if we didn't do this, but
 				# if they happen to be the first target in the
 				# file we don't want to make them the default
 				# target.
-}
 
 =head2 expand_text($makefile, 'string', $makefile_line)
 
@@ -420,7 +417,7 @@ sub expand_variable {
       tr/-/_/;			# Convert - to _ so it's more perl friendly.
       s/\./_dot_/g;
       $_ = *{$_}{CODE} || *{$orig}{CODE};
-      if( defined $_ ) {	# Defined in the makefile?
+      if( defined ) {	# Defined in the makefile?
 	my $tmp = !$::environment_override && $self->{ENVIRONMENT}{$var};
 	if( $tmp && $_ == *{"Makesubs::f_$var"}{CODE} ) {
 	  $result = $tmp;
@@ -619,10 +616,11 @@ sub find_root_makefile_upwards {
     push @path, $cwd = $cwd->{'..'}; # Look in all directories above us.
 
     undef( $cwd ), last unless
-      $cwd and $cwd_devid and FileInfo::stat_array( $cwd )->[FileInfo::STAT_DEV] == $cwd_devid;
+      $cwd and $cwd_devid and (FileInfo::stat_array( $cwd )->[FileInfo::STAT_DEV] || 0) == $cwd_devid;
 				# Don't cross device boundaries.  This is
 				# intended to avoid trouble with automounters
 				# or dead network file systems.
+				# Win ActiveState 5.8.8 fails on stat '/'
   }
   $_->{ROOT} = $cwd && $cwd->{ROOT} for @path;
   $found;
@@ -667,7 +665,7 @@ sub load {
   my $minfo = &file_info;	# Get the FileInfo struct for the
 				# makefile.
   my ($mdinfo, $command_line_vars, $makecmdgoals, $include_path, $env,
-      $makeppfile_only) = @_[1..6];	# Name the other arguments.
+      $makeppfile_only, $autoload) = @_[1..7];	# Name the other arguments.
   my %this_ENV = %$env;		# Make a modifiable copy of the environment.
   delete @this_ENV{'MAKEPP_SOCKET', # Get rid of our special variables.
 				# (This gets put back into the environment
@@ -707,12 +705,14 @@ sub load {
 #
     file_info "$::datadir/makepp_default_makefile.mk"
     if $is_dir;
-  if( exists $mdinfo->{ROOT} ) { # Already checked for root makefile.  Else we
+  if( grep { $_ eq $minfo->{NAME} } @root_makefiles ) {
+    find_root_makefile_upwards $mdinfo->{'..'};
+    die "makepp: Must not have nested directories with a RootMakeppfile\n" if $mdinfo->{'..'}{ROOT};
+    $mdinfo->{ROOT} = $mdinfo;	# Nothing else to do as we're just loading it.
+  } elsif( exists $mdinfo->{ROOT} ) { # Already checked for root makefile.  Else we
 				# must be in a different tree, where we also
 				# have a chance of finding a(nother) root
 				# makefile.
-  } elsif( grep { $_ eq $minfo->{NAME} } @root_makefiles ) {
-    $mdinfo->{ROOT} = $mdinfo;	# Nothing else to do as we're just loading it.
   } else {			# Look upwards for root makefile.
     my $rootmf = find_root_makefile_upwards $mdinfo->{'..'};
     $mdinfo->{ROOT} = $mdinfo->{'..'}{ROOT};
@@ -740,7 +740,7 @@ sub load {
 				# No need to reload the makefile--just reuse
 				# what we've got.
     }
-    else {
+    elsif( ! $autoload ) {
 #
 # We're loading two makefiles for this directory.  This is disallowed because
 # the phony targets of the two makefiles will get confused.
@@ -756,20 +756,29 @@ sub load {
 # up a few variables:
 #
     delete $self->{INITIALIZED};
-    $self->{ENVIRONMENT} = \%this_ENV; # Store the new environment.
-    $self->{COMMAND_LINE_VARS} = $command_line_vars;
-    $self->{INCLUDE_PATH} = [ @$include_path ];
-    ++$self->{LOAD_IDX};	# Invalidate all the rules from the last time
+    unless($autoload) {
+      $self->{ENVIRONMENT} = \%this_ENV; # Store the new environment.
+      $self->{COMMAND_LINE_VARS} = $command_line_vars;
+      $self->{INCLUDE_PATH} = [ @$include_path ];
+      ++$self->{LOAD_IDX};	# Invalidate all the rules from the last time
 				# we loaded this makefile.  (See code in
 				# FileInfo::set_rule.)
+    }
 
     $mpackage = $self->{PACKAGE};
-    delete $::{$mpackage . '::'}; # Wipe the whole package.
-
-    if( $::log_level || !$::quiet_flag ) {
-      print "$::progname: Reloading makefile `" . absolute_filename( $minfo ) . "'\n" unless $::quiet_flag;
-      ::log LOAD_AGAIN => $minfo, $var_changed, $mdinfo
+    if($autoload) {
+      print "$::progname: Autoloading makefile `" . absolute_filename( $minfo ) . "'\n" unless $::quiet_flag;
+      ::log LOAD => $minfo, $mdinfo
 	if $::log_level;
+    }
+    else {
+      delete $::{$mpackage . '::'}; # Wipe the whole package.
+
+      if( $::log_level || !$::quiet_flag ) {
+	print "$::progname: Reloading makefile `" . absolute_filename( $minfo ) . "'\n" unless $::quiet_flag;
+	::log LOAD_AGAIN => $minfo, $var_changed, $mdinfo
+	  if $::log_level;
+      }
     }
   }
   else {			# Loading a new makefile:
@@ -827,7 +836,8 @@ sub load {
 # it to do it the old way.
 #
   if ($minfo->{NAME} ne 'makepp_default_makefile.mk') {
-    wait_for ::build($minfo); # Build the makefile, using what rules we
+    wait_for ::build($minfo) and die "Failed to build ". absolute_filename( $minfo );
+				# Build the makefile, using what rules we
 				# know from outside the makefile.  This may
 				# also load it from a repository.
     delete $minfo->{BUILD_HANDLE}; # Get rid of the build handle, so we avoid
@@ -996,7 +1006,7 @@ sub get_env {
 }
 
 sub assign {
-  my( $self, $name, $type, $value, $override, $makefile_line, $sep ) = @_;
+  my( $self, $name, $type, $value, $override, $makefile_line, $sep, $private ) = @_;
   return $self if !$override and
     exists $self->{COMMAND_LINE_VARS}{$name} ||
     $::environment_override && exists $self->{ENVIRONMENT}{$name};
@@ -1071,16 +1081,16 @@ sub assign {
 
   } elsif( $type == ord '&' ) { # Prepend?
 
-    ($reexpand, my $tmp) = expand_variable $self, $name, $makefile_line, 1;
-    if( !defined $tmp ) {
-      $tmp = '';
+    ($reexpand, $$varref) = expand_variable $self, $name, $makefile_line, 1;
+    if( !defined $$varref ) {
+      $$varref = '';
       $reexpand = 1;
     } elsif( length $$varref ) {
-      $tmp = (defined $sep ? $sep : ' ') . $tmp;
+      $$varref = (defined $sep ? $sep : ' ') . $$varref;
     }
     $$varref = ($reexpand ?
       $value : # Was it a regular =?
-      expand_text $self, $value, $makefile_line) . $tmp;
+      expand_text $self, $value, $makefile_line) . $$varref;
 				# Expand the RHS if it was set with :=
 				# previously.
 
@@ -1158,7 +1168,7 @@ sub parse_assignment {
       sub {			# This subroutine is called for every file
 				# that matches the wildcard.
 	local $private = $_[0];	# Prior PRIVATE_VARS for +=, and for storing new value.
-	assign $self, $var_name, $type, $var_value, $override, $makefile_line;
+	assign $self, $var_name, $type, $var_value, $override, $makefile_line, undef, $private;
       };
   }
   else {
@@ -1395,8 +1405,8 @@ sub parse_rule {
       }
       pop @after_colon;
     }
-    elsif ($after_colon[-1] =~ /\s*(?:smar(t)|quick)scan/) {
-      $conditional_scanning = $1 ? 1 : 0;
+    elsif ($after_colon[-1] =~ /\s*(?:smart()|quick)scan/) {
+      $conditional_scanning = defined $1;
       pop @after_colon;
     }
     elsif ($after_colon[-1] =~ /^\s*multiple_rules_ok/) {
@@ -1453,7 +1463,8 @@ sub parse_rule {
 # most powerful.  (Note that additional dependencies, possibly depending on
 # $<, may be added to the fourth form.)
 #
-  my $expanded_target_string = expand_text($self, $target_string, $makefile_line);
+  my $expanded_target_string = eval { expand_text($self, $target_string, $makefile_line) };
+  $expanded_target_string = $target_string if $@; # In case $(foreach) is there
 				# Expand the target string now.	 We reexpand
 				# it later so that it works properly if it
 				# contains a $(foreach).
@@ -1614,23 +1625,23 @@ sub parse_rule {
     };				# End subroutine called on every file that
 				# matches the wildcard.
   }
-  else { # it's not a foreach rule
+  elsif(!defined $foreach) { # it's not a foreach rule
 #
 # This rule is not a pattern rule.  If there is an action, then it's
 # a non-pattern rule; otherwise, we're just adding extra dependencies to
 # certain files.
 #
     my $expanded_target = expand_text($self, $target_string, $makefile_line);
-    $expanded_target =~ tr/A-Z/a-z/ if !$FileInfo::case_sensitive_filenames;
     # { balance brackets for the following RE:
     $expanded_target =~ /\$[({]foreach\b[^})]*[})]/ and
       return;                   # $(foreach) that couldn't expand.
     my @targets = split_on_whitespace($expanded_target);
 				# Get the list of targets.
-    return if @targets == 1 && $ignored_targets{$targets[0]};
-				# Check for some special targets.
 
     if( length $action ) {	# Is this actually a rule?
+      unless( $FileInfo::case_sensitive_filenames ) {
+	tr/A-Z/a-z/ for @targets;
+      }
 #
 # If the action string mentions $@, then (for backward compatibility with
 # bozo make) we assume that the command must be executed once for each
@@ -1719,6 +1730,7 @@ sub parse_rule {
 	    my ($finfo) = @_;
 	    my $rel_fname = $finfo->relative_filename($self->{CWD});
 	    # Look for the first target pattern that matches.
+	    my $found;
 	    TARGET: for my $pattern (@wild_targets) {
 	      my $re = quotemeta($pattern);
 	      $re =~ s|\\%|($pct_re)| or die "makepp internal error: Where did the percent go?";
@@ -1736,10 +1748,11 @@ sub parse_rule {
 		    } unquote_split_on_whitespace($tstring)
 		  )
 		);
+		++$found;
 		last TARGET;
 	      }
-	      die "makepp internal error: no matching target patterns";
 	    }
+	    $found or die "makepp internal error: no matching target patterns";
 	  };
 	}
 	else {
@@ -1752,16 +1765,18 @@ sub parse_rule {
 # We're just adding a dependency to this target, like this:
 #   target : additional-dependency
 #
-      if (@targets == 1) {
-	if ($targets[0] =~ /^\s*\.PHONY\s*$/) {
+      if( @targets == 1 && ord( $targets[0] ) == ord '.' ) {
+				# Check for some special targets.
+	return if exists $ignored_targets{$targets[0]};
+	if( $targets[0] eq '.PHONY' ) {
 				# Mark other targets as phony?
 	  undef ::find_makepp_info( unquote(), $self->{CWD} )->{IS_PHONY} # Mark as phony.
 	    for split_on_whitespace( expand_text( $self, $after_colon[0], $makefile_line ));
 	  return;
 	}
-	if ($targets[0] =~ /^\s*\.SUFFIXES\s*$/) {
+	if( $targets[0] eq '.SUFFIXES' ) {
 				# Control the default rules?
-	  if ($after_colon[0] !~ /\S/) { # Turn off all suffixes?
+	  if( $after_colon[0] !~ /\S/ ) { # Turn off all suffixes?
 	    ${$self->{PACKAGE} . '::makepp_no_builtin'} = 1;
 				# Suppress loading of all builtin rules.
 	  }
@@ -1770,6 +1785,7 @@ sub parse_rule {
       }
 
       foreach (@targets) {
+	tr/A-Z/a-z/ unless $FileInfo::case_sensitive_filenames;
 	my $tinfo = ::find_makepp_info(unquote(), $self->{CWD});
 	FileInfo::set_additional_dependencies($tinfo, $after_colon[0], $self, $makefile_line);
 	$self->{FIRST_TARGET} ||= $tinfo;
@@ -2061,33 +2077,32 @@ my %sys;
 sub _truthval($$) {
   my( $cond, $line ) = @_;
   my( $not, $def, $eq, $sys, $makeperl, $perl ) =
-    $cond =~ /^(n?)(?:de(f)|e(q)|sy(s))$|^(make)?per(l)$/;
+    $cond =~ /^(?:n())?(?:def()|eq()|sys()|true)|^(?:make())?perl()/;
 
   $last_conditional_start = $makefile_lineno;
 				# Remember what line this was on so we can
 				# give better error messages.
   my $file = $makefile_name . ':' . $makefile_lineno;
   $line = expand_text( $makefile, $line, $file )
-    if $makeperl or !$perl;	# not plain Perl
+    if defined $makeperl or !defined $perl; # not plain Perl
 				# Expand away all the variables.
   $line =~ s/^\s+//;		# Strip leading whitespace.
 
   my $truthval;
   my $idx = index_ignoring_quotes $line, '#'; # Find comment.
-  if ($def) {			# See whether something is defined?
+  if( defined $def ) {			# See whether something is defined?
     substr( $line, $idx ) = '' if 0 <= $idx; # Strip comment.
 
     $truthval = expand_variable $makefile, $_, $file , 2
       and last			# Test for the existence of the variable.
       for split ' ', $line;	# Also strips trailing whitespace.
-  }
-  elsif ($eq) {		# Check for string equality?
+  } elsif( defined $eq ) {	# Check for string equality?
     substr( $line, $idx ) = '' if 0 <= $idx; # Strip comment.
     $line =~ s/\s+$//;	# Strip trailing whitespace.
 
     $idx = index_ignoring_quotes $line, ',';
     if ($line =~ /^\(/) {	# Parenthesized syntax? need to match make syntax to avoid
-    				# ambiguity if strings contain parentheses
+				# ambiguity if strings contain parentheses
       0 <= $idx or die "$file: Comma missing in 'if$cond$line'\n";
       $a = substr $line, 1, $idx - 1;
       $a =~ s/\s+$//;
@@ -2118,24 +2133,29 @@ sub _truthval($$) {
     } else {
       $truthval = unquote( $a ) eq unquote $b;
     }
-  } elsif ($sys) {		# See whether where on the right system?
+  } elsif( defined $sys ) {	# See whether we're on the right system?
     substr( $line, $idx ) = '' if 0 <= $idx; # Strip comment.
-    if( !%sys ) {		# First such, initialize.
-      $sys{$_} = 1 for
-	$^O, @Config::Config{qw(archname myarchname)},
-	  split " ", `uname -mps` || '';
+    unless( %sys ) {		# First such, initialize.
+      @sys{$^O, @Config::Config{qw(archname myarchname)}} = ();
+      @sys{split " ", `uname -mps` || ''} = ()
+	if ::is_windows < 2;
     }
+    local $FileInfo::case_sensitive_filenames = 1;
   REGEX:
     for( unquote_split_on_whitespace $line ) {
       my $regex = Glob::wild_to_regex $_;
       $truthval = /$regex/ and last REGEX
 	for keys %sys;
     }
-  } else {			# must be Perl
+  } elsif( defined $perl ) {
     $makefile->cd;		# Evaluate in the correct directory.
     $truthval = Makesubs::eval_or_die $line, $makefile, $file;
+  } else {			# must be check for nonzero?
+    substr( $line, $idx ) = '' if 0 <= $idx; # Strip comment.
+    $line =~ s/\s+$//;	# Strip trailing whitespace.
+    $truthval = $line ? 1 : undef;
   }
-  $not ? !$truthval : $truthval; # Check for negated condition.
+  defined $not ? !$truthval : $truthval; # Check for negated condition.
 }
 sub _read_makefile_line_stripped_1 {
   my $line;
@@ -2182,7 +2202,7 @@ sub _read_makefile_line_stripped_1 {
 
  ANY_LINE:
   # TODO: complain about unexpected else or endif:
-  if ($line =~ s/^\s*if(n?(?:def|eq|sys)|(?:make)?perl)\b//) {
+  if ($line =~ s/^\s*if(n?(?:def|eq|sys|true)|(?:make)?perl)\b//) {
 				# Looks like an if statement?
   IF_STATEMENT:
     my( $truthval, $totaltruthval ) = _truthval $1, $line;
@@ -2191,13 +2211,13 @@ sub _read_makefile_line_stripped_1 {
 				# Next joined line with ifdef intact.
       defined $line or
 	die "$makefile_name:$last_conditional_start: end of makefile inside conditional\n";
-      if( $line =~ s/^\s*(?:and|o(r))\s+if(n?(?:def|eq|sys)|(?:make)?perl)\b// ) {
-	next if $totaltruthval ||= $truthval && $1;
+      if( $line =~ s/^\s*(?:and|or())\s+if(n?(?:def|eq|sys|true)|(?:make)?perl)\b// ) {
+	next if $totaltruthval ||= $truthval && defined $1;
 				# Once we had a series of "1 and 1 ...", then an or, test no more.
-	next if !$truthval && !$1; # "0 and anything" stays 0
+	next unless $truthval || defined $1; # "0 and anything" stays 0
 	$truthval = _truthval $2, $line;
 				# Was either "0 or ..." or "1 and ..."
-      } elsif ($line =~ s/^\s*else\s+if(n?(?:def|eq|sys)|(?:make)?perl)\b//) {
+      } elsif ($line =~ s/^\s*else\s+if(n?(?:def|eq|sys|true)|(?:make)?perl)\b//) {
 				# Empty then branch and straight into another if.
 	$totaltruthval = $totaltruthval ? 0 : !$truthval;
 				# ifxxx, else is like a complex ifnxxx
@@ -2229,7 +2249,7 @@ sub _read_makefile_line_stripped_1 {
 				# We read one too much.
     goto &_read_makefile_line_stripped_1;
   }
-  elsif ($line =~ /^\s*else\s*(?:if(?:n?(?:def|eq|sys)|(?:make)?perl)\b|#|$)/) { # Else clause for an if?
+  elsif ($line =~ /^\s*else\s*(?:if(?:n?(?:def|eq|sys|true)|(?:make)?perl)\b|#|$)/) { # Else clause for an if?
     skip_makefile_until_else_or_endif( 1 );
 				# If we're here, the condition must have been
 				# true, so we know the else part must be false.
@@ -2269,10 +2289,10 @@ sub skip_makefile_until_else_or_endif {
       $line .= $nextline;
     }
 
-    if ($line =~ /^\s*if(?:n?(?:def|eq|sys)|(?:make)?perl)\b/) {
+    if ($line =~ /^\s*if(?:n?(?:def|eq|sys|true)|(?:make)?perl)\b/) {
       ++$endif_expected;	# Need another endif.
     }
-    elsif( !$was_true && $endif_expected == 1 && $line =~ /^\s*else\s*(?:\s*if(n?(?:def|eq|sys)|(?:make)?perl)\b|#|$)/ ) {
+    elsif( !$was_true && $endif_expected == 1 && $line =~ /^\s*else\s*(?:\s*if(n?(?:def|eq|sys|true)|(?:make)?perl)\b|#|$)/ ) {
 				# Found the matching else for the
 				# current conditional.
       if( $1 ) {

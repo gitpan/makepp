@@ -2,7 +2,7 @@
 
 makeppgraph -- Graphical analysis of the dependency graph
 
-=for vc $Id: makeppgraph.pod,v 1.8 2007/05/14 21:51:46 pfeiffer Exp $
+=for vc $Id: makeppgraph.pod,v 1.10 2007/12/14 10:36:44 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -39,8 +39,10 @@ stripes of criss-crossing edges.
 Once you realize what really goes on, if you're lucky, you may be able to find
 a way of simplifying your build setup.  But before you get there, you must
 drastically reduce the amount of information you display.  To that end there
-are various selection, renaming and merging possibilities in C<makeppgraph>
-described under L<Options|options>.
+are various selection, L<renaming and merging|/REWRITING> possibilities in
+C<makeppgraph>.  When you fail to strike a balance between reducing the graph
+so far that it becomes sensibly displayable, while still showing what you want
+to see, you may fall back to a textual graph.
 
 
 =head1 OUTPUT FORMATS
@@ -158,6 +160,67 @@ serve you better.
 
 =back
 
+=head2 HTML
+
+This is a simple unordered list tree format that can be perused with any
+browser.  You should have JavaScript and CSS, which allows folding subtrees
+and seeing colors.  Usually your graph will not be a tree, which is worked
+around by repeating nodes in every subtree needed, but as a link to the first
+occurrence where you can see all its attributes.  Due to IE's limited Unicode
+support, vertical arrows are used for include relations, instead of the usual
+dotted arrows.
+
+=head2 Textual Graphe
+
+This is a simple indentation-based format that can be perused with any text
+viewer.  This means you can usually study much bigger graphs than with the
+other formats.  In Emacs you can use outline and foldout for very powerful
+graph navigation with this little wrapper mode:
+
+    (define-derived-mode textgraph-mode outline-mode "Graph"
+      (view-mode)
+      (set (make-local-variable 'outline-regexp) " *.")
+      (set (make-local-variable 'outline-level)
+	   (lambda () (/ (- (match-end 0) (match-beginning 0) -1) 2)))
+      (set (make-local-variable 'outline-font-lock-keywords)
+           '(("^ *\\(?:{[a-z,]+} \\)?\\([^{\n]+\\)" (1 (outline-font-lock-face) nil t))))
+      (setq imenu-generic-expression
+	    '((nil "^ *\\(?:{[a-z,]+} \\)?\\(.+?\\)\\(?:{[a-z,]+}\\)?$" 1))))
+
+The lines can have comma separated annotations between braces, unless you also
+give the C<-p, --plain> option.  When these come before the target they
+pertain to the relationship with the parent, i.e. the previous line indented
+less.  When they come after the target, they pertain to the target itself.
+They are as follows:
+
+=over
+
+=item because
+
+When this comes before a target, the parent was built because of this one.
+When it comes after, the target had some inherent reason for being rebuilt.
+
+=item bidirectional
+
+This dependency or inclusion goes in both directions.
+
+=item include
+
+The parent includes this file.  This annotation is only given when also
+showing dependencies.
+
+=item phony
+
+This is a phony target.
+
+=item repeated
+
+The information about this target and its children was already given earlier
+on.
+
+=back
+
+
 =head1 OPTIONS
 
 If you give no patterns, makeppgraph will start operating with all the nodes
@@ -189,7 +252,7 @@ doesn't support border color.
 =item --dependencies
 
 Draw a graph of the dependency relationship determined by makepp.  This is the
-default unless C<--includes> is also given.
+default unless C<-i, --includes> is also given.
 
 =item -d
 
@@ -210,6 +273,13 @@ or which they include.
 Produce a Graphviz F<.dot> file, instead of the default uDrawZ<>(Graph) F<.udg>
 file.
 
+=item -h
+
+=item --html
+
+Produce a browser F<.html> file, instead of the default uDrawZ<>(Graph)
+F<.udg> file.
+
 =item -I dir
 
 =item --include=dir
@@ -222,9 +292,9 @@ Add I<dir> to Perl load path C<@INC>.
 
 =item --includes
 
-Instead of dependencies (or with C<--dependencies> additionally to them) draw
-a graph of include relationships.  This will only have been logged as far as
-it needed to be analyzed.  To get the full picture you need a fresh full
+Instead of dependencies (or with C<-D, --dependencies> additionally to them)
+draw a graph of include relationships.  This will only have been logged as far
+as it needed to be analyzed.  To get the full picture you need a fresh full
 build.
 
 =item -l filename
@@ -252,34 +322,8 @@ Load module and import any functions it exports.
 
 =item --merge=perlcode
 
-Perform I<perlcode> for every target and its dependencies.  This API is still
-under development!  Currently the target is passed in C<$_> and the dependency
-as an argument.  If perlcode returns a value, that value replaces both the
-target and the dependency, merging them into one node.  A few predefined
-functions can help you:
-
-=over
-
-=item c2o
-
-For any C/C++ source and the resulting F<.o> file, merge them into one node,
-by adding to the source path a suffix of C<E<gt>o> like
-F<some/where/foo.ccE<gt>o>, even if the F<.o> file is in another directory.
-
-=item exe
-
-For any F<.o> file and the resulting executable of the same notdir basename
-without a suffix or with F<.exe>, merge them into one node, by adding an
-asterisk to the F<.o> file.  This will not currently work together with
-F<c2o>.
-
-=item x2
-
-For any pair of files with the same name, usually a header or library
-published to a central directory, merge them into one node, by adding F<*2> to
-the dependency.
-
-=back
+Perform I<perlcode> for every target and its dependencies.  See
+L<merging|/Merging> for details about this option.
 
 =item -o filename
 
@@ -287,14 +331,60 @@ the dependency.
 
 Write the output to this file.
 
+=item -p
+
+=item --plain
+
+Don't use attributes like colors or dotted lines.  This is especially useful
+for uncluttering C<-t, --text> output.  In that format bidrectional edges will
+be lost unless you combine this with C<-s, --separate-directions>.
+
 =item -r perlcode
 
 =item --rename=perlcode
 
-This is the first name rewriting that occurs.  For every name encountered,
-perlcode gets called.  It gets a filename in C<$_>, and it may modify it.
-This is often needed, bacause makepp logs fully qualified file names, so one
-node can easily be half a screen wide.
+Perform I<perlcode> for every target and its dependencies.  See
+L<renaming|/Renaming> for details about this option.
+
+=item -s
+
+=item --separate-directions
+
+Draw two separate arrows, instead of each double ended arrow, to make them
+easier to spot.
+
+=item -t
+
+=item --text
+
+Produce a human readable F<.txt> file, instead of the default uDrawZ<>(Graph)
+F<.udg> file.
+
+=item -u
+
+=item --up
+
+=item --upwards
+
+This option is only meaningful if you provide one or more patterns.  It will
+then only select the targets which depend on and/or include the matched files.
+
+=back
+
+
+=head1 REWRITING
+
+The techniques in this chapter are usually essential to get a reasonably sized
+graph.  As they are formulated as Perl code, knowing the language is helpful.
+But you should be able to achieve quite a lot with the examples here or in the
+gallery L<http://makepp.sourceforge.net/gallery/>.
+
+=head2 Renaming
+
+This is the first name rewriting that occurs, if the C<-r, --rename> option is
+given.  For every name encountered, perlcode gets called.  It gets a filename
+in C<$_>, and it may modify it.  This is often needed, bacause makepp logs
+fully qualified file names, so one node can easily be half a screen wide.
 
 For one thing, you can rewrite names to C<undef> or the empty string.  This
 will eliminate the node from the graph.  Note that eliminating a node in this
@@ -394,16 +484,38 @@ for `local' when between two letters and for `lib' as the last letter.
 
 =back
 
-=item -u
 
-=item --up
+=head2 Merging
 
-=item --upwards
+This is the second name rewriting that occurs, if the C<-m, --merge> option is
+given.  This API is still under development!  Currently the target is passed
+in C<$_> and the dependency as an argument.  If perlcode returns a value, that
+value replaces both the target and the dependency, merging them into one node.
+A few predefined functions can help you:
 
-This option is only meaningful if you provide one or more patterns.  It will
-then only select the targets which depend on and/or include the matched files.
+=over
+
+=item c2o
+
+For any C/C++ source and the resulting F<.o> file, merge them into one node,
+by adding to the source path a suffix of C<E<gt>o> like
+F<some/where/foo.ccE<gt>o>, even if the F<.o> file is in another directory.
+
+=item exe
+
+For any F<.o> file and the resulting executable of the same notdir basename
+without a suffix or with F<.exe>, merge them into one node, by adding an
+asterisk to the F<.o> file.  This will not currently work together with
+F<c2o>.
+
+=item x2
+
+For any pair of files with the same name, usually a header or library
+published to a central directory, merge them into one node, by adding F<*2> to
+the dependency.
 
 =back
+
 
 =head1 ENVIRONMENT
 

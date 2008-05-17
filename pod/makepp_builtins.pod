@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.33 2007/05/29 20:46:02 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.35 2008/05/17 14:54:37 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -251,10 +251,12 @@ Standard options: C<-A, --args-file, --arguments-file=filename, -v, --verbose>
 
 =item &cp [option ...] sourcefile destfile
 
+=item &cp [option ...] sourcefile
+
 =item &cp [option ...] sourcefile ... destdir
 
-Copy I<sourcefile> to I<destfile>, or multiple I<sourcefile>s to I<destdir>
-with the same name.
+Copy I<sourcefile> to I<destfile>, one I<sourcefile> to current directory or
+multiple I<sourcefile>s to I<destdir> with the same name.
 
 Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force, -v,
 --verbose>
@@ -475,7 +477,7 @@ Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force, -i,
 --inpipe=shellcommand, -I, --infail, -o, --output=filename, -O, --outfail, -r,
 --record-size=number, -s, --separator=string, -S, --synclines, --verbose>
 
-The option C<&perl --synclines> only makes sence if you use
+The option C<--synclines> only makes sence with C<&perl> if you use
 C<&Makecmds::print> to output C<$_>.  Only C<&grep> has extra options:
 
 =over
@@ -646,10 +648,12 @@ files.
 
 =item &ln [option ...] sourcefile destfile
 
+=item &ln [option ...] sourcefile
+
 =item &ln [option ...] sourcefile ... destdir
 
-Link I<sourcefile> to I<destfile>, or multiple I<sourcefile>s to I<destdir>
-with the same name.
+Link I<sourcefile> to I<destfile>, one I<sourcefile> to current directory or
+multiple I<sourcefile>s to I<destdir> with the same name.
 
 Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force, -v,
 --verbose>
@@ -736,10 +740,12 @@ concurrently by another process).
 
 =item &mv [option ...] sourcefile destfile
 
+=item &mv [option ...] sourcefile
+
 =item &mv [option ...] sourcefile ... destdir
 
-Move or rename I<sourcefile> to I<destfile>, or multiple I<sourcefile>s to
-I<destdir> with the same name.
+Move or rename I<sourcefile> to I<destfile>, one I<sourcefile> to current
+directory or multiple I<sourcefile>s to I<destdir> with the same name.
 
 Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force, -v,
 --verbose>
@@ -984,21 +990,17 @@ unprocessed script, which is to get replaced with the configured code.
 In addition to passing macro definitions on the command line, you can also put
 C<@macro=definition@> or C<@macro?=definition@> into the file.  The latter
 only takes effect if the macro was not defined, presumably on the command
-line.  Due to the rather simple parser these are not always performed before
-invocations on the same line.  Therefore it is recommended to put them on a
-line of their own -- followed by a backslash if you don't want an empty line.
-
-You can also call C<@{ I<Perlcode> }@> or C<@@{ I<Perlcode> }@@ ... @@> in the
-file.  The Perl variable C<$ARGV> contains the name of the current input file.
-If you call C<@macro { I<Perlcode> }@>, then you define a new macro, the body
-of which is a perl sub.  The arguments, if there are any, get passed in as
-C<@_>.
+line.  You can also call C<@{ I<Perlcode> }@> or C<@@{ I<Perlcode> }@@ ... @@>
+in the file.  The Perl variable C<$ARGV> contains the name of the current
+input file.  If you call C<@macro { I<Perlcode> }@>, then you define a new
+macro, the body of which is a perl sub.  The arguments, if there are any, get
+passed in as C<@_>.
 
     @m1=some definition@\
     @m2=foo $1 bar@\
     @middle_of_arg=iddl@\
     @m1@ @m2(m@middle_of_arg@e)@
-    @m2=too late@@@m2(many lines)@@
+    @@m2(many lines)@@
     ...
     @@ plain text 1 + 2 = @{ 1 + 2 }@
 

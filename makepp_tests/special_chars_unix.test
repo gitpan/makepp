@@ -28,7 +28,7 @@ a;b
 a:b
 ###	1	644	1067451879	965514355	answers/a;b
 a;b
-###	1	644	1067451879	965515328	answers/n_files
-4 0
+###	1	644	1067451879	1190053938	answers/n_files
+4 1 0
 ###	1	644	1067451879	965514355	answers/a file with spaces
 a file with spaces

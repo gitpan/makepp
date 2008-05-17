@@ -2,7 +2,7 @@
 
 makepplog -- Textual analysis of the build log
 
-=for vc $Id: makepplog.pod,v 1.6 2007/07/28 18:43:22 pfeiffer Exp $
+=for vc $Id: makepplog.pod,v 1.8 2007/10/18 20:13:31 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -61,11 +61,11 @@ makefiles with F<.../> so as to keep odd pathes out of your sight.
 The I<list> specifies one or more space separated Shell style patterns (with
 [xyz], ?, *, {a,bc,def}).  Remember to protect these from your Shell by
 quoting.  These are matched against the message keys (as shown by
-C<--showkey>).  Each pattern may be preceded with an exclamtion mark to
-exclude the matched keys from those selected before instead of adding them to
-the selection.  If the first pattern starts with an exclamtion mark, it
-operates on all keys.  There are a few key prefixes with fixed meanings so you
-can select categories of keys:
+C<--showkey>).  Each pattern may be preceded with an exclamtion mark (C<!>) or
+a caret (C<^>) to exclude the matched keys from those selected before instead
+of adding them to the selection.  If the first pattern starts with an
+exclamtion mark, it operates on all keys.  There are a few key prefixes with
+fixed meanings so you can select categories of keys:
 
 =over
 
@@ -141,6 +141,13 @@ Write the output to this file, rather than stdout.
 
 Prefix every structured message with the string "makepplog: ".  IDEs like
 Emacs can then parse the lines and hyperlink to the mentioned files.
+
+=item -t
+
+=item --tabulate
+
+Put each list item on a new line, rather than outputting a line that can
+easily become longer than a screenful.
 
 =item -u
 

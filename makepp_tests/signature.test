@@ -17,7 +17,7 @@ file_made_outside_makepp:
 	perl { die }
 
 signature default
-###	D	755	1067451879	982624972	answers
-###	1	644	1067451879	982624972	answers/n_files
-0 0
 ###	0	644	1067451879	982624844	file_made_outside_makepp
+###	D	755	1067451879	982624972	answers
+###	1	644	1067451879	1190053928	answers/n_files
+0 1 0

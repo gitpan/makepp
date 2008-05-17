@@ -2,7 +2,7 @@
 
 makepp_rules -- How to tell makepp to build something
 
-=for vc $Id: makepp_rules.pod,v 1.22 2007/05/06 10:42:41 pfeiffer Exp $
+=for vc $Id: makepp_rules.pod,v 1.23 2008/02/24 21:38:44 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -694,7 +694,7 @@ enclose the name in quotes, like this:
 
 Now the rule is unambiguous.
 
-Makepp's quoting rules are quite similar to the shell's.  You can, for
+Makepp's quoting syntax is quite similar to the shell's.  You can, for
 example, use single quotes instead of double quotes, or you can escape special
 characters with a backslash:
 
@@ -708,7 +708,42 @@ to makepp (and the shell):
     \''"!;\$$'
     "'\"!;\\$$"
 
-Note that (unlike the shell) variables beginning with C<$> are expanded even
+Pay attention as to when makepp strips quotes and when the shell does.  Makepp
+looks at quotes only in the following cases:
+
+=over
+
+=item *
+
+in the C<ifeq> family of tests
+
+=item *
+
+before and after the rule colon
+
+=item *
+
+in a makepp builtin command
+
+=item *
+
+in a function that pertains to files
+
+=back
+
+Unlike the shell, makepp doesn't expand quotes while assigning them to a
+variable.  Thus the following rules are identical:
+
+    FILE = 'name with spaces'
+    x := $(print $(FILE))	# just to check that quotes are still there
+    $(FILE):			# quotes around single file stripped by makepp
+	&echo hello -o$(FILE)	# quotes around single file stripped by makepp
+ 	echo there >>$(FILE)	# quotes around single file stripped by Shell
+    'name with spaces':
+	&echo hello -o'name with spaces'
+ 	echo there >>'$(output)' # quotes were stripped above, add them again
+
+Note that (unlike the Shell) variables beginning with C<$> are expanded even
 inside single quotes.  Dollar signs cannot be protected by quotes or
 backslashes.  To get a literal dollar sign, use a double dollar sign,
 e.g.,

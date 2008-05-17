@@ -4,7 +4,7 @@
 # Test if unpacking managed to set the timestamp required by SIGNATURE.
 #
 
-(stat 'build_cache/small')[9] == 1103934737
+!no_symlink && (stat 'build_cache/small')[9] == 1103934737
 ###	11	664	1124224809	1180345382	Makeppfile
 # This used to cause an error, so we should test that it works:
 build_cache none

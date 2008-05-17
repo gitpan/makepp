@@ -1,20 +1,31 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	4	644	1143325703	1069788272	RootMakeppfile.mk
+###	5	755	1164315688	1210172653	makepp_test_script.pl
+makepp '-Cdir';
+rename 'dir/z', 'z';
+rename 'dir/.makepp/log', 'log';
+rename 'log', '.makepp/log';
+1;
+###	8	644	1143325703	1069788272	RootMakeppfile.mk
 FILES := $(wildcard *.x)
+perl { FileInfo::file_info('/foo') }
+ifneq($(filter //, $(wildcard /*)),)
+perl { die }
+endif
 
 x.h: $(FILES)
 	&cat $(inputs) -o $@
-###	D	755	1069789369	1069789369	answers
-###	1	644	1069789051	1069788703	answers/z
-0
 ###	1	644	1069788782	1069788602	bar.x
 #define X 0
+###	3	644	1069789246	1069789240	foo.x
+#ifndef X
+# define X 1
+#endif
 ###	D	755	1069789370	1069789370	dir
-###	4	644	1069788872	1069788867	dir/Makeppfile.mk
+###	4	644	1069788872	1208527221	dir/Makeppfile.mk
 CFLAGS := -I ..
 
-z: y
-	./y > $@
+z:
+	.$/y > $@
 ###	3	644	1069789252	1069789246	dir/foo.x
 #ifndef X
 # define X 1
@@ -27,12 +38,6 @@ int main() {
 	printf("%d\n", X);
 	return 0;
 }
-###	3	644	1069789246	1069789240	foo.x
-#ifndef X
-# define X 1
-#endif
-###	4	755	1164315688	1069789337	makepp_test_script.pl
-makepp '-Cdir';
-rename 'dir/z', 'z';
-rename 'dir/.makepp/log', '.makepp/log';
-1;
+###	D	755	1069789369	1069789369	answers
+###	1	644	1069789051	1069788703	answers/z
+0

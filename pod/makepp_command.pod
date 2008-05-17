@@ -2,7 +2,7 @@
 
 makepp_command -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.32 2007/05/17 11:48:40 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.36 2008/04/15 21:34:48 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -10,6 +10,7 @@ makepp_command -- Command line syntax for makepp
     mpp [-options] [VAR=value] [target1 target2 ...]
 
 L<--B<a>ssume-new|/_2DW_filename>,
+  L<--argsfile|/_2d_2dargsfile_3dfilename>,
   L<--assume-old|/_2Do_filename>,E<nbsp>
 L<-B<b>|/_2d_2dbuild_2dcache>,
   L<--build-cache|/_2d_2dbuild_2dcache>,
@@ -58,6 +59,7 @@ L<-B<n>|/_2Dn>,
   L<--no-implicit-load|/_2D_2Dno_2Dimplicit_2Dload>,
   L<--no-log|/_2D_2Dno_2Dlog>,
   L<--no-log-scan|/_2D_2Dno_2Dlog_2Dscan>,
+  L<--no-path-executable-dependencies|/_2d_2dno_2dpath_2dexecutable_2ddependencies>,
   L<--no-populate-bc|/_2d_2dno_2dpopulate_2dbc>,
   L<--no-remake-makefiles|/_2D_2Dno_2Dremake_2Dmakefiles>,
   L<--no-warn|/_2D_2Dno_2Dwarn>,E<nbsp>
@@ -83,10 +85,12 @@ L<-B<s>|/_2Ds>,
   L<--stop|/_2D_2Dstop>,
   L<--stop-after-loading|/_2D_2Dstop>,E<nbsp>
   --stop-on-race
+  L<--symlink-in-repository-as-file|/_2D_2Dsymlink_2Din_2Drepository_2Das_2Dfile>,
 L<--B<t>raditional-recursive-make|/_2D_2Dtraditional_2Drecursive_2Dmake>,E<nbsp>
 L<-B<v>|/_2Dv>,
   L<--verbose|/_2Dv>,
   L<--version|/_2D_2Dversion>,E<nbsp>
+  L<--virtual-sandbox|/_2D_2Dvirtual_2Dsandbox>,E<nbsp>
 L<-B<W>|/_2DW_filename>,
   L<--what-if|/_2DW_filename>
 
@@ -104,6 +108,11 @@ assignment or environment variable in every Makefile loaded, e.g.,
 Options include most of the standard make options, plus a few new ones.
 
 =over 4
+
+=item --argsfile=filename X<--argsfile>
+
+Read arguments from the specified file, and interpolate them into the
+command line in place.
 
 =item -W filename X<-W> X<--assume-new>
 
@@ -235,6 +244,12 @@ inside your build system is built (if necessary) but nothing outside is
 attempted.  If, in this scenario, you want external parts to always be built
 as needed, you must exlicitly pick them up with C<load_makefile> statements in
 one of the makefiles within your tree.
+
+You may have one F<RootMakeppfile(.mk)> each, in separate build trees, and
+they will be loaded if one tree has dependencies in another one.  But you are
+not allowed to have F<RootMakeppfile(.mk)> in nested directories, avoiding
+funny effects that tend to arise when you accidentally call C<makepp
+--repository> again in a subdirectory.
 
 =item --do-build=filename X<--do-build>
 
@@ -590,6 +605,15 @@ CPU time, and you might not want to bother.
 Don't bother putting messages about scanning into the log file.  This
 can help cut down on the irrelevant messages in the log file.
 
+=item --no-path-executable-dependencies
+
+Do not add implicit dependencies on executables picked up from the command
+search path.
+This is useful for programs such as grep and diff, which always do basically
+the same thing even if their implementation changes.
+If this option is specified, then makepp assumes that any executable whose
+behavior might change will be specified with a name containing a slash.
+
 =item --no-populate-bc
 
 Don't populate the build cache, but still import from it when possible.
@@ -684,6 +708,17 @@ If you use C<prebuild> or C<$(make)> it will stop when it gets to that point,
 so it might not be so useful.  Nor will it consider regeneration of
 Makeppfiles, but this is not expected to happen frequently.
 
+=item --symlink-in-repository-as-file
+
+If a repository contains a symbolic link, then by default that symbolic link
+is imported as a link, which is to say that the target of the imported link
+need not be identical to the target of the symbolic link in the repository.
+If the C<--symlink-in-repository-as-file> option is specified, then the
+symbolic link is imported as its target file, which is to say that the imported
+link points to the same target file as the symbolic link in the repository.
+This is useful if the symbolic link in the repository was intended to have
+the build-time semantics of a copy.
+
 =item --traditional-recursive-make
 
 This option is present to allow makepp to work with old makefiles that
@@ -715,6 +750,14 @@ look at F<.makepp_log>.
 =item --version
 
 Print out the version number.
+
+=item --virtual-sandbox
+
+Don't rewrite build infos of files that were not created by this makepp process.
+This is useful when running concurrent makepp processes with overlapping
+sandboxes, and you are certain that no two processes will attempt to build
+the same target.  Makepp will then refrain from caching additional information
+about files that it reads, because there might be other concurrent readers.
 
 =back
 

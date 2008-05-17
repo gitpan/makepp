@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.68 2007/05/17 11:51:25 pfeiffer Exp $
+# $Id: install.pl,v 1.74 2008/05/17 14:22:38 pfeiffer Exp $
 #
 
 use Config;
@@ -47,11 +47,13 @@ print "Using perl in $perl.\n";
 #
 our $eliminate = '';		# So you can say #@@eliminate
 open(VERSION, "VERSION") || die "You are missing the file VERSION.  This should be part of the standard distribution.\n";
-$VERSION = <VERSION>;
+our $VERSION = <VERSION>;
+our $BASEVERSION = $VERSION;
 chomp $VERSION;
 close VERSION;
 
 if( $VERSION =~ s/beta// ) {
+  $BASEVERSION = $VERSION;
 #
 # Grep all our sources for the checkin date.  Make a composite version
 # consisting of the three most recent dates (shown as mmdd, but sorted
@@ -164,11 +166,11 @@ substitute_file( $_, $bindir, 0755, 1 ) for
   qw(makepp makeppbuiltin makeppclean makeppgraph makeppinfo makepplog makepp_build_cache_control);
 
 substitute_file( $_, $datadir, 0644 ) for
-  qw(recursive_makepp FileInfo_makepp.pm);
+  qw(recursive_makepp FileInfo_makepp.pm BuildCacheControl.pm);
 
 make_dir("$datadir/$_") for
   qw(ActionParser BuildCheck CommandParser Scanner Signature);
-foreach $module (qw(AutomakeFixer BuildCache BuildCacheControl FileInfo Glob MakeEvent
+foreach $module (qw(AutomakeFixer BuildCache FileInfo Glob MakeEvent
 		    Makecmds Makefile Makesubs Rule TextSubs Utils
 
 		    ActionParser ActionParser/Legacy ActionParser/Specific
@@ -231,7 +233,7 @@ sub highlight_keywords() {
   s!\G((?:override )?(?:define|export|global)|override|ifn?def|makesub|sub)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<i>$3</i>! or
   s!\G(register_scanner|signature)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<u>$3</u>! or
   # repeat the above, because they may appear in C<> without argument
-  s!\G(\s*(?:and |or |else )?if(?:n?(?:def|eq|sys|xxx)|(?:make)?perl)|build_cache|else|endd?[ei]f|export|global|fi|[_-]?include|load[_-]makefile|makeperl|no[_-]implicit[_-]load|override|perl(?:|[_-]begin|[_-]end)|repository|runtime|unexport|define|makesub|sub|register_scanner|signature)\b!<b>$1</b>! && s|xxx|<i>xxx</i>| or
+  s!\G(\s*(?:and |or |else )?if(?:n?(?:def|eq|sys|true|xxx)|(?:make)?perl)|build_cache|else|endd?[ei]f|export|global|fi|[_-]?include|load[_-]makefile|makeperl|no[_-]implicit[_-]load|override|perl(?:|[_-]begin|[_-]end)|repository|runtime|unexport|define|makesub|sub|register_scanner|signature)\b!<b>$1</b>! && s|xxx|<i>xxx</i>| or
 
     # highlight assignment
     s,\G\s*(?:([-.\w\s%*?\[\]]+?)(\s*:\s*))?((?:override\s+)?)([-.\w]+)(?= *(?:[:;+?!]|&amp;)?=),
@@ -310,6 +312,7 @@ if ($htmldir_val ne 'none') {
 	       makeppbuiltin => 'makeppbuiltin',
 	       makeppclean => 'makeppclean',
 	       makeppgraph => 'makeppgraph',
+	       makeppinfo => 'makeppinfo',
 	       makepplog => 'makepplog');
   for( @pods ) {
     my $pod = $_;
@@ -334,7 +337,8 @@ if ($htmldir_val ne 'none') {
 	    'makeppbuiltin.html' => '~0',
 	    'makeppclean.html' => '~1',
 	    'makeppgraph.html' => '~2',
-	    'makepplog.html' => '~3');
+	    'makeppinfo.html' => '~3',
+	    'makepplog.html' => '~4');
   my $home = ($htmldir_val =~ /\/[0-9.]+(?:\/|$)/);
   my @links =
       sort { (exists $order{$a} ? $order{$a} : $nolink{$a}) cmp (exists $order{$b} ? $order{$b} : $nolink{$b}) }
@@ -440,7 +444,7 @@ if ($htmldir_val ne 'none') {
 	    shift @list;
 	    $_ = '<tr><th></th>';
 	    if( $list[0] ne '.0' ) {
-	      $_ .= '<th colspan="3">5.6</th><th colspan="' . (@list - 3) . '">5.8</th>';
+	      $_ .= '<th colspan="3">5.6</th><th colspan="' . (@list - 4) . '">5.8</th><th>5.10</th>';
 	    } else {
 	      for my $elem ( @list ) {
 		$_ .= "<th>&nbsp;$elem&nbsp;</th>";

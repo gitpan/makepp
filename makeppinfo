@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 
-# $Id: makeppinfo,v 1.1 2007/05/14 22:16:36 pfeiffer Exp $
+# $Id: makeppinfo,v 1.3 2007/10/22 19:04:31 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 use Config;
@@ -52,39 +52,84 @@ BEGIN {
 }
 
 use Utils;
-use FileInfo qw(file_info file_exists);
+use FileInfo qw(file_info file_exists relative_filename);
 use FileInfo_makepp;
 
-
+my( $keylist, $quiet, $traverse, @keys_not, @keys );
 TextSubs::getopts
+  ['k', qr/key(?:s|list)/, \$keylist, 1],
+  [qw'q quiet', \$quiet],
+  [qw't traverse', \$traverse],
   [undef, 'version', undef, undef, \&FileInfo::version],
   [qr/[h?]/, 'help', undef, undef, \&usage];
 
+$SIG{__WARN__} = sub {} if $quiet && $quiet > 1;
 
-for( @ARGV ) {
-  my $finfo = file_info $_;
+for( $keylist ) {
+  last if !defined;
+  tr/a-z/A-Z/;
+  s/(?=[?*])/./g;
+  if( s/\{/(?:/g ) {
+    tr/,}/|)/ or die "makeppinfo: error: -k, --keylist contained '{', but no ',' or '}'\n";
+  } else {
+    /,/ and die "makeppinfo: error: -k, --keylist contained ',', but no '{...}'\n";
+  }
+}
+
+my( %seen, $no_warn, $cwd );
+while( @ARGV ) {
+  my $finfo = shift;
+  if( ref $finfo ) {
+    $no_warn = 1;
+    undef $traverse if $traverse && $traverse == 1;
+  } else {
+    $finfo = file_info $finfo;
+  }
+  next if exists $seen{int $finfo};
+  undef $seen{int $finfo};
   unless( file_exists $finfo ) {
-    warn "$_: file not found\n";
+    warn 'makeppinfo: file `' . relative_filename( $finfo ) . "' not found\n";
     next;
   }
   my $build_info_fname = FileInfo::build_info_fname $finfo;
   my $fh;
   unless( open $fh, $build_info_fname ) {
-    warn "$_: file not found\n";
+    warn "makeppinfo: build info file `$build_info_fname' not found\n"
+      unless $no_warn;
     next;
   }
   my $build_info = FileInfo::parse_build_info_file $fh;
-  warn $build_info_fname . ": build info file corrupted\n" unless $build_info;
+  unless( $build_info ) {
+    warn "makeppinfo: build info file `$build_info_fname' corrupted\n";
+    next;
+  }
 
+  $cwd = file_info $build_info->{CWD}, exists $finfo->{DIRCONTENTS} ? $finfo : $finfo->{'..'}
+    if $traverse && exists $build_info->{CWD};
   if( $build_info->{DEP_SIGS} && $build_info->{SORTED_DEPS} ) {
     my @dep_sigs = split /\cA/, delete $build_info->{DEP_SIGS};
     my @sorted_deps = split /\cA/, $build_info->{SORTED_DEPS};
+    push @ARGV, map file_info( $_, $cwd ), @sorted_deps
+      if $traverse;
     $build_info->{SORTED_DEPS} = '';
     $build_info->{SORTED_DEPS} .= sprintf "\n%-22s %s", shift @dep_sigs, shift @sorted_deps
       while @dep_sigs;
   }
 
-  print "$_:\n";
+  if( $keylist ) {
+    my %want;
+    for my $re ( split ' ', $keylist ) {
+      if( $re =~ s/^[!^]// ) {
+	@want{keys %$build_info} = () if !%want;
+	delete @want{grep /^$re$/, keys %want};
+      } else {
+	@want{grep /^$re$/, keys %$build_info} = ();
+      }
+    }
+    delete @{$build_info}{grep !exists $want{$_}, keys %$build_info};
+  }
+
+  print relative_filename( $finfo ) . ":\n" unless $quiet;
   for my $key ( sort keys %$build_info ) {
     # Check names explicitly, because there may be no ^B, making it look like a 1 level list:
     if( $key =~ /^(?:IMPLICIT_DEPS|INCLUDE_(?:PATHS|SFXS)|META_DEPS)$/ || $build_info->{$key} =~ /\cB/ ) {
@@ -101,7 +146,12 @@ for( @ARGV ) {
     } else {
       $build_info->{$key} =~ s/\n/\n\t/g;
     }
-    print "$key=$build_info->{$key}\n";
+    if( $quiet ) {
+      $build_info->{$key} =~ s/\A\n//;
+      print "$build_info->{$key}\n";
+    } else {
+      print "$key=$build_info->{$key}\n";
+    }
   }
 }
 
@@ -113,6 +163,12 @@ For each file print a human readable version of makepp's build info.
 SORTED_DEPS has the DEP_SIGS prepended.  Tagged lists have the tag
 prepended.
 
+-k LIST, --keys=LIST or --keylist=LIST
+	Show only messages with, !without or ^without keys, {bash,patterns}.
+-q, --quiet
+	Don't list file and key names.  Repeat to also omit warnings.
+-t, --traverse
+	Also output SORTED_DEPS (recursively if repeated).
 --version
 	Print out the current version.
 END_OF_USAGE

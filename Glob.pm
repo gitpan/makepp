@@ -1,6 +1,6 @@
 package Glob;
 
-# $Id: Glob.pm,v 1.26 2007/06/29 22:10:56 pfeiffer Exp $
+# $Id: Glob.pm,v 1.27 2007/10/22 19:05:07 pfeiffer Exp $
 use strict;
 
 use FileInfo qw(file_info chdir absolute_filename relative_filename $CWD_INFO);
@@ -559,19 +559,13 @@ message in this case.
 =cut
 
 sub needed_wildcard_action {
-  unshift @_, 'NEEDED_WILDCARD_ROUTINES', 0;
-  goto &wildcard_action_shared;
+  push @_, 1;
+  goto &wildcard_action;
 }
 
 sub wildcard_action {
-  unshift @_, 'WILDCARD_ROUTINES', 1;
-  goto &wildcard_action_shared;
-}
-
-sub wildcard_action_shared {
-  my $member = shift @_;
-  my $call_for_existing = shift @_;
-  my $subr = pop @_;		# Last argument is the subroutine to execute.
+  my( $subr, $needed ) = splice @_, ref( $_[-1] ) ? -1 : -2;
+  my $member = $needed ? 'NEEDED_WILDCARD_ROUTINES' : 'WILDCARD_ROUTINES';
 
 #
 # We first call the subroutine immediately with all files that we currently
@@ -597,7 +591,8 @@ sub wildcard_action_shared {
       } else {
 	my $name_or_regex = $file_pieces[0] =~ /[[?*]/ ? wild_to_regex( $file_pieces[0] ) : $file_pieces[0];
 	last if ref $name_or_regex; # Quit if we hit the first wildcard.
-	$initial_finfo = file_info $name_or_regex, $initial_finfo;
+	$initial_finfo = exists $initial_finfo->{DIRCONTENTS} && $initial_finfo->{DIRCONTENTS}{$name_or_regex} ||
+	  file_info $name_or_regex, $initial_finfo;
       }
       shift @file_pieces;	# Get rid of that piece.
     }
@@ -609,8 +604,7 @@ sub wildcard_action_shared {
     if (@file_pieces == 0) {	# Is there anything left?
       &$subr($initial_finfo, 0); # No.	Just call the subroutine directly,
 				# and set the no-wildcard flag.
-    }
-    else {
+    } else {
 #
 # We have wildcards.  Convert the whole rest of the string into a regular
 # expression that matches:
@@ -633,7 +627,9 @@ sub wildcard_action_shared {
       }
 
       for( join '/', @file_pieces ) {
-	if( $call_for_existing ) {
+	my @deep = 1 if @file_pieces > 1 || /\*\*/;
+	my $anchor = 0;
+	unless( $needed ) {
 	  foreach( zglob_fileinfo $_, $initial_finfo, 1 ) {
 	    $_->{PUBLISHED}=2 if $::rm_stale_files;
 				# Don't also call $subr later if it looks like
@@ -648,14 +644,7 @@ sub wildcard_action_shared {
 				# filename including the directory
 				# path, and (in order to make that path unique)
 				# the path cannot contain soft-linked dirs.
-
-				# Associate a wildcard checking subroutine with
-				# this directory, so that any subsequent files
-				# which match also cause the subroutine to
-				# be called.
 	}
-	my @deep = 1 if @file_pieces > 1 || /\*\*/;
-	my $anchor = 0;
 	if( @deep ) {
 	  s!^\*\*/?!! or $anchor++;
 	  s!/?\*\*$!! or $anchor += 2;
@@ -664,6 +653,10 @@ sub wildcard_action_shared {
 	  s!/\*$!! or $anchor += 2;
 	}
 	push @{$initial_finfo->{$member}}, [wild_to_regex( $_, $anchor ), $subr, @deep];
+				# Associate a wildcard checking subroutine with
+				# this directory, so that any subsequent files
+				# which match also cause the subroutine to
+				# be called.
       }
     }
   }

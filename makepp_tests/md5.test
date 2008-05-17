@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	41	644	1164351461	1185360292	makepp_test_script.pl
+###	51	644	1164351461	1208285030	makepp_test_script.pl
 # This test depends entirely on the builtin rules and the existence of a C compiler.
 #
 # Tests several things about C compilation:
@@ -13,6 +13,7 @@
 
 use Config;
 my $obj;
+my @exe_dep = is_windows ? '--no-path-exe-dep' : ();
 for $iter ( 0..3 ) {
   # This is slow and low-tech, but we need to guarantee that the .c has
   # a timestamp different from its build info, *and* that the .o
@@ -21,7 +22,7 @@ for $iter ( 0..3 ) {
   wait_timestamp( 'compilation_test.c', "compilation_test.$obj" ) if $iter;
   print "**** Iteration $iter\n";
   cp "compilation_test_$iter.c", 'compilation_test.c';
-  makepp 'CPPFLAGS=-I subdir1 -Isubdir2', 'compilation_test';
+  makepp @exe_dep, 'CPPFLAGS=-I subdir1 -Isubdir2', 'compilation_test';
 				# We test both the "-I subdir" and "-Isubdir"
 				# syntax.
   $obj ||= -f 'compilation_test.o' ? 'o' : 'obj';
@@ -40,26 +41,16 @@ for $iter ( 0..3 ) {
   n_files "n_files_$iter", sub { die if /warning: can.t locate file/ };
 				# Make sure makepp correctly found all include files.
 }
+if( is_windows ) {
+  for my $n ( 0..3 ) {
+    open my $fh, '+<', "answers/n_files_$n" or die $!;
+    my $line = <$fh>;
+    seek $fh, 0, 0;
+    $line =~ s/ 0 / 1 /;	# Extra phony on each test
+    print $fh $line;
+  }
+}
 1;
-###	D	755	1067451873	1055628127	answers
-###	1	644	1067451873	1055628127	answers/n_files
-0 0
-###	1	644	1067451873	1055628033	answers/iteration_0
-8 1 2 4
-###	1	644	1067451873	1055628036	answers/iteration_1
-8 1 2 4
-###	1	644	1067451873	1055628038	answers/iteration_2
-9 1 2 4
-###	1	644	1067451873	1055628041	answers/iteration_3
-9 1 2 4
-###	1	644	1067451873	1055628033	answers/n_files_0
-5 0
-###	1	644	1067451873	1055628036	answers/n_files_1
-0 0
-###	1	644	1067451873	1055628038	answers/n_files_2
-2 0
-###	1	644	1067451873	1055628041	answers/n_files_3
-0 0
 ###	10	644	1067451873	1055627995	compilation_test_0.c
 #include <stdio.h>
 #include "x.h"
@@ -127,3 +118,20 @@ y.h:
 ###	2	644	1067451873	1055551960	x2.h
 /* This file should be ignored. */
 #define X2 3
+###	D	755	1067451873	1055628127	answers
+###	1	644	1067451873	1055628033	answers/iteration_0
+8 1 2 4
+###	1	644	1067451873	1055628036	answers/iteration_1
+8 1 2 4
+###	1	644	1067451873	1055628038	answers/iteration_2
+9 1 2 4
+###	1	644	1067451873	1055628041	answers/iteration_3
+9 1 2 4
+###	1	644	1067451873	1190053877	answers/n_files_0
+5 0 0
+###	1	644	1067451873	1190053880	answers/n_files_1
+0 0 0
+###	1	644	1067451873	1190053884	answers/n_files_2
+2 0 0
+###	1	644	1067451873	1190053887	answers/n_files_3
+0 0 0

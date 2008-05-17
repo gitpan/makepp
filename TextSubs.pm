@@ -1,4 +1,4 @@
-# $Id: TextSubs.pm,v 1.31 2007/07/16 22:45:41 pfeiffer Exp $
+# $Id: TextSubs.pm,v 1.36 2008/05/17 14:13:17 pfeiffer Exp $
 package TextSubs;
 require Exporter;
 @ISA = qw(Exporter);
@@ -9,10 +9,26 @@ require Exporter;
 	     requote format_exec_args whitespace_len hash_neq
 	     is_cpp_source_name is_object_or_library_name);
 
+use Config ();
+
 # Centrally provide constants which are needed repeatedly for aliasing, since
 # perl implements them as subs, and each sub takes about 1.5kb RAM.
 BEGIN {
-  eval 'sub CONST' . $_ . '() { ' . $_ . ' }' for 0..6;
+  eval "sub CONST$_() { $_ }" for 0..6; # More are defined in BuildCacheControl.pm
+  *::is_perl_5_6 = $] < 5.008 ? \&CONST1 : \&CONST0;
+  *::is_windows =
+    $^O eq 'cygwin' ? sub() { -1 } : # Negative for Unix like
+    $^O eq 'msys' ? sub() { -2 } :   # MinGW with sh & coreutils
+    $^O =~ /^MSWin/ ? (exists $ENV{SHELL} && $ENV{SHELL} =~ /sh(?:\.exe)?$/i ? \&CONST1 : \&CONST2) :
+    \&CONST0;
+
+  my $perl = $ENV{PERL};
+  if( !$perl ) {
+    $perl = $Config::Config{perlpath};	# Prefer appended version number for precision.
+    my $version = sprintf '%vd', $^V;
+    $perl .= $version if -x "$perl$version";
+  }
+  eval "sub ::PERL() { '$perl' }";
 }
 
 #
@@ -304,9 +320,10 @@ sub split_path {
   my $var = $_[1] || 'PATH';
   my $path = $_[2] || ($_[0] && $_[0]{$var} || $ENV{$var});
   if( ::is_windows ) {
-    map { tr!\\"!/!d; $_ eq '' ? '.' : $_ } $^O =~ /^MSWin/ ?
-      split( /;/, "$path;" ) :		# "C:/a b";C:\WINNT;C:\WINNT\system32
-      split_on_colon( "$path:" );	# "C:/a b":"C:/WINNT":/cygdrive/c/bin
+    map { tr!\\"!/!d; $_ eq '' ? '.' : $_ }
+      ::is_windows > 0 ?
+	split( /;/, "$path;" ) :	# "C:/a b";C:\WINNT;C:\WINNT\system32
+	split_on_colon( "$path:" );	# "C:/a b":"C:/WINNT":/cygdrive/c/bin
   } else {
     map { $_ eq '' ? '.' : $_ } split /:/, "$path:";
   }
@@ -343,8 +360,8 @@ sub skip_over_make_expression {
 
   my $double = //gc || 0;	# Does the expression begin with $((, ${{ or $[[?
 
-  if( /\G(?:perl|ma(p))\s+/gc ) { # Is there plain Perl code we must skip blindly?
-    if( $1 ) {			# The first arg to map is normal make stuff.
+  if( /\G(?:perl|map())\s+/gc ) { # Is there plain Perl code we must skip blindly?
+    if( defined $1 ) {		  # The first arg to map is normal make stuff.
       /\G[^"'\$,]/gc or &{$skip_over{substr $_, pos()++, 1}}
 	while !/\G,/gc;
     }
@@ -519,9 +536,16 @@ sub requote {
 sub format_exec_args {
   for( $_[0] ) {
     return $_			# No Shell available.
-      if ::is_windows() && $^O =~ /^MSWin/;
+      if ::is_windows > 1;
+    if( ::is_windows == 1 && /[%"\\]/ ) { # Despite multi-arg system(), these chars mess up command.com
+      require Makesubs;
+      my $tmp = Makesubs::f_mktemp( '' );
+      open my $fh, '>', $tmp;
+      print $fh $_;
+      return ($ENV{SHELL}, $tmp);
+    }
     return ($ENV{SHELL}, '-c', $_)
-      if ::is_windows() && $^O eq 'msys' ||
+      if ::is_windows == -2 || ::is_windows == 1 ||
       	/[()<>\\"'`;&|*?[\]]/ || # Any shell metachars?
 	/\{.*,.*\}/ || # Pattern in Bash (blocks were caught by ';' above).
 	/^\s*(?:\w+=|[.:!]\s|e(?:val|xec|xit)\b|source\b|test\b)/;
@@ -614,7 +638,7 @@ sort of object or library file.
 =cut
 
 sub is_object_or_library_name {
-  $_[0] =~ /\.(?:l?[ao]|s[aol](?:\.[\d.]+))$/;
+  $_[0] =~ /\.(?:l?[ao]|s[aol](?:\.[\d.]+)?)$/;
 }
 
 =head2 getopts
@@ -650,7 +674,17 @@ sub getopts(@) {
     for( shift @ARGV ) {	# alias to $_
       if( s/^-(-?)// ) {
 	my $long = $1;
-	if( $_ eq '' ) {	# nothing after -(-)
+	if( /argsfile(?:=(.*))?/ ) {
+	  my $argsfile = $1 || shift @ARGV or die "$0: no argument to --$_\n";
+	  open(my $args, '<', $argsfile) or
+	    die "$0: failed to read argsfile $argsfile: $!";
+	  my @args;
+	  while(<$args>) {
+	    push @args, TextSubs::unquote_split_on_whitespace($_); 
+	  }
+	  close($args);
+	  unshift(@ARGV, @args);
+	} elsif( $_ eq '' ) {   # nothing after -(-)
 	  if( $long ) {		# -- explicit end of opts
 	    unshift @ARGV, @ret;
 	    return;

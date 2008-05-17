@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.74 2007/07/16 18:44:04 pfeiffer Exp $
+# $Id: Rule.pm,v 1.87 2008/05/17 14:38:05 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Rule;
@@ -10,6 +10,8 @@ use TextSubs;
 use BuildCheck::exact_match;
 use ActionParser;
 use Makecmds;
+
+our $unsafe;			# Perl code was performed, that might leave files open or chdir.
 
 =head1	NAME
 
@@ -57,8 +59,8 @@ sub build_cwd { $_[0]{MAKEFILE}{CWD} }
 # or for all makefiles (on the command line).
 #
 sub build_cache {
-  exists $_[0]{BUILD_CACHE} and return $_[0]{BUILD_CACHE};
-  exists $_[0]{MAKEFILE}{BUILD_CACHE} and return $_[0]{MAKEFILE}{BUILD_CACHE};
+  exists $_[0]{BUILD_CACHE} ? $_[0]{BUILD_CACHE} :
+  exists $_[0]{MAKEFILE}{BUILD_CACHE} ? $_[0]{MAKEFILE}{BUILD_CACHE} :
   $::global_build_cache;
 }
 
@@ -620,7 +622,7 @@ sub load_scaninfo_single {
   # If the CWD changed, then we have to rescan in order to make sure that
   # path names in the scaninfo are relative to the correct directory.
   my $build_cwd = file_info($build_cwd_name, $tinfo->{'..'});
-  return 'the build directory changed' unless $build_cwd eq $self->build_cwd;
+  return 'the build directory changed' unless $build_cwd == $self->build_cwd;
 
   # Early out for command changed. This is redundant, but it saves a lot of
   # work if it fails, especially because loading the cached dependencies might
@@ -628,10 +630,8 @@ sub load_scaninfo_single {
   return 'the build command changed' if $command_string ne $command;
 
   my $saved_signature_method = $self->{SIGNATURE_METHOD};
-  if($sig_method) {
-    no strict 'refs';
-    $self->set_signature_method_scanner($sig_method);
-  }
+  $self->set_signature_method_scanner($sig_method)
+    if $sig_method;
 
   # Trump up a dummy scanner object to help us look for files.
   my $scanner = Scanner->new($self, '.');
@@ -668,6 +668,13 @@ sub load_scaninfo_single {
       my( $tag, @incs ) = split /\01/, $_, -1;
       die if !defined $tag;
       Scanner::get_tagname( $scanner, $tag) if $tag ne ''; # make it a valid tag
+
+      # TBD: Ideally, we should remember which tags are marked should_find
+      # instead of assuming that 'sys' & 'lib' aren't and all others are, but
+      # this will generate the correct warnings most of the time, and it's not
+      # the end of the world if it doesn't:
+      Scanner::should_find( $scanner, $tag ) if $tag ne 'sys' && $tag ne 'lib';
+
       my $dir = $build_cwd;
       for my $item (@incs) {
 	if($item =~ s@/$@@) {
@@ -758,16 +765,17 @@ sub load_scaninfo {
     if $::log_level;
   my $first_msg = $self->load_scaninfo_single( $tinfo, @_ );
   return 0 unless $first_msg;
-  for( @{$tinfo->{ALTERNATE_VERSIONS} || []} ) {
-    next if FileInfo::dont_read( $_ );
-    if( my $msg = $self->load_scaninfo_single( $_, @_ )) {
-      ::log SCAN_INFO_NOT => $_, $msg
-	if $::log_level;
-    }
-    else {
-      ::log SCAN_INFO_FROM => $_
-	if $::log_level;
-      return 0;
+  if( exists $tinfo->{ALTERNATE_VERSIONS} ) {
+    for( @{$tinfo->{ALTERNATE_VERSIONS}} ) {
+      next if FileInfo::dont_read( $_ );
+      if( my $msg = $self->load_scaninfo_single( $_, @_ )) {
+	::log SCAN_INFO_NOT => $_, $msg
+	  if $::log_level;
+      } else {
+	::log SCAN_INFO_FROM => $_
+	  if $::log_level;
+	return 0;
+      }
     }
   }
   $first_msg;
@@ -978,31 +986,26 @@ sub setup_environment {
   $_[0]{MAKEFILE}->setup_environment(@_[1..$#_]);
 }
 
-use POSIX;
+use POSIX ();
 sub exec_or_die {
   my( $action, $silent ) = @_;
-  if( $silent ) {
+  my $result = 254 << 8;
+  if( $silent || !$::profile ) {
     { exec format_exec_args $action }
 				# Then execute it and don't return.
 				# This discards the extra make process (and
 				# probably saves lots of memory).
-    print STDERR "exec $action failed--$!\n"; # Should never get here.
-    close STDOUT; close STDERR;
-    POSIX::_exit(1);
+    print STDERR "exec $action failed--$!\n"; # Should never get here, braces eliminate warning.
   } else {
-    my $result = system( format_exec_args( $action ));
-    if($result==-1) {
-      print STDERR "exec $action failed--$!\n";
-      close STDOUT; close STDERR;
-      POSIX::_exit(1);
-    }
-    if((my $sig = $result & 0x7F) != 0) {
-      ::suicide(::signame($sig));
-    }
-    ::print_profile_end( $action ) if $::profile;
-    close STDOUT; close STDERR;
-    POSIX::_exit($result ? ($result>>8 || 1) : 0);
+    $result = system format_exec_args $action;
+    print STDERR "system $action failed--$!\n"
+      if $result == -1;
+    ::print_profile_end $action if $::profile;
   }
+  close $_ for @::close_fhs;
+  ::suicide ::signame $result & 0x7F
+    if $result & 0x7F;
+  POSIX::_exit $result ? ($result>>8 || 1) : 0;
 }
 
 #
@@ -1027,7 +1030,7 @@ sub execute_command {
   # action will be stoppable, and we'll still be able to mark them because
   # while the system is running they are blocked by the makepp process
   # automatically.
-  &::reset_signal_handlers unless ::is_windows;
+  &::reset_signal_handlers if !::is_windows; # unless constant gives a warning in some variants of 5.6
   chdir( $build_cwd );		# Move to the correct directory.
   $self->{MAKEFILE}->setup_environment;
 
@@ -1044,9 +1047,16 @@ sub execute_command {
 #
   my @actions = split_actions($actions); # Get the commands to execute.
 
-  local $File::maybe_open;
-  while(@actions) {
-    my $action_rec=shift(@actions);
+  local $unsafe;
+  my $maybe_open;
+  while( @actions ) {
+    if( $unsafe ) {
+      $build_cwd = absolute_filename $build_cwd if ref $build_cwd;
+      CORE::chdir $build_cwd;
+      undef $unsafe;
+      $maybe_open = 1;
+    }
+    my $action_rec = shift @actions;
     my ($action, $perl, $command, $flags) = @$action_rec;
 
 #
@@ -1059,7 +1069,8 @@ sub execute_command {
 				# 5.005, the action is never printed for
 				# some reason.
 
-    if (defined $perl or defined $command) {
+    if( defined $perl or defined $command ) {
+      $File::chdir = 1;		# External command might change our dir.
       ::print_profile( defined $perl ? "perl $perl" : "&$command" ) unless $silent_flag;
 				# This prints out makeperl as perl.  That is correct,
 				# because it has already been expanded to plain perl code.
@@ -1067,7 +1078,7 @@ sub execute_command {
       local $self->{EXPLICIT_TARGETS} = $all_targets;
       local $self->{EXPLICIT_DEPENDENCIES} = $all_dependencies;
       if( defined $perl ) {
-	$File::maybe_open++;
+	$unsafe = 1;
 	# NOTE: $self->{RULE_SOURCE} is the line at which the rule started,
 	# which is not the same as the line at which the perl action started.
 	# To get the real line number, you have to add the number of lines
@@ -1077,7 +1088,6 @@ sub execute_command {
 	eval { Makesubs::eval_or_die $perl, $self->{MAKEFILE}, $self->{RULE_SOURCE} };
 	if( $@ ) {
 	  ::print_error( 'perl action: '.$@ );
-	  ::flush_log();
 	  return 1 if $error_abort;
 	}
       } else {
@@ -1086,14 +1096,14 @@ sub execute_command {
 	my( $cmd, @args ) = unquote_split_on_whitespace( $command );
 	eval {
 	  if( defined &{$self->{MAKEFILE}{PACKAGE} . "::c_$cmd"} ) { # Function from makefile?
-	    $File::maybe_open++;
+	    $unsafe = 1;
 	    local $0 = $cmd;
 	    &{$self->{MAKEFILE}{PACKAGE} . "::c_$0"}( @args );
 	  } elsif( defined &{"Makecmds::c_$cmd"} ) { # Builtin Function?
 	    local $0 = $cmd;
 	    &{"Makecmds::c_$0"}( @args );
 	  } else {
-	    $File::maybe_open++;
+	    $unsafe = 1;
 	    Makesubs::run( $cmd, @args );
 	  }
 	};
@@ -1103,7 +1113,7 @@ sub execute_command {
 	    s/^$cmd: //;
 	    print STDERR "makepp: &$cmd: $_";
 	  }
-	  ::flush_log();
+	  &::flush_log;
 	  return 1 if $error_abort;
 	}
       }
@@ -1116,21 +1126,22 @@ sub execute_command {
       $action = $self->{DISPATCH} . " sh -c '$action'";
     }
     ::print_profile( $action ) unless $silent_flag;
-    if( ::is_windows ) {	# Can't fork or exec on windows.
+    if( ::is_windows ) {	# Can't fork / exec on windows.
       {
 	# NOTE: In Cygwin, TERM and HUP are automatically unblocked in the
 	# system process, but INT and QUIT are not -- they are just ignored
 	# in the calling process.  There is a race here where an INT or
 	# QUIT can sneak in, but it's quite unlikely.
 	local @SIG{'INT', 'QUIT'} = ( 'DEFAULT' ) x 2;
-	system( format_exec_args( $action ));
+	system format_exec_args $action;
       }
       $error_abort and $? and return ($?/256) || 1; # Quit if an error.
       ::print_profile_end( $action ) if $::profile && !$silent_flag;
       next;			# Process the next action.
     }
 
-    $File::maybe_open = 0;	# because exec() closes filehandles
+    undef $unsafe;		# Because exec() closes and fork() flushes
+                                # filehandles, and external cmd can't chdir.
     my $nop = \&::is_windows;	# Reuse any old function that does nothing, to
 				# save allocating a new sub.
     if ($error_abort && !@actions) { # Is this the last action?
@@ -1151,9 +1162,8 @@ sub execute_command {
 # 2) On linux, system() blocks signals, which means that makepp wouldn't
 #    respond to ^C or other things like that.  (See the man page.)
 #
-    # TBD: I've seen cases in which it appears that the profile output gets
-    # duplicated here. That probably means that it somehow wasn't flushed.
-      my $pid = fork();
+      &::flush_log if ::is_perl_5_6;
+      my $pid = fork;
       unless ($pid) {		# Executed in child process:
 	$SIG{__WARN__} = $nop;	# Suppress annoying warning message here if
 				# the exec fails.
@@ -1162,28 +1172,30 @@ sub execute_command {
 
       $pid == -1 and die "fork failed--$!\n";
       wait;			# Wait for it to finish.
-      $error_abort && $? and exit(($?/256) || 1);
+      $error_abort && $? and exit( int( $? / 256 ) || 255 );
 				# Quit on an error.  $status/256 is the exit
 				# status of the process, but if the system()
 				# call failed for some reason, that may be 0.
     }
   }
 
-  ::is_windows and return 0;	# If we didn't fork, we'll always get here.
+  ::is_windows > 0 and return 0; # If we didn't fork, we'll always get here.
 
   # Close filehandles that may have been left opened by a perl command.
-  if($File::maybe_open) {
-    exec($true);	# Close open filehandles w/o doing garbage collection
-    warn("failed to exec '$true' because $!");
+  if( $maybe_open || $unsafe ) {
+    if( ::is_perl_5_6 ) {
+      close $_ for @::close_fhs, values %{$self->{MAKEFILE}{PACKAGE}.'::'};
+    }
+    exec $true;			# Close open filehandles w/o doing garbage collection
+    warn "failed to exec `$true'--$!";
     # If that didn't work, then do a close on every symbol in the makefile's
     # package. This is usually good enough, but not if the makefile used an
     # IO handle in another package.
-    no strict 'refs';
     close $_ for values %{$self->{MAKEFILE}{PACKAGE}.'::'};
   }
 
-  close STDOUT; close STDERR;
-  POSIX::_exit(0);		# If we get here, it means that the last
+  close $_ for @::close_fhs;
+  POSIX::_exit 0;		# If we get here, it means that the last
 				# command in the series was executed with
 				# ignore_error.
 }
@@ -1316,7 +1328,7 @@ sub parser {
 
   $source_string = $rule->source;
 
-Returns a description of where this rule was encounteredq, suitable for error
+Returns a description of where this rule was encountered, suitable for error
 messages.
 
 =cut
@@ -1471,9 +1483,6 @@ sub execute {
 				# If it has additional dependencies, then
 				# there was a rule, or at least we have to
 				# pretend there was.
-      FileInfo::may_have_changed( $target ); # It's possible that some other command
-				# made the target while we weren't looking.
-				# Some makefiles are written that way.
       #FileInfo::file_exists( $target ) and return 0;
 				# If the file doesn't exist yet, we may
 				# have to link it from a repository.
@@ -1515,7 +1524,7 @@ sub signature_method { $Signature::signature }
 sub build_check_method { $DefaultRule::BuildCheck::build_check_method_object }
 
 sub build_cache { undef }	# Build cache disabled for objects with
-				# no actions.  Reused below ahere we also need a sub
+				# no actions.  Reused below where we also need a sub
 				# that returns undef.
 
 sub source { 'default rule' }

@@ -28,6 +28,7 @@ subdir/a subdir/b : d c c e
 
 subdir/e.x:
 	&echo $@ -o $@
+###	D	755	1067451880	971566798	subdir
 ###	D	755	1067451880	965616562	answers
 ###	6	644	1067451880	965616517	answers/a
 subdir/a subdir a
@@ -45,6 +46,5 @@ c
 d
 ###	1	644	1067451880	965616209	answers/e
 subdir/e.x
-###	1	644	1067451880	965616562	answers/n_files
-8 0
-###	D	755	1067451880	971566798	subdir
+###	1	644	1067451880	1190053955	answers/n_files
+8 1 0

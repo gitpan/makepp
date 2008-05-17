@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	375	644	1172615881	1181421762	Makeppfile
+###	381	644	1172615881	1181421762	Makeppfile
 #
 # Test the use of conditionals.
 #
@@ -251,6 +251,12 @@ endif
 x:
 	&echo $(Y) -o $@
 
+# Now check the new 'iftrue' statement:
+ifntrue $(CCC)
+or iftrue $(XX)
+perl { die }
+endif
+
 #
 # Former 2003_10_11_ifeq.test
 #
@@ -372,12 +378,12 @@ ifneq ($(PLAIN),1 )
 else
 	@&expr -n
 endif
-ifnsys MSWin32			# Test that ! is executable
+ifnsys MSWin*			# Test that ! is executable
 	! false
 endif
 ###	D	755	1172615888	973201896	answers/
-###	1	644	1172615881	973207609	answers/n_files
-6 0
+###	1	644	1172615881	1190053819	answers/n_files
+6 3 0
 ###	11	644	1172615881	973201862	answers/testfile
 abc
 jkl

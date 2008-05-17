@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.37 2007/06/06 23:04:35 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.39 2008/05/10 09:17:21 pfeiffer Exp $
 #
 # Key things to do before this is production-ready:
 #
@@ -103,6 +103,16 @@ use FileInfo_makepp;
 use Makecmds;
 use Sys::Hostname;
 use POSIX ':errno_h';
+
+BEGIN {
+  eval { $_ = ESTALE };		# Not defined on Win ActiveState.
+  if( $@ ) {
+    no warnings;
+    require TextSubs;
+    *ESTALE = sub() { -1 };
+  }
+}
+
 
 =head2 new BuildCache("/path/to/cache");
 
@@ -211,7 +221,7 @@ sub cache_file {
   $build_info_fname =~ s@/([^/]+)$@/$FileInfo::build_info_subdir@;
   -d $build_info_fname or
     eval { Makecmds::c_mkdir( $self->{MKDIR_OPT}, $build_info_fname ) } or do {
-      $$reason = ($! == POSIX::ENOENT || $! == POSIX::ESTALE) ? "$@ -- possibly due to aging (OK)" : $@;
+      $$reason = ($! == ENOENT || $! == ESTALE) ? "$@ -- possibly due to aging (OK)" : $@;
       return undef;
     };
 				# Make sure .makepp directory and parents exists.
@@ -287,12 +297,12 @@ sub cache_file {
       push @files_to_unlink, $temp_cache_fname;
       # Need to unlink first, in case there are other links to it and/or
       # the current permissions don't allow writing.
-      unlink $temp_cache_fname or $! == POSIX::ENOENT or do {
+      unlink $temp_cache_fname or $! == ENOENT or do {
 	$$reason = "unlink $temp_cache_fname: $!";
 	return undef;
       };
       if (!(($size) = copy_check_md5($input_filename, $temp_cache_fname, $md5))) {
-	$$reason = ($! == POSIX::ESTALE) ? $target_aged : "write $temp_cache_fname: $!";
+	$$reason = ($! == ESTALE) ? $target_aged : "write $temp_cache_fname: $!";
 	return undef;
       }
       utime $_[4] || time, $mtime, $temp_cache_fname or # Try to copy over mtime.
@@ -301,7 +311,7 @@ sub cache_file {
 	# that mtime could be based on the local clock instead of the clock of
 	# the machine on which the file is stored.
 	$mtime = (stat $temp_cache_fname)[9] or do {
-	  $$reason = ($! == POSIX::ENOENT || $! == POSIX::ESTALE) ? $target_aged : "stat $temp_cache_fname: $!";
+	  $$reason = ($! == ENOENT || $! == ESTALE) ? $target_aged : "stat $temp_cache_fname: $!";
 	  return undef;
 	};
       $build_info->{MD5_SUM} = $md5->b64digest if $md5;
@@ -310,16 +320,16 @@ sub cache_file {
 				  # Be sure we store a signature.
 
     push @files_to_unlink, $temp_build_info_fname;
-    unlink $temp_build_info_fname or $! == POSIX::ENOENT or do {
+    unlink $temp_build_info_fname or $! == ENOENT or do {
       $$reason = "unlink $temp_build_info_fname: $!";
       return undef;
     };
     FileInfo::write_build_info_file($temp_build_info_fname, $build_info) or do {
-      $$reason = ($! == POSIX::ESTALE) ? $build_info_aged : "write $temp_build_info_fname: $!";
+      $$reason = ($! == ESTALE) ? $build_info_aged : "write $temp_build_info_fname: $!";
       return undef;
     };
     chmod $file_prot, $temp_build_info_fname or do {
-      $$reason = ($! == POSIX::ENOENT || $! == POSIX::ESTALE) ? $build_info_aged : "chmod $temp_build_info_fname: $!";
+      $$reason = ($! == ENOENT || $! == ESTALE) ? $build_info_aged : "chmod $temp_build_info_fname: $!";
       return undef;
     };
 
@@ -333,16 +343,16 @@ sub cache_file {
       # file, because we don't like to fail to import just because the build
       # info file isn't there yet.  However, this isn't guaranteed over NFS.
       for($cache_fname, $build_info_fname) {
-	unlink $_ or $! == POSIX::ENOENT or $! == POSIX::ESTALE or do {
+	unlink $_ or $! == ENOENT or $! == ESTALE or do {
 	  $$reason = "unlink $_: $!";
 	  return undef;
 	};
       }
 
       link_over_nfs($temp_build_info_fname, $build_info_fname) or do {
-	if($! == POSIX::EEXIST) {
+	if($! == EEXIST) {
 	  $$reason = 'build info file was already there, possibly created by another party (OK)'
-	} elsif($! == POSIX::ENOENT || $! == POSIX::ESTALE) {
+	} elsif($! == ENOENT || $! == ESTALE) {
 	  # NOTE: This might instead mean that the parent directory of
 	  # $build_info_fname was aged, so the message is a bit misleading.
 	  $$reason = $build_info_aged;
@@ -354,13 +364,13 @@ sub cache_file {
       push @files_to_unlink, $build_info_fname;
 
       chmod $target_prot, $target_src or do {
-	$$reason = (!$linking && ($! == POSIX::ENOENT || $! == POSIX::ESTALE)) ? $target_aged : "chmod $target_src: $!";
+	$$reason = (!$linking && ($! == ENOENT || $! == ESTALE)) ? $target_aged : "chmod $target_src: $!";
 	return undef;
       };
       link_over_nfs($target_src, $cache_fname) or do {
-	if($! == POSIX::EEXIST) {
+	if($! == EEXIST) {
 	  $$reason = "target file was already there, possibly created by another party after our build info was immediately aged (OK)"
-	} elsif($! == POSIX::ENOENT || $! == POSIX::ESTALE) {
+	} elsif($! == ENOENT || $! == ESTALE) {
 	  # NOTE: This might instead mean that the parent directory of
 	  # $cache_fname was aged, so the message is a bit misleading.
 	  $$reason = $target_aged;
@@ -372,7 +382,7 @@ sub cache_file {
       #push @files_to_unlink, $cache_fname; # Currently redundant
 
       @files_to_unlink = ();	# Commit to leave the entry in the cache
-      ::log $linking ? 'BC_LINK' : 'BC_EXPORT' => $input_finfo
+      ::log $linking ? 'BC_LINK' : 'BC_EXPORT' => $input_finfo, $cache_fname
 	if $::log_level;
       1
     };
@@ -588,7 +598,7 @@ sub copy_from_cache {
   my $build_info_fname = $cache_fname;
   $build_info_fname =~ s@/([^/]+)$@/$FileInfo::build_info_subdir/$1.mk@;
   open my( $fh ), $build_info_fname or do {
-    if($! == POSIX::ENOENT || $! == POSIX::ESTALE) {
+    if($! == POSIX::ENOENT || $! == BuildCache::ESTALE) {
       $$reason = 'the build info file is missing (OK)';
       unlink $cache_fname if fix_ok($self);
     } else {
@@ -647,7 +657,7 @@ sub copy_from_cache {
       # of ESTALE or ENOENT on a read after the file has been unlinked.  If
       # this is a real hardware error, then we hope that it also shows up on
       # some other operation where it can't happen legitimately.
-      $$reason = ($!==POSIX::ENOENT || $!==POSIX::ESTALE || $!==POSIX::EIO) ? 'file was just deleted (OK)' : "copy $self->{FILENAME} to $output_fname: $!";
+      $$reason = ($!==POSIX::ENOENT || $!==BuildCache::ESTALE || $!==POSIX::EIO) ? 'file was just deleted (OK)' : "copy $self->{FILENAME} to $output_fname: $!";
       return undef;
     }
     my $signature = $mtime . ',' . $size;

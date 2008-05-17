@@ -1,4 +1,10 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	5	755	1067749983	1067749983	is_relevant.pl
+#
+# Test if unpacking managed to chmod to a strange value.
+#
+
+((stat 'Makeppfile')[2] & 0777) == 0421
 ###	17	421	1164350872	1058653868	Makeppfile
 #
 # Test ignoring files and directories which are not readable.
@@ -17,24 +23,6 @@ list-of-files:
 
 all_derived: *.derived
 	&sed 's/^/$$ARGV /' $(inputs) -o $(output)
-###	5	755	1067749983	1067749983	is_relevant.pl
-#
-# Test if unpacking managed to chmod to a strange value.
-#
-
-((stat 'Makeppfile')[2] & 0777) == 0421
-###	D	755	1067451880	1058653803	answers
-###	1	644	1067451880	1058653801	answers/f.derived
-derived from repository
-###	2	644	1164350177	1058653801	answers/all_derived
-f.derived derived from repository
-g.derived derived from main dir
-###	1	644	1067451880	1056845682	answers/list-of-files
-subdirs/s1/a subdirs/d subdirs/e subdirs/s3/makefile subdirs/s1 subdirs/s3 subdirs/s3/z
-###	1	644	1067451880	1056547664	answers/n_files
-4 0
-###	1	644	1067451880	1058653801	answers/g.derived
-derived from main dir
 ###	7	644	1067451880	1056845572	cleanup_script.pl
 #
 # This script is run after the test has been executed.
@@ -80,3 +68,15 @@ z:
 ###	D	755	1067451880	1058653879	subdirs/s1
 ###	0	0	1067451880	1056547542	subdirs/s1/b
 ###	D	0	1067451880	1058653879	subdirs/s2
+###	D	755	1067451880	1058653803	answers
+###	1	644	1067451880	1058653801	answers/f.derived
+derived from repository
+###	2	644	1164350177	1058653801	answers/all_derived
+f.derived derived from repository
+g.derived derived from main dir
+###	1	644	1067451880	1056845682	answers/list-of-files
+subdirs/s1/a subdirs/d subdirs/e subdirs/s3/makefile subdirs/s1 subdirs/s3 subdirs/s3/z
+###	1	644	1067451880	1190053959	answers/n_files
+4 1 0
+###	1	644	1067451880	1058653801	answers/g.derived
+derived from main dir

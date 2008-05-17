@@ -1,3 +1,447 @@
+2008-05-17  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Rule.pm (exec_or_die, execute_command):
+	* MakeEvent.pm (start):
+	* makepp (END, @close_fhs): Also put in STD* for correct file
+	handling with _exit.  Flush before fork in 5.6.
+
+	* Makesubs.pm (f_MAKE): Allow recursion on Cygwin.
+
+	* makepp_tests/recursive_make.test: Rename without '_unix'.
+
+	* Makecmds.pm (c_template): Rewrite so as to not handle @@ before
+	earlier @ on same line.
+
+	* makepp_tests/run_tests.pl: Improve diagnostics.
+	(no_md5): New constant.
+	(system_intabort): Optional argument to die with proper message.
+	(makepp): Make it interruptible.
+	(slow_rmtree): New hopefully safer function.
+
+	* TextSubs.pm (::is_perl_5_6): New constant.
+	(::is_windows): Centrally define it here.
+
+	* FileInfo.pm:
+	* makeppclean:
+	* makeppgraph:
+	* makeppinfo:
+	* makepplog:
+	* Utils.pm: Ensure that HOME is set centrally in FileInfo.pm.
+
+2008-05-10  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp (perform):
+	* Makesubs.pm (f_mktemp):
+	* MakeEvent.pm (start): Also fork on Cygwin and MinGW, but not Win
+	ActiveState.  Cleanup mktemp files which only subprocess knows
+	about.
+
+	* makepp_tests/builtins.test: Use RootMakeppfile to be sure where
+	install logs go.
+
+	* makepp_tests/parallel.test: Rename without '_unix'.
+
+	* **/*: Win fixes.
+
+2008-05-08  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp_tests/run_tests.pl: Change link checking such that even
+	Win ActiveState can test build cache.  Skip Shell scripted tests
+	where we don't have a Shell.  Abort if aaasimple fails.  Report
+	more single letter skip reasons when dotting.
+
+	* FileInfo.pm ($stat_exe_separate): New var for Win.
+
+	* Makesubs.pm (f_find_program): Be smart about appending .exe.
+
+	* makepp_builtin_rules.mk: Change the Windows xyz - xyz.exe magic,
+	so you can put deps on xyz.  This still doesn't support an install
+	target that picks up xyz.
+
+	* * (is_windows): Differentiate ActiveState as 1 with a Shell,
+	else as 2.
+
+	* **/*: Lots of little fixes to support Cygwin and MinGW MSYS
+	well, and pass most tests with Win ActiveState.
+
+2008-04-26  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Makesubs.pm:
+	* Makefile.pm (_truthval):
+	* ActionParser.pm (find_command_parser):
+	* Utils.pm:
+	* makepp: Ensure that HOME is set.  Enhance is_windows: negative
+	means Unix-like (Cygwin, MinGW msys), positive means Shell- and
+	coreutils-less (ActiveState).
+
+	* FileInfo.pm (is_writable): Revert to immediately deleting
+	testfile.
+
+	* Makecmds.pm (run_forked): Eliminate obsolete function.
+
+2008-04-18  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepplog (instdir),
+	* makepp_builtin_rules.mk,
+	* ActionParser.pm (find_command_parser),
+	* FileInfo.pm (file_info),
+	* makepp_tests/run_tests.pl (makeppextra.pm),
+	* makepp_tests/**/*.test: Adapt to native Windows.
+
+	* Makesubs.pm (%Makesubs::scanners): Add dietlibc and .exe forms.
+	(f_find_program): Also do full path from relative path and return .exe iff full path requested.
+	(%Makesubs::perl_unfriendly_symbols): $/ new variable.
+
+	* FileInfo_makepp.pm (_valid_alt_versions): Make ALTERNATE_VERSIONS be exists() based.
+
+	* makepp (build_dependencies_done),
+	* Rule.pm (execute): Remove redundant call to may_have_changed.
+
+2008-04-15  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp (flush_log): Don't autovivify $logfh:
+	(perform): Clean up end messages.
+
+	* Makefile.pm (_truthval): Less string manipulations and always be
+	case sensitive on ifsys.
+	(load):
+	* pod/makepp_command.pod: Check for nested RootMakeppfiles and
+	explain why.
+
+	* Rule.pm (execute_command): Remove redundant flush.
+
+	* Makesubs.pm (f_find_program):
+	* makepp_tests/additional_tests/2003_10_11_idash.test:
+	* makepp_tests/md5.test: Fix executable dependency on Win.
+
+	* makepp_builtin_rules.mk:
+	* makepp_tests/log_graph.test: Guard against both Win compilers
+	being 'cl' (which gave 'ifeq cl cl'), and don't pass it the
+	deprecated -o option.  Fix renamed percent_subdirs.
+
+	* makepp_tests/changed_inputs.test, makepp_tests/verilog.test:
+	Port to native Win.
+
+	* makepp_tests/run_tests.pl: Handle PATH in native Win syntax.
+
+2008-02-24  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp (propagate_interrupts): Drop unused sub.
+	(build): Fix dont_build handling, so it gives a warning when an
+	inexistant file was specified, for which we might have found out
+	later it's phony.
+	(load_repository_recurse): Only loop once, and don't recurse into
+	single files.
+
+	* FileInfo_makepp.pm (exists_or_can_be_built),
+	* Rule.pm (load_scaninfo): Check if we have ALTERNATE_VERSIONS.
+
+	* makepp_tests/additional_tests/2004_03_26_exit_status.test,
+	* Makesubs.pm (f_shell): Like gmake, don't fail if cmd fails.
+
+	* pod/makepp_rules.pod (Special characters): Clarify quoting.
+
+2008-01-06  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* pod/makepp_compatibility.pod: Add 5.10.0 tests.
+
+	* FileInfo_makepp.pm (get_from_rep): Count rep_hits only when
+	actually fetched.
+
+	* Makesubs.pm (%scanners): Add Parasoft Insure++.
+
+	* install.pl: Also install new makeppinfo.pod.
+
+	* makepp: Remove autoload comment, which can't work due to
+	my-vars.
+	(log): Don't start subprocess for --no-log.
+
+	* makeppgraph, makepp_tests/log_graph.test: Make dot-nodes almost
+	opaque, rather than almost transparent.
+
+	* Utils.pm: Use the long command name for messages and
+	$MAKEPP*FLAGS.
+
+2007-12-14  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp ($progname): Set to constant 'makepp'.
+	(%automake_garbage): Make it exists() based.
+	(build_dependencies_done): Log UP_TO_DATE => $all_targets.
+	(build_target_done): Don't swallow message if $implicit_phony.
+	(perform): Don't say "targets failed" as last words, when there
+	were none.  Also mention rep and BC imports, to keep superficial
+	people from wondering.
+
+	* FileInfo_makepp.pm (get_from_rep): New name for
+	move_or_link_target, which neither moved, nor was restricted to
+	targets.
+	(load_build_info_file): Unlink corrupt build info, or it can stay
+	around for ever.
+
+	* Makecmds.pm (print): Use much faster syswrite.
+	(&cp, &mv, &ln): Assume cwd as dest, if only one arg given, as
+	does Unix ln.
+
+	* Rule.pm (build_cache): Small optimization.
+
+	* makeppgraph (--graphviz): Make nodes translucent and put edges
+	behind.
+	(--html): New format.
+
+	* makepplog (N_REP_HITS): New key.
+
+2007-10-22  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makeppinfo (--traverse): Don't recurse unless given twice.
+
+	* Glob.pm (wildcard_action_shared): Eliminate to reduce stack
+	manipulation.
+
+	* FileInfo.pm (lstat_array): Optimize.
+	(is_symbolic_link, stat_array): Call lstat_array only if needed.
+
+	* pod/makepp_faq.pod (unnecessary recreation): Extend point.
+
+2007-10-18  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* FileInfo.pm (file_info): Properly dereference dirs, preventing a
+	chain of links giving an absolute_filename as though it was root.
+	Reproducible in real build, but not narrowed down, so no test case.
+
+	* makepplog (--keys): Allow ^ instead of ! as some shells swallow that.
+
+	* makeppinfo (--keys, --quiet, --traverse): New opts.
+
+2007-10-06  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Makecmds.pm (c_cat): Ensure sync lines start at bol.
+
+2007-09-27  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp (load_repository): Die if rep not found.
+
+	* makepplog (-t, --tabulate): New option.
+
+	* install.pl, makepp* (@BASEVERSION@): New var and complete doc.
+
+	* Makecmds.pm (print, frame):
+	* makepp_tests/builtins.test: Ensure sync lines start at bol.
+
+2007-09-18  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp: Also count phonies without action (the usual case),
+	output them in N_FILES and output a short statistic if something
+	was built, as a final acknowledgement (all colleagues want this ;-).
+
+	* makepplog, **.test: Also output phonies in N_FILES.
+
+	* Scanner.pm (find):
+	* BuildCheck/exact_match.pm (build_check): Protect against
+	autovivifying DIRCONTENTS.
+
+	* Makesubs.pm (f_find_program): Handle .exe for ActiveState on
+	Win.
+
+2007-09-13  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* CommandParser/Gcc.pm (%info_string): Also remember libs.
+
+	* Rule.pm (load_scaninfo_single): Don't turn on should_find for
+	libs behind the back of the scanner.
+
+	* makepplog (FILE): Fix last extension to not accumulate all
+	CACHED_DEPs.
+
+	* pod/makepp_variables.pod: Document a few makepp_* vars.
+
+2007-09-07  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* CommandParser/Gcc.pm, CommandParser/Vcs.pm, Makesubs.pm
+	(@system_include_dirs): List of strings, instead of converting
+	back on each access.
+	(@system_lib_dirs): New var to prevent newly appearing warning.
+
+	* makepplog (FILE): Merge the often numerous adjacent CACHED_DEP
+	messages into one.
+
+	* Makefile.pm (assign): Handle &= like += eliminating an error
+	through inconsistent var handling.
+
+	* BuildCacheControl.pm (group): Workaround for a bug in some
+	Solaris 5.6.1 versions.
+
+2007-09-05  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp (build): Print and return an error when a dont-build
+	doesn't exist.
+	(build_target_done): Check new variable $(makepp_require_phony) to
+	see whether to allow implicit phonyness.  This variable should be
+	on by default, to prevent broken dependency chains, but that would
+	break backward compatibility with sloppy makefiles.
+
+	* makepp_tests/additional_tests/2004_03_03_minusk.test: Check that
+	we fail when --dont-build doesn't exist and optionally when a
+	non-phony file didn't appear.
+
+	* Rule.pm (execute_command): Replace $File::maybe_open with
+	$unsafe, and also use it to cd back if more actions are performed.
+
+	* Makecmds.pm: Use $Rule::unsafe.
+
+	* CommandParser/Gcc.pm (xparse_command): Also understand .obj and .dll.
+
+	* makepp_tests/additional_tests/2007_05_15_autoload.test: Don't
+	rely on Shell having a source command.
+
+2007-09-04  Anders Johnson  <ajohnson@nvidia.com>
+
+	* CommandParser.pm, makepp, makepp_tests/c_compilation.test:
+	* pod/makepp_command.pod:
+	Add --no-path-executable-dependencies.
+
+	* FileInfo.pm, makepp_tests/additional_tests/2003_11_25_wild.test:
+	Fixed a couple of places in which the name of $root was
+	misrepresented as '//' instead of '/'.
+
+	* Makefile.pm, makepp_tests/conditionals.test:
+	* pod/makepp_statements.pod:
+	Add iftrue statement.
+
+	* Rule.pm:  Issue warnings for missing include files when replaying
+	cached scanner info.  (The current heuristic for determining when to
+	do so is less than ideal.)
+
+	* makepp_tests/additional_tests/2007_08_15_no_extra_fork_unix.test:
+	Resurrect SLEEP option, and update a stale comment.
+
+2007-08-23  Daniel Pfeiffer  <occitan@esperanto.org> (checked in 2007-09-05)
+
+	* makepp_tests/additional_tests/2004_02_19_repository_change.test:
+	* makepp_tests/additional_tests/2004_03_24_scanner_c_lib.test:
+	Dry run when testing relevance.
+
+	* makepp_tests/additional_tests/2007_01_31_build_check_ignore_action.test:
+	Don't rely on /usr/bin/perl being available.
+
+	* makepp_tests/additional_tests/2007_08_15_no_extra_fork_unix.test:
+	Don't start Shell command with metacharacters, as some shells will
+	implicitly exec it, making ppid be that of makepp itself.
+
+	* makepp_tests/additional_tests/2007_02_02_md5_bchk_phony_dep.test:
+	Rename from 2007_02_02_build_check_phony_dep.test for md5
+	skipping.
+
+2007-08-22  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makeppgraph (-p, --plain, -s, --separate-directions, -t)
+	(--text): New options and format.
+
+	* makepp_tests/log_graph.test: Test new options and text format.
+
+	* makepp_tests/additional_tests/2004_03_12_condscan.test: Handle
+	.obj and integrate stucturally similar 2006_03_21_smartscan.test
+	and 2006_03_23_c_comments.test.
+
+2007-08-22  David Wojtowicz  <wojtow@users.sourceforge.net>
+
+	* Makefile.pm (parse_rule): Understand pseudo dot targets like
+	.PHONY on case insensitive filesys.
+
+	* makepp (perform): Pass 2 vars by ref to getopts making options
+	work again.
+
+2007-08-20  Anders Johnson  <ajohnson@nvidia.com>
+
+	* FileInfo_makepp.pm:
+	* makepp_tests/additional_tests/2007_08_20_phony_include.test:
+	Use 'exists ...{IS_PHONY}' instead of '...{IS_PHONY}' for all
+	of the 2007-08-16 changes.
+
+2007-08-16  Anders Johnson  <ajohnson@nvidia.com>
+
+	* BuildCache.pm (cache_file), makepplog:
+	Add cache filename to log messages for populating the cache.
+
+	* FileInfo_makepp.pm (get_rule), Makefile.pm (load), Makesubs.pm:
+	* makepplog, pod/makepp_statements.pod:
+	* makepp_tests/additional_tests/2007_05_15_autoload.test:
+	Add s_autoload.
+
+	* CommandParser.pm (parse_command), Makesubs.pm (f_find_program):
+	Don't add executable dependencies for built-ins, and don't consider
+	autoloads or last chance rules for executables in the PATH.
+
+	* Makesubs.pm (f_first_available, f_foreach):
+	Use the directory of the current makefile, which is not necessarily
+	the same as the current directory.  Die instead of leaving a
+	literal `$(foreach)' to be interpolated later, because that can
+	cause nasty problems if it isn't.
+
+	* FileInfo_makepp.pm (move_or_link_target, update_build_infos):
+	* makepp, makepplog, pod/makepp_command.pod:
+	* makepp_tests/additional_tests/2003_12_05_phony_repository.test:
+	* makepp_tests/additional_tests/2007_01_31_build_check_ignore_action.test:
+	Add --symlink-in-repository-as-file and --virtual-sandbox.
+	Keep track of build cache hits.  Never suppress `Imported... from
+	build cache', because that makes it too mysterious.
+
+	* FileInfo_makepp.pm:
+	* makepp_tests/additional_tests/2007_05_09_dont_build.test:
+	Don't keep searching for rules that have already been built.
+	Don't consider a phony target as a buildable file, even if there
+	is a rule to build it.  Die if a source file is also a phony
+	target, because there is no safe action in that case.
+	Shortcut set_rule when the file is set for dont-build.
+	Phony targets can be stale too.  Allow the removal of stale
+	repository links outside the sandbox (possibly risky, but
+	better than the alternative).
+
+	* Makefile.pm (load, assign, parse_assignment, parse_rule):
+	* makepp_tests/last_chance.test:
+	Die if the attempt to build a makefile fails.  A target-specific
+	assignment has the scope of the current expression and its
+	sub-expressions, but *not* of any other espressions that happen
+	to be evaluated in the process.  Verify that a last chance target
+	matches at least one of its patterns.
+
+	* Rule.pm (exec_or_die):
+	* makepp_tests/additional_tests/2007_08_15_no_extra_fork_unix.test:
+	Don't do an extra fork on the last action unless there is something
+	to do afterwards.
+
+	* Scanner.pm (add_include_suffix):
+	Avoid inadvertent modification of multiple suffix lists through a
+	reference (which is now possible because suffix lists are cached
+	and shared).
+
+	* CommandParser/Vcs.pm:
+	Fix handling of -v and -y to match VCS.
+
+	* TextSubs.pm (is_object_or_library_name, getopts):
+	* pod/makepp_command.pod:
+	Shared library name need not include a version number.  Add
+	--argsfile option.
+
+	* BuildCheck/exact_match.pm (build_check):
+	* makepp_tests/additional_tests/2007_02_02_build_check_phony_dep.test:
+	Suppress a warning.  Update a comment.
+
+2007-08-02  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makeppgraph (@file_attr): Also highlight .obj and .dll.
+
+	* makepp_tests/stress_tests/build_cache_concurrent.test: Respect
+	given time, clean as long as there are children, make forcing
+	bc-copies controllable, don't create cache if one is specified and
+	make cleaning optional so you can start this test multiply with a
+	grouped cache.
+
+	* makepp_tests/additional_tests/*.test: Adapt to Windows native
+	compilers.
+
+	* makepp_tests/log_graph.test: Integrate Windows variants by
+	rewriting output rather than having a separate copy.
+
 2007-07-28  Daniel Pfeiffer  <occitan@esperanto.org>
 
 Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.

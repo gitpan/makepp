@@ -1,4 +1,4 @@
-# $Id: Scanner.pm,v 1.43 2007/07/02 21:03:55 pfeiffer Exp $
+# $Id: Scanner.pm,v 1.46 2008/04/15 21:47:02 pfeiffer Exp $
 
 =head1 NAME
 
@@ -195,9 +195,9 @@ Directory search order takes precedence over suffix search order.
 my %suffix_list_cache;
 sub add_include_suffix {
   my( $self, $tag, $sfx ) = @_;
-  my $sfxs = $self->{$tag}[INCLUDE_SFXS] || [];
-  push(@$sfxs, $sfx);
-  $self->add_include_suffix_list($tag, $sfxs);
+  my @sfxs = @{$self->{$tag}[INCLUDE_SFXS] || []};
+  push(@sfxs, $sfx);
+  $self->add_include_suffix_list($tag, \@sfxs);
 }
 sub add_include_suffix_list {
   my( $self, $tag, $sfxs ) = @_;
@@ -262,13 +262,13 @@ makepp.
 
 sub dont_scan {
   my ($self, $finfo, $absname) = @_;
-  if( !FileInfo::is_writable( $finfo->{'..'} )) {
+  unless( FileInfo::is_writable( $finfo->{'..'} )) {
     ::log SCAN_NOT_UNWRITABLE => $finfo
       if $::log_level;
     return 1;
   }
   $absname ||= absolute_filename( $finfo->{'..'} );
-  if ($absname =~ m@/usr/(?:X11(?:R.)?/|local/)include\b@) {
+  if( $absname =~ m@^/usr/(?:X11(?:R.)?/|local/)include\b@ ) {
 				# Don't scan stuff in the system directories.
 				# This can lead to problems if we build as
 				# a user and then install as root.  This won't
@@ -301,7 +301,7 @@ to build, or if scanning failed.
 
 sub scan_file1 {
   my ($self, $command_parser, $tag, $finfo)=@_;
-  if( !$self->{CONDITIONAL} ) {
+  unless( $self->{CONDITIONAL} ) {
     return 1 if exists $self->{int $finfo};
     undef $self->{int $finfo};
   }
@@ -471,7 +471,7 @@ sub find {
 	  return $base->{SCANNER_CACHE}{$name} if $base->{SCANNER_CACHE}{$name};
 	  next;
 	}
-	my $finfo = $base->{DIRCONTENTS}{$name} || file_info $name, $base;
+	my $finfo = exists $base->{DIRCONTENTS} && $base->{DIRCONTENTS}{$name} || file_info $name, $base;
 	return $base->{SCANNER_CACHE}{$name} = $finfo if FileInfo::exists_or_can_be_built_or_remove( $finfo );
 	undef $base->{SCANNER_CACHE}{$name};
       }
@@ -546,7 +546,7 @@ Currently, it does if and only if $self->{CONDITIONAL} is FALSE.
 
 sub include {
   my ($self, $command_parser, $tag, $name, $src)=@_;
-  return 1 if !$self->{ACTIVE} or $name eq '';	# This is an error, so don't add a dep
+  return 1 unless $self->{ACTIVE} && $name ne '';	# This is an error, so don't add a dep
   my $finfo = &find;
   if( $finfo && $::log_level ) {
     if( $src ) {

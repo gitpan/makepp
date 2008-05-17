@@ -1,4 +1,4 @@
-# $Id: Gcc.pm,v 1.21 2007/01/15 20:35:23 pfeiffer Exp $
+# $Id: Gcc.pm,v 1.25 2008/05/08 21:33:39 pfeiffer Exp $
 
 =head1 NAME
 
@@ -60,7 +60,8 @@ my %opt =
    nostdinc => \$nostdinc);
 
 my %info_string = (user => 'INCLUDES',
-		   sys => 'SYSTEM_INCLUDES');
+		   sys => 'SYSTEM_INCLUDES',
+		   lib => 'LIBS');
 my @suffix_list = qw(.la .so .sa .a .sl);
 sub xparse_command {
   my( $self, $command, $setenv ) = @_;
@@ -86,14 +87,14 @@ sub xparse_command {
 
   $stop_at_obj = $leave_comments = $nostdinc =  0;
   my( $cmd, @words ) = @$command;
-  $cmd =~ s@.*/@@;
+  $cmd =~ s@.*/@@ || ::is_windows > 1 && $cmd =~ s/.*\\//;
   push (@cpp_cmd, $cmd);
   local $_;
   while( defined( $_ = shift @words )) {
     if( !s/^-// ) {
-      if( /\.(?:[ls]?[oa]|s(?:l|o\.[\d.]+))$/ ) { # object file?
+      if( /\.(?:[ls]?[oa]|s(?:l|o\.[\d.]+)|obj|dll)$/ ) { # object file?
 	if( /[\*\?\[]/ ) {		# wildcard?
- # TBD: Why is this disabled?
+ # TBD: Why is this disabled?  Probably because zglob finds more than the Shell will.  Need chdir & glob.
  if(0) {
 	  require Glob;
 	  push @obj_files,
@@ -173,7 +174,7 @@ sub xparse_command {
   } else {
     require Makesubs;
     for my $dir ( @Makesubs::system_include_dirs ) {
-      $scanner->add_include_dir( $_, absolute_filename( $dir ) )
+      $scanner->add_include_dir( $_, $dir )
 	for qw(user sys);
     }
   }
@@ -193,6 +194,8 @@ sub xparse_command {
   }
 
   unless( $stop_at_obj ) {
+    $scanner->add_include_dir( lib => $_ )
+      for @Makesubs::system_lib_dirs;
     $scanner->add_dependency( $self, lib => "lib$_" )
       for @libs;
     $self->add_simple_dependency( $_ )

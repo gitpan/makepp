@@ -1,4 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	1	755	1118558856	965619358	makepp_test_script.pl
+makepp '--rm-stale'
 ###	28	644	1143572904	965619358	Makeppfile
 #
 # Test making files in directories that don't exist yet.
@@ -28,8 +30,6 @@ subdir2/Makeppfile:
 	&touch $@
 
 load_makefile subdir2/Makeppfile
-###	1	755	1118558856	965619358	makepp_test_script.pl
-makepp '--rm-stale'
 ###	D	755	1067451874	965619410	answers
 ###	2	644	1067451874	965619363	answers/a
 a
@@ -40,5 +40,5 @@ subdir/b
 ###	2	644	1067451874	965619363	answers/c
 c
 subdir/c
-###	1	644	1067451874	965619410	answers/n_files
-8 0
+###	1	644	1067451874	1190053826	answers/n_files
+8 1 0

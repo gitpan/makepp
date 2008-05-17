@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.24 2007/05/17 11:50:47 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.27 2008/05/08 21:33:39 pfeiffer Exp $
 
 =head1 NAME
 
@@ -58,18 +58,27 @@ Splits the command into words, prints a log message, and calls xparse_command.
 =cut
 
 our $ignore_exe;		# Emergency override.
+my %is_builtin;
+@is_builtin{qw(
+  source break cd continue echo exit export kill let pwd return
+  set test ulimit umask unset wait
+  case esac fi for done
+)} = ();			# Make these exist
 sub parse_command {
   my( $self, $command, $setenv_hash ) = @_;
 
   ::log PARSE => $command, $self->dirinfo, $self->rule
     if $::log_level;
 
-  my @cmd_words = TextSubs::unquote_split_on_whitespace($command);
-  unless( $ignore_exe ) {
+  my @cmd_words = ::is_windows < 2 ?
+    TextSubs::unquote_split_on_whitespace $command :
+    map { tr/"//d; $_ } TextSubs::split_on_whitespace $command; # Don't unquote \, which is Win dir separator, TODO: \" -> "
+  unless( $ignore_exe || UNIVERSAL::isa($self->rule->build_check_method, 'BuildCheck::ignore_action') ) {
     # TODO: This test is redundant with scanner_skip_word:
-    if( $cmd_words[0] =~ /^(?:\.|do|e(?:val|xec)|if|source|t(?:hen|ime)|while)$/ ) {
-      $self->add_executable_dependency( $cmd_words[1] ) if @cmd_words > 1;
-    } elsif( $cmd_words[0] !~ /^(?:test)$/ ) {
+    if( $cmd_words[0] =~ /^(?:\.|do|e(?:val|xec)|if|source|t(?:hen|ime)|while|until)$/ ) {
+      $self->add_executable_dependency( $cmd_words[1] ) if @cmd_words > 1
+        && !exists $is_builtin{$cmd_words[1]};
+    } elsif( !exists $is_builtin{$cmd_words[0]} ) {
       $self->add_executable_dependency( $cmd_words[0] );
     }
   }
@@ -91,11 +100,12 @@ sub add_executable_dependency {
   my( $self, $exe ) = @_;
   # Ignore the executable if it has shell metacharacters, because we
   # won't easily be able to figure out what it is.
-  if( $exe !~ m|[^-+=@%^\w:,./]| ) {
+  if( $exe !~ m|[^-+=@%^\w:,./]| || ::is_windows > 1 && $exe !~ /[^-+=@%^\w:,.\\]/ ) {
     # TODO: This is not the best spot to do this, because the path doesn't get
     # rechecked if the command doesn't change.  It would be better to do this
     # like searching for includes.
-    if( $exe !~ m@/@ ) {
+    if( $exe !~ m@/@ || ::is_windows > 1 && $exe !~ /\\/ ) {
+      return if $::no_path_executable_dependencies;
       my $CWD_INFO = $FileInfo::CWD_INFO; # Might load a makefile and chdir there:
       $exe = Makesubs::f_find_program( $exe, $self->{RULE}{MAKEFILE}, $self->{RULE}{RULE_SOURCE}, 1 );
       FileInfo::chdir( $CWD_INFO );
@@ -113,7 +123,7 @@ sub add_executable_dependency {
 	for values %{$runtime_dep->{RUNTIME_DEPS} || {}};
     }
     $self->add_more_executable_dependencies($1)
-      if $exe =~ m@^(.+)/[^/]+$@;
+      if $exe =~ m@^(.+)/[^/]+$@ || ::is_windows > 1 && $exe =~ /^(.+)\\[^\\]+$/;
   }
 }
 

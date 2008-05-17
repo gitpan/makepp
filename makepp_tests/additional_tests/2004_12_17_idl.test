@@ -6,18 +6,21 @@
 
 %.h %.c: %.idl
 	: scanner c_compilation
-	./idlcompiler -Iinclude $(input)
+	.$/idlcompiler -Iinclude $(input)
 
 include/%.idl: from/%.idl
 	&ln $(input) $(output)
 
-test.i: test.c
-	$(CC) -E $(input) >$(output)	# AIX compiler doesn't like -o here
+test.i: test.c	# AIX compiler doesn't like -o here
+	$(CC) -E $(input) >$(output)
 ###	4	755	1113847363	1113847363	idlcompiler
 #! /bin/sh
 # Never mind real IDL compiler functionality.
 echo a >try.h	# AIX compiler would warn about empty file
 >try.c
+###	2	755	1113847363	1208539694	idlcompiler.bat
+@echo a >try.h
+@echo >try.c
 ###	1	644	1113847363	1113847363	test.c
 #include "try.h"
 ###	1	644	1105301400	1105300333	try.idl
