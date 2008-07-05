@@ -80,9 +80,8 @@ sub c_clonetest {
 
 1;
 ###	D	755	1140344139	1140344139	answers
-###	195	644	1153678523	1180393463	answers/help
+###	173	644	1153678523	1212231467	answers/help
 cat options:
-  -A, --arguments-file=arg
   -f, --force
   -i, --inpipe=arg
   -I, --infail
@@ -91,15 +90,12 @@ cat options:
   -S, --sync-lines
   -v, --verbose
 chmod options:
-  -A, --arguments-file=arg
   -v, --verbose
 cp options:
-  -A, --arguments-file=arg
   -f, --force
   -l, --link
   -v, --verbose
 cut options:
-  -A, --arguments-file=arg
   -c, --characters=arg
   -d, --delimiter=arg
   -E, --no-escape
@@ -118,7 +114,6 @@ cut options:
   -S, --sync-lines
   -v, --verbose
 echo options:
-  -A, --arguments-file=arg
   -E, --no-escape
   -f, --force
   -n, --no-newline
@@ -126,14 +121,12 @@ echo options:
   -O, --outfail
   -v, --verbose
 expr options:
-  -A, --arguments-file=arg
   -f, --force
   -n, --no-newline
   -o, --output=arg
   -O, --outfail
   -v, --verbose
 grep options:
-  -A, --arguments-file=arg
   -c, --count
   -f, --force
   -i, --inpipe=arg
@@ -148,7 +141,6 @@ grep options:
       --verbose
   -w, --waste-file=arg
 install options:
-  -A, --arguments-file=arg
   -c, --copy
   -d, --directory
   -g, --group=arg
@@ -161,23 +153,19 @@ install options:
   -S, --symbolic-link
   -v, --verbose
 ln options:
-  -A, --arguments-file=arg
   -f, --force
   -r, --resolve-symbolic-link
   -s, --symbolic-link
   -v, --verbose
 mkdir options:
-  -A, --arguments-file=arg
   -f, --force
   -m, --mode=arg
   -p, --parent
   -v, --verbose
 mv options:
-  -A, --arguments-file=arg
   -f, --force
   -v, --verbose
 perl options:
-  -A, --arguments-file=arg
   -f, --force
   -i, --inpipe=arg
   -I, --infail
@@ -189,7 +177,6 @@ perl options:
   -v, --verbose
 preprocess options:
   -a, --assignment
-  -A, --arguments-file=arg
   -f, --force
   -h, --hashref=arg
   -o, --output=arg
@@ -197,19 +184,16 @@ preprocess options:
   -S, --sync-lines
   -v, --verbose
 printf options:
-  -A, --arguments-file=arg
   -E, --no-escape
   -f, --force
   -o, --output=arg
   -O, --outfail
   -v, --verbose
 rm options:
-  -A, --arguments-file=arg
   -f, --force
   -m, --metainfo
   -v, --verbose
 sed options:
-  -A, --arguments-file=arg
   -f, --force
   -i, --inpipe=arg
   -I, --infail
@@ -220,7 +204,6 @@ sed options:
   -S, --sync-lines
   -v, --verbose
 sort options:
-  -A, --arguments-file=arg
   -c, --compare=arg
   -d, --detransform=arg
   -f, --force
@@ -236,7 +219,6 @@ sort options:
   -u, --unique
   -v, --verbose
 template options:
-  -A, --arguments-file=arg
   -d, --defined
   -f, --force
   -h, --hashref=arg
@@ -249,15 +231,12 @@ template options:
   -S, --sync-lines
   -v, --verbose
 touch options:
-  -A, --arguments-file=arg
   -v, --verbose
 uninstall options:
-  -A, --arguments-file=arg
   -i, --inpipe=arg
   -I, --infail
   -v, --verbose
 uniq options:
-  -A, --arguments-file=arg
   -c, --compare=arg
   -f, --force
   -i, --inpipe=arg
@@ -269,7 +248,6 @@ uniq options:
   -S, --sync-lines
   -v, --verbose
 yes options:
-  -A, --arguments-file=arg
   -E, --no-escape
   -f, --force
   -n, --no-newline

@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.26 2007/09/18 21:50:39 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.27 2008/05/24 21:42:27 pfeiffer Exp $
 use strict;
 package BuildCheck::exact_match;
 
@@ -341,7 +341,7 @@ sub build_cache_key {
   $key .= "\01" . FileInfo::relative_filename $tinfo->{'..'}, $build_cwd
     if $tinfo->{'..'} != $build_cwd;
 
-  if( $FileInfo::case_sensitive_filenames ) {
+  if( FileInfo::case_sensitive_filenames ) {
     $key = Digest::MD5::md5_base64( $key );
     $key =~ tr|/|%|;		# Make it file system compatible.
   } else {

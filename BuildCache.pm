@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.39 2008/05/10 09:17:21 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.40 2008/06/01 21:49:31 pfeiffer Exp $
 #
 # Key things to do before this is production-ready:
 #
@@ -264,16 +264,16 @@ sub cache_file {
 # copy the file.  If it is on the same file system, then make a hard link,
 # since that is faster and uses almost no disk space.
 #
-
-  my( $dev, $size, $mtime ) =
-    @{FileInfo::lstat_array $input_finfo}[FileInfo::STAT_DEV, FileInfo::STAT_SIZE, FileInfo::STAT_MTIME];
+  my $dev = (FileInfo::stat_array $input_finfo->{'..'})->[FileInfo::STAT_DEV];
+  my( $size, $mtime ) =
+    @{FileInfo::lstat_array $input_finfo}[FileInfo::STAT_SIZE, FileInfo::STAT_MTIME];
   # If it's on the same filesystem, then link; otherwise, copy.
   my $target_src;
   my @files_to_unlink;
   my $result = eval {
     my $linking;
     my $target_prot = $file_prot;
-    if ($dev == $self->{DEV} && !$::force_bc_copy) {
+    if( $dev == $self->{DEV} && !$::force_bc_copy ) {
       $linking = 1;
       $target_src = $input_filename;
       $target_prot &= ~0222;	# Make it read only, so that no one can
@@ -635,7 +635,7 @@ sub copy_from_cache {
     my ($size, $mtime);
     # TBD: Maybe we shouldn't fall back to copying if link fails.  There
     # should be a warning at least.
-    if( $self->{DEV} == ((FileInfo::stat_array( $output_finfo->{'..'} ))->[FileInfo::STAT_DEV] || 0)
+    if( $self->{DEV} == ((FileInfo::stat_array $output_finfo->{'..'})->[FileInfo::STAT_DEV] || 0)
 	&& !$::force_bc_copy &&
 				  # Same file system?
 	link($self->{FILENAME}, $output_fname)) {

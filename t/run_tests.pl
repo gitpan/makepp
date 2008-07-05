@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
 #
 # See bottom of file for documentation.
 #
@@ -7,7 +7,6 @@ use Cwd;
 use File::Path;
 use File::Copy 'cp';
 
-$Config{perlpath}; # Work-around for a nasty perl5.8.0 bug
 
 #
 # See if this architecture defines the INT signal.
@@ -21,10 +20,12 @@ if(defined $Config{sig_name}) {
   }
 }
 
+my $archive = $Config{perlpath}; # Temp assignment is work-around for a nasty perl5.8.0 bug
 my $source_path;
 my $old_cwd;
 my $dot;
 my $verbose;
+my $test;
 my $dotted;
 our $makepp_path;
 
@@ -64,7 +65,9 @@ BEGIN {
     ($source_path =~ s@/\.(?=/|$)@@) || # Convert x/./y into x/y.
     ($source_path =~ s@/[^/]+/\.\.(?=/|$)@@); # Convert x/../y into y.
 
-  shift if $dot = @ARGV && $ARGV[0] eq '-d';
+  shift if @ARGV and
+    ($test = $ARGV[0] eq '-t' or
+     $dot = $ARGV[0] eq '-d');
 
   if( $verbose = @ARGV && $ARGV[0] eq '-v' ) {
     shift;
@@ -138,8 +141,8 @@ if( $Config{ptrsize} == 8 && $^O eq 'hpux' ) {
     }
   }
   chdir $old_cwd;
-} elsif( is_windows > 0 && $] < 5.008007 ) {
-  # This is a very bad hack!  On Win Active State "lstat 'file'; lstat _" is broken.
+} elsif( is_windows > 0 ) {
+  # This is a very bad hack!  On Win Active State "lstat 'file'; lstat _ or -l _" is broken.
   chdir "$source_path/..";
   for( qw(FileInfo.pm) ) {
     next if -f "$_~";		# Already converted
@@ -188,7 +191,8 @@ sub system_intabort {
 }
 
 sub makepp(@) {
-  my $suffix = ${shift()} if ref $_[0];
+  my $suffix = '';
+  $suffix = ${shift()} if ref $_[0];
   print "makepp$suffix @_\n";
   system_intabort \"makepp$suffix", PERL, -f 'makeppextra.pm' ? '-Mmakeppextra' : (), $makepp_path.$suffix, @_;
   1;				# Command succeeded.
@@ -253,8 +257,27 @@ sub un_spar() {
 # With -d report '.' for success, 's' for skipped because of symlink failure,
 # 'w' for not applicable on windows, '-' for otherwise skipped.
 sub dot($$) {
-  print $_[$dot ? 0 : 1];
-  $dotted = $dot;
+  if( defined $_[0] ) {
+    if( $test ) {
+      for( "$_[1]" ) {
+	s/^passed // || s/^skipped/# skip/;
+	print "ok $test $_";
+      }
+      $test++;
+    } else {
+      print $_[$dot ? 0 : 1];
+      $dotted = 1 if $dot;
+    }
+  } else {
+    if( $test ) {
+      print "not ok $test $_[1]";
+      $test++;
+    } else {
+      print "\n" if defined $dotted;
+      print "FAILED $_[1]";
+      undef $dotted;
+    }
+  }
 }
 
 
@@ -273,7 +296,7 @@ sub execute($$;$) {
 }
 
 # on some (Windowsish) filesystems rmtree may temporarily fail
-sub slow_rmtree($) {
+sub slow_rmtree(@) {
   for my $tree ( grep -d, @_ ) {
     eval { rmtree $tree } && last
       or $_ < 9 && select undef, undef, undef, .1
@@ -302,19 +325,20 @@ sub n_files(;$$) {
 
 my $have_shell = -x '/bin/sh';
 
+print OSTDOUT '1..'.@ARGV."\n" if $test;
 test_loop:
-foreach $tarfile (@ARGV) {
-  my $testname = $tarfile;
+foreach $archive (@ARGV) {
+  my $testname = $archive;
   my( $tarcmd, $dirtest, $warned );
   $SIG{__WARN__} = sub {
     warn defined $dotted ? "\n" : '',
       $warned ? '' : "$testname: warning: ",
       $_[0];
-    undef $dotted;
+    undef $dotted if -t STDERR;	# -t workaround for MSWin
     $warned = 1;
   };
-  if( -d $tarfile ) {
-    chdir $tarfile;
+  if( -d $archive ) {
+    chdir $archive;
     $dirtest = 1;
   } else {
     $testname =~ s/\..*$//; # Test name is tar file name w/o extension.
@@ -341,15 +365,15 @@ foreach $tarfile (@ARGV) {
       dot m => "skipped $testname because MD5 is not available\n";
       next;
     }
-    if ($tarfile !~ /^\//) {	# Not an absolute path to tar file?
-      $tarfile = "$old_cwd/$tarfile"; # Make it absolute, because we're going
+    if ($archive !~ /^\//) {	# Not an absolute path to tar file?
+      $archive = "$old_cwd/$archive"; # Make it absolute, because we're going
     }				# to cd below.
 
     if ($testname =~ /\.gz$/) { # Compressed tar file?
-      $tarcmd = "gzip -dc $tarfile | tar xf -";
+      $tarcmd = "gzip -dc $archive | tar xf -";
     }
     elsif ($testname =~ /\.bz2$/) { # Tar file compressed harder?
-      $tarcmd = "bzip2 -dc $tarfile | tar xf -";
+      $tarcmd = "bzip2 -dc $archive | tar xf -";
     }
     slow_rmtree 'tdir', "$testname.failed";
     mkdir "tdir", 0755 or die "$0: can't make directory tdir--$!\n";
@@ -361,12 +385,12 @@ foreach $tarfile (@ARGV) {
   $log="../$log" if $log !~ /^\//;
   eval {
     local $SIG{ALRM} = sub { die "timed out\n" };
-    eval { alarm $ENV{MAKEPP_TEST_TIMEOUT} || 600 }; # Dies in Win Active State 5.6
+    eval { alarm( $ENV{MAKEPP_TEST_TIMEOUT} || 600 ) }; # Dies in Win Active State 5.6
     if( $tarcmd ) {
       system_intabort $tarcmd and # Extract the tar file.
-	die "$0: can't extract testfile $tarfile\n";
+	die "$0: can't extract testfile $archive\n";
     } elsif( !$dirtest ) {
-      open DATA, $tarfile or die "$0: can't open $tarfile--$!\n";
+      open DATA, $archive or die "$0: can't open $archive--$!\n";
       eval { local $SIG{__WARN__} = sub { die @_ }; un_spar };
       die +(is_windows && $@ =~ /symlink .* unimplemented/) ? "skipped s\n" :
 	$@ =~ /: can't open >`/ ? "skipped\n" : $@
@@ -374,6 +398,8 @@ foreach $tarfile (@ARGV) {
     }
     open STDOUT, '>', $log or die "write $log: $!";
     open STDERR, '>&STDOUT' or die $!;
+    open my $fh, '>>.makepprc';	# Don't let tests be confused by a user's file further up.
+    close $fh;
     eval {
       unless( $have_shell ) {
 	die "skipped x\n" if
@@ -413,7 +439,7 @@ foreach $tarfile (@ARGV) {
 
 	# Get the name of the actual file, older find can't do no_chdir.
 	($mtfile = $File::Find::name) =~ s!answers/!!;
-	open MTFILE, "$old_cwd/" . ($dirtest ? $tarfile : 'tdir') . "/$mtfile"
+	open MTFILE, "$old_cwd/" . ($dirtest ? $archive : 'tdir') . "/$mtfile"
 	  or die "$mtfile\n";
 	my $mtfile_contents = <MTFILE>; # Read in the whole file.
 	$mtfile_contents =~ s/\r//g; # For cygwin, strip out the extra CRs.
@@ -460,7 +486,7 @@ foreach $tarfile (@ARGV) {
       chop( my $loc = $@ );
       dot $1 || '-', "$loc $testname\n";
       if( !$dirtest ) {
-	$@ = '';		# Else Perl 5.6.1 rereports this.
+	$@ = '' if ::is_perl_5_6;
 	execute 'cleanup_script', ">$log";
 	slow_rmtree 'tdir';		# Get rid of the test directory.
       }
@@ -469,13 +495,9 @@ foreach $tarfile (@ARGV) {
     } elsif ($@ =~ /^\S+$/) {	# Just one word?
       my $loc = $@;
       $loc =~ s/\n//;		# Strip off the trailing newline.
-      print "\n" if defined $dotted;
-      print "FAILED $testname (at $loc)\n";
-      undef $dotted;
+      dot undef, "$testname (at $loc)\n";
     } else {
-      print "\n" if defined $dotted;
-      print "FAILED $testname: $@";
-      undef $dotted;
+      dot undef, "$testname: $@";
     }
     ++$n_failures;
     close TFILE; close MTFILE;	# or cygwin will hang
@@ -497,6 +519,8 @@ print "\n" if defined $dotted;
 
 printf "%ds real  %.2fs user  %.2fs system  children: %.2fs user  %.2fs system\n", time - $^T, times
   if $verbose;
+close OSTDOUT;			# shutup warnings.
+close OSTDERR;
 exit $n_failures;
 
 

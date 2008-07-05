@@ -543,7 +543,7 @@ blend all the groups you specify into one group.
 
 Doing this for clean may have unwanted effects, if you can hard link to
 symlinks, because it may migrate members from one group to another.
-Subsequent non blended cleans, may then clena them form the original group
+Subsequent non blended cleans, may then clean them form the original group
 prematurely.
 
 =item -c spec

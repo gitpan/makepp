@@ -7,7 +7,7 @@ sub wait_timestamp(@) {
   # Pick out the newest file.
   for( @_ ) {
     $tmp = (stat)[9];
-    $ts = $tmp if $tmp > $ts;
+    $ts = $tmp if $tmp && $tmp > $ts;
   }
   # If none was given, default to now.
   $ts ||= time;

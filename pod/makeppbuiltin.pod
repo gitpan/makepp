@@ -2,7 +2,7 @@
 
 makeppbuiltin -- Stand-alone access to builtin commands in makepp
 
-=for vc $Id: makeppbuiltin.pod,v 1.5 2007/05/14 21:51:46 pfeiffer Exp $
+=for vc $Id: makeppbuiltin.pod,v 1.6 2008/06/01 21:47:19 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -38,6 +38,14 @@ The metaoptions allow loading your own command or helper functions, but only
 if it comes from a module:
 
 =over
+
+=item -A filename
+
+=item --args-file=filename
+
+=item --arguments-file=filename
+
+Read the file and parse it as possibly quoted options on one or several lines.
 
 =item -I dir
 

@@ -2,13 +2,23 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.51 2008/05/17 14:54:51 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.53 2008/06/01 22:01:17 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 =head2 Version 1.50 (under development)
 
 =over 4
+
+=item *
+
+Makepp will now also look for options in files called F<.makepprc>.  The
+option C<-A> or C<--args-file> is now consistently available on all commands.
+
+=item *
+
+The environment variable MAKEPP_CASE_SENSITIVE_FILENAMES supercedes the
+options --case-sensitive-filenames and --no-case-sensitive-filenames.
 
 =item *
 

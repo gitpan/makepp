@@ -1,4 +1,4 @@
-# $Id: Gcc.pm,v 1.25 2008/05/08 21:33:39 pfeiffer Exp $
+# $Id: Gcc.pm,v 1.27 2008/06/01 21:42:11 pfeiffer Exp $
 
 =head1 NAME
 
@@ -20,13 +20,18 @@ use CommandParser;
 our @ISA = 'CommandParser';
 
 use TextSubs;
-use FileInfo 'absolute_filename';
 use FileInfo_makepp;
 
 sub new {
   my $self = &CommandParser::new;
   require Scanner::C;
-  $self->{SCANNER}=new Scanner::C($self->rule, $self->dir);
+  $self->{SCANNER} = new Scanner::C($self->rule, $self->dir);
+  $self;
+}
+
+sub new_no_gcc {
+  my $self = &new;
+  undef $self->{NO_GCC};
   $self;
 }
 
@@ -42,11 +47,10 @@ sub set_default_signature_method {
 # because the signature method isn't necessarily set yet.
 *parse_opt = \&TextSubs::CONST0; # Ignore unknown option.
 sub parse_arg {
-  my( undef, $arg, undef, $files ) = @_;
+  #my( undef, $arg, undef, $files ) = @_;
 
-  if( TextSubs::is_cpp_source_name( $arg )) {
-    push @$files, $arg;
-  }
+  push @{$_[3]}, $_[1]
+    if TextSubs::is_cpp_source_name $_[1];
 }
 
 
@@ -179,7 +183,7 @@ sub xparse_command {
     }
   }
   for my $dir ( @idirafter ) {
-    $scanner->add_include_dir( $_, absolute_filename( $dir ) )
+    $scanner->add_include_dir( $_, FileInfo::absolute_filename FileInfo::file_info $dir, $self->{RULE}{MAKEFILE}{CWD} )
       for qw(user sys);
   }
   my $context = $scanner->get_context;
@@ -211,27 +215,19 @@ sub _set_def {
 }
 my %var_cache;
 sub xset_preproc_vars {
-  my ($self, $command, $file_name) = @_;
-  my ($gnu, $cplusplus, $used_cpp);
-
-#figure out what compiler is used
-  $gnu = 1 if $command->[0] =~ /^g/i;
+  my( $self, $command ) = @_;
+  my $file_end = substr $_[2], -4;
+  FileInfo::case_sensitive_filenames or $file_end =~ tr/A-Z/a-z/;
 
 #figure out file type
-  if($file_name=~/\.c(?:c|xx|pp|\+\+)$/i ||
-    ($FileInfo::case_sensitive_filenames && $file_name=~/\.C$/)) {
-    $cplusplus = 1;
-  }
-  elsif($file_name=~/\.c$/ ||
-    (!($FileInfo::case_sensitive_filenames) && $file_name=~/\.C$/)) {
-    $cplusplus = 0;
-  }
+  my $cplusplus = $file_end =~ /\.(?:c(?:c|xx|pp|\+\+)|C)$/;
+  my $used_cpp;
 
   my $traditional = grep { $_ eq '-traditional' } @$command;
-  my $no_gcc = grep { $_ eq '-no-gcc' } @$command;
+  my $no_gcc = exists $self->{NO_GCC} || grep { $_ eq '-no-gcc' } @$command;
 #very basic setup any compiler/OS
   my $cmd;
-  if($gnu) {
+  unless( exists $self->{NO_GCC} ) {
 #use preprocessor
     my @command = @$command;
     splice(@command, 1, 0, '-E', '-dM', '-x', $cplusplus ? 'c++' : 'c', '/dev/null');
@@ -253,7 +249,7 @@ sub xset_preproc_vars {
       # the value is the empty string.
       if(/^\#define (\S+) ?(.*)$/) {
 	my ($name, $val)=($1, $2);
-	$self->_set_def($name, $val) ;
+	_set_def $self, $name, $val;
       } else {
 	warn "$cmd produced unparsable `$_'";
       }
@@ -268,11 +264,11 @@ sub xset_preproc_vars {
   }
   if(!$used_cpp) {
     my $vars = $self->{SCANNER}{VARS};
-    $self->_set_def( __STDC__ => 1 )  unless $traditional;
-    $self->_set_def( __GNUC__ => 1 )  if $gnu && !$no_gcc;
-    $self->_set_def( __cplusplus => 1 ) if $cplusplus;
+    _set_def $self, __STDC__ => 1 unless $traditional;
+    _set_def $self, __GNUC__ => 1 unless $no_gcc;
+    _set_def $self, __cplusplus => 1 if $cplusplus;
   }
-  if($gnu) {
+  unless( exists $self->{NO_GCC} ) {
     my %copy = %{$self->{SCANNER}{VARS}};
     $var_cache{$cmd} = \%copy;
   }

@@ -1,4 +1,4 @@
-# $Id: TextSubs.pm,v 1.36 2008/05/17 14:13:17 pfeiffer Exp $
+# $Id: TextSubs.pm,v 1.38 2008/06/01 21:47:19 pfeiffer Exp $
 package TextSubs;
 require Exporter;
 @ISA = qw(Exporter);
@@ -23,7 +23,13 @@ BEGIN {
     \&CONST0;
 
   my $perl = $ENV{PERL};
-  if( !$perl ) {
+  if( $perl && -x $perl ) {	# Overridden successfully.
+  } elsif( -x $^X ) {		# Use same as ourself.
+    $^X =~ tr/\\/\// if ::is_windows() > 0;
+    $perl = (::is_windows() ? $^X =~ /^(?:\w:)?\// : $^X =~ /^\//) ?
+      $^X :
+      eval "use Cwd; cwd . '/$^X'";
+  } else {			# Emergency fallback.
     $perl = $Config::Config{perlpath};	# Prefer appended version number for precision.
     my $version = sprintf '%vd', $^V;
     $perl .= $version if -x "$perl$version";
@@ -106,6 +112,7 @@ Works like C<index($string, 'substr')>, except that the substring may not be
 inside quotes or a make expression.
 
 =cut
+
 sub index_ignoring_quotes {
   my $substr = $_[1];
   for( $_[0] ) {		# Alias arg to $_
@@ -113,8 +120,8 @@ sub index_ignoring_quotes {
 
     for (;;) {
       my $last_pos = pos;
-      if (/\G([^"'\\\$]+)/gc) {	# Just ordinary characters?
-	my $idx = index($1, $substr); # See if it's in those characters.
+      if( /\G([^"'\\\$]+)/gc ) { # Just ordinary characters?
+	my $idx = index $1, $substr; # See if it's in those characters.
 	$idx >= 0 and return $last_pos + $idx;
       }
 
@@ -139,9 +146,9 @@ sub max_index_ignoring_quotes {
   my ($str, $sub) = @_;
   my $max = 0;
   my $len = length($sub) or return 0;
-  while((my $next = index_ignoring_quotes($str, $sub)) >= 0) {
+  while((my $next = index_ignoring_quotes $str, $sub) >= 0) {
     $max += $next + $len;
-    $str = substr($str, $next + $len);
+    substr $str, 0, $next + $len, '';
   }
   return $max ? $max - $len : -1;
 }
@@ -288,7 +295,7 @@ sub split_on_colon {
 				# for /\G\z/gc doesn't work here.
 
     if (/\G(:+)/gc) {		# Found our colon?
-      push(@pieces, substr($_, $last_pos, pos()-$last_pos-length($1)));
+      push @pieces, substr $_, $last_pos, pos() - $last_pos - length $1;
       $last_pos = pos;		# Beginning of next string is after this space.
     }
 
@@ -487,7 +494,7 @@ sub unquote {
 	die "single backslash at end of string '$_'\n";
       }
       elsif (/\G([0-7]{1,3})/gc) { # Octal character code?
-	$ret_str .= chr(oct($1));	# Convert the character to binary.
+	$ret_str .= chr oct $1;	# Convert the character to binary.
       }
       elsif (/\G([*?[\]])/gc) { # Backslashed wildcard char?
 				# Don't weed out backslashed wildcards here,
@@ -517,7 +524,7 @@ $unquoted_text.
 sub requote {
   local $_ = $_[0];		# Get a modifiable copy of the string.
   s/(["\\])/\\$1/g;		# Protect all backslashes and double quotes.
-  s{([\0-\037])}{sprintf('\%o', ord($1))}eg; # Protect any binary characters.
+  s{([\0-\037])}{sprintf '\%o', ord $1}eg; # Protect any binary characters.
   qq["$_"];			# Return the quoted string.
 }
 
@@ -662,70 +669,68 @@ a ref (a sub).  Any other value is assigned to $var.
 
 =cut
 
+my $args;
+my $argfile =
+  ['A', qr/arg(?:ument)?s?[-_]?file/, \$args, 1,
+   sub {
+     open my $fh, $args or die "$0: cannot open args-file `$args'--$!\n";
+     local $/;
+     unshift @ARGV, unquote_split_on_whitespace <$fh>;
+     close $fh;
+   }];
 sub getopts(@) {
-  our %vars;
-  my @specs = @_;
-  my $hash = 'HASH' eq ref $specs[0];
-  local *vars = shift @specs if $hash;
-  my $strict = !ref $specs[0];
-  shift @specs if $strict;
+  my $hash = 'HASH' eq ref $_[0] and
+    my $vars = shift;
+  my $mixed = ref $_[0]
+    or shift;
   my( @ret, %short );
   while( @ARGV ) {
     for( shift @ARGV ) {	# alias to $_
       if( s/^-(-?)// ) {
 	my $long = $1;
-	if( /argsfile(?:=(.*))?/ ) {
-	  my $argsfile = $1 || shift @ARGV or die "$0: no argument to --$_\n";
-	  open(my $args, '<', $argsfile) or
-	    die "$0: failed to read argsfile $argsfile: $!";
-	  my @args;
-	  while(<$args>) {
-	    push @args, TextSubs::unquote_split_on_whitespace($_); 
-	  }
-	  close($args);
-	  unshift(@ARGV, @args);
-	} elsif( $_ eq '' ) {   # nothing after -(-)
+	if( $_ eq '' ) {	# nothing after -(-)
 	  if( $long ) {		# -- explicit end of opts
 	    unshift @ARGV, @ret;
 	    return;
 	  }
-	  push @ret, '-';	# - stdin
-	} else {
-	  for my $spec ( @specs, 0 ) {
-	    die "$0: unknown option -$long$_\n" unless $spec;
-	    if( $long ) {
-	      if( $$spec[3] ) {
-		next if !/^$$spec[1](?:=(.*))?$/;
-		${$$spec[2]} = defined $1 ? $1 : @ARGV ? shift @ARGV :
-		  die "$0: no argument to --$_\n";
-	      } else {		# want no arg
-		next if !/^$$spec[1]$/;
-		${$$spec[2]}++;
-	      }
-	    } else {		# short opt
-	      next if !$$spec[0] || !s/^$$spec[0]//;
-	      if( $$spec[3] ) {
-		${$$spec[2]} = $_ ne '' ? $_ : @ARGV ? shift @ARGV :
-		  die "$0: no argument to -$$spec[0]\n";
-	      } else {
-		unshift @ARGV, "-$_" if $_; # push back other grouped short opts
-		${$$spec[2]}++;
-	      }
-	      print STDERR "$0: -$$spec[0] is short for --"._getopts_long($spec)."\n"
-		if $::verbose && !$short{$$spec[0]};
-	      $short{$$spec[0]} = 1;
+	  push @ret, '-';	# - stdin; TODO: this assumes $mixed
+	  next;
+	}
+	SPECS: for my $spec ( @_, $argfile, undef ) {
+	  die "$0: unknown option -$long$_\n" unless defined $spec;
+	  if( $long ) {
+	    if( $$spec[3] ) {
+	      next unless /^$$spec[1](?:=(.*))?$/;
+	      ${$$spec[2]} = defined $1 ? $1 : @ARGV ? shift @ARGV :
+		die "$0: no argument to --$_\n";
+	    } else {		# want no arg
+	      next unless /^$$spec[1]$/;
+	      ${$$spec[2]}++;
 	    }
-	    ref $$spec[4] ? &{$$spec[4]} : (${$$spec[2]} = $$spec[4]) if exists $$spec[4];
-	    last;
+	  } else {		# short opt
+	    next unless $$spec[0] && s/^$$spec[0]//;
+	    if( $$spec[3] ) {
+	      ${$$spec[2]} = $_ ne '' ? $_ : @ARGV ? shift @ARGV :
+		die "$0: no argument to -$$spec[0]\n";
+	      $_ = '';
+	    } else {
+	      ${$$spec[2]}++;
+	    }
+	    print STDERR "$0: -$$spec[0] is short for --"._getopts_long($spec)."\n"
+	      if $::verbose && !$short{$$spec[0]};
+	    $short{$$spec[0]} = 1;
 	  }
+	  ref $$spec[4] ? do { local $_; &{$$spec[4]} } : (${$$spec[2]} = $$spec[4]) if exists $$spec[4];
+	  goto SPECS if !$long && length;
+	  last;
 	}
       } elsif( $hash and /^(\w[-\w.]*)=(.*)/ ) {
-	$vars{$1} = $2;
-      } elsif( $strict ) {
+	$vars->{$1} = $2;
+      } elsif( $mixed ) {
+	push @ret, $_;
+      } else {
 	unshift @ARGV, $_;
 	return;
-      } else {
-	push @ret, $_;
       }
     }
   }

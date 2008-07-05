@@ -123,7 +123,7 @@ makeppgraph test), at least with MD5 support.  But with very few packages
 On ActiveState Perl with only native Windows most customary Unix commands are
 missing, and the "shell" is extremely primitive.  A maximal use of makepp's
 builtin commands and embedded Perl can increase makefile portability.  While
-Winodws programs can handle normal slashes as directory separators, this does
+Windows programs can handle normal slashes as directory separators, this does
 not work for command names.  Those should be written as F<dir$/command>, where
 C<$/> is a forward or backward slash, depending on the environment.  If you
 tell makepp, via the SHELL variable, where to find a a Unix-like Shell, you

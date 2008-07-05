@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	62	644	1170452082	1210959182	makepp_test_script.pl
+###	63	644	1170452082	1211311122	makepp_test_script.pl
 { open my $fh, '>', 'c/c.h' }
 utime 0, 0, 'c/c.h';		# Make sure this exists (because makeppclean removes it) and is old.
 if( (stat 'c/c.h')[9] ) {	# mtime unchanged on this fs (but utime may have lied in its return code)
@@ -45,11 +45,11 @@ if( is_windows ) {
   if( is_windows > 0 ) {
     makeppgraph $_ for		# both_up_down fork hack doesn't work, so repeat one by one.
       [down => '-l.', '-bDid', 'c/c.h', 'makepp.mk'],
-      [up => '-l.', '-bDiu', 'c/c.h', 'makepp.mk', 'b/b.o'];
+      [up => '-l.', '-bDiu', 'c/c.h', 'makepp.mk', 'b/b.o', 'b/b.obj'];
     unlink 'answers/rewrite.txt', # Tests Unix dirs that don't exist.
       <answers/*.{dot,html,udg}>; # For lack of reliable redirection in fork, we don't produce these files.
   }
-  for my $file ( <{both,full,log,suf,up}.{dot,txt,udg}>, 'key.txt' ) {
+  for my $file ( <{both,full,log,suf,up}.{dot,html,txt,udg}>, 'key.txt' ) {
     rename $file, "$file~" or next;
     open my $in, "$file~";
     open my $out, '>', $file;
@@ -58,6 +58,7 @@ if( is_windows ) {
       s/\.obj\b/.o/g;
       print $out $_;
     }
+    close $out;			# for MSWin
   }
 }
 
@@ -95,7 +96,7 @@ a: $( a b/b c/c)$(_OBJ_SUFFIX)
 ###	1	644	1170452082	1166207798	makepp.mk
 include makepp1.mk
 ###	0	644	1170452082	1166207809	makepp1.mk
-###	77	644	1170452082	1208531224	both_up_down.pm
+###	77	644	1170452082	1211310818	both_up_down.pm
 sub rewrite_test {
   package Rewrite;
   my $pref = FileInfo::absolute_filename $FileInfo::CWD_INFO;
@@ -161,7 +162,7 @@ $::both_up_down = sub {
   } elsif( !fork ) {
     if( !fork ) {
       $$up = 1;
-      push @ARGV, 'b/b.o';
+      push @ARGV, 'b/b.o', ::is_windows ? 'b/b.obj' : ();
       $$outfile =~ s/\bboth\b/up/;
     } else {
       wait;

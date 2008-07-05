@@ -1,6 +1,6 @@
 package Glob;
 
-# $Id: Glob.pm,v 1.27 2007/10/22 19:05:07 pfeiffer Exp $
+# $Id: Glob.pm,v 1.28 2008/05/24 21:42:27 pfeiffer Exp $
 use strict;
 
 use FileInfo qw(file_info chdir absolute_filename relative_filename $CWD_INFO);
@@ -113,8 +113,8 @@ sub zglob_fileinfo {
   ::is_windows and
     s@^(?=[A-Za-z]:)@/@;	# If on windows, transform C: into /C: so it
 				# looks like it's in the root directory.
-  $FileInfo::case_sensitive_filenames or
-    $_ = lc unless		# Switch to lower case to avoid problems with
+  FileInfo::case_sensitive_filenames or
+    tr/A-Z/a-z/ unless		# Switch to lower case to avoid problems with
                                 # mixed case.
 
     s@^/@@ and $startdir = $FileInfo::root; # If this is a rooted wildcard,
@@ -484,7 +484,7 @@ sub wild_to_regex {
 	  substr $file_regex, 0, 0, '^' if $anchor & 1;
 	  $file_regex .= '$' if $anchor > 1; # Cheaper than: & 2
 	}
-	return $regexp_cache[$anchor]{$_} = $FileInfo::case_sensitive_filenames ?
+	return $regexp_cache[$anchor]{$_} = FileInfo::case_sensitive_filenames ?
 	  qr/$file_regex/ :
 	  qr/$file_regex/i;	# Make it case insensitive.
       }
@@ -492,7 +492,7 @@ sub wild_to_regex {
   }
 
   (my $fname = $_[0]) =~ s/\\(.)/$1/g;	# Unquote any backslashed characters.
-  $FileInfo::case_sensitive_filenames ?
+  FileInfo::case_sensitive_filenames ?
     $fname :
     lc $fname;			# Not case sensitive--switch to lc.
 }

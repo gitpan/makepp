@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.87 2008/05/17 14:38:05 pfeiffer Exp $
+# $Id: Rule.pm,v 1.91 2008/06/03 21:44:30 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Rule;
@@ -404,7 +404,8 @@ sub add_any_dependency_if_exists_ {
   !&add_any_dependency_;
 }
 sub add_meta_dependency {
-  add_any_dependency_( $_[0], 'META_DEPS', @_[1..$#_] );
+  splice @_, 1, 0, 'META_DEPS';
+  &add_any_dependency_;
 }
 
 =head2 add_implicit_dependency
@@ -420,7 +421,8 @@ have to be re-scanned by virtue of an implicit dependency being out of date.
 =cut
 
 sub add_implicit_dependency {
-  add_any_dependency_( $_[0], 'IMPLICIT_DEPS', @_[1..$#_] );
+  splice @_, 1, 0, 'IMPLICIT_DEPS';
+  &add_any_dependency_;
 }
 
 =head2 add_implicit_target
@@ -767,7 +769,6 @@ sub load_scaninfo {
   return 0 unless $first_msg;
   if( exists $tinfo->{ALTERNATE_VERSIONS} ) {
     for( @{$tinfo->{ALTERNATE_VERSIONS}} ) {
-      next if FileInfo::dont_read( $_ );
       if( my $msg = $self->load_scaninfo_single( $_, @_ )) {
 	::log SCAN_INFO_NOT => $_, $msg
 	  if $::log_level;
@@ -844,9 +845,8 @@ sub execute {
   }
 
 
-  if ($actions =~ /\brecursive_makepp\b/) { # Do we need to listen for
-    ::setup_recursive_make_socket(); # recursive make?
-  }
+  RecursiveMake::setup_socket() if # Do we need to listen for recursive make?
+    defined $RecursiveMake::command && $actions =~ /\brecursive_makepp\b/;
 
   my $build_cwd = $self->build_cwd;
 #
@@ -887,7 +887,7 @@ sub execute {
       # causes fd 0 to be opened, rather than 2, so STDERR is actually file
       # handle 0.  This caused a weird bug where error messages were not
       # displayed on parallel builds.
-      $self->execute_command($build_cwd, $actions, $all_targets, $all_dependencies); # Execute the action(s).
+      $self->execute_command($actions, $build_cwd, $all_targets, $all_dependencies); # Execute the action(s).
     };
 
 #
@@ -906,7 +906,7 @@ sub execute {
   } else {			# Not parallel.
     print_build_cwd( $build_cwd ); # Display any directory change.
     wait_for new MakeEvent::Process sub {
-      $self->execute_command($build_cwd, $actions, $all_targets, $all_dependencies); # Execute the command.
+      $self->execute_command($actions, $build_cwd, $all_targets, $all_dependencies); # Execute the command.
     };				# Wait for the process, because we don't want
 				# to get ahead and start scanning files we
 				# can't build yet.  That could mix up output
@@ -960,20 +960,14 @@ sub append {
     }
 }
 
-# Returns the action split on newline, with prefixes (the stuff that doesn't
-# get executed by the sub-shell) stripped off. Each entry is a 3-element
-# arraryref whose first element is the command, whose second element is
-# the perl command, and whose third element is the flags.
+# Returns the action (2nd arg) split on newline, with prefixes (the stuff that
+# doesn't get executed by the sub-shell) split off. The returned list repeatedly
+# has the following 4 elements: (flags, perl, &, action, ..., (undef) x 4)
 sub split_actions {
-  my $actions=$_[0];
-  my @actions;
-  while ($actions) {
-    $actions =~ s/^\s*((?:[\@-]|noecho\s+|ignore_error\s+)*)(?:(?:make)?perl\s*(\{(?s:\{.*?\}\})?.*)|&(.*)|(.*))\n?//m;
-    my ($flags, $perl, $command, $action) = ($1, $2, $3, $4);
-    push(@actions, [$action, $perl, $command, $flags])
-      if $flags || $perl || $command || $action !~ /^\s*$/;
-  }
-  @actions;
+  pos( $_[1] ) = 0;
+  $_[1] =~ /\G\s*/gc;
+  $_[1] =~ /\G((?:[\@-]|noecho\s+|ignore_error\s+)*)(?:(?:make)?perl\s*(\{(?s:\{.*?\}\})?.*)|(&)?(.*))\s*/gcm;
+  #		  1							   2			 3   4
 }
 
 =head2 $rule->setup_environment()
@@ -983,7 +977,9 @@ Sets up the environment for the rule's makefile.
 =cut
 
 sub setup_environment {
-  $_[0]{MAKEFILE}->setup_environment(@_[1..$#_]);
+  my $makefile = $_[0]{MAKEFILE};
+  shift;
+  $makefile->setup_environment( @_ );
 }
 
 use POSIX ();
@@ -1021,7 +1017,7 @@ sub exec_or_die {
 #
 my $true = (-x '/bin/true') ? '/bin/true' : '/usr/bin/true';
 sub execute_command {
-  my ($self, $build_cwd, $actions, $all_targets, $all_dependencies) = @_; # Name the arguments.
+  my( $self, undef, $build_cwd, $all_targets, $all_dependencies ) = @_; # Name the arguments.
 
   # On Windows, native actions don't fork, and so we have to continue to
   # defer signals so that we can reliably mark failed targets as such --
@@ -1034,30 +1030,31 @@ sub execute_command {
   chdir( $build_cwd );		# Move to the correct directory.
   $self->{MAKEFILE}->setup_environment;
 
-  $::recursive_make_socket_name and	# Pass info about recursive make.
-    $ENV{MAKEPP_SOCKET} = $::recursive_make_socket_name;
+  $RecursiveMake::socket_name and	# Pass info about recursive make.
+    $ENV{MAKEPP_SOCKET} = $RecursiveMake::socket_name;
 
   $::preexecute_rule_hook and &$::preexecute_rule_hook($self);
 
 #
 # Now execute each action.  We exec the action if it is the last in the series
 # and we don't need to ignore the return code; otherwise, we call system()
-# instead.  This means we leave an extra process lying around in those cases,
-# but it's too tricky to avoid it in such comparatively rare situations.
+# instead.  This means we start an extra process in those cases, but it's too
+# tricky to avoid it in such comparatively rare situations.
 #
-  my @actions = split_actions($actions); # Get the commands to execute.
+  my( $flags, $perl, $command, $action, @actions ) = &split_actions; # Get the commands to execute with flags.
+  $#actions -= 4;		# Eliminate bogus undefs.
 
   local $unsafe;
   my $maybe_open;
-  while( @actions ) {
+  while( 1 ) {
+    next unless
+      defined $action && $action =~ /\S/ || defined $perl && $perl =~ /\S/;
     if( $unsafe ) {
       $build_cwd = absolute_filename $build_cwd if ref $build_cwd;
       CORE::chdir $build_cwd;
       undef $unsafe;
       $maybe_open = 1;
     }
-    my $action_rec = shift @actions;
-    my ($action, $perl, $command, $flags) = @$action_rec;
 
 #
 # Parse the @ and - in front of the command.
@@ -1065,13 +1062,9 @@ sub execute_command {
     my $silent_flag = $::silent_execution || $flags =~ /\@|noecho/;
     my $error_abort = $flags !~ /-|ignore_error/;
 
-    $| = 1;			# Flush immediately.  Otherwise, with perl
-				# 5.005, the action is never printed for
-				# some reason.
-
     if( defined $perl or defined $command ) {
       $File::chdir = 1;		# External command might change our dir.
-      ::print_profile( defined $perl ? "perl $perl" : "&$command" ) unless $silent_flag;
+      ::print_profile( defined $perl ? "perl $perl" : "&$action" ) unless $silent_flag;
 				# This prints out makeperl as perl.  That is correct,
 				# because it has already been expanded to plain perl code.
       local $Makesubs::rule = $self;
@@ -1091,9 +1084,9 @@ sub execute_command {
 	  return 1 if $error_abort;
 	}
       } else {
-	my $comment = index_ignoring_quotes( $command, '#' );
-	$command = substr $command, 0, $comment if $comment > -1;
-	my( $cmd, @args ) = unquote_split_on_whitespace( $command );
+	my $comment = index_ignoring_quotes $action, '#';
+	my( $cmd, @args ) =
+	  unquote_split_on_whitespace $comment > -1 ? substr $action, 0, $comment : $action;
 	eval {
 	  if( defined &{$self->{MAKEFILE}{PACKAGE} . "::c_$cmd"} ) { # Function from makefile?
 	    $unsafe = 1;
@@ -1117,7 +1110,7 @@ sub execute_command {
 	  return 1 if $error_abort;
 	}
       }
-      ::print_profile_end( defined $perl ? "perl $perl" : "&$command" ) if $::profile && !$silent_flag;
+      ::print_profile_end( defined $perl ? "perl $perl" : "&$action" ) if $::profile && !$silent_flag;
       next;			# Process the next action.
     }
 
@@ -1177,6 +1170,9 @@ sub execute_command {
 				# status of the process, but if the system()
 				# call failed for some reason, that may be 0.
     }
+  } continue {
+    last unless @actions;
+    ($flags, $perl, $command, $action) = splice @actions, 0, 4;
   }
 
   ::is_windows > 0 and return 0; # If we didn't fork, we'll always get here.
@@ -1364,15 +1360,12 @@ sub add_dependency {
 sub add_env_dependency {
   my ($rule, $var_name) = @_;
   return if $rule->{ENV_DEPENDENCIES}{$var_name};
-  if($var_name =~ /^(.+) in (\S+)$/) {
-    my ($name, $val) = ($1, $rule->{MAKEFILE}->get_env($2));
-    my @val = split(/:/, $val || '');
-    for( @val ) {
+  if( my( $name, $val ) = $var_name =~ /^(.+) in (\S+)$/) {
+    for( split /:/, $rule->{MAKEFILE}->get_env( $val ) || '' ) {
       next unless $_;
-      if( FileInfo::exists_or_can_be_built( file_info( $name,
-						       file_info( $_, $rule->{MAKEFILE}{CWD} )))) {
-	return $rule->{ENV_DEPENDENCIES}{$var_name} = $_;
-      }
+      return $rule->{ENV_DEPENDENCIES}{$var_name} = $_
+	if FileInfo::exists_or_can_be_built
+	  file_info $name, file_info $_, $rule->{MAKEFILE}{CWD};
     }
     return $rule->{ENV_DEPENDENCIES}{$var_name} = '';
   }

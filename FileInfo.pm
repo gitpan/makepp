@@ -2,7 +2,7 @@ package FileInfo;
 require Exporter;
 use Cwd;
 
-# $Id: FileInfo.pm,v 1.78 2008/05/17 14:08:35 pfeiffer Exp $
+# $Id: FileInfo.pm,v 1.80 2008/06/01 21:48:12 pfeiffer Exp $
 
 #use English;
 # Don't ever include this!  This turns out to slow down
@@ -131,20 +131,14 @@ overrides some of the routines here.
 # makepp's memory footprint by 1.5% and execution time by 4% compared to the
 # 13-element array.
 #
-# Definitions for use with the stat function:
-#
-# usage:
-#	@stat = (stat ...)[STAT_VECTOR];
-#	$stat[STAT_MTIME]
-sub STAT_VECTOR() { 0, 2, 3, 4, 5, 7, 9 }
+# These consts correspont to real stat indexes 2, 3, 4, 7, 9, 0 as use in lstat_array!
 BEGIN {
-  *STAT_DEV = \&TextSubs::CONST0;
-  *STAT_MODE = \&TextSubs::CONST1;
-  *STAT_NLINK = \&TextSubs::CONST2;
-  *STAT_UID = \&TextSubs::CONST3;
-  *STAT_GID = \&TextSubs::CONST4;
-  *STAT_SIZE = \&TextSubs::CONST5;
-  *STAT_MTIME = \&TextSubs::CONST6;
+  *STAT_MODE =  \&TextSubs::CONST0;
+  *STAT_NLINK = \&TextSubs::CONST1;
+  *STAT_UID =   \&TextSubs::CONST2;
+  *STAT_SIZE =  \&TextSubs::CONST3;
+  *STAT_MTIME = \&TextSubs::CONST4;
+  *STAT_DEV =   \&TextSubs::CONST5; # Added by lstat only for dirs.
 }
 
 sub S_IFMT()  { 0170000 }	# Bits in stat modes field for file type
@@ -153,9 +147,9 @@ sub S_IFREG() { 0100000 }	# Bit in stat modes field that indicates this
 sub S_IFDIR() { 040000 }	# This is a directory.
 sub S_IWUSR() { 0200 }		# Owner has write permission
 
-=head2 $case_sensitive_filenames
+=head2 case_sensitive_filenames
 
-Sets true if we think makepp should treat filenames as case sensitive.
+True if we think makepp should treat filenames as case sensitive.
 
 At present, makepp can be either 100% case insensitive, converting all
 filenames to lower case, or 100% case sensitive.  Makepp currently cannot
@@ -172,23 +166,32 @@ That is ActiveState at least until 5.10.0 and possibly older Cygwin versions.
 
 =cut
 
-our $case_sensitive_filenames;
 our $stat_exe_separate;
 BEGIN {
+  my $done;
+  if( exists $ENV{MAKEPP_CASE_SENSITIVE_FILENAMES} ) {
+    *case_sensitive_filenames = $ENV{MAKEPP_CASE_SENSITIVE_FILENAMES} ? \&TextSubs::CONST1 : \&TextSubs::CONST0;
+    return if !::is_windows;
+    $done = 1;
+  }
   my $test_fname = '.makepp_test';
   substr $test_fname, 12, -1, substr rand, 1 while
     -e $test_fname || -e uc $test_fname or
     ::is_windows and -e "$test_fname.exe" || -e uc "$test_fname.exe";
   $test_fname .= '.exe' if ::is_windows;
-  {
-    open my $fh, '>', $test_fname or # Create the file.
-      return $case_sensitive_filenames = $stat_exe_separate = ::is_windows;
+  unless( open my $fh, '>', $test_fname ) { # Create the file.
+    $stat_exe_separate = ::is_windows > 0;
+    *case_sensitive_filenames = ::is_windows ? \&TextSubs::CONST0 : \&TextSubs::CONST1
+      unless $done;
+    return;
 				# If that doesn't work for some reason, assume
 				# we are case insensitive if windows, and case
 				# sensitive for unix.
   }
 
-  $case_sensitive_filenames = !-e uc $test_fname; # Look for it with different case.
+  *case_sensitive_filenames = -e uc $test_fname ? \&TextSubs::CONST0 : \&TextSubs::CONST1
+    unless $done;
+				# Look for it with different case.
   $stat_exe_separate = !-e substr $test_fname, 0, -4 if ::is_windows;
   unlink $test_fname;
 }
@@ -199,6 +202,7 @@ BEGIN {
 our( $read_dir_before_lstat, $root, $CWD_INFO );
 my $epoch = 2; # Counter that determines whether dir listings are up-to-date.
 our $empty_array = [];		# Only have one, instead of a new one each time
+my @ids_for_check;
 
 #
 # All of the information is stored in the structure below.  $root is an
@@ -434,7 +438,7 @@ before using the above code snippet.
 sub file_info {
   return $_[0] if ref $_[0];	# Don't do anything if we were already
 				# passed a FileInfo structure.
-  my $file = $case_sensitive_filenames ? $_[0] : lc $_[0];
+  my $file = case_sensitive_filenames ? $_[0] : lc $_[0];
 				# Copy the file name only if we continue.
 				# Switch to all lower case to avoid
 				# confounds with mix case.
@@ -698,22 +702,16 @@ sub is_writable {
   ($dirstat->[STAT_MODE] & 0222) == 0 and
     return $dirinfo->{IS_WRITABLE} = 0;
 
-  if ($> == 0 && $FileInfo::uid_for_check != 0) {
-				# Are we running as root?
-    $> = $FileInfo::uid_for_check; # Check with a different UID because root
-    $) = $FileInfo::gid_for_check; # can read too much.
-				# See setting of uid_for_check for an
-				# explanation of why.
-    my $retval = &is_writable;	# Run the check.
-    $> = $FileInfo::orig_uid;	# Restore the UID/GID.
-    $) = $FileInfo::orig_gid;
-    return $retval;
-  }
   my $test_fname = &absolute_filename_nolink . '/.makepp_test';
   my $len = length $test_fname;
   substr $test_fname, $len, -1, substr rand, 1 while
     -e $test_fname;		# Try to create a file with an unlikely name
 				# which goes away automatically at the end.
+
+  local( $>, $) ) = @ids_for_check # Check with a different UID because root
+				# can write too much.  See setting of ids_for_check
+				# for an explanation of why.
+    if !$> && $ids_for_check[0]; # Are we running as root?
 
   if( open my $fh, '>', $test_fname ) { # Can we create such a file?
       close $fh;
@@ -785,7 +783,7 @@ sub lstat_array {
     }
     if( lstat &absolute_filename_nolink ) { # Restat the file, and cache the info.
 				# File actually exists?
-      $stat_arr = $fileinfo->{LSTAT} = [ (lstat _)[STAT_VECTOR] ];
+      $stat_arr = $fileinfo->{LSTAT} = [(lstat _)[2, 3, 4, 7, 9]]; # These must correspond to STAT_* above!
       if( -l _ ) {		# Profit from the open stat structure, unless it's a symlink.
 	undef $fileinfo->{LINK_DEREF};
       } else {
@@ -797,9 +795,11 @@ sub lstat_array {
 # directory so all the wildcard routines know about it.	 Otherwise we'll miss
 # a lot of files.
 #
-	-d _ and		# Now it's a directory?
-	  $fileinfo->{DIRCONTENTS} || # Previously known as a dir?
-	  &mark_as_directory;	# Tell the wildcard system about it.
+	if( -d _ ) {		# Now it's a directory?
+	  $fileinfo->{LSTAT}[STAT_DEV] = (lstat _)[0]; # Add this field.
+	  $fileinfo->{DIRCONTENTS} or # Previously known as a dir?
+	    &mark_as_directory;	# Tell the wildcard system about it.
+	}
       }
       until( $fileinfo->{EXISTS} ) {
 	$fileinfo->{EXISTS} = 1;
@@ -930,7 +930,7 @@ sub read_directory {
   &mark_as_directory;		# Make sure we know this is a directory.
   foreach( readdir $dirhandle ) {
     next if $_ eq '.' || $_ eq '..'; # Skip the standard subdirectories.
-    $case_sensitive_filenames or $_ = lc;
+    case_sensitive_filenames or tr/A-Z/a-z/;
     my $finfo = ($dirinfo->{DIRCONTENTS}{$_} ||=
 		 bless { NAME => $_, '..' => $dirinfo });
 				# Get the file info structure, or make
@@ -1173,7 +1173,7 @@ sub publish {
   }
 }
 
-$CWD_INFO = file_info(cwd);
+$CWD_INFO = file_info cwd;
 				# Store the current directory so we know how
 				# to handle relative file names.
 #
@@ -1186,15 +1186,9 @@ $CWD_INFO = file_info(cwd);
 # this with a special purpose hack where if we're running as root, we
 # actually do the check with the UID and GID of whoever owns the directory.
 #
-
-if ($> == 0) {			# Are we running as root?
-  ($FileInfo::orig_uid, $FileInfo::orig_gid) = ($>, $));
-				# Save the original IDs.
-  ($FileInfo::uid_for_check, $FileInfo::gid_for_check) =
-    @{stat_array( $CWD_INFO )}[STAT_UID, STAT_GID];
-				# Use the UID of whoever owns the current
-				# directory.
-}
+@ids_for_check = (stat absolute_filename $CWD_INFO)[4, 5]
+				# Use the IDs of whoever owns the current directory,
+  unless $>;			# if we running as root?
 
 $ENV{HOME} ||= (::is_windows > 0 ? $ENV{USERPROFILE} : eval { (getpwuid $<)[7] }) || '.';
 dereference file_info $ENV{HOME};
@@ -1250,7 +1244,6 @@ signature (1 arg)
 stat_array (1 arg)
 symlink (2 args)
 unlink (1 arg)
-_valid_alt_versions (1 arg)
 was_built_by_makepp (1 arg)
 
 =head1 AUTHOR

@@ -1,4 +1,4 @@
-# $Id: Makecmds.pm,v 1.55 2008/05/17 14:26:14 pfeiffer Exp $
+# $Id: Makecmds.pm,v 1.56 2008/06/01 21:47:19 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains builtin commands which can be called from a rule.
@@ -127,7 +127,7 @@ sub frame(&@) {
   my( $code, @opts, @stdopts ) = @_;
   local $::verbose = $::verbose;
 
-  my( $args, $infail, $inout, $output, $pipe, $select, $outfail, $separator );
+  my( $infail, $inout, $output, $pipe, $select, $outfail, $separator );
   # Standard options shared by several commands.
   my %opt =
     (E => ['E', qr/no[-_]?escape/, \$noescape],
@@ -144,11 +144,6 @@ sub frame(&@) {
     ref or !push @stdopts, $opt{$_};
   } @opts;
   TextSubs::getopts @opts, @stdopts,
-    ['A', qr/arg(?:ument)?s?[-_]?file/, \$args, 1,
-     sub {
-       open my $fh, $args or die "$0: cannot open args-file `$args'--$!\n";
-       unshift @ARGV, map { chomp; $_ } <$fh>;
-     }],
     [qw(v verbose), \$::verbose];
 
   # Setup input context.

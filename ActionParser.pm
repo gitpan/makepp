@@ -1,4 +1,4 @@
-# $Id: ActionParser.pm,v 1.29 2008/05/17 14:52:43 pfeiffer Exp $
+# $Id: ActionParser.pm,v 1.32 2008/06/03 21:44:29 pfeiffer Exp $
 
 =head1 NAME
 
@@ -120,9 +120,7 @@ Return value is TRUE on success.
 my %scanner_warnings;
 
 sub parse_rule {
-  my ($self, $actions, $rule) = @_;
-  # TODO: this splitting is expensive -- do it only once for scanning and executing together
-  my @actions=Rule::split_actions($actions);
+  my( $self, undef, $rule ) = @_;
   my $parsers_found = 0;
 
   # TBD: There are 3 known problems with adding dependencies here:
@@ -140,24 +138,19 @@ sub parse_rule {
   #    live with that, it would be more efficient to call
   #    $rule->mark_scaninfo_uncacheable, to save it the effort of trying.
 
-  for my $action_rec (@actions) {
-    # The perl block or c_command might have come from an include file (VAR = perl {...})
-    # instead of the current makefile, but how could we know?  We might keep track of the
-    # package's symbol table across includes.  This still doesn't catch a variable built up
-    # over different files with += or an imported sub: *c_alias = \&centrally_defined_sub
-    if( defined $action_rec->[1] ) {
-      # TBD: This broke the NVIDIA build because it interferes with f_input().
-      # Also, it's bogus because the routine called from perl could have been
-      # defined in an included file.  Need to deal with both of these issues.
-      # Also, errors are not propagating properly from perl actions at the
-      # moment.
-      # $rule->add_dependency( $rule->makefile->{MAKEFILE} );
-      next;
-    } elsif( defined( my $cmd = $action_rec->[2] ) ) {
-      # TODO: when we cache the split_actions, already do this and cache as nested array
-      ($cmd) = unquote_split_on_whitespace( $cmd );
+  my( undef, undef, $command, $action, @actions ) = &Rule::split_actions; # Get the commands to execute.
+  $#actions -= 4;		# Eliminate bogus undefs.
+  while( 1 ) {
+    next unless defined $action;
+
+    # The perl block might have come from an include file (VAR = perl {...})
+    # instead of the current makefile, but how could we know?  We might keep
+    # track of the package's symbol table across includes.  This still doesn't
+    # catch a variable built up over different files with +=, so ignore it.
+    if( defined $command ) { # &cmd
+      my $cmd = unquote +(split_on_whitespace $action)[0];
       my $makefile_cmd = $rule->{MAKEFILE}{PACKAGE} . "::c_$cmd";
-      if( defined &{$makefile_cmd} ) { # Function directly or indirectly from makefile?
+      if( defined &$makefile_cmd ) { # Function directly or indirectly from makefile?
 	require B if !::is_perl_5_6;
 	$rule->add_dependency( ::is_perl_5_6 ?
 			       $rule->makefile->{MAKEFILE} :
@@ -176,49 +169,46 @@ sub parse_rule {
       }
       next;
     }
-    my $action=$action_rec->[0];
-    next unless defined $action;
-    my $dir='.';
 
+    my $dir = '.';
     # Split action into commands
     # TBD: This isn't quite right, because env and cwd settings don't propagate
     # to the next command if they are separated by '&' or '|'.
-    my @commands = split_commands($action);
-
-    for my $command (@commands) {
-      {
-	my @ix;
-	REDIR: while(do {
-	  @ix = (
-	    max_index_ignoring_quotes($command, '<'),
-	    max_index_ignoring_quotes($command, '>')
-	  );
-	  $ix[0] >= 0 || $ix[1] >= 0
-	}) {
-	  my $max = $ix[0] > $ix[1] ? $ix[0] : $ix[1];
-	  my $expr = substr($command, $max+1);
-	  my $redir = substr($command, $max, 1);
-	  --$max if $redir eq '>' && substr($command, $max-1, 1) eq '>';
+    for my $command ( split_commands $action ) {
+      while( $command =~ /[<>]/ ) {
+	my $max = max_index_ignoring_quotes $command, '>';
+	my( $expr, $is_in );
+	if( $max > -1 ) {	# have >
+	  $expr = substr $command, $max + 1;
+	  my $lt = max_index_ignoring_quotes $expr, '<';
+	  if( $lt > -1 ) {	# < after >
+	    $max += $lt;
+	    substr $expr, 0, $lt + 1, '';
+	    $is_in = 1;
+	  } else {
+	    --$max if substr( $command, $max-1, 1 ) eq '>';
 				# Handle '>>' redirectors
-	  $command = substr($command, 0, $max);
-	  $command =~ s/\d$//;	# strip off "2" in "2> file"
-	  next REDIR if $expr =~ /^\&/;  # Ignore ">&2" etc.
-	  $expr =~ s/^\s*//;
-	  my ($file) = unquote_split_on_whitespace($expr) or
-            die "Undefined redirection in rule " . $rule->source . "\n";
-	  next REDIR if $file eq '/dev/null';
-	  next REDIR if $file =~ m|[^-+=@%^\w:,./]|;
-	  if($redir eq '>') {
-	    add_target($dir, $rule, $file);
 	  }
-	  elsif($redir eq '<') {
-	    add_simple_dependency(
-	      $dir, file_info($dir, $rule->makefile->{CWD}), $rule, $file
-	    );
+	} else {
+	  $max = max_index_ignoring_quotes $command, '<';
+	  if( $max > -1 ) {	# have <
+	    $expr = substr $command, $max + 1;
+	    $is_in = 1;
+	  } else {
+	    last;
 	  }
-	  else {
-	    die;
-	  }
+	}
+	substr( $command, $max ) = '';
+	$command =~ s/\d$//;	# strip off "2" in "2> file"
+	next if $expr =~ /^\&/;	# Ignore ">&2" etc.
+	$expr =~ s/^\s*//;
+	my $file = unquote +(split_on_whitespace $expr)[0] or
+	  die "Undefined redirection in rule " . $rule->source . "\n";
+	next if $file eq '/dev/null' or $file =~ m|[^-+=@%^\w:,./]|;
+	if( $is_in ) {
+	  add_simple_dependency( $dir, file_info( $dir, $rule->makefile->{CWD} ), $rule, $file );
+	} else {
+	  add_target( $dir, $rule, $file );
 	}
       }
       $rule->{MAKEFILE}->setup_environment;
@@ -237,22 +227,19 @@ sub parse_rule {
       }
       # TBD: expand and/or parse back-quotes
       # Deal with cd commands and set $dir
-      if($command =~ m|^\s*cd\s+([-+=@%^\w:,./]+)\s*|) {
-        my $reldir = $1;
-        if($reldir =~ m|^/|) {
-            $dir = $reldir;
-        }
-        else {
-            $dir = $dir . '/' . $reldir;
-        }
+      if( my( $reldir ) = $command =~ m|^\s*cd\s+([-+=@%^\w:,./]+)\s*|) {
+        $dir = $reldir =~ m|^/| ? $reldir : $dir . '/' . $reldir;
       }
 
       unless($command =~ /^\s*$/) {
-	my $result=$self->parse_command($command, $rule, $dir, \%env);
-	return undef unless defined($result);
+	my $result = $_[0]->parse_command( $command, $rule, $dir, \%env );
+	return undef unless defined $result;
 	$result and ++$parsers_found;
       }
     }
+  } continue {
+    last unless @actions;
+    (undef, undef, $command, $action) = splice @actions, 0, 4;
   }
 
 #
@@ -350,14 +337,12 @@ backward compatibility.
 sub find_command_parser {
   my ($self,$command, $rule, $dir, $found)=@_;
   my $firstword;
-  if( $command =~ /^\s*(\S+)/ ) {	# Get and store the first word.
-    if( ::is_windows < 2 && $1 =~ /['"\\]/ ) {	# Cheap way was not good enough.
+  if( ($firstword) = $command =~ /^\s*(\S+)/ ) {
+    if( ::is_windows < 2 && $firstword =~ /['"\\]/ ) {	# Cheap way was not good enough.
       ($firstword) = unquote +(split_on_whitespace $command)[0];
-    } elsif( ::is_windows > 1 && $1 =~ /"/ ) {
+    } elsif( ::is_windows > 1 && $firstword =~ /"/ ) {
       ($firstword) = split_on_whitespace $command;
       $firstword =~ tr/"//d;	# Don't unquote \, which is Win dir separator
-    } else {
-      $firstword = $1;
     }
   }
   my $parser;
@@ -366,10 +351,12 @@ sub find_command_parser {
     my $scanner_hash = \%{$rule->{MAKEFILE}{PACKAGE} . '::scanners'};
     $parser = $scanner_hash->{$firstword};
 				# First try it unmodified.
-    unless ($parser) {		# If that fails, strip out the
+    unless( $parser ) {		# If that fails, strip out the
 				# directory path and try again.
       $firstword =~ s@^.*/@@ || ::is_windows > 1 && $firstword =~ s@^.*\\@@ and  # Is there a directory path?
         $parser = $scanner_hash->{$firstword};
+      $parser ||= $Makesubs::scanners{$firstword} ||
+	$firstword =~ /gcc|g\+\+/ && \&Makesubs::scanner_gcc_compilation;
     }
   }
   if ($parser) {               # Did we get one?
@@ -453,8 +440,8 @@ sub add_any_dependency_ {
 }
 
 sub add_dependency {
-  my ($dir, $dirinfo, $rule) = @_;
-  add_any_dependency_($dir, $dirinfo, $rule, 1, @_[3..$#_]);
+  splice @_, 3, 0, 1;
+  &add_any_dependency_;
 }
 
 sub add_optional_dependency {
@@ -470,18 +457,16 @@ sub add_optional_dependency {
 }
 
 sub add_simple_dependency {
-  my ($dir, $dirinfo, $rule) = @_;
-  add_any_dependency_($dir, $dirinfo, $rule, 0, @_[3..$#_]);
+  splice @_, 3, 0, 0;
+  &add_any_dependency_;
 }
 
 sub add_target {
-  my ($dir, $rule, $name)=@_;
-  $rule->add_implicit_target( relative_path( $dir, $name ));
+  $_[1]->add_implicit_target( relative_path $_[0], $_[2] );
 }
 
 sub add_env_dependency {
-  my ($rule, $name)=@_;
-  $rule->add_implicit_env_dependency($name);
+  $_[0]->add_implicit_env_dependency( $_[1] );
 }
 
 1;

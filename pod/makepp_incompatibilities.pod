@@ -2,7 +2,7 @@
 
 makepp_incompatibilities -- Incompatibilities between makepp and GNU make
 
-=for vc $Id: makepp_incompatibilities.pod,v 1.18 2008/05/10 09:17:23 pfeiffer Exp $
+=for vc $Id: makepp_incompatibilities.pod,v 1.19 2008/06/02 20:13:34 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -169,7 +169,7 @@ These targets are not supported and are simply ignored.
 
 =item *
 
-Three GNU make functions (C<call>, C<eval> and C<value>) are not currently
+Three GNU make functions (C<eval> and C<value>) are not currently
 supported.
 
 =item *

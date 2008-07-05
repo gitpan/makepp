@@ -1,6 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	1	755	1118558856	965619358	makepp_test_script.pl
-makepp '--rm-stale'
+###	1	755	1118558856	1212336975	.makepprc
+--rm-stale
 ###	28	644	1143572904	965619358	Makeppfile
 #
 # Test making files in directories that don't exist yet.

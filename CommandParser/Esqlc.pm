@@ -23,14 +23,14 @@ use FileInfo qw(file_info absolute_filename);
 use FileInfo_makepp;
 
 sub new {
-  my $self = &CommandParser::Gcc::new;
+  my $self = &CommandParser::Gcc::new_no_gcc;
   require Scanner::Esqlc;
   $self->{SCANNER} = new Scanner::Esqlc($self->rule, $self->dir);
   $self;
 }
 
 sub parse_arg {
-  my( $words, $files ) = @_[2, 3];
+  my( undef, undef, $words, $files ) = @_;
   my $scanner = $_[0]{SCANNER};
   for( $_[1] ) {
     if( s/^(sys_?)?include=//i ) { # Oracle Pro*C
@@ -41,12 +41,13 @@ sub parse_arg {
       }
     } elsif( s/^iname=//i ) { # Oracle Pro*C
       push @$files,
-	FileInfo::exists_or_can_be_built( file_info( $_ )) ? $1 : "$1.pc";
+	FileInfo::exists_or_can_be_built( file_info $_ ) ? $1 : "$1.pc";
     } elsif( s/^define=//i ) { # Oracle Pro*C
       unshift @$words, "-D$_";
-    } elsif( s/^config=(?=(\/|[a-z]:)?)//i ) { # Oracle Pro*C
-      substr $_, 0, 0, &CommandParser::dirinfo->{FULLNAME} . '/' unless $1;
-      Makesubs::prebuild( file_info( $_ ), $_[0]{RULE}{MAKEFILE}, $_[0]{RULE}{RULE_SOURCE} );
+    } elsif( ::is_windows ? s/^config=(?=(\/|[a-z]:)?)//i : s/^config=(?=(\/)?)//i ) { # Oracle Pro*C
+      $_[0]->add_simple_dependency( $_ );
+      substr $_, 0, 0, &CommandParser::dirinfo->{FULLNAME} . '/' unless defined $1;
+      Makesubs::prebuild file_info( $_ ), $_[0]{RULE}{MAKEFILE}, $_[0]{RULE}{RULE_SOURCE};
 				# Might be a generated file.
       if( open my $fh, $_ ) {
 	while( <$fh> ) {

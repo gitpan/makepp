@@ -2,22 +2,22 @@
 
 makepp_command -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.36 2008/04/15 21:34:48 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.39 2008/06/01 22:01:16 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
     makepp [-options] [VAR=value] [target1 target2 ...]
     mpp [-options] [VAR=value] [target1 target2 ...]
 
-L<--B<a>ssume-new|/_2DW_filename>,
+L<--B<A>|/_2dI_3dfilename>,
+  L<--assume-new|/_2DW_filename>,
   L<--argsfile|/_2d_2dargsfile_3dfilename>,
   L<--assume-old|/_2Do_filename>,E<nbsp>
 L<-B<b>|/_2d_2dbuild_2dcache>,
   L<--build-cache|/_2d_2dbuild_2dcache>,
   L<--build-check|/_2d_2dbuild_2dcheck_3dmethod>,E<nbsp>
 L<-B<c>|/_2dc>,
-  L<-C|/_2dc_dirname>,
-  L<--case-sensitive-filenames|/_2D_2Dcase_2Dsensitive_2Dfilenames>,E<nbsp>
+  L<-C|/_2dc_dirname>,E<nbsp>
 L<--B<d>irectory|/_2dc_dirname>,
   L<--do-build|/_2D_2Ddo_2Dbuild_3Dfilename>,
   L<--do-read|/_2D_2Ddo_2Dread_3Dfilename>,
@@ -54,8 +54,7 @@ L<-B<m>|/_2Dm_method>,
   L<--makeppfile|/_2df_makeppfile>,E<nbsp>
   L<--md5-check-bc|/_2d_2dmd5_2dcheck_2dbc>,
 L<-B<n>|/_2Dn>,
-  --no-builtin-rules,
-  L<--no-case-sensitive-filenames|/_2D_2Dno_2Dcase_2Dsensitive_2Dfilenames>,
+  L<--no-builtin-rules|/_2D_2Dno_2Dbuiltin_2Drules>,
   L<--no-implicit-load|/_2D_2Dno_2Dimplicit_2Dload>,
   L<--no-log|/_2D_2Dno_2Dlog>,
   L<--no-log-scan|/_2D_2Dno_2Dlog_2Dscan>,
@@ -109,10 +108,13 @@ Options include most of the standard make options, plus a few new ones.
 
 =over 4
 
-=item --argsfile=filename X<--argsfile>
+=item -A filename
 
-Read arguments from the specified file, and interpolate them into the
-command line in place.
+=item --args-file=filename
+
+=item --arguments-file=filename
+
+Read the file and parse it as possibly quoted options on one or several lines.
 
 =item -W filename X<-W> X<--assume-new>
 
@@ -137,25 +139,6 @@ file, though they might be rebuilt if some other dependency has also
 changed.  The file itself might or might not be rebuilt, depending on
 whether it is out of date with respect to its dependencies.  (To prevent
 that, use C<--dont-build>.)
-
-=item --case-sensitive-filenames
-
-Treat filenames as case sensitive.
-
-Makepp will attempt to determine whether its default directory is case
-sensitive by creating a file and then accessing it with a different
-case.  Usually this works fine, as long as all the files you're
-accessing are on the same file system as your default directory, so you
-should rarely need to use this option.
-
-This option is mostly useful on cygwin, if you want to override makepp's
-default setting.  If you don't treat filenames as case sensitive, then
-makepp converts all filenames to lowercase, which causes occasional
-difficulties.  (E.g., emacs may will open several buffers to the same
-file.)
-
-Makepp does not currently support a build across several file systems,
-one of which is case sensitive and the other case insensitive.
 
 =item -b
 
@@ -249,7 +232,9 @@ You may have one F<RootMakeppfile(.mk)> each, in separate build trees, and
 they will be loaded if one tree has dependencies in another one.  But you are
 not allowed to have F<RootMakeppfile(.mk)> in nested directories, avoiding
 funny effects that tend to arise when you accidentally call C<makepp
---repository> again in a subdirectory.
+--repository> again in a subdirectory.  These effects include duplicate rules
+through duplicate sources, or eternal buld cache reimports because cached
+files have the right signatures but the wrong relative pathes.
 
 =item --do-build=filename X<--do-build>
 
@@ -575,21 +560,6 @@ info if it isn't there already.
 This is slower and leads to more rebuilds, but it guarantees that imported
 targets and build info files correspond exactly.
 
-=item --no-case-sensitive-filenames
-
-Assume the file system is case insensitive.  Makepp converts all
-filenames to lowercase.  Do NOT use this if your file system is not
-actually case sensitive!
-
-Makepp will attempt to determine whether its default directory is case
-sensitive by creating a file and then accessing it with a different
-case.  Usually this works fine, as long as all the files you're
-accessing are on the same file system as your default directory, so you
-should rarely need to use this option.
-
-Makepp does not currently support a build across several file systems,
-one of which is case sensitive and the other case insensitive.
-
 =item --no-log
 
 Don't bother writing a detailed description of what was done to the log
@@ -763,6 +733,12 @@ about files that it reads, because there might be other concurrent readers.
 
 =head1 ENVIRONMENT
 
+Makepp searches upwards for a file called F<.makepprc> when starting and again
+after every C<-C> or C<-c> option.  Each time it finds such a file, but only
+once per file, it will read the file and parse it as possibly quoted options
+on one or several lines.  Unlike the option C<-A>, the options will be parsed
+relative to the directory where the file resides.
+
 Makepp looks at the following environment variables:
 
 =over 4
@@ -780,5 +756,23 @@ Same as C<MAKEFLAGS> as far as makepp is concerned.  If this variable is
 not blank, then C<MAKEFLAGS> is ignored.  Sometimes this is useful
 instead of C<MAKEFLAGS> if you have to use both make and makepp, and you
 need to keep the options separate.
+
+=item MAKEPP_CASE_SENSITIVE_FILENAMES
+
+Makepp will attempt to determine whether its default directory is case
+sensitive by creating a file and then accessing it with a different
+case.  Usually this works fine, as long as all the files you're
+accessing are on the same file system as your default directory, so you
+should rarely need to use this option.
+
+If this variable is present in the environment, its value (C<0> or empty
+string for false, anything else for true) will override makepp's choice.  This
+variable is mostly useful on Windows, if you want to override makepp's default
+setting.  If you don't treat filenames as case sensitive, then makepp converts
+all filenames to lowercase, which causes occasional difficulties.  (E.g.,
+emacs may will open several buffers to the same file.)
+
+Makepp does not currently support a build across several file systems,
+one of which is case sensitive and the other case insensitive.
 
 =back

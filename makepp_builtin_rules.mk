@@ -1,4 +1,4 @@
-# $Id: makepp_builtin_rules.mk,v 1.24 2008/05/08 21:00:49 pfeiffer Exp $
+# $Id: makepp_builtin_rules.mk,v 1.25 2008/05/24 21:42:27 pfeiffer Exp $
 # Please do NOT use this as an example of how to write a makefile.  This is
 # NOT A typical makefile.
 #
@@ -26,7 +26,7 @@ _OBJ_SUFFIX = .o
 _OUTPUT = -o $(output)
 _EXE_SUFFIX =
 
-ifperl $FileInfo::case_sensitive_filenames
+ifperl FileInfo::case_sensitive_filenames
   #
   # Uppercase C as a suffix is indistinguishable from a lowercase C on a case-insensitive
   # file system.

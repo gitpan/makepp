@@ -2,7 +2,7 @@ package FileInfo;
 
 use FileInfo;			# Override some subroutines from the
 				# generic FileInfo package.
-# $Id: FileInfo_makepp.pm,v 1.83 2008/04/18 22:45:39 pfeiffer Exp $
+# $Id: FileInfo_makepp.pm,v 1.85 2008/06/03 21:44:30 pfeiffer Exp $
 
 #
 # This file defines some additional subroutines for the FileInfo package that
@@ -55,7 +55,8 @@ sub build_info_string {
 				# again.
 
   if( wantarray ) {
-    map $binfo->{$_}, @_[1..$#_];
+    shift;
+    map $binfo->{$_}, @_;
   } else {
     $binfo->{$_[1]};
   }
@@ -213,9 +214,8 @@ sub exists_or_can_be_built {
 				# by indicating that files with extra
 				# dependencies are buildable, even if there
 				# isn't an actual rule for them.
-    (&get_rule($finfo, $no_last_chance) && (!exists $finfo->{IS_PHONY} xor $phony)) ||
-    (!$already_loaded_makefile &&
-     &exists_or_can_be_built_norecurse);
+    get_rule( $finfo, $no_last_chance ) && (!exists $finfo->{IS_PHONY} xor $phony) ||
+    !$already_loaded_makefile && &exists_or_can_be_built_norecurse;
 				# Rule for building it (possibly undef'ed if
 				# it was already built)? Note that even if it
 				# looked stale to begin with, it could have
@@ -223,7 +223,7 @@ sub exists_or_can_be_built {
   # Exists in repository?
   if( exists $finfo->{ALTERNATE_VERSIONS} ) {
     for( @{$finfo->{ALTERNATE_VERSIONS}} ) {
-      $result = exists_or_can_be_built_norecurse( $_, $phony, $stale );
+      $result = exists_or_can_be_built_norecurse $_, $phony, $stale;
       return $result || undef if defined $result;
     }
   }
@@ -310,131 +310,6 @@ build rule.
 #}
 
 
-=head2 get_from_rep
-
-  $status = get_from_rep($finfo, $repository_file);
-
-Links a file in from a repository into the current directory.
-
-Returns 0 if successful, nonzero if something went wrong.
-
-=cut
-
-sub get_from_rep {
-  my ($dest_finfo, $src_finfo) = @_;
-
-  if ($dest_finfo->{DIRCONTENTS}) { # Is this a directory?
-    &FileInfo::mkdir;		# Just make it, don't soft link to it.
-    return 0;			# Indicate success (TBD: how to tell if it
-				# failed?)
-  }
-
-  # Don't link to the repository if the source doesn't exist (even if it
-  # can be built, because we'll build it locally instead).
-  return 0 unless exists_or_can_be_built_norecurse($src_finfo, undef, 1);
-
-  FileInfo::mkdir( $dest_finfo->{'..'} );	# Make the directory (and its parents) if
-				# it doesn't exist.
-
-  ::log REP_LINK => @_
-    if $::log_level;
-
-  &check_for_change;		 # Flush $dest_finfo->{LINK_DEREF} to be safe
-				 # (in particular, to make sure that it wasn't
-				 # deleted by a 'clean' target). NOTE: Do this
-				 # *before* changing build info.
-
-  # NOTE: Even if the symlink is already correct, we need to copy over the
-  # build info, because it may have changed since the link was created.
-  my $binfo = $src_finfo->{BUILD_INFO} ||=
-    load_build_info_file($src_finfo) || {};
-				# Get the build information for the old file.
-  my %build_info = %$binfo;	# Make a copy of everything.
-  $build_info{FROM_REPOSITORY} = relative_filename( $src_finfo, $dest_finfo->{'..'} );
-				# Remember that we got it from a repository.
-  undef $dest_finfo->{NEEDS_BUILD_UPDATE}; # Remember to update the build info.
-  $dest_finfo->{BUILD_INFO} = \%build_info;
-  push @build_infos_to_update, $dest_finfo;
-				# Update it soon.
-
-  if( dont_read( $src_finfo )) {
-    ::print_error( 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
-      ' because the former is marked for dont-read'
-    );
-    return 1;			# Indicate failure.
-  }
-  if( &dont_read ) {
-    ::print_error( 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
-      ' because the latter is marked for dont-read'
-    );
-    return 1;			# Indicate failure.
-  }
-
-  my $changed = 1;
-  if( &is_symbolic_link ) { # If it's already a symbolic link,
-				# maybe it's correct.
-    $dest_finfo->{LINK_DEREF} or &dereference;
-				# Get the link value.
-    $dest_finfo->{LINK_DEREF} == $src_finfo and $changed = 0;
-				# If it's already right, don't do anything.
-  }
-
-  if($changed) {
-    unless( &in_sandbox ) {
-      warn $::sandbox_warn_flag ? '' : 'error: ',
-	'Cannot link ', $src_finfo->absolute_filename, ' to ', $dest_finfo->absolute_filename,
-	" because the latter is marked for out-of-sandbox\n";
-      return 1 unless $::sandbox_warn_flag;	# Indicate failure.
-    }
-    &FileInfo::unlink;		# Get rid of anything that might already
-				# be there.
-    if( !$::symlink_in_rep_as_file && is_symbolic_link $src_finfo ) {
-				# Must not fetch symlinks from repository, because
-				# they can point to another file in the repository
-				# of which we have a different version locally.
-      $build_info{SYMLINK} = readlink FileInfo::absolute_filename $src_finfo;
-      CORE::symlink $build_info{SYMLINK}, &absolute_filename
-				# Don't use our symlink(), to preserve absolute link too.
-	and $dest_finfo->{EXISTS} = 1 # We know this file exists now.
-	or $@ = "$!";
-    } else {
-      eval { &FileInfo::symlink }; # Make the link.
-    }
-    if ($@) {			# Did something go wrong?
-      ::print_error( 'Cannot link ', $src_finfo, ' to ', $dest_finfo, ":\n$@" );
-      return 1;			# Indicate failure.
-    }
-    ++$::rep_hits;
-  } else {
-    ::log 'REP_EXISTING'
-      if $::log_level;
-  }
-
-  # NOTE: This has to happen *after* the file exists (or else the build info
-  # won't be saved), but *before* calling may_have_changed (which erases the
-  # build info). Bad things could happen if it were possible for
-  # update_build_infos to be called after NEEDS_BUILD_UPDATE is set, but
-  # before now.
-  &update_build_infos;		# Update it now.  This way, the file is marked
-				# as coming from a repository even if the
-				# build command is aborted.  Next time around
-				# we'll know that it came from a repository
-				# and we can delete it appropriately.
-
-  if ($changed) {
-    my $build_info = $dest_finfo->{BUILD_INFO}; # Don't flush the build info.
-				# (If we lose the build info, then we don't
-				# clean up this file in
-				# cleanup_temporary_links. TODO: is that still needed?)
-    &may_have_changed;		# Flush the stat array cache.
-    $dest_finfo->{BUILD_INFO} = $build_info;
-    $dest_finfo->{SIGNATURE} = signature( $src_finfo );
-				# Have to have the current signature or else
-				# the build info will get discarded anyway.
-  }
-
-  0;				# Indicate success.
-}
 
 =head2 name
 
@@ -506,7 +381,7 @@ sub set_build_info_string {
   my $update;
   my $i = 1;
   while ($i < $#_) {
-    my( $key, $val ) = @_[$i, $i + 1];
+    my( $key, $val ) = ($_[$i], $_[$i + 1]);
     $i += 2;
     die if $key eq 'END';
 
@@ -618,11 +493,11 @@ overrides anything.
 =cut
 
 sub set_rule {
-  my ($finfo, $rule) = @_; # Name the arguments.
+  return if &dont_build;
 
-  return if &dont_build($finfo);
+  my( $finfo, $rule ) = @_; # Name the arguments.
 
-  if (!defined($rule)) {	# Are we simply discarding the rule now to
+  unless( defined $rule ) {	# Are we simply discarding the rule now to
 				# save memory?	(There's no point in keeping
 				# the rule around after we've built the thing.)
     undef $finfo->{RULE} if exists $finfo->{RULE};
@@ -891,19 +766,13 @@ rule for it is to get it from a repository.
 
 =cut
 
-sub _valid_alt_versions {
-  return unless exists $_[0]{ALTERNATE_VERSIONS};
-  return 1 unless $::rm_stale_files;
-  was_built_by_makepp $_
-    or return 1
-    for @{$_[0]{ALTERNATE_VERSIONS}};
-}
 # is_stale( $finfo )
 # Note that load_build_info_file may need to track changes to is_stale.
 sub is_stale {
   (exists $_[0]{IS_PHONY} ||
    !exists($_[0]{RULE}) && !$_[0]{ADDITIONAL_DEPENDENCIES}
-  ) && !&dont_build && &was_built_by_makepp && !&_valid_alt_versions;
+  ) && !&dont_build && &was_built_by_makepp &&
+    (defined &Repository::no_valid_alt_versions ? &Repository::no_valid_alt_versions : 1);
 }
 
 =head2 assume_unchanged
@@ -991,15 +860,14 @@ sub load_build_info_file {
     my $sig_match = ($build_info->{SIGNATURE} || '') eq $sig;
 
     if( exists $build_info->{FROM_REPOSITORY} ) {
-      # Retain previous repository information if no new info given.
-      $finfo->{ALTERNATE_VERSIONS} ||= [file_info $build_info->{FROM_REPOSITORY}, $finfo->{'..'}];
+      my $oldrepfinfo = file_info $build_info->{FROM_REPOSITORY}, $finfo->{'..'};
 
       # If we linked the file in from a repository, but it was since modified in
       # the repository, then we need to remove the link to the repository now,
       # because otherwise we won't remove the link before the target gets built.
       # Note that this code may need to track changes to is_stale.
       unless( $sig_match && exists $finfo->{ALTERNATE_VERSIONS} || &dont_build ) {
-	if( &dereference == file_info $build_info->{FROM_REPOSITORY}, $finfo->{'..'} ) {
+	if( &dereference == $oldrepfinfo ) {
 	  if( &in_sandbox || !-e &absolute_filename ) {
 	    # If the symlink points nowhere, then there is no race here even
 	    # if it is out of sandbox, because the result is the same no matter
@@ -1011,9 +879,8 @@ sub load_build_info_file {
 	    # deleted.
 	    ::log REP_OUTDATED => $finfo
 	      if $::log_level;
-	    FileInfo::unlink( $finfo );
-	  }
-	  else {
+	    &unlink;
+	  } else {
 	    warn $::sandbox_warn_flag ? '' : 'error: ',
 	      "Can't remove outdated repository link " . &absolute_filename . " because it's out of my sandbox\n";
 	    die unless $::sandbox_warn_flag;

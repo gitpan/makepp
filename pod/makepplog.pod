@@ -2,7 +2,7 @@
 
 makepplog -- Textual analysis of the build log
 
-=for vc $Id: makepplog.pod,v 1.8 2007/10/18 20:13:31 pfeiffer Exp $
+=for vc $Id: makepplog.pod,v 1.9 2008/06/01 21:47:19 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -23,6 +23,14 @@ at any time, and even on a different machine.
 
 
 =over
+
+=item -A filename
+
+=item --args-file=filename
+
+=item --arguments-file=filename
+
+Read the file and parse it as possibly quoted options on one or several lines.
 
 =item -c
 

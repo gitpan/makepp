@@ -3,7 +3,7 @@
 makepp_repositories -- How to use repositories for variant builds, for
 maintaining a central set of sources, and other things
 
-=for vc $Id: makepp_repositories.pod,v 1.16 2006/11/07 22:44:58 pfeiffer Exp $
+=for vc $Id: makepp_repositories.pod,v 1.17 2008/06/01 21:54:04 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -284,50 +284,18 @@ repository:
 
     $ makepp -R/path/to/group/repository -R/path/to/production/repository
 
+Since this is probably fairly static for that directory, you may want to put a
+file F<.makepprc> at its root with the following content:
+
+    -R/path/to/group/repository -R/path/to/production/repository
+
 Or, presuming that it has a fixed path, you could write into your makefile:
 
     repository /path/to/production/repository
 
-and, bacause options are seen before makefiles are read, you can call just
+and, because options are seen before makefiles are read, you can call just
 
     $ makepp -R/path/to/group/repository
-
-=head2 Not respecifying your repository
-
-The first time you must call makepp at the root of your local build tree with
-a C<-R> option.  Thereafter you can use the fact that the repository links
-remain from call to call.  But this alone is often not enough, because only
-the individual files remember where they last came from.  If you add more
-files or if the files become present in a nearer repository, that would not be
-noticed.  You can however use the fact that the makefile remains, to have a
-C<repository> statement:
-
-=over
-
-=item *
-
-Add the following lines to the beginning of your F<RootMakeppfile> (preferably
-by that name, because that is guaranteed to be loaded first):
-
-    REPOSITORY ?= /path/to/your/repository
-    ifeq $(relative-filename $(REPOSITORY)),.
-      REPOSITORY =
-    else
-      repository $(REPOSITORY)
-    endif
-
-=item *
-
-The previous mechanism can also be implemented locally (presumably outside of
-your version control).  Put a little dummy F<RootMakeppfile> into your local
-root directory, with only these lines:
-
-    REPOSITORY ?= /path/to/your/repository
-    repository $(REPOSITORY)
-    include $(REPOSITORY)/RootMakeppfile # Pull in the real content.
-
-=back
-
 
 =head2 Caveats with repositories
 
@@ -373,10 +341,10 @@ all kinds of Bournish Shells, the second one for csh (or at least tcsh):
 
 If you feel you don't need them, you can delete them all, whenever you want,
 e.g. after every makepp run, possibly backgrounded (either short or long
-options):
+form):
 
     makeppclean --recurse --only-repository-links
-    makeppclean -rR
+    mppc -rR
 
 =back
 
@@ -386,7 +354,7 @@ A repository is meant to be read-only while it is being used as a
 repository.  Makepp will B<not> work properly if you change files in
 your repository during the course of a build.  Before it starts the
 build, makepp gets a list of all the files that exist in the repository,
-and never updates its list.
+and never updates its list, except for files it expects to appear.
 
 If you need a repository that's changing as you build, you might want to
 consider makepp's build cache mechanism (see L<makepp_build_cache>).
@@ -558,22 +526,14 @@ directory:
     # You could also (more efficiently) do the following:
     #    &ln -r $(input) $(output)
 
-Similarly, if a repository also itself has a second repository, then files
-in the second repository are I<not> linked into the first repository in order
-to link it into the local directory.
-If this behavior is required, then you need to set the second repository as
-a repository for the local directory as well, so that it can link linked into
-the local directory directly from the second repository.
-
-Actually it's not quite that simple, because makepp might still try to build
-files that happen to be in a repository if something asks for them
-directly, but it won't build them I<on behalf> of the local directory.
-The result of this can be quite confusing, because it can lead to a repository
-symbolic link being used while its repository target is out-of-date, but that
-target might get updated later in the build.
-You can prevent this from happening either by making sure that the repository
-is referred to I<only> through the repository path, or by making sure that
-there is also a local rule for all the generated repository files.
+Makepp might still try to build files that happen to be in a repository if
+something asks for them directly, but it won't build them I<on behalf> of the
+local directory.  The result of this can be quite confusing, because it can
+lead to a repository symbolic link being used while its repository target is
+out-of-date, but that target might get updated later in the build.  You can
+prevent this from happening either by making sure that the repository is
+referred to I<only> through the repository path, or by making sure that there
+is also a local rule for all the generated repository files.
 
 Another way to avoid recompiling identical files in different
 directories is to use a build cache (see L<makepp_build_cache> for

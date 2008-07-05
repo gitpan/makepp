@@ -2,7 +2,7 @@
 
 makeppinfo -- What makepp knows about files
 
-=for vc $Id: makeppinfo.pod,v 1.1 2008/01/06 22:25:46 pfeiffer Exp $
+=for vc $Id: makeppinfo.pod,v 1.2 2008/06/01 21:47:19 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -28,6 +28,14 @@ generally interesting information to be gotten.
 
 
 =over
+
+=item -A filename
+
+=item --args-file=filename
+
+=item --arguments-file=filename
+
+Read the file and parse it as possibly quoted options on one or several lines.
 
 =item -k list
 

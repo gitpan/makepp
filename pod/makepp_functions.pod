@@ -2,12 +2,13 @@
 
 makepp_functions -- Functions in makepp
 
-=for vc $Id: makepp_functions.pod,v 1.35 2007/07/28 18:35:44 pfeiffer Exp $
+=for vc $Id: makepp_functions.pod,v 1.36 2008/06/02 20:12:59 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 L<B<a>bsolute_filename|/absolute_filename>, L</addprefix>, L</addsuffix>,E<nbsp>
 L<B<b>asename|/basename>,E<nbsp>
+L<B<c>all|/call>,E<nbsp>
 L<B<d>ir|/dir>, L</dir_noslash>,E<nbsp>
 L<B<f>ilesubst|/filesubst>, L</filter>, L</filter_out>, L</filter_out_dirs>, L</findfile>, L</findstring>,
  L</find_program>, L</find_upwards>, L</find_first_upwards>,
@@ -22,7 +23,7 @@ L<B<p>atsubst|/patsubst>, L</perl>, L</phony>, L</prebuild>, L</print>,E<nbsp>
 L<B<r>elative_filename|/relative_filename>, L</relative_to>,E<nbsp>
 L<B<s>hell|/shell>, L</sort>, L</sorted_dependencies>,
   L</sorted_inputs>, L</stem>, L</strip>, L</subst>, L</suffix>,E<nbsp>
-L</temporary>,E<nbsp>
+L<B<t>emporary|/temporary>,E<nbsp>
 L<B<w>ildcard|/wildcard>, L</word>, L</wordlist>, L</words>,E<nbsp>
 L<B<x>args|/xargs>
 
@@ -509,6 +510,46 @@ fashion like this:
 
     X_OLD_STYLE := $(addsuffix .o, $(MODULES))
     X_NEW_STYLE := $(MODULES).o
+
+=item call variable[, words]... X<call>
+
+The function C<call> is unique in that it can be used to regard I<variable> as
+a parameterized function.  You can assign a complex expression to I<variable>
+and use C<call> to expand its contents to different values parametrized by
+I<words> later on.  In other make systems, a variable that is used mainly for
+the purpose to be expanded via C<call>, is called a B<macro>.
+
+During expansion of the macro, the temporary variables B<C<$1>>, B<C<$2>>,
+B<C<...>> refer to the arguments given to C<call> during its invocation.  The
+variable B<C<$0>> will be expanded to the name of the macro (i.e. I<variable>)
+that C<call> is currently expanding.
+
+There is no limit, how many arguments a macro may be C<call>ed with or how many
+parameters a macro may expect.  If you pass more arguments to C<call> as the
+macro need, all exceeding arguments will be discarded.  If you pass less
+arguments than a macro expect, all exceeding parameters collapse into the empty
+string.
+
+First a simple example:
+
+    rest = $(wordlist 2, $(words $(1)),$(1))
+    list = A B C D E
+    butfirst := $(call rest,$(list))
+
+Here, the variable C<$(butfirst)> will contain the list S<C<B C D E>>.
+
+And now for a more complex example to show what is possible:
+
+    rest = $(wordlist 2,$(words $(1)),${1})
+    mymap = $(if $2,$(call $1,$(firstword $2)) $(call $0,$1,$(call rest,$2)))
+    downcase = ${makeperl lc("$1")}
+ 
+    UCWORDS = ALL THESE WORDS ARE UPCASE
+    DCWORDS := $(call mymap,downcase,$(UCWORDS))
+
+Now C<$(DCWORDS)> contains S<C<all these words are upcase>>.  By the way: it
+makes no difference, whether we access the arguments via B<C<$1>>, B<C<${1}>>
+or B<C<$(1)>> within a macro.
 
 =item filter patterns, words X<filter>
 

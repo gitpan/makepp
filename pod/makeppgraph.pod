@@ -2,7 +2,7 @@
 
 makeppgraph -- Graphical analysis of the dependency graph
 
-=for vc $Id: makeppgraph.pod,v 1.10 2007/12/14 10:36:44 pfeiffer Exp $
+=for vc $Id: makeppgraph.pod,v 1.11 2008/06/01 21:47:19 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -233,6 +233,14 @@ and/or includes.  (The directions are metaphorical, because the graph is best
 displayed from left "top" to right "bottom" due to the width of the nodes.)
 
 =over
+
+=item -A filename
+
+=item --args-file=filename
+
+=item --arguments-file=filename
+
+Read the file and parse it as possibly quoted options on one or several lines.
 
 =item -b
 

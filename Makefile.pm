@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.116 2008/05/08 21:33:39 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.120 2008/06/03 21:40:10 pfeiffer Exp $
 package Makefile;
 
 use Glob qw(wildcard_action needed_wildcard_action);
@@ -7,7 +7,7 @@ use TextSubs qw(max_index_ignoring_quotes index_ignoring_quotes split_on_whitesp
 		unquote unquote_split_on_whitespace requote hash_neq);
 use Makesubs ();
 use Makecmds ();
-use FileInfo qw(file_info absolute_filename chdir);
+use FileInfo qw(file_info file_exists absolute_filename chdir);
 use FileInfo_makepp;
 
 use strict qw(vars subs);
@@ -369,11 +369,22 @@ sub expand_variable {
 				# through these:
 
 # 1st attempt:
-    if( $Makesubs::perl_unfriendly_symbols{$var} ) { # Is it one of the 1-char
+    if( exists $Makesubs::perl_unfriendly_symbols{$var} ) { # Is it one of the 1-char
 				# symbols like '$@' that conflict with perl
 				# variables?  These can't be per target or global.
-      $result = eval { &{$Makesubs::perl_unfriendly_symbols{$var}}() };
-      $@ and die "$makefile_line: $@\n";
+      if( ref $Makesubs::perl_unfriendly_symbols{$var} ) {
+	$result = eval { &{$Makesubs::perl_unfriendly_symbols{$var}}() };
+	$@ and die "$makefile_line: $@\n";
+	if( 2 == length $var ) { # Variants like $(@D) or $(@F)
+	  if( 'D' eq substr $var, 1 ) {
+	    $result = Makesubs::f_dir_noslash $result;
+	  } elsif( 'F' eq substr $var, 1 ) {
+	    $result = Makesubs::f_notdir $result;
+	  }
+	}
+      } else {
+	$result = $Makesubs::perl_unfriendly_symbols{$var};
+      }
       $reexpand = 0;
       last;
     }
@@ -500,7 +511,7 @@ sub implicitly_load {
 				# Already tried to load something.
   FileInfo::is_writable( $dirinfo ) ||	# Directory already exists?
     !$dirinfo->{EXISTS} && FileInfo::is_or_will_be_dir( $dirinfo ) &&
-    $dirinfo->{ALTERNATE_VERSIONS}
+    exists $dirinfo->{ALTERNATE_VERSIONS}
     or return;			# If the directory isn't writable, don't
 				# try to load from it.	(Directories from
 				# repositories will always be writable since
@@ -597,16 +608,17 @@ sub setup_environment {
 sub find_root_makefile_upwards {
   my $cwd = $_[0];
   my( @path, $found ) = $cwd;
-  push @path, $cwd = $cwd->{'..'} while !FileInfo::file_exists( $cwd );
+  push @path, $cwd = $cwd->{'..'} until file_exists $cwd;
 				# Go up, as directory may not already exist.
-  my $cwd_devid = FileInfo::stat_array( $cwd )->[FileInfo::STAT_DEV];
-				# Remember what device this is mounted on.
-  while( !exists $cwd->{ROOT} ) {
+  my $cwd_devid = (FileInfo::stat_array $cwd)->[FileInfo::STAT_DEV];
+				# Remember what device this is mounted on
+				# so we can avoid crossing file system boundaries.
+  until( exists $cwd->{ROOT} ) {
     for( @root_makefiles ) {
       my $finfo = file_info $_, $cwd;
       $found = $finfo, $cwd->{ROOT} = $cwd, last
-	if $finfo->{ALTERNATE_VERSIONS} ||
-	  FileInfo::file_exists( $finfo ); # Found file in the path?  Don't
+	if exists $finfo->{ALTERNATE_VERSIONS} ||
+	  file_exists $finfo;	# Found file in the path?  Don't
 				# check can_be_built, since this is supposed
 				# to be the first makefile we load, so no
 				# other can give us the rule.  This avoids
@@ -616,7 +628,8 @@ sub find_root_makefile_upwards {
     push @path, $cwd = $cwd->{'..'}; # Look in all directories above us.
 
     undef( $cwd ), last unless
-      $cwd and $cwd_devid and (FileInfo::stat_array( $cwd )->[FileInfo::STAT_DEV] || 0) == $cwd_devid;
+      $cwd && $cwd_devid && ((FileInfo::stat_array $cwd)->[FileInfo::STAT_DEV] || 0) == $cwd_devid;
+				# Remember what device this is mounted on.;
 				# Don't cross device boundaries.  This is
 				# intended to avoid trouble with automounters
 				# or dead network file systems.
@@ -664,8 +677,8 @@ has been rebuilt.
 sub load {
   my $minfo = &file_info;	# Get the FileInfo struct for the
 				# makefile.
-  my ($mdinfo, $command_line_vars, $makecmdgoals, $include_path, $env,
-      $makeppfile_only, $autoload) = @_[1..7];	# Name the other arguments.
+  my( undef, $mdinfo, $command_line_vars, $makecmdgoals, $include_path, $env,
+      $makeppfile_only, $autoload ) = @_; # Name the other arguments.
   my %this_ENV = %$env;		# Make a modifiable copy of the environment.
   delete @this_ENV{'MAKEPP_SOCKET', # Get rid of our special variables.
 				# (This gets put back into the environment
@@ -819,12 +832,7 @@ sub load {
 
   $mdinfo->{MAKEINFO} = $self;	# Remember for later what the makefile is.
 
-  %{$mpackage . 'scanners'} = %Makesubs::scanners;
-				# Make a copy of the scanners array (so we can
-				# modify it without affecting other makefiles).
-
-  ${$mpackage . 'makefile'} = $self;	# Tell the makefile subroutines
-				# about it.
+  ${$mpackage . 'makefile'} = $self; # Tell the makefile subroutines about it.
 
 #
 # We used to fork here, load the makefile once, rebuild the makefile if
@@ -871,7 +879,7 @@ sub load {
 #
 # Build up the MAKEFLAGS variable:
 #
-  if ($::traditional_recursive_make) {
+  if( defined $RecursiveMake::traditional ) {
     my @words =			# Pass commnd line variables down.
       map { "$_=" . requote($command_line_vars->{$_}) } keys %$command_line_vars;
     $::keep_going and
@@ -886,7 +894,7 @@ sub load {
       push @words, $::log_level ? '-v' : '--nolog';
     $::quiet_flag and
       push @words, '-q';
-    $::traditional_recursive_make and
+    defined $RecursiveMake::traditional and
       push @words, '--traditional-recursive-make';
 
     ${$mpackage . 'MAKEFLAGS'} = "@words";
@@ -1610,7 +1618,7 @@ sub parse_rule {
 				# Get the targets for this rule.
 
       foreach (@targets) {
-	tr/A-Z/a-z/ if !$FileInfo::case_sensitive_filenames;
+	tr/A-Z/a-z/ if !FileInfo::case_sensitive_filenames;
 	my $tinfo = ::find_makepp_info(unquote(), $self->{CWD}); # Access the target object.
 	FileInfo::set_rule($tinfo, $rule); # Update its rule.  This will be ignored if
 				# it is overriding something we shouldn't
@@ -1639,7 +1647,7 @@ sub parse_rule {
 				# Get the list of targets.
 
     if( length $action ) {	# Is this actually a rule?
-      unless( $FileInfo::case_sensitive_filenames ) {
+      unless( FileInfo::case_sensitive_filenames ) {
 	tr/A-Z/a-z/ for @targets;
       }
 #
@@ -1785,7 +1793,7 @@ sub parse_rule {
       }
 
       foreach (@targets) {
-	tr/A-Z/a-z/ unless $FileInfo::case_sensitive_filenames;
+	FileInfo::case_sensitive_filenames or tr/A-Z/a-z/;
 	my $tinfo = ::find_makepp_info(unquote(), $self->{CWD});
 	FileInfo::set_additional_dependencies($tinfo, $after_colon[0], $self, $makefile_line);
 	$self->{FIRST_TARGET} ||= $tinfo;
@@ -1918,7 +1926,7 @@ sub read_makefile {
 				# Do our own, since standard statement tries to build.
 	for( unquote_split_on_whitespace expand_text( $self, $2, $makefile_line ) ) {
 	  my $finfo = file_info $_, $self->{CWD};
-	  next if $optional && !FileInfo::file_exists $finfo;
+	  next if $optional && !file_exists $finfo;
 	  read_makefile( $self, $finfo );
 	}
 	next;
@@ -1998,9 +2006,9 @@ sub read_makefile {
 # c) A reference to the subroutine.
 #
 sub register_scanner {
-  my ($self, $word, $subr) = @_;
+  #my ($self, $word, $subr) = @_;
 
-  ${"$self->{PACKAGE}::scanners"}{$word} = $subr;
+  ${"$_[0]{PACKAGE}::scanners"}{$_[1]} = $_[2];
 }
 
 #
@@ -2140,10 +2148,10 @@ sub _truthval($$) {
       @sys{split " ", `uname -mps` || ''} = ()
 	if ::is_windows < 2;
     }
-    local $FileInfo::case_sensitive_filenames = 1;
   REGEX:
     for( unquote_split_on_whitespace $line ) {
       my $regex = Glob::wild_to_regex $_;
+      FileInfo::case_sensitive_filenames or $regex =~ s/\(\?i-/(?-i/; # Want this to be case_sensitive
       $truthval = /$regex/ and last REGEX
 	for keys %sys;
     }

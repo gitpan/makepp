@@ -2,7 +2,7 @@
 
 makepp_speedup -- How to make makepp faster
 
-=for vc $Id: makepp_speedup.pod,v 1.9 2006/05/14 16:03:24 pfeiffer Exp $
+=for vc $Id: makepp_speedup.pod,v 1.10 2008/05/21 21:58:58 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -204,10 +204,11 @@ to save typing (csh users replace '=' with ' '):
 
 The option C<--gullible> tells makepp to believe that a rule changes what it
 says it will, neither less nor more.  Not performing these checks can save a
-few percent of makepp's CPU time.  Once you have done a full build in an empty
-directory with the C<--repository> option, without any adverse side effects,
-you can be fairly sure that your rule set is consistent.  Then this option
-shouldn't hurt.
+few percent of makepp's CPU time.  And the Disk I/O savings is especially
+welcome on network file systems.  If you do nightly full builds in an empty
+directory with the C<--repository> option, but without the C<--gullible>
+option, you can be fairly sure that your rule set is consistent.  Then this
+option shouldn't hurt in your daytime work.
 
 
 =head2 Potentially Unsafe Methods

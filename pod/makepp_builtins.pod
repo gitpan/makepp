@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.35 2008/05/17 14:54:37 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.36 2008/06/01 21:47:19 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -68,8 +68,7 @@ to several builtins, though the short form is sometimes not available:
 
 =item --arguments-file=filename
 
-This allows reading arguments (options or plain args) from the given file, one
-per line.  The arguments read replace this option.
+Read the file and parse it as possibly quoted options on one or several lines.
 
 =item -f
 

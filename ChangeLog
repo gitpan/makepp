@@ -1,4 +1,121 @@
+2008-06-03  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Makesubs.pm (f_origin): Simplify.
+	(%perl_unfriendly_symbols):
+	* Makefile.pm (expand_variable): Inline $(*F) et al, to save a few
+	subs.  Allow value to be a string.
+
+	* CommandParser/Esqlc.pm (parse_arg): Also depend on config file.
+
+	* ActionParser.pm:
+	* CommandParser.pm:
+	* FileInfo_makepp.pm:
+	* Rule.pm:
+	* makepp: Don't use list slices, as they are even more expensive
+	than modifying @_.
+
+2008-06-02 Clemens Hintze <c.hintze@gmx.net>
+
+	* Makesubs.pm (f_call): Add new make function with similar
+	functionality as in GNU Make.  One may use this function to expand
+	a variable's contents as a macro.
+
+	* makepp_tests/variable_expansion.test (misc_gnu_make_functions):
+	Add tests for new builtin function 'f_call'.
+
+	* pod/makepp_functions.pod: Describe the new builtin function
+	'f_call'.
+
+	* pod/makepp_incompatibilities.pod: Remove the reference to
+	$(call) in the incompatibilities to GNU Make.
+
+	* install.pl: Add 'call' as keyword to be highlighted in html doc.
+
+2008-06-01  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp_tests/additional_tests/2004_04_01_stale_repository.test:
+	* FileInfo_makepp.pm (load_build_info_file):
+	* pod/makepp_repositories.pod: Remove logic whereby a file stayed
+	rep based without being respecified as such.  This was bad because
+	as the rep evolved, the build tree would stay based only on what
+	remains of the old part, not noticing new files.  Also it was
+	badly implemented, because it would not notice if the file should
+	now come from a higher priority rep.
+
+	* Repository.pm:
+	* RecursiveMake.pm:
+	* FileInfo_makepp.pm:
+	* Makefile.pm:
+	* Makesubs.pm:
+	* install.pl:
+	* Rule.pm:
+	* makepp: Move all functions needed only for repositories or
+	recursive make to separate modules.
+
+	* makepp_tests/run_tests.pl:
+	* makepp (makepprc): Look for and load file .makepp.
+	(usage): Inline it, putting text into DATA section to save memory.
+
+	* Makecmds.pm (frame):
+	* TextSubs.pm (getopts): Optimize and handle -A only centrally.
+
+	* BuildCache.pm:
+	* FileInfo.pm (STAT_VECTOR): Eliminate const which wasn't getting
+	inlined.
+	(STAT_GID, is_writable): Eliminate const which was only used for a
+	single dir.
+	(STAT_DEV, lstat_array): Store it only on dirs, as it never got
+	used for files.
+
+	* CommandParser/Gcc.pm (xparse_command): Repair -idirafter.
+
+	* recursive_makepp: Don't make protocol error give a perl warning.
+
+2008-05-24  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Rule.pm (split_actions, execute_command):
+	* ActionParser.pm (parse_rule): Change split_actions again for
+	even less string copying.
+
+	* makepp (build_dependencies_done, build_target_done):
+	* Makesubs.pm (f_MAKE): Don't match every action for
+	recursive_makepp up to three times, unless we actually expanded
+	$(MAKE).
+
+	* **/* (FileInfo::case_sensitive_filenames): Constant replaces var
+	for saving very many run-time checks, overridable by environment
+	var MAKEPP_CASE_SENSITIVE_FILENAMES.
+
+	* makepp_tests/additional_tests/2007_08_15_no_extra_fork_unix.test:
+	Ascertain that we exec even if an empty expansion follows.
+
+2008-05-21  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Rule.pm (split_actions): Change return value for less copying.
+	(execute_command): Less copying and adapt to split_actions.
+
+	* ActionParser.pm (parse_rule): Less copying and adapt to
+	split_actions.
+
+	* TextSubs.pm (::PERL): Default to $^X.
+
+	* install.pl: Use standard ::PERL.
+	(substitute_file): Copy to mpp* where linking fails.  Create .bat
+	wrappers on MSWin.
+
+	* config.pl: Introduce short opts, protect $ in Makefile and
+	eliminate 5.6 prompts to make it testable.
+
+	* makepp_tests/additional_tests/2008_05_21_install.test: New.
+
+	* pod/makepp_speedup.pod (--gullible): Clarify better.
+
+	* pod/makepp_command.pod: Give examples what accidents a
+	RootMakeppfile and the new non-nesting policy prevents.
+
 2008-05-17  Daniel Pfeiffer  <occitan@esperanto.org>
+
+Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 
 	* Rule.pm (exec_or_die, execute_command):
 	* MakeEvent.pm (start):
@@ -89,10 +206,12 @@
 	* makepp_tests/**/*.test: Adapt to native Windows.
 
 	* Makesubs.pm (%Makesubs::scanners): Add dietlibc and .exe forms.
-	(f_find_program): Also do full path from relative path and return .exe iff full path requested.
-	(%Makesubs::perl_unfriendly_symbols): $/ new variable.
+	(f_find_program): Also do full path from relative path and return
+	.exe iff full path requested.
+	(%perl_unfriendly_symbols): $/ new variable.
 
-	* FileInfo_makepp.pm (_valid_alt_versions): Make ALTERNATE_VERSIONS be exists() based.
+	* FileInfo_makepp.pm (_valid_alt_versions): Make
+	ALTERNATE_VERSIONS be exists() based.
 
 	* makepp (build_dependencies_done),
 	* Rule.pm (execute): Remove redundant call to may_have_changed.

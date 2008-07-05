@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.27 2008/05/08 21:33:39 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.28 2008/06/03 21:44:29 pfeiffer Exp $
 
 =head1 NAME
 
@@ -271,42 +271,33 @@ use FileInfo;
 use FileInfo_makepp;
 
 sub dirinfo {
-  my ($self) = @_;
-  $self->{DIRINFO} ||=
-    file_info($self->{DIR}, $self->{RULE}->build_cwd);
+  $_[0]{DIRINFO} ||=
+    file_info $_[0]{DIR}, $_[0]{RULE}->build_cwd;
 }
 
 sub add_dependency {
-  my ($self) = @_;
-  ActionParser::add_dependency(
-    $self->{DIR}, $self->dirinfo, $self->{RULE}, @_[1..$#_]
-  );
+  my $self = shift;
+  ActionParser::add_dependency( $self->{DIR}, $self->dirinfo, $self->{RULE}, @_ );
 }
 
 sub add_optional_dependency {
-  my ($self) = @_;
-  ActionParser::add_optional_dependency(
-    $self->{DIR}, $self->dirinfo, $self->{RULE}, @_[1..$#_]
-  );
+  my $self = shift;
+  ActionParser::add_optional_dependency( $self->{DIR}, $self->dirinfo, $self->{RULE}, @_ );
 }
 
 sub add_simple_dependency {
-  my ($self) = @_;
-  ActionParser::add_simple_dependency(
-    $self->{DIR}, $self->dirinfo, $self->{RULE}, @_[1..$#_]
-  );
+  my $self = shift;
+  ActionParser::add_simple_dependency( $self->{DIR}, $self->dirinfo, $self->{RULE}, @_ );
 }
 
 sub add_target {
-  my ($self) = @_;
-  ActionParser::add_target(
-    $self->{DIR}, $self->{RULE}, @_[1..$#_]
-  );
+  my $self = shift;
+  ActionParser::add_target( $self->{DIR}, $self->{RULE}, @_ );
 }
 
 sub add_env_dependency {
-  my ($self) = @_;
-  ActionParser::add_env_dependency($self->{RULE}, @_[1..$#_]);
+  my $self = shift;
+  ActionParser::add_env_dependency( $self->{RULE}, @_ );
 }
 
 #=head1 FIELDS

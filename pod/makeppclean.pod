@@ -2,7 +2,7 @@
 
 makeppclean -- Stand-alone cleanup script for makepp
 
-=for cvs $Id: makeppclean.pod,v 1.5 2007/05/14 21:51:46 pfeiffer Exp $
+=for cvs $Id: makeppclean.pod,v 1.6 2008/06/01 21:47:19 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -48,6 +48,14 @@ limitations are avoided by using makeppclean.
 =head1 OPTIONS
 
 =over 4
+
+=item -A filename
+
+=item --args-file=filename
+
+=item --arguments-file=filename
+
+Read the file and parse it as possibly quoted options on one or several lines.
 
 =item -l
 

@@ -254,7 +254,7 @@ sub xparse_command {
     # we get here.
     FileInfo::mark_as_directory( file_info( "csrc", $self->dirinfo ));
     require CommandParser::Gcc;
-    my $c_parser=new CommandParser::Gcc(
+    my $c_parser=new_no_gcc CommandParser::Gcc(
       $self->rule, $self->dir."/csrc"
     );
     $c_parser->xparse_command([$cmd, @c_args], $setenv)

@@ -1,7 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	1	644	1151611756	1151603416	makepp_test_script.pl
-makepp 'over1=over1', 'over2=over2', 'over4=not4', 'bar=not ok';
-###	263	644	1171960619	1209404479	RootMakeppfile
+###	1	644	1151611756	1212336947	.makepprc
+over1=over1 over2=over2 over4=not4 'bar=not ok'
+###	299	644	1171960619	1212428451	RootMakeppfile
 #
 # This makefile tests variable setting and expansion as completely as we can.
 #
@@ -73,7 +73,7 @@ patsubst_test:
 	&echo $(patsubst %.o, %.c, $(P)) -o $@
 	&echo ${P:.o=.c} -o>>$@
 	&echo $(patsubst a%.o, b%.c, $(Q)) -o>>$@
-    ifeq $(&cut -d' ' -f0 makepp_test_script.pl),makepp # Builtin command as function
+    ifeq $(&cut -d' ' -f0 .makepprc),over1=over1 # Builtin command as function
 	&echo $(Q:$(A)%.o=$(X)%.c) -o>>$@
     endif
 
@@ -111,12 +111,48 @@ shell_command:
 #
 # Quick check on miscellaneous GNU-make style functions:
 #
+reverse = $(2) $1
+map = $(foreach a,$2,$(call $1,$a))
+one = $(1) $(2) $(3)
+two = $(call one,$(1),foo,$(2))
+DEP_foo = bar baz quux
+DEP_baz = quux blarp
+rest = $(wordlist 2,$(words ${1}),${1})
+tclose = $(if $1,$(firstword $1) \
+		$(call tclose,$(sort ${DEP_$(firstword $1)} $(call rest,$1))))
+
+# The functions above are inspired by GNU make 3.81 testsuite.
+
+downcase = ${perl lc("$1")}
+mymap = $(if $2,$(call $1,$(firstword $2)) $(call $0,$1,$(call rest,$2)))
+surround = ">$1<"
+
+three = $$1 $$2
+four = $(three)
+five = $(call three,foo,bar)
+six = $(call four,foo,bar)
+seven := $(three)
+
 misc_gnu_make_functions:
 	&echo $(basename mydir.with.periods/version-1.0-module.c) \
 	  $(basename subdir/xyz) -o $@
 	&echo $(notdir some/directories/here/file) -o>>$@
 	&echo $(addprefix a, b c d e) -o>>$@
 	&echo $(addsuffix a, b c d e) -o>>$@
+	&echo $(call reverse,bar,foo) -o>>$@
+	&echo $(call reverse,bar) -o>>$@
+	&echo $(call reverse,,foo) -o>>$@
+	&echo $(call reverse,bar,foo,baz) -o>>$@
+	&echo $(call map,surround,1 2 3 4 5) -o>>$@
+	&echo $(call mymap,surround,A B C D E) -o>>$@
+	&echo $(call mymap,downcase,ALL THESE WORDS ARE UPCASE) -o>>$@
+	&echo $(call tclose,foo) -o>>$@
+	&echo $(call two,bar,baz) -o>>$@
+	&echo $(call three,bar,baz) -o>>$@
+	&echo $(call four,bar,baz) -o>>$@
+	&echo $(call five,bar,baz) -o>>$@
+	&echo $(call six,bar,baz) -o>>$@
+	&echo $(call seven,bar,baz) -o>>$@
 	&echo $(dir abc/def/ghi file-without-dir) -o>>$@
 	&echo $(filter %.c %.s, foo.c bar.c baz.s ugh.h) -o>>$@
 	# Above test from GNU make docs.
@@ -366,11 +402,25 @@ C : late1 : late2
 b-a$ c$ e-d$
 x-y z failed
 a-b fg
-###	20	644	1067451880	1057278095	answers/misc_gnu_make_functions
+###	34	644	1067451880	1211098944	answers/misc_gnu_make_functions
 mydir.with.periods/version-1.0-module subdir/xyz
 file
 ab ac ad ae
 ba ca da ea
+foo bar
+bar
+foo
+foo bar
+>1< >2< >3< >4< >5<
+>A< >B< >C< >D< >E<
+all these words are upcase
+foo bar baz blarp quux
+bar foo baz
+$1 $2
+$1 $2
+$1 $2
+$1 $2
+bar baz
 abc/def/ ./
 foo.c bar.c baz.s
 foo.o bar.o

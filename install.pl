@@ -3,11 +3,13 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.74 2008/05/17 14:22:38 pfeiffer Exp $
+# $Id: install.pl,v 1.77 2008/06/02 20:15:24 pfeiffer Exp $
 #
 
 use Config;
 use File::Copy;
+use TextSubs ();
+use FileInfo ();		# ensure HOME is set
 
 #
 # First make sure this version of perl is recent enough:
@@ -24,28 +26,14 @@ you on?), get the latest from www.perl.com and install it.
 ";
 }
 
-BEGIN {
-  $perl = $ENV{PERL};
-  if( !$perl ) {
-    $perl = $Config{perlpath};	# Prefer appended version number for precision.
-    if( !-x $perl ) {
-      my $version = sprintf '%vd', $^V;
-      if( -x "$perl$version" ) {
-	$perl .= $version;
-      } else {
-	die "Perl claims to be running from $perl, but that is not an executable.\n";
-      }
-    }
-  }
-}
-
-print "Using perl in $perl.\n";
+print 'Using perl in ' . PERL . ".\n";
 
 #
 # Load the version number so it can be automatically inserted into the
 # files.
 #
 our $eliminate = '';		# So you can say #@@eliminate
+$eliminate = $eliminate if ::is_perl_5_6;
 open(VERSION, "VERSION") || die "You are missing the file VERSION.  This should be part of the standard distribution.\n";
 our $VERSION = <VERSION>;
 our $BASEVERSION = $VERSION;
@@ -171,7 +159,8 @@ substitute_file( $_, $datadir, 0644 ) for
 make_dir("$datadir/$_") for
   qw(ActionParser BuildCheck CommandParser Scanner Signature);
 foreach $module (qw(AutomakeFixer BuildCache FileInfo Glob MakeEvent
-		    Makecmds Makefile Makesubs Rule TextSubs Utils
+		    Makecmds Makefile Makesubs RecursiveMake Repository
+		    Rule TextSubs Utils
 
 		    ActionParser ActionParser/Legacy ActionParser/Specific
 
@@ -256,6 +245,7 @@ sub highlight_variables() {
       $name =~ /absolute[_-]filename|
 	add(?:pre|suf)fix|
 	basename|
+	call|
 	CURDIR|
 	dependenc(?:y|ies)|
 	dir(?:[_-]noslash)?|
@@ -596,7 +586,8 @@ sub substitute_file {
 
   local $_;
   while( <INFILE> ) {
-    s@^\#!\s*(\S+?)/perl(\s|$)@\#!$perl$2@	# Handle #!/usr/bin/perl.
+    my $perl = PERL;
+    s@^\#!\s*(\S+?)/perl(\s|$)@\#!$perl$2@o	# Handle #!/usr/bin/perl.
        if $. == 1;
     s/\\?\@(\w+)\@/${$1}/g;		# Substitute anything containg @xyz@.
     if( /^#\@\@(\w+)/ ) {		# Substitute anything containg #@@xyz ... #@@
@@ -613,10 +604,22 @@ sub substitute_file {
   for( $abbrev ) {
     last unless defined;
     $_ = $infile;
-    no warnings 'uninitialized';
-    s/makepp(?:_?(.)[^_]+(?:_(.)[^_]+(?:_(.)[^_]+)?)?)?/mpp$1$2$3/;
+    {
+      no warnings 'uninitialized';
+      s/makepp(?:_?(.)[^_]+(?:_(.)[^_]+(?:_(.)[^_]+)?)?)?/mpp$1$2$3/;
+    }
     link "$outdir/$infile", "$outdir/$_"
       or symlink "$outdir/$infile", "$outdir/$_";
+    unless( -f "$outdir/$_" ) {
+      copy "$outdir/$infile", "$outdir/$_";
+      chmod $prot, "$outdir/$_";
+    }
+    if( is_windows > 0 ) {
+      open my $outfile, "> $outdir/$infile.bat" or die "$0: can't write to $outdir/$infile.bat--$!\n";
+      print $outfile '@' . PERL . " $outdir/$infile %1 %2 %3 %4 %5 %6 %7 %8 %9\n";
+      close $outfile;
+      copy "$outdir/$infile.bat", "$outdir/$_.bat";
+    }
   }
 }
 
