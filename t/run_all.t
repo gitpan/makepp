@@ -1,4 +1,4 @@
-#! /usr/bin/perl
+#! /usr/bin/perl -w
 
 chdir 't';			# failure ignored, when called from here
 
@@ -62,11 +62,30 @@ if( $^O =~ /^MSWin/ ) {
   die "run_tests didn't exit--$@\n" if $@ and $@ !~ /Invalid argument at run_tests.pl line 169/;
   exit 1;
 }
-wait;
-exit $? ? 1 : 0 unless $T;
 
 my $v = sprintf $Config{ptrsize} == 4 ? 'V%vd' : 'V%vd-%dbits', $^V, $Config{ptrsize} * 8;
 $v .= "-$n" if $n;
+
+wait;
+unless( $T ) {
+  my $ret = $? ? 1 : 0;
+  my @failed = <*.failed */*.failed>;
+  push @failed, map substr( $_, 0, -6 ) . 'log', @failed;
+  if( -d 'tdir' ) {
+    push @failed, 'tdir';
+    my @logs = <*.log */*.log>;
+    push @failed, $logs[-1] if @logs;
+  }
+  if( @failed && (open MAIL, "|mail -s FAIL-$^O-$v occitan\@esperanto.org" or open MAIL, '|mail occitan@esperanto.org') ) {
+    print MAIL "FAIL-$^O-$v\n";
+    $Config{$_} && printf MAIL "%-30s => $Config{$_}\n", $_ for sort keys %Config;
+    open SPAR, '-|', $^X, 'spar', '-d', '-', @failed;
+    undef $/;
+    print MAIL "\nbegin 755 errors.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
+    close MAIL;
+  }
+  exit $ret;
+}
 
 if( -d $v ) {
   require File::Path;
@@ -78,7 +97,7 @@ if( -d $v ) {
 mkdir $v or warn $!;
 
 for( map { s/\.test$// ? grep -e, "$_.log", "$_.failed" : () } @ARGV ) {
-    rename "$1/$_", $_ if s!^(.*/)!!; # Some systems don't go from one dir to another
+    rename "$1/$_", $_ if s!^(.*/)!!; # Some systems don't mv from one dir to another
     rename $_, "$v/$_";
 }
 rename 'tdir', "$v/tdir" if -d 'tdir';
