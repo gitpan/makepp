@@ -11,6 +11,8 @@ use File::Copy;
 use TextSubs ();
 use FileInfo ();		# ensure HOME is set
 
+system $^X, 'makepp', '--version'; # make sure it got a chance to apply workarounds.
+
 #
 # First make sure this version of perl is recent enough:
 #

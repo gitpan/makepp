@@ -117,48 +117,6 @@ $ENV{"${_}FLAGS"} = ''
   for qw(MAKEPP MAKE MAKEPPBUILTIN MAKEPPCLEAN MAKEPPLOG MAKEPPGRAPH);
 
 
-if( $Config{ptrsize} == 8 && $^O eq 'hpux' ) {
-  # This is a very bad hack!  On HP/UX use64bitall is broken (at least 5.8.0,
-  # 5.8.1 and 5.8.8) in that int does not uniquely convert references.  So we
-  # fallback to a much slower hex representation, which is not broken.  Note
-  # that this list includes all files where we remember references in hash
-  # keys, which are luckily disjoint from those where we do calculations with
-  # int.
-  chdir "$source_path/..";
-  for( qw(BuildCheck/exact_match.pm BuildCacheControl.pm CommandParser.pm FileInfo.pm FileInfo_makepp.pm Makefile.pm Rule.pm Scanner.pm makepp makeppinfo) ) {
-    next if -f "$_~";		# Already converted
-    rename $_, "$_~";
-    open my $in, "$_~";
-    open my $out, '>', $_;
-    local $_;
-    while( <$in> ) {
-      s<\bint(\(?)([,;\) ])> {
-	my $o = $1 || ($2 ne ' ' ? '(' : '');
-	my $c = ($2 ne ' ' ? ' )' : '') . (($2 eq ',' || $2 eq ';') ? $2 : '');
-	"sprintf$o '%x', " . ($2 ne ' ' ? '$_' : '') . $c
-      }ge;
-      print $out $_;
-    }
-  }
-  chdir $old_cwd;
-} elsif( is_windows > 0 ) {
-  # This is a very bad hack!  On Win Active State "lstat 'file'; lstat _ or -l _" is broken.
-  chdir "$source_path/..";
-  for( qw(FileInfo.pm) ) {
-    next if -f "$_~";		# Already converted
-    rename $_, "$_~";
-    open my $in, "$_~";
-    open my $out, '>', $_;
-    local $_;
-    while( <$in> ) {
-      s/\blstat\b/stat/g;
-      s/-l _/0/g;
-      print $out $_;
-    }
-  }
-  chdir $old_cwd;
-}
-
 for( $ENV{PATH} ) {
   my $sep = is_windows > 0 ? ';' : ':';
   s/^\.?$sep+//;			# Make sure we don't rely on current dir in PATH.

@@ -484,8 +484,9 @@ contains it?  If the developer removes the local copy, makepp will
 happily put in the copy from the repository, and the build will proceed
 as if the file existed.
 
-The best current technique for this problem is to make the file that you
-want not to include in the build process unreadable, like this:
+The best current technique (alas not for user root) for this problem is to
+make the file that you want not to include in the build process unreadable,
+like this:
 
     chmod a-rw file-to-be-excluded
 

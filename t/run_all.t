@@ -23,7 +23,7 @@ additional_tests/2006_12_07_scan_order.test
 BEGIN {
   if( $^O =~ /^MSWin/ ) {
     require Win32API::File;
-    Win32API::File::SetErrorMode( Win32API::File::SEM_FAILCRITICALERRORS | Win32API::File::SEM_NOOPENFILEERRORBOX );
+    Win32API::File::SetErrorMode( &Win32API::File::SEM_FAILCRITICALERRORS | &Win32API::File::SEM_NOOPENFILEERRORBOX );
   }
 }
 
@@ -67,8 +67,32 @@ my $v = sprintf $Config{ptrsize} == 4 ? 'V%vd' : 'V%vd-%dbits', $^V, $Config{ptr
 $v .= "-$n" if $n;
 
 wait;
-unless( $T ) {
-  my $ret = $? ? 1 : 0;
+my $ret = $? ? 1 : 0;
+
+sub mail {
+  my $a = 'occitan@esperanto.org';
+  if( open MAIL, "| exec 2>/dev/null; mailx -s$_[0] $a || mail -s$_[0] $a || /usr/lib/sendmail $a || mail $a" ) {
+    print MAIL "$_[0]\n";
+    $Config{$_} && printf MAIL "%-30s => $Config{$_}\n", $_ for sort keys %Config;
+    1;
+  }
+}
+if( $T ) {
+  if( -d $v ) {
+    require File::Path;
+    eval { File::Path::rmtree $v } && last
+      or $_ < 9 && select undef, undef, undef, .1
+	for 0..9;
+    die $@ if $@;
+  }
+  mkdir $v or warn $!;
+
+  for( map { s/\.test$// ? grep -e, "$_.log", "$_.failed" : () } @ARGV ) {
+    rename "$1/$_", $_ if s!^(.*/)!!; # Some systems don't mv from one dir to another
+    rename $_, "$v/$_";
+  }
+  rename 'tdir', "$v/tdir" if -d 'tdir';
+} else {
   my @failed = <*.failed */*.failed>;
   push @failed, map substr( $_, 0, -6 ) . 'log', @failed;
   if( -d 'tdir' ) {
@@ -76,28 +100,13 @@ unless( $T ) {
     my @logs = <*.log */*.log>;
     push @failed, $logs[-1] if @logs;
   }
-  if( @failed && (open MAIL, "|mail -s FAIL-$^O-$v occitan\@esperanto.org" or open MAIL, '|mail occitan@esperanto.org') ) {
-    print MAIL "FAIL-$^O-$v\n";
-    $Config{$_} && printf MAIL "%-30s => $Config{$_}\n", $_ for sort keys %Config;
+  if( !@failed ) {
+    mail "SUCCESS-$^O-$v";
+  } elsif( mail "FAIL-$^O-$v" ) {
+    print MAIL "<@failed>";
     open SPAR, '-|', $^X, 'spar', '-d', '-', @failed;
     undef $/;
-    print MAIL "\nbegin 755 errors.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
-    close MAIL;
+    print MAIL "\nbegin 755 $^O-$v.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
   }
-  exit $ret;
 }
-
-if( -d $v ) {
-  require File::Path;
-  eval { File::Path::rmtree $v } && last
-    or $_ < 9 && select undef, undef, undef, .1
-    for 0..9;
-  die $@ if $@;
-}
-mkdir $v or warn $!;
-
-for( map { s/\.test$// ? grep -e, "$_.log", "$_.failed" : () } @ARGV ) {
-    rename "$1/$_", $_ if s!^(.*/)!!; # Some systems don't mv from one dir to another
-    rename $_, "$v/$_";
-}
-rename 'tdir', "$v/tdir" if -d 'tdir';
+exit $ret;

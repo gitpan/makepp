@@ -1,3 +1,23 @@
+2008-07-12  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* install.pl:
+	* t/run_tests.pl:
+	* makepp: Move rewriting for broken perls to uninstalled makepp, to be sure it gets performed before running.
+
+2008-07-09  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Makesubs.pm (scanner_c_compilation, scanner_gcc_compilation):
+	* Makefile.pm (load):
+	* ActionParser.pm (find_command_parser):
+	* CommandParser/Gcc.pm (new_no_gcc, xset_preproc_vars):
+	* CommandParser/Esqlc.pm (new):
+	* CommandParser/Vcs.pm (xparse_command):
+	Handle difference between gcc and others via regexp, due to the
+	many names (sometimes including version numbers) gcc can take.
+	And only put deviating entries in per-Makefile scanner hash.
+
+	* Makefile.PL, makepp_tests/run_all.t: New files.
+
 2008-06-03  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	* Makesubs.pm (f_origin): Simplify.

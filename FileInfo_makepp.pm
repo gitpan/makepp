@@ -924,18 +924,22 @@ sub version {
 # day.  This assumes that no two years have three same check in dates and
 # amounts.
 #
-  my %VERSION;
-  for( my $copy = $0, <$::datadir/*.pm $::datadir/*/*.pm $::datadir/makepp_builtin_rules.mk> ) {
-    open my( $fh ), $_;
-    while( <$fh> ) {
-      if( /\$Id: .+,v [.0-9]+ ([\/0-9]+)/ ) {
-	$VERSION{$1}++;
-	last;
+  open my $fh, '<', "$::datadir/VERSION";
+  chomp( $::VERSION = <$fh> );
+  if( $::VERSION =~ s/beta// ) {
+    my %VERSION;
+    for( my $copy = $0, <$::datadir/*.pm $::datadir/*/*.pm $::datadir/makepp_builtin_rules.mk> ) {
+      open my( $fh ), $_;
+      while( <$fh> ) {
+	if( /\$Id: .+,v [.0-9]+ ([\/0-9]+)/ ) {
+	  $VERSION{$1}++;
+	  last;
+	}
       }
     }
+    $::VERSION .= join '-', '',
+      grep { my $key = $_; s!\d+/(\d+)/(\d+)!$1$2$VERSION{$_}! } (reverse sort keys %VERSION)[0..2];
   }
-  $::VERSION = join '-',
-    grep { my $key = $_; s!\d+/(\d+)/(\d+)!$1$2$VERSION{$_}! } (reverse sort keys %VERSION)[0..2];
 #@@
 
   $0 =~ s!.*/!!;

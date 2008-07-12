@@ -2,7 +2,7 @@
 
 makepp_build_cache -- How to set up and use build caches
 
-=for vc $Id: makepp_build_cache.pod,v 1.20 2007/07/28 18:20:13 pfeiffer Exp $
+=for vc $Id: makepp_build_cache.pod,v 1.21 2008/07/09 20:51:26 pfeiffer Exp $
 
 =head1 DESCRIPTION
 

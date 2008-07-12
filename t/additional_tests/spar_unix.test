@@ -1,8 +1,11 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	12	444	1120166745	1167411416	is_relevant.pl
+###	15	444	1120166745	1215861917	is_relevant.pl
 # This tests spar itself, and not any makepp functionality.  The test is
 # integrated here because spar is hosted in the test section of makepp (for
 # which it was originally conceived.)
+
+# 5.6.0 doesn't have preprocess, so spar content order is random
+die if $] == 5.006;
 
 # FreeBSD 4.10 and Darwin 5.5 allow truncating a write protected file :-(
 die if open my $fh, '>', 'd.spar';
@@ -15,7 +18,7 @@ die if open my $fh, '>', 'd.spar';
 ###	28	755	1079987495	1079987351	makepp_test_script
 #!/bin/sh -x
 
-unset LANG LC_MESSAGES
+unset LANG LC_MESSAGES LC_ALL
 PATH=..:../..:$PATH; export PATH
 spar="${PERL-perl} -S spar"
 

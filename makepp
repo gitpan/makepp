@@ -37,6 +37,48 @@ BEGIN {
 
   $datadir = eval "use Cwd; cwd . '/$datadir'"
     if $datadir =~ /^\./;	# Make it absolute, if it's a relative path.
+
+  my $workaround = sub {
+    my $code = shift;
+    for( @_ ) {
+      my $file = "$datadir/$_";
+      local $_ = "$file.broken";
+      next if -f;		# Already converted
+      rename $file, $_;
+      open my $in, '<', $_;
+      open my $out, '>', $file;
+      chmod 07777 & (stat)[2], $file;
+      while( <$in> ) {
+	&$code;
+	print $out $_;
+      }
+    }
+  };
+  if( $Config{ptrsize} == 8 && $^O eq 'hpux' ) {
+    # This is a very bad hack!  On HP/UX use64bitall is broken (at least 5.8.0,
+    # 5.8.1 and 5.8.8) in that int does not uniquely convert references.  So we
+    # fallback to a much slower hex representation, which is not broken.  Note
+    # that this list includes all files where we remember references in hash keys,
+    # which are luckily disjoint from those where we do calculations with int.
+    my $makeppok = -f "$datadir/makepp.broken";
+    &$workaround( sub {
+	s<\bint(\(?)([,;\) ])> {
+	  my $o = $1 || ($2 ne ' ' ? '(' : '');
+	  my $c = ($2 ne ' ' ? ' )' : '') . (($2 eq ',' || $2 eq ';') ? $2 : '');
+	  "sprintf$o '%x', " . ($2 ne ' ' ? '$_' : '') . $c
+	}ge;
+      },
+      qw(BuildCheck/exact_match.pm BuildCacheControl.pm CommandParser.pm FileInfo.pm FileInfo_makepp.pm Makefile.pm Rule.pm Scanner.pm
+	 makepp makeppinfo) );
+    exec $^X, $0, @ARGV unless $makeppok;
+  } elsif( $^O =~ /^MSWin/ ) {
+    # This is a very bad hack!  On Win Active State "lstat 'file'; lstat _ or -l _" is broken.
+    &$workaround( sub {
+	s/\blstat\b/stat/g;
+	s/-l _/0/g;
+      },
+      qw(FileInfo.pm) );
+  }
 #@@
   unshift @INC, $datadir;
 }
