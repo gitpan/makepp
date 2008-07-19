@@ -101,7 +101,7 @@ N_FILES000
     for( keys %SPAR::mode ) {
 	chmod shift @{$SPAR::mode{$_}}, $_ and
 	    utime @{$SPAR::mode{$_}}, $_ or
-	    warn "$0: $archive:$_: Failed to set file attributes: $!\n";
+	    warn "$0: $archive:$_: Failed to set directory attributes: $!\n";
     }
     %SPAR::mode = ();
 
@@ -158,7 +158,7 @@ sub un_spar() {
     for( keys %SPAR::mode ) {
 	chmod shift @{$SPAR::mode{$_}}, $_ and
 	    utime @{$SPAR::mode{$_}}, $_ or
-	    warn "$0: $archive:$_: Failed to set file attributes: $!\n";
+	    warn "$0: $archive:$_: Failed to set directory attributes: $!\n";
     }
     %SPAR::mode = ();
 }
@@ -202,7 +202,7 @@ spar: can't mkdir `dir/a': Permission denied
 spar: can't open >`dir/a/a': No such file or directory
 spar: dir.spar:dir/a/a: Failed to set file attributes: No such file or directory
 spar: dir.spar:10: trailing garbage ignored
-spar: dir.spar:dir/a: Failed to set file attributes: No such file or directory
+spar: dir.spar:dir/a: Failed to set directory attributes: No such file or directory
 ###	71	644	1120163292	1167363038	answers/spar-mode.el
 (setq auto-mode-alist `(("\\.spar$\\|/makepp.+\\.test$" . spar-mode)
 			,@auto-mode-alist))

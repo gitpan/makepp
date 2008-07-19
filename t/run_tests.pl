@@ -199,14 +199,16 @@ sub un_spar() {
     } continue {
 	if( !$lines-- ) {
 	    close F;
-	    chmod oct( $mode ), $name;
-	    utime $atime, $mtime, $name;
+	    chmod oct( $mode ), $name and
+		utime $atime, $mtime, $name or
+		warn "$0: $archive:$name: Failed to set file attributes: $!\n";
 	}
     }
 
     for( keys %SPAR::mode ) {
-	chmod shift @{$SPAR::mode{$_}}, $_;
-	utime @{$SPAR::mode{$_}}, $_;
+	chmod shift @{$SPAR::mode{$_}}, $_ and
+	    utime @{$SPAR::mode{$_}}, $_ or
+	    warn "$0: $archive:$_: Failed to set directory attributes: $!\n";
     }
     %SPAR::mode = ();
 }
