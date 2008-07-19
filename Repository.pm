@@ -4,9 +4,10 @@
 # The actual functionality is also dispersed in makepp and other modules.
 #
 
-package Repository;
+#package Repository;
+package FileInfo;		# Use this a lot.
 
-use FileInfo qw(file_info file_exists);
+use FileInfo ();
 
 #
 # Because automake/autoconfig is so #@%!(#%&!)#$&(^)$(^&!( hacked up, there
@@ -25,22 +26,22 @@ libtool stamp-h stamp-h.in install.sh install-sh missing mkinstalldirs)} = ();
 sub load_single {
   #my( $finfo, $destfinfo ) = @_; # Name the arguments.
   return if $_[0]{NAME} =~ /\.la$/ || # Skip libtool stuff--we don't handle it very gracefully right now.
-    &FileInfo::dont_read;
+    &dont_read;
 
   if( exists $automake_garbage{$_[0]{NAME}} && exists $_[0]{'..'}{DIRCONTENTS}{'Makefile.in'} ||
       $_[0]{'..'}{NAME} eq 'admin' && exists $_[0]{'..'}{'..'}{DIRCONTENTS}{'Makefile.in'} ) {
 				# Is this automake's crap?
 				# Admin directory contains a number of vital files.
     unless( file_exists $_[1] ) { # Link it in if it's not already there.
-      FileInfo::mkdir $_[1]{'..'}; # Make the destination directory.
-      FileInfo::symlink $_[1], $_[0]; # Add the symbolic link.
-      FileInfo::may_have_changed $_[1]; # File exists now.
+      &mkdir( $_[1]{'..'} );	# Make the destination directory.
+      &symlink( $_[1], $_[0] );	# Add the symbolic link.
+      may_have_changed $_[1]; # File exists now.
     }
   } else {
     push @{$_[1]{ALTERNATE_VERSIONS}}, $_[0];
 				# Mark this as a possible source.
   }
-  FileInfo::publish $_[1], $::rm_stale_files;
+  publish $_[1], $::rm_stale_files;
 				# This thing exists now, so wildcards can match it.
 }
 
@@ -49,19 +50,19 @@ sub load_recurse {
   my( $dirinfo, $destdirinfo, $top, $prune_code ) = @_; # Name the arguments.
 
   # Ignore .makepp directories (and anything else the caller wants)
-  return if $dirinfo->{NAME} eq $FileInfo::build_info_subdir ||
+  return if $dirinfo->{NAME} eq $build_info_subdir ||
     $prune_code && &$prune_code( $dirinfo ) ||
-    &FileInfo::dont_read;
+    &dont_read;
 
   warn "repositories are ignored by make subprocesses when --traditional-recursive-make is in effect\n"
     if defined $RecursiveMake::traditional;
 
   # Handle empty directories properly
-  &FileInfo::mark_as_directory;
-  FileInfo::mark_as_directory $destdirinfo;
+  &mark_as_directory;
+  mark_as_directory $destdirinfo;
 
   if( file_exists $destdirinfo ) { # Local directory exists?
-    FileInfo::is_writable $destdirinfo or return; # Not writable?  This is a signal
+    is_writable $destdirinfo or return; # Not writable?  This is a signal
 				# not to try to incorporate anything from
 				# the repository.
   } else {                      # Local directory does not exist?
@@ -76,16 +77,16 @@ sub load_recurse {
 # Scan the directory.  For speed reasons, this depends on some internals of
 # the FileInfo package.
 #
-  $dirinfo->{READDIR} or &FileInfo::read_directory;
+  $dirinfo->{READDIR} or &read_directory;
 				# Load all the files in the directory.
 
   foreach( values %{$dirinfo->{DIRCONTENTS}} ) {
     next if $_ == $top;
     my $dest_finfo = file_info $_->{NAME}, $destdirinfo;
-    if( FileInfo::is_dir $_ ) {
+    if( is_dir $_ ) {
       load_recurse( $_, $dest_finfo, $top, $prune_code );
       push @{$dest_finfo->{ALTERNATE_VERSIONS}}, $_;
-      FileInfo::publish $dest_finfo, $::rm_stale_files;
+      publish $dest_finfo, $::rm_stale_files;
 				# This thing exists now, so wildcards can match it.
     } elsif( file_exists $_ ) {
       load_single $_, $dest_finfo;
@@ -106,7 +107,7 @@ sub load_recurse {
 # to which each dirinfo in $dir is passed. If it returns nonzero, then
 # the directory is ignored.
 #
-sub load {
+sub Repository::load {
   my( $dirinfo, $destdirinfo, $prune_code ) = @_; # Name the arguments.
   ::log REP_LOAD => $dirinfo, $destdirinfo
     if $log_level;
@@ -115,9 +116,9 @@ sub load {
   # it's wrong) is still pretty slow. It would be better to do lazy computation
   # of the ALTERNATE_VERSIONS for only the files that we need.
   # TBD: Don't do this if --nouse_repository_manifest is specified
-  if( FileInfo::is_dir &FileInfo::dereference ) {
+  if( is_dir &dereference ) {
     my $finfo = file_info '.repository_manifest', $dirinfo;
-    if( FileInfo::is_readable $finfo ) {
+    if( is_readable $finfo ) {
       my $fname = absolute_filename $finfo;
       open MANIFEST, '<', $fname or die "Failed to read $fname--$!";
       ::log REP_MANIFEST => $finfo
@@ -143,10 +144,10 @@ sub load {
 
 
 
-sub no_valid_alt_versions {
+sub Repository::no_valid_alt_versions {
   return 1 unless exists $_[0]{ALTERNATE_VERSIONS};
   return unless $::rm_stale_files;
-  FileInfo::was_built_by_makepp $_
+  was_built_by_makepp $_
     or return
     for @{$_[0]{ALTERNATE_VERSIONS}};
   1;
@@ -163,8 +164,7 @@ Returns 0 if successful, nonzero if something went wrong.
 
 =cut
 
-sub get {
-  package FileInfo;		# Use this a lot.
+sub Repository::get {
   my( $dest_finfo, $src_finfo ) = @_;
 
   if( $dest_finfo->{DIRCONTENTS} ) { # Is this a directory?
@@ -177,15 +177,15 @@ sub get {
   # can be built, because we'll build it locally instead).
   return 0 unless exists_or_can_be_built_norecurse $src_finfo, undef, 1;
 
-  FileInfo::mkdir $dest_finfo->{'..'}; # Make the directory (and its parents) if it doesn't exist.
+  &mkdir( $dest_finfo->{'..'} ); # Make the directory (and its parents) if it doesn't exist.
 
   ::log REP_LINK => @_
     if $::log_level;
 
-  &check_for_change;		 # Flush $dest_finfo->{LINK_DEREF} to be safe
-				 # (in particular, to make sure that it wasn't
-				 # deleted by a 'clean' target). NOTE: Do this
-				 # *before* changing build info.
+  &check_for_change;		# Flush $dest_finfo->{LINK_DEREF} to be safe
+				# (in particular, to make sure that it wasn't
+				# deleted by a 'clean' target). NOTE: Do this
+				# *before* changing build info.
 
   # NOTE: Even if the symlink is already correct, we need to copy over the
   # build info, because it may have changed since the link was created.
@@ -223,7 +223,7 @@ sub get {
   if( $changed ) {
     unless( &in_sandbox ) {
       warn $::sandbox_warn_flag ? '' : 'error: ',
-	'Cannot link ', $src_finfo->absolute_filename, ' to ', $dest_finfo->absolute_filename,
+	'Cannot link ', absolute_filename( $src_finfo ), ' to ', &absolute_filename,
 	" because the latter is marked for out-of-sandbox\n";
       return 1 unless $::sandbox_warn_flag;	# Indicate failure.
     }
@@ -291,11 +291,11 @@ sub Makesubs::s_repository {
     if( $rdir =~ /^([^=]+)=(.*)/ ) { # Destination directory specified?
       my $rinfo = file_info $2, $makefile->{CWD};
       my $dst_info = file_info $1, $makefile->{CWD};
-      load $rinfo, $dst_info;
+      Repository::load $rinfo, $dst_info;
     } else {
       my $rinfo = file_info $rdir, $makefile->{CWD};
 				# Get the fileinfo structure.
-      load $rinfo, $makefile->{CWD};
+      Repository::load $rinfo, $makefile->{CWD};
 				# Load all the files.
     }
   }

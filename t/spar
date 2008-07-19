@@ -57,14 +57,16 @@ my $extractor = q{
     } continue {
 	if( !$lines-- ) {
 	    close F;
-	    chmod oct( $mode ), $name;
-	    utime $atime, $mtime, $name;
+	    chmod oct( $mode ), $name and
+		utime $atime, $mtime, $name or
+		warn "$0: $archive:$name: Failed to set file attributes: $!\n";
 	}
     }
 
     for( keys %SPAR::mode ) {
-	chmod shift @{$SPAR::mode{$_}}, $_;
-	utime @{$SPAR::mode{$_}}, $_;
+	chmod shift @{$SPAR::mode{$_}}, $_ and
+	    utime @{$SPAR::mode{$_}}, $_ or
+	    warn "$0: $archive:$_: Failed to set file attributes: $!\n";
     }
     %SPAR::mode = ();
 };
@@ -406,7 +408,7 @@ themselves are whatever the system makes them.
 
 You can get the latest version of spar from L<http://www.cpan.org/scripts/>.
 Because makepp was the first to use this, it is hosted on CVS at
-L<http://cvs.sourceforge.net/viewcvs.py/makepp/makepp/makepp_tests/> and the
+L<http://makepp.cvs.sourceforge.net/makepp/makepp/t/> and the
 subdirectory F<additional_tests/> contains a test-suite runnable by
 C<run_tests.pl>, also from there.
 

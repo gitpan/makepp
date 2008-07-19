@@ -1,4 +1,7 @@
-2008-07-12  Daniel Pfeiffer  <occitan@esperanto.org>
+2008-07-19  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* config.pl:
+	* t/: Renames makepp_tests for conformance with Perl test frameworks.
 
 	* install.pl:
 	* t/run_tests.pl:
@@ -16,7 +19,7 @@
 	many names (sometimes including version numbers) gcc can take.
 	And only put deviating entries in per-Makefile scanner hash.
 
-	* Makefile.PL, makepp_tests/run_all.t: New files.
+	* Makefile.PL, t/run_all.t: New files.
 
 2008-06-03  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -40,7 +43,7 @@
 	functionality as in GNU Make.  One may use this function to expand
 	a variable's contents as a macro.
 
-	* makepp_tests/variable_expansion.test (misc_gnu_make_functions):
+	* t/variable_expansion.test (misc_gnu_make_functions):
 	Add tests for new builtin function 'f_call'.
 
 	* pod/makepp_functions.pod: Describe the new builtin function
@@ -53,7 +56,7 @@
 
 2008-06-01  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/additional_tests/2004_04_01_stale_repository.test:
+	* t/additional_tests/2004_04_01_stale_repository.test:
 	* FileInfo_makepp.pm (load_build_info_file):
 	* pod/makepp_repositories.pod: Remove logic whereby a file stayed
 	rep based without being respecified as such.  This was bad because
@@ -72,7 +75,7 @@
 	* makepp: Move all functions needed only for repositories or
 	recursive make to separate modules.
 
-	* makepp_tests/run_tests.pl:
+	* t/run_tests.pl:
 	* makepp (makepprc): Look for and load file .makepp.
 	(usage): Inline it, putting text into DATA section to save memory.
 
@@ -106,7 +109,7 @@
 	for saving very many run-time checks, overridable by environment
 	var MAKEPP_CASE_SENSITIVE_FILENAMES.
 
-	* makepp_tests/additional_tests/2007_08_15_no_extra_fork_unix.test:
+	* t/additional_tests/2007_08_15_no_extra_fork_unix.test:
 	Ascertain that we exec even if an empty expansion follows.
 
 2008-05-21  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -126,7 +129,7 @@
 	* config.pl: Introduce short opts, protect $ in Makefile and
 	eliminate 5.6 prompts to make it testable.
 
-	* makepp_tests/additional_tests/2008_05_21_install.test: New.
+	* t/additional_tests/2008_05_21_install.test: New.
 
 	* pod/makepp_speedup.pod (--gullible): Clarify better.
 
@@ -144,12 +147,12 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 
 	* Makesubs.pm (f_MAKE): Allow recursion on Cygwin.
 
-	* makepp_tests/recursive_make.test: Rename without '_unix'.
+	* t/recursive_make.test: Rename without '_unix'.
 
 	* Makecmds.pm (c_template): Rewrite so as to not handle @@ before
 	earlier @ on same line.
 
-	* makepp_tests/run_tests.pl: Improve diagnostics.
+	* t/run_tests.pl: Improve diagnostics.
 	(no_md5): New constant.
 	(system_intabort): Optional argument to die with proper message.
 	(makepp): Make it interruptible.
@@ -173,16 +176,16 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	ActiveState.  Cleanup mktemp files which only subprocess knows
 	about.
 
-	* makepp_tests/builtins.test: Use RootMakeppfile to be sure where
+	* t/builtins.test: Use RootMakeppfile to be sure where
 	install logs go.
 
-	* makepp_tests/parallel.test: Rename without '_unix'.
+	* t/parallel.test: Rename without '_unix'.
 
 	* **/*: Win fixes.
 
 2008-05-08  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/run_tests.pl: Change link checking such that even
+	* t/run_tests.pl: Change link checking such that even
 	Win ActiveState can test build cache.  Skip Shell scripted tests
 	where we don't have a Shell.  Abort if aaasimple fails.  Report
 	more single letter skip reasons when dotting.
@@ -222,8 +225,8 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	* makepp_builtin_rules.mk,
 	* ActionParser.pm (find_command_parser),
 	* FileInfo.pm (file_info),
-	* makepp_tests/run_tests.pl (makeppextra.pm),
-	* makepp_tests/**/*.test: Adapt to native Windows.
+	* t/run_tests.pl (makeppextra.pm),
+	* t/**/*.test: Adapt to native Windows.
 
 	* Makesubs.pm (%Makesubs::scanners): Add dietlibc and .exe forms.
 	(f_find_program): Also do full path from relative path and return
@@ -250,18 +253,18 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	* Rule.pm (execute_command): Remove redundant flush.
 
 	* Makesubs.pm (f_find_program):
-	* makepp_tests/additional_tests/2003_10_11_idash.test:
-	* makepp_tests/md5.test: Fix executable dependency on Win.
+	* t/additional_tests/2003_10_11_idash.test:
+	* t/md5.test: Fix executable dependency on Win.
 
 	* makepp_builtin_rules.mk:
-	* makepp_tests/log_graph.test: Guard against both Win compilers
+	* t/log_graph.test: Guard against both Win compilers
 	being 'cl' (which gave 'ifeq cl cl'), and don't pass it the
 	deprecated -o option.  Fix renamed percent_subdirs.
 
-	* makepp_tests/changed_inputs.test, makepp_tests/verilog.test:
+	* t/changed_inputs.test, t/verilog.test:
 	Port to native Win.
 
-	* makepp_tests/run_tests.pl: Handle PATH in native Win syntax.
+	* t/run_tests.pl: Handle PATH in native Win syntax.
 
 2008-02-24  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -275,7 +278,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	* FileInfo_makepp.pm (exists_or_can_be_built),
 	* Rule.pm (load_scaninfo): Check if we have ALTERNATE_VERSIONS.
 
-	* makepp_tests/additional_tests/2004_03_26_exit_status.test,
+	* t/additional_tests/2004_03_26_exit_status.test,
 	* Makesubs.pm (f_shell): Like gmake, don't fail if cmd fails.
 
 	* pod/makepp_rules.pod (Special characters): Clarify quoting.
@@ -295,7 +298,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	my-vars.
 	(log): Don't start subprocess for --no-log.
 
-	* makeppgraph, makepp_tests/log_graph.test: Make dot-nodes almost
+	* makeppgraph, t/log_graph.test: Make dot-nodes almost
 	opaque, rather than almost transparent.
 
 	* Utils.pm: Use the long command name for messages and
@@ -364,7 +367,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	* install.pl, makepp* (@BASEVERSION@): New var and complete doc.
 
 	* Makecmds.pm (print, frame):
-	* makepp_tests/builtins.test: Ensure sync lines start at bol.
+	* t/builtins.test: Ensure sync lines start at bol.
 
 2007-09-18  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -418,7 +421,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	on by default, to prevent broken dependency chains, but that would
 	break backward compatibility with sloppy makefiles.
 
-	* makepp_tests/additional_tests/2004_03_03_minusk.test: Check that
+	* t/additional_tests/2004_03_03_minusk.test: Check that
 	we fail when --dont-build doesn't exist and optionally when a
 	non-phony file didn't appear.
 
@@ -429,20 +432,20 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 
 	* CommandParser/Gcc.pm (xparse_command): Also understand .obj and .dll.
 
-	* makepp_tests/additional_tests/2007_05_15_autoload.test: Don't
+	* t/additional_tests/2007_05_15_autoload.test: Don't
 	rely on Shell having a source command.
 
 2007-09-04  Anders Johnson  <ajohnson@nvidia.com>
 
-	* CommandParser.pm, makepp, makepp_tests/c_compilation.test:
+	* CommandParser.pm, makepp, t/c_compilation.test:
 	* pod/makepp_command.pod:
 	Add --no-path-executable-dependencies.
 
-	* FileInfo.pm, makepp_tests/additional_tests/2003_11_25_wild.test:
+	* FileInfo.pm, t/additional_tests/2003_11_25_wild.test:
 	Fixed a couple of places in which the name of $root was
 	misrepresented as '//' instead of '/'.
 
-	* Makefile.pm, makepp_tests/conditionals.test:
+	* Makefile.pm, t/conditionals.test:
 	* pod/makepp_statements.pod:
 	Add iftrue statement.
 
@@ -450,23 +453,23 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	cached scanner info.  (The current heuristic for determining when to
 	do so is less than ideal.)
 
-	* makepp_tests/additional_tests/2007_08_15_no_extra_fork_unix.test:
+	* t/additional_tests/2007_08_15_no_extra_fork_unix.test:
 	Resurrect SLEEP option, and update a stale comment.
 
 2007-08-23  Daniel Pfeiffer  <occitan@esperanto.org> (checked in 2007-09-05)
 
-	* makepp_tests/additional_tests/2004_02_19_repository_change.test:
-	* makepp_tests/additional_tests/2004_03_24_scanner_c_lib.test:
+	* t/additional_tests/2004_02_19_repository_change.test:
+	* t/additional_tests/2004_03_24_scanner_c_lib.test:
 	Dry run when testing relevance.
 
-	* makepp_tests/additional_tests/2007_01_31_build_check_ignore_action.test:
+	* t/additional_tests/2007_01_31_build_check_ignore_action.test:
 	Don't rely on /usr/bin/perl being available.
 
-	* makepp_tests/additional_tests/2007_08_15_no_extra_fork_unix.test:
+	* t/additional_tests/2007_08_15_no_extra_fork_unix.test:
 	Don't start Shell command with metacharacters, as some shells will
 	implicitly exec it, making ppid be that of makepp itself.
 
-	* makepp_tests/additional_tests/2007_02_02_md5_bchk_phony_dep.test:
+	* t/additional_tests/2007_02_02_md5_bchk_phony_dep.test:
 	Rename from 2007_02_02_build_check_phony_dep.test for md5
 	skipping.
 
@@ -475,9 +478,9 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	* makeppgraph (-p, --plain, -s, --separate-directions, -t)
 	(--text): New options and format.
 
-	* makepp_tests/log_graph.test: Test new options and text format.
+	* t/log_graph.test: Test new options and text format.
 
-	* makepp_tests/additional_tests/2004_03_12_condscan.test: Handle
+	* t/additional_tests/2004_03_12_condscan.test: Handle
 	.obj and integrate stucturally similar 2006_03_21_smartscan.test
 	and 2006_03_23_c_comments.test.
 
@@ -492,7 +495,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 2007-08-20  Anders Johnson  <ajohnson@nvidia.com>
 
 	* FileInfo_makepp.pm:
-	* makepp_tests/additional_tests/2007_08_20_phony_include.test:
+	* t/additional_tests/2007_08_20_phony_include.test:
 	Use 'exists ...{IS_PHONY}' instead of '...{IS_PHONY}' for all
 	of the 2007-08-16 changes.
 
@@ -503,7 +506,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 
 	* FileInfo_makepp.pm (get_rule), Makefile.pm (load), Makesubs.pm:
 	* makepplog, pod/makepp_statements.pod:
-	* makepp_tests/additional_tests/2007_05_15_autoload.test:
+	* t/additional_tests/2007_05_15_autoload.test:
 	Add s_autoload.
 
 	* CommandParser.pm (parse_command), Makesubs.pm (f_find_program):
@@ -518,14 +521,14 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 
 	* FileInfo_makepp.pm (move_or_link_target, update_build_infos):
 	* makepp, makepplog, pod/makepp_command.pod:
-	* makepp_tests/additional_tests/2003_12_05_phony_repository.test:
-	* makepp_tests/additional_tests/2007_01_31_build_check_ignore_action.test:
+	* t/additional_tests/2003_12_05_phony_repository.test:
+	* t/additional_tests/2007_01_31_build_check_ignore_action.test:
 	Add --symlink-in-repository-as-file and --virtual-sandbox.
 	Keep track of build cache hits.  Never suppress `Imported... from
 	build cache', because that makes it too mysterious.
 
 	* FileInfo_makepp.pm:
-	* makepp_tests/additional_tests/2007_05_09_dont_build.test:
+	* t/additional_tests/2007_05_09_dont_build.test:
 	Don't keep searching for rules that have already been built.
 	Don't consider a phony target as a buildable file, even if there
 	is a rule to build it.  Die if a source file is also a phony
@@ -536,7 +539,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	better than the alternative).
 
 	* Makefile.pm (load, assign, parse_assignment, parse_rule):
-	* makepp_tests/last_chance.test:
+	* t/last_chance.test:
 	Die if the attempt to build a makefile fails.  A target-specific
 	assignment has the scope of the current expression and its
 	sub-expressions, but *not* of any other espressions that happen
@@ -544,7 +547,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	matches at least one of its patterns.
 
 	* Rule.pm (exec_or_die):
-	* makepp_tests/additional_tests/2007_08_15_no_extra_fork_unix.test:
+	* t/additional_tests/2007_08_15_no_extra_fork_unix.test:
 	Don't do an extra fork on the last action unless there is something
 	to do afterwards.
 
@@ -562,39 +565,39 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	--argsfile option.
 
 	* BuildCheck/exact_match.pm (build_check):
-	* makepp_tests/additional_tests/2007_02_02_build_check_phony_dep.test:
+	* t/additional_tests/2007_02_02_build_check_phony_dep.test:
 	Suppress a warning.  Update a comment.
 
 2007-08-02  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	* makeppgraph (@file_attr): Also highlight .obj and .dll.
 
-	* makepp_tests/stress_tests/build_cache_concurrent.test: Respect
+	* t/stress_tests/build_cache_concurrent.test: Respect
 	given time, clean as long as there are children, make forcing
 	bc-copies controllable, don't create cache if one is specified and
 	make cleaning optional so you can start this test multiply with a
 	grouped cache.
 
-	* makepp_tests/additional_tests/*.test: Adapt to Windows native
+	* t/additional_tests/*.test: Adapt to Windows native
 	compilers.
 
-	* makepp_tests/log_graph.test: Integrate Windows variants by
+	* t/log_graph.test: Integrate Windows variants by
 	rewriting output rather than having a separate copy.
 
 2007-07-28  Daniel Pfeiffer  <occitan@esperanto.org>
 
 Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.
 
-	* makepp_tests/stress_tests/build_cache_concurrent.test: Only
+	* t/stress_tests/build_cache_concurrent.test: Only
 	optionally fail on a collision, as it can take seconds to happen
 	on a single processor, beyond default duration.  Allow starting
 	any number of concurrent makepps, for huge stress.
 
-	* makepp_tests/build_cache.test: Create a flat build cache and
+	* t/build_cache.test: Create a flat build cache and
 	look for the files via Shell patterns, as find fails on
 	Vista (probably picked up a useless non-Cygwin find).
 
-	* makepp_tests/md5.test: Check if it created .obj so it can also
+	* t/md5.test: Check if it created .obj so it can also
 	work with a Windows native compiler.
 
 	* BuildCacheControl.pm (c_stats): New command.
@@ -700,7 +703,7 @@ Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.
 	(find_all_targets_dependencies): Keep sub constant, by not using
 	closure.
 
-	* makepp_tests/parallel_unix.test (z): New test case that -kj2 is
+	* t/parallel_unix.test (z): New test case that -kj2 is
 	now reliable.
 
 2007-07-04  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -714,7 +717,7 @@ Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.
 	* BuildCheck/exact_match.pm: Copy only those parameters that
 	actually get used.
 
-	* makepp_tests/run_tests.pl: Fix int in FileInfo too for HP/UX
+	* t/run_tests.pl: Fix int in FileInfo too for HP/UX
 	64bits.
 
 2007-07-02  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -769,7 +772,7 @@ Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.
 
 	* Glob.pm (wildcard_action_shared): Optimize away intermediate copy.
 
-	* makepp_tests/pattern_rule.test: Test that we can have long
+	* t/pattern_rule.test: Test that we can have long
 	chains of pattern rules, but that the same rule doesn't get
 	applied twice.
 
@@ -792,7 +795,7 @@ Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.
 	* TextSubs.pm (format_exec_args): Allow negating a command with
 	"!".
 
-	* makepp_tests/conditionals.test (Makeppfile): Test that ! is
+	* t/conditionals.test (Makeppfile): Test that ! is
 	executable.
 
 	* Makecmds.pm (frame): Die on unreadable input files.
@@ -833,7 +836,7 @@ Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.
 	(c_create): Test symlink with filenames that can't exist, not even
 	when forcing recreation of an existing bc.
 
-	* makepp_tests/additional_tests/2006_09_20_build_cache_none.test:
+	* t/additional_tests/2006_09_20_build_cache_none.test:
 	Test grouped bc.
 
 	* Makecmds.pm: Add -S, --synclines option to all filters except
@@ -881,10 +884,10 @@ Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.
 	* TextSubs.pm (getopts): Don't issue same short opt verbose
 	message twice.
 
-	* makepp_tests/additional_tests/2006_09_20_build_cache_none.test:
+	* t/additional_tests/2006_09_20_build_cache_none.test:
 	Add dummy build_cache_options.pl to make it a valid BC.
 
-	* makepp_tests/run_tests.pl (hpux): Also fix BuildCacheControl.pm.
+	* t/run_tests.pl (hpux): Also fix BuildCacheControl.pm.
 
 	* pod/makepp_build_cache.pod, pod/makepp_release_notes.pod:
 	Document build cache grouping.
@@ -929,10 +932,10 @@ Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.
 
 	* makeppbuiltin (getopts_help): Tolerate undef.
 
-	* makepp_tests/extra_dependencies.test: Test comment in $((...))
+	* t/extra_dependencies.test: Test comment in $((...))
 	in a line pushed back by previous rule.
 
-	* makepp_tests/log_graph.test (makefile): Use
+	* t/log_graph.test (makefile): Use
 	$CommandParser::ignore_exe, because otherwise the log file would
 	vary.
 
@@ -951,7 +954,7 @@ Snapshot makepp-1.50-cvs-070728.tgz, version 1.50-07281-07203-07172 on CPAN.
 
 	* install.pl: Add keywords to web pages.
 
-	* makepp_tests/builtins.test (&chmod): Exclude it only where it
+	* t/builtins.test (&chmod): Exclude it only where it
 	doesn't work.
 
 	* makepplog (-?, --help): New option.
@@ -980,9 +983,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Rule.pm (split_actions): Also ignore leading whitespace.
 
-	* makepp_tests/variable_expansion.test: Test $[expr].
+	* t/variable_expansion.test: Test $[expr].
 
-	* makepp_tests/run_tests.pl (test_loop): Inline execute for more
+	* t/run_tests.pl (test_loop): Inline execute for more
 	precise diagnostics.
 
 	* pod/makepp_variables.pod: Explain $[var].
@@ -993,7 +996,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2007-04-27  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/run_tests.pl: With -v report when perl identifies
+	* t/run_tests.pl: With -v report when perl identifies
 	itself as ActiveState build.
 	(execute): Don't write error only to log file.
 
@@ -1032,7 +1035,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makefile.pm (read_makefile): Allow using &commands without a
 	rule, i.e. as statements.
 
-	* makepp_tests/load_makefile.test (outside): Test statement
+	* t/load_makefile.test (outside): Test statement
 	&commands.
 
 	* ActionParser.pm (src_dir_name, add_any_dependency_): Inline
@@ -1065,7 +1068,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	info on the dereferenced file, as that can make us try to write it
 	outside our build tree, e.g. into the repository.
 
-	* makepp_tests/variable_expansion.test (define_test): Test
+	* t/variable_expansion.test (define_test): Test
 	retaining newlines depending on assignment type.
 	(shell_command): Fix obscure bug where Linux sh overwrites instead
 	of appending on a CIFS disk.
@@ -1077,7 +1080,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makefile.pm (parse_rule): Allow %-dependencies to not be the 1st
 	one.
 
-	* makepp_tests/pattern_rule.test: Test %-dependencies which are
+	* t/pattern_rule.test: Test %-dependencies which are
 	not the 1st one.
 
 2007-04-11  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -1096,9 +1099,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* TextSubs.pm (split_path): Don't use unquote as that also
 	eliminates DOS dir separators.
 
-	* makepp_tests/run_tests.pl: Respect DOS PATH separator.
+	* t/run_tests.pl: Respect DOS PATH separator.
 
-	* makepp_tests/md5.test: Respect DOS dir separator.
+	* t/md5.test: Respect DOS dir separator.
 
 2007-03-20  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -1125,7 +1128,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* pod/makepp_build_cache.pod: Explain about corrupt members.
 
-	* makepp_tests/additional_tests/2006_09_20_build_cache_none.test:
+	* t/additional_tests/2006_09_20_build_cache_none.test:
 	Adapt to changed behaviour and extend.
 
 2007-03-13  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -1175,25 +1178,25 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Utils.pm (Rewrite::cwd): Protect meta chars in regexp.
 
-	* makepp_tests/conditionals.test: Integrate former
+	* t/conditionals.test: Integrate former
 	2003_10_11_ifeq.test.
 
 2007-02-23  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/run_tests.pl: New variable
+	* t/run_tests.pl: New variable
 	$ENV{MAKEPP_TEST_TIMEOUT}, which defaults to 600 seconds.
 
 	* Makefile.pm (expand_text): Force $( ) to always have list
 	semantics to make x$( $(EMPTY))y disappear.
 
-	* makepp_tests/variable_expansion.test: Test $( $(EMPTY)).
+	* t/variable_expansion.test: Test $( $(EMPTY)).
 
 	* Makecmds.pm (frame): New standard option -A, --args-file.
 	(c_ln): Fix --force to delete stale symlinks.
 	(c_grep): New option -w, --waste-file.
 
-	* makepp_tests/additional_tests/2006_02_18_makeppbuiltin.test,
-	* makepp_tests/builtins.test: Test new options.
+	* t/additional_tests/2006_02_18_makeppbuiltin.test,
+	* t/builtins.test: Test new options.
 
 2007-02-20  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -1211,7 +1214,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* TextSubs.pm (skip_over_make_expression): Fix "unterminated
 	reference" error in constructs like $(perl '$').
 
-	* makepp_tests/variable_expansion.test (RootMakeppfile): Test
+	* t/variable_expansion.test (RootMakeppfile): Test
 	$(perl '$').
 
 	* pod/makepp_builtins.pod (&template): Better clarify the
@@ -1236,7 +1239,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* makepplog: Shuffle options and make key selection easier.
 	(main loop): Don't chop, only to later add end marker for split.
 
-	* makepp_tests/log_graph.test: New test of log analysis.
+	* t/log_graph.test: New test of log analysis.
 
 	* pod/makepp_variables.pod (MAKECMDGOALS): Document it.
 	(expand_variable): Explain the different ways necessary to call
@@ -1256,13 +1259,13 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* FileInfo_makepp.pm (load_build_info_file): Reactivate SYMLINK
 	special handling.
 
-	* makepp_tests/additional_tests/2006_12_07_scan_order.test: Add a
+	* t/additional_tests/2006_12_07_scan_order.test: Add a
 	2nd round so we can check that symlinks get handled right.
 
 	* Makefile.pm (parse_rule): Try to handle upper case targets on
 	case-ignorant file systems.
 
-	* makepp_tests/make_makefile.test (Makefile): Simplify, but
+	* t/make_makefile.test (Makefile): Simplify, but
 	still (now mysteriously) fails upper-lower case on CIFS and VFAT.
 
 	* MakeEvent.pm: Make vars 'our'.
@@ -1285,7 +1288,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Utils.pm: Give every utility an option variable analogous to
 	$MAKEPPFLAGS.
 
-	* makepp_tests/run_tests.pl: Don't let new *FLAGS variables
+	* t/run_tests.pl: Don't let new *FLAGS variables
 	influence the tests.
 
 	* makepp (MAKEPPFLAGS): Simplify handling.
@@ -1311,13 +1314,13 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Makecmds.pm (c_preprocess): Don't mess up cwd.
 
-	* makepp_tests/run_tests.pl (n_files): Avoid "Can't stat answers"
+	* t/run_tests.pl (n_files): Avoid "Can't stat answers"
 	warning.
 
 	* pod/makepp_build_cache.pod: Use perl wildcards rather than
 	$(wildcard /home*) to avoid loading a default makefile.
 
-	* makepp_tests/additional_tests/2005_01_17_runtime.test (c): Don't
+	* t/additional_tests/2005_01_17_runtime.test (c): Don't
 	choke if chmod fails.
 
 2007-01-09  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -1372,37 +1375,37 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2007-01-04  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/spar (-e, --emacs): Fixed C-c f and improved.
+	* t/spar (-e, --emacs): Fixed C-c f and improved.
 	(-m, --createmakepptest): New option which puts controlling files
 	first and answers last.
 
-	* makepp_tests/makepp_test_case: Call makepp clean only if there
+	* t/makepp_test_case: Call makepp clean only if there
 	is a clean target, and always call makeppclean.  Use spar -m.
 
 2006-12-21  Anders Johnson  <ajohnson@nvidia.com>
 
 	* ActionParser.pm, Makesubs.pm, ActionParser/Legacy.pm:
 	* ActionParser/Specific.pm, CommandParser/Basic.pm:
-	* makepp_tests/additional_tests/2004_03_16_recscan.test:
+	* t/additional_tests/2004_03_16_recscan.test:
 	Change the way that makepp detects whether "meaningful scanning"
 	happened, in order to avoid warnings every time scanner_skip_word
 	is used via register_scanner.  (But it's still ugly.)
 
 	* Scanner.pm:
-	* makepp_tests/additional_tests/2004_03_16_recscan.test:
+	* t/additional_tests/2004_03_16_recscan.test:
 	Fix a bug in the initialization of the Scanner object, and
 	add a test case to show how the API might be accessed to make
 	this necessary.
 
 	* makepp:
-	* makepp_tests/additional_tests/2003_12_05_phony_repository.test:
+	* t/additional_tests/2003_12_05_phony_repository.test:
 	Undo one of Daniel's changes from 2006-10-11 because it broke
 	NVIDIA's build, and added a test case illustrating what we need
 	to be supported.  (Hopefully Daniel & I can resolve this because
 	our requirements aren't necessarily mutually contradictory.)
 
 	* FileInfo_makepp.pm, Glob.pm, Makefile.pm, makepp:
-	* pod/makepp_rules.pod, makepp_tests/last_chance.test:
+	* pod/makepp_rules.pod, t/last_chance.test:
 	Major enhancement: Added support for last_chance rules.
 
 	* makepplog:  Fix a shallow bug in which logging of files in the
@@ -1411,7 +1414,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2006-12-14  Anders Johnson  <ajohnson@nvidia.com>
 
 	* FileInfo.pm:
-	* makepp_tests/additional_tests/2003_12_05_phony_repository.test:
+	* t/additional_tests/2003_12_05_phony_repository.test:
 	Fix a bug having to do with phony targets triggering pattern rules
 	if and only if the phony target appears later in the Makefile.
 
@@ -1424,7 +1427,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2006-12-12  Anders Johnson  <ajohnson@nvidia.com>
 
 	* Scanner.pm:
-	* makepp_tests/additional_tests/2006_12_07_scan_order.test:
+	* t/additional_tests/2006_12_07_scan_order.test:
 	Fix 2 bugs with SEEN.
 
 2006-12-05  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -1465,7 +1468,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Makesubs.pm (s_runtime): Simplify, less string copies.
 
-	* makepp_tests/run_tests.pl: Introduce hack to patch makepp to
+	* t/run_tests.pl: Introduce hack to patch makepp to
 	work around HP/UX 64bitall bug.
 	(-v): Output ptrsize and archname.
 	(n_files): Adapt to new log format.
@@ -1493,15 +1496,15 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makefile.pm: Eliminate manual importing of symbols that are not
 	used or fully qualified.
 
-	* makepp_tests/run_tests.pl (n_files): New utility function.
+	* t/run_tests.pl (n_files): New utility function.
 	(cp): Imported from File::Copy for test scripts.
 
-	* makepp_tests/only_targets.test: Integrate 2004_04_19_onlyphony.test.
+	* t/only_targets.test: Integrate 2004_04_19_onlyphony.test.
 
-	* makepp_tests/additional_tests/2003_08_13_load_makefile_quotes.test:
+	* t/additional_tests/2003_08_13_load_makefile_quotes.test:
 	Integrate 2003_08_13_non_readable_makefile.test.
 
-	* makepp_tests/*.test: Add failed counter, use n_files() where
+	* t/*.test: Add failed counter, use n_files() where
 	needed and remove obsolete clean targets.
 
 2006-11-22  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -1561,18 +1564,18 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2006-11-09  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/run_tests.pl (execute): Check names with
+	* t/run_tests.pl (execute): Check names with
 	"build_cache" and "md5" for skipping as well.  Check for message
 	about spar not being able to create file, which indicates invalid
 	chars on this file system.
 
-	* makepp_tests/additional_tests/2003_11_14_timestamp_md5.test:
+	* t/additional_tests/2003_11_14_timestamp_md5.test:
 	Rename 2003_11_14_timestamp.test for automatic md5 based skipping.
 
-	* makepp_tests/repository.test: Integrate eliminated
+	* t/repository.test: Integrate eliminated
 	2005_07_28_mkdir_wildcard.test
 
-	* makepp_tests/**/*build_cache*.test (is_relevant): Remove
+	* t/**/*build_cache*.test (is_relevant): Remove
 	obsoleted member.
 
 	* pod/makepp_build_check.pod: Discuss only_action after recent
@@ -1611,7 +1614,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makecmds.pm (c_template): Allow one level of macro nesting and
 	macros in Perl.
 
-	* makepp_tests/builtins.test (&template): Test one level of macro
+	* t/builtins.test (&template): Test one level of macro
 	nesting and macros in Perl.
 
 	* pod/makeppgraph.pod (uDraw(Graph)): Remove mention of their old
@@ -1634,7 +1637,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(f_mktemp): Use unlikely argument of '/' to mean repetion of
 	previous returned value on a per Makefile basis.
 
-	* makepp_tests/variable_expansion.test (RootMakeppfile): Test
+	* t/variable_expansion.test (RootMakeppfile): Test
 	$(mktemp /).
 
 	* pod/makepp_functions.pod: Document $(mktemp /).
@@ -1674,7 +1677,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	deletable first.
 	(usage): Document recently modified options.
 
-	* makepp_tests/additional_tests/2004_04_01_stale_repository.test:
+	* t/additional_tests/2004_04_01_stale_repository.test:
 	Take into account that repository links can survive till next run.
 
 	* pod/makepp_repositories.pod: Add missing spaces on empty lines
@@ -1754,9 +1757,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* FileInfo.pm: Comment removal for cleanup_temporary_links.
 
-	* makepp_tests/additional_tests/2005_03_31_scanfail.test,
-	* makepp_tests/additional_tests/2004_04_01_stale_repository.test,
-	* makepp_tests/additional_tests/2004_02_19_repository_change.test
+	* t/additional_tests/2005_03_31_scanfail.test,
+	* t/additional_tests/2004_04_01_stale_repository.test,
+	* t/additional_tests/2004_02_19_repository_change.test
 	(makepp_test_script.pl): Convert from sh for better portability and
 	remove --keep-repository-links option.
 
@@ -1766,14 +1769,14 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2006-09-20  Anders Johnson  <ajohnson@nvidia.com>
 
 	* BuildCacheControl.pm:
-	* makepp_tests/additional_tests/2006_09_20_build_cache_none.test:
-	* makepp_tests/additional_tests/double_colon.test:
+	* t/additional_tests/2006_09_20_build_cache_none.test:
+	* t/additional_tests/double_colon.test:
 	Fix build_cache_control clean --size.  Add
 	build_cache_control clean --verbose.  Move 'build_cache none'
 	check to the *_build_cache_none test.
 
 	* Rule.pm:
-	* makepp_tests/additional_tests/2006_09_14_preexec_rule.test:
+	* t/additional_tests/2006_09_14_preexec_rule.test:
 	Add a hook for doing something before each rule executes.
 
 2006-09-11  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -1793,7 +1796,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2006-09-05  Anders Johnson  <ajohnson@nvidia.com>
 
-	* Makesubs.pm, makepp_tests/additional_tests/double_colon.test:
+	* Makesubs.pm, t/additional_tests/double_colon.test:
 	Fix "build_cache none" and add test. (Where is a better place for
 	this test?)
 
@@ -1802,7 +1805,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* BuildCache.pm: Create the target directory first if necessary.
 
-	* makepp_tests/additional_tests/2004_03_24_scanner_c_lib.test:
+	* t/additional_tests/2004_03_24_scanner_c_lib.test:
 	Fix for Cygwin.
 
 2006-08-24  Anders Johnson  <ajohnson@nvidia.com>
@@ -1827,15 +1830,15 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Makecmds.pm (run_forked): Add missing -S option.
 
-	* makepp_tests/run_tests.pl (-d, dot): New option and function for
+	* t/run_tests.pl (-d, dot): New option and function for
 	giving a concise overview of the tests.
 
-	* makepp_tests/additional_tests/2004_12_06_scancache.test:
-	* makepp_tests/additional_tests/2004_12_14_clean.test: Convert to
+	* t/additional_tests/2004_12_06_scancache.test:
+	* t/additional_tests/2004_12_14_clean.test: Convert to
 	Perl test, making it find wait_timestamp also when running with an
 	installed makepp.
 
-	* makepp_tests/additional_tests/2006_02_18_makeppbuiltin.test: Use
+	* t/additional_tests/2006_02_18_makeppbuiltin.test: Use
 	own path tho find builtin.test, rather than makepp's which doesn't
 	work when running with an installed makepp.
 
@@ -1857,22 +1860,22 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(expand_variable): Call the unfriendlies without arguments, since
 	some now check their args.
 
-	* makepp_tests/builtins.test (install_log): Force expand text,
+	* t/builtins.test (install_log): Force expand text,
 	which didn't initially work.
 
-	* makepp_tests/variables_automatic.test (b): Test input et
+	* t/variables_automatic.test (b): Test input et
 	al. with index too.
 
 	* pod/makepp_functions.pod: Describe wordlist.
 
 	* pod/makepp_variables.pod: Explain about args to input/output.
 
-	* makepp_tests/run_tests.pl: Remove cwd from PATH to make sure no
+	* t/run_tests.pl: Remove cwd from PATH to make sure no
 	test relies on this.  By giving the path to makepp as an optional
 	1st arg (after -v), you can test an installed version.  Two of the
 	additionals are still failing that way.
 
-	* makepp_tests/additional_tests/2005_08_31_build_cache_pop_options.test
+	* t/additional_tests/2005_08_31_build_cache_pop_options.test
 	(my_true): Set path on program, not on dependency, since we run a
 	generated program.
 
@@ -1880,16 +1883,16 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	lot of headscratching why things like shared_library or Swig don't
 	work in production, even though the code looks fine.
 
-	* makepp_tests/README: Mention to also test installed version.
+	* t/README: Mention to also test installed version.
 
-	* makepp_tests/signature.test: Use the more correct
+	* t/signature.test: Use the more correct
 	build_check (making this test misnamed) because signature fails in
 	the installed version.  This failure should be explored, if we
 	want to maintain the backwards compatibility.
 
 2006-07-28  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp, makepp_tests/stress_tests/build_cache_concurrent.test:
+	* makepp, t/stress_tests/build_cache_concurrent.test:
 	Added $::build_cache_error_hook, and test covers it.
 
 	* BuildCache.pm: Clarify a comment.
@@ -1899,7 +1902,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2006-07-27  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/run_tests.pl: Propagate redirection failures.
+	* t/run_tests.pl: Propagate redirection failures.
 
 	* BuildCache.pm: Fix handling of more rare cases that come
 	up with build caches over NFS (revealed by the stress test).
@@ -1914,13 +1917,13 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2006-07-26  Anders Johnson  <ajohnson@nvidia.com>
 
 	* BuildCache.pm,
-	* makepp_tests/additional_tests/2005_08_31_build_cache_pop_options.test:
+	* t/additional_tests/2005_08_31_build_cache_pop_options.test:
 	Fix handling of a few more rare cases that come up with build
 	caches over NFS (revealed by the stress test).  Also, preserve
 	file permissions on the way out of the cache, and add coverage for
 	that in the test suite.
 
-	* makepp_tests/stress_tests/build_cache_concurrent.test:
+	* t/stress_tests/build_cache_concurrent.test:
 	Don't trust the build cache to import long_file.wc, because that
 	can mask bugs, and therefore we can't do quite so many iterations
 	per minute.
@@ -1938,9 +1941,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* makeppbuiltin (doit): Require Makefile for &preprocess too.
 
-	* makepp_tests/builtins.test: Test &preprocess.
+	* t/builtins.test: Test &preprocess.
 
-	* makepp_tests/additional_tests/2006_02_18_makeppbuiltin.test:
+	* t/additional_tests/2006_02_18_makeppbuiltin.test:
 	Reorganized slightly, because with the oncome of &preprocess, a
 	strange dump when exiting in eval occured in 5.8.1 - 5.8.3.
 
@@ -1955,7 +1958,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2006-07-25  Anders Johnson  <ajohnson@nvidia.com>
 
 	* makepp, BuildCache.pm,
-	* makepp_tests/stress_tests/build_cache_concurrent.test:
+	* t/stress_tests/build_cache_concurrent.test:
 	Add a stress test for concurrent build cache access, and fix 3
 	shallow bugs that were thereby revealed.
 
@@ -1973,7 +1976,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Rule.pm: When a rule fails, report the target(s) that were
 	being built (in case the output of the action obscures that).
 
-	* FileInfo.pm, makepp_tests/additional_tests/2004_03_31_stale.test:
+	* FileInfo.pm, t/additional_tests/2004_03_31_stale.test:
 	Fix case in which a filename of "0" was treated as undefined.
 	Added coverage for this in the tests.
 
@@ -1988,16 +1991,16 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* CommandParser.pm, Makesubs.pm, CommandParser/Gcc.pm,
 	* CommandParser/Vcs.pm, pod/makepp_statements.pod,
-	* makepp_tests/additional_tests/2004_03_24_scanner_c_lib.test:
+	* t/additional_tests/2004_03_24_scanner_c_lib.test:
 	Add register_input_suffix statement.
 
-	* makepp_tests/additional_tests/2004_03_31_stale.test:
+	* t/additional_tests/2004_03_31_stale.test:
 	Fix for Cygwin.
 
-	* makepp_tests/additional_tests/2005_08_31_build_cache_pop_options.test:
+	* t/additional_tests/2005_08_31_build_cache_pop_options.test:
 	Simplify.
 
-	* makepp_tests/perl.test: Test function name mangling cases.
+	* t/perl.test: Test function name mangling cases.
 
 2006-07-13  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -2010,16 +2013,16 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2006-07-11  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/run_tests.pl (makepp): Make it easy to call other
+	* t/run_tests.pl (makepp): Make it easy to call other
 	progs starting with the string 'makepp'.
 
-	* makepp_tests/README: Talk about makepp \'builtin',
+	* t/README: Talk about makepp \'builtin',
 	'-MBuildCacheControl'.
 
-	* makepp_tests/additional_tests/2005_08_12_build_cache_exmatch.test,
-	* makepp_tests/additional_tests/2005_08_16_build_cache_clean.test,
-	* makepp_tests/additional_tests/2005_08_29_build_cache_md5copy.test,
-	* makepp_tests/additional_tests/2005_08_31_build_cache_pop_options.test:
+	* t/additional_tests/2005_08_12_build_cache_exmatch.test,
+	* t/additional_tests/2005_08_16_build_cache_clean.test,
+	* t/additional_tests/2005_08_29_build_cache_md5copy.test,
+	* t/additional_tests/2005_08_31_build_cache_pop_options.test:
 	Don't use the unreliable (hard coded to /usr/bin/perl when not
 	installed) makepp_build_cache_control.
 
@@ -2028,10 +2031,10 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2006-07-10  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2005_08_16_build_cache_clean.test,
-	* makepp_tests/additional_tests/2005_08_12_build_cache_exmatch.test,
-	* makepp_tests/additional_tests/2005_08_29_build_cache_md5copy.test,
-	* makepp_tests/additional_tests/2005_08_31_build_cache_pop_options.test:
+	* t/additional_tests/2005_08_16_build_cache_clean.test,
+	* t/additional_tests/2005_08_12_build_cache_exmatch.test,
+	* t/additional_tests/2005_08_29_build_cache_md5copy.test,
+	* t/additional_tests/2005_08_31_build_cache_pop_options.test:
 	Cleanup tests for speed and portability.  Add is_relevant.pl;
 	use builtins; convert scripts to Perl; remove unnecessary complexity
 	from source files; propagate errors.
@@ -2074,14 +2077,14 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	dependencies if they contain metacharacters.
 
 	* FileInfo_makepp.pm,
-	makepp_tests/additional_tests/2004_03_31_stale.test:
+	t/additional_tests/2004_03_31_stale.test:
 	Handle nested parentheses in an ifeq() directive.
 	Swap rules for stripping whitespace from ifeq arguments between
 	parenthesized and unparenthesized forms, to match GNU make.
 	(This could break things that relied on the incorrect behavior.)
 
 	* Makefile.pm,
-	makepp_tests/additional_tests/2003_10_11_ifeq.test:
+	t/additional_tests/2003_10_11_ifeq.test:
 	Make sure that a side effect file that gets created as a result
 	of loading a Makeppfile doesn't look like a stale generated
 	file.
@@ -2105,9 +2108,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(s_define): Use assign to be consistent.  This gives the new
 	"define var assignment-op" syntax for free.
 
-	* makepp_tests/variable_expansion.test: Test the new features.
+	* t/variable_expansion.test: Test the new features.
 
-	* makepp_tests/additional_tests/2004_03_31_stale.test: Use
+	* t/additional_tests/2004_03_31_stale.test: Use
 	expand_variable to take into account that CLI vars are no longer
 	copied to perl vars.
 
@@ -2149,7 +2152,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* makepp: Make $::critical_sections work in BuildCache.pm.
 	Resurrect --log (alias for --logfile).
 
-	* makepp_tests/additional_tests/2004_12_14_clean.test: Improve
+	* t/additional_tests/2004_12_14_clean.test: Improve
 	checking.
 
 	* BuildCacheControl.pm: Don't rely on File::Find's preprocess
@@ -2162,7 +2165,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	some of the quirky handling we had, i.e. this (and my coming
 	change) is not quite backwards compatible.
 
-	* makepp_tests/README: New file which is required lecture for test
+	* t/README: New file which is required lecture for test
 	builders!  Anybody ignoring the advice therein, owes the poor sod
 	who debugs reinvented ancient problems a beer ;-)
 
@@ -2201,7 +2204,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	for the lack of which perl itself has a clear error message.  This
 	saves a few kilobytes.
 
-	* makepp_tests/additional_tests/2004_04_01_append_to_undef.test:
+	* t/additional_tests/2004_04_01_append_to_undef.test:
 	Removed and integrated into variable_expansion.test.
 
 2006-06-27  Anders Johnson  <ajohnson@nvidia.com>
@@ -2212,7 +2215,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	skew (at least in NVIDIA's environment).
 
 	* makepp, pod/makepp_command.pod,
-	* makepp_tests/additional_tests/2005_07_12_build_cache_cp.test:
+	* t/additional_tests/2005_07_12_build_cache_cp.test:
 	Add --stop-on-race to help debug race conditions, especially when
 	there shouldn't be any.
 
@@ -2232,10 +2235,10 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* FileInfo_makepp.pm: Add comment regarding tracking of signature
 	format across modules.
 
-	* makepp_tests/additional_tests/2005_08_12_build_cache_exmatch.test,
-	makepp_tests/additional_tests/2005_08_16_build_cache_clean.test,
-	makepp_tests/additional_tests/2005_08_29_build_cache_md5copy.test,
-	makepp_tests/additional_tests/2005_08_31_build_cache_pop_options.test:
+	* t/additional_tests/2005_08_12_build_cache_exmatch.test,
+	t/additional_tests/2005_08_16_build_cache_clean.test,
+	t/additional_tests/2005_08_29_build_cache_md5copy.test,
+	t/additional_tests/2005_08_31_build_cache_pop_options.test:
 	More tests for build caches.
 
 2006-06-23  Anders Johnson  <ajohnson@nvidia.com>
@@ -2253,12 +2256,12 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Signature/md5.pm: Add comment that this is coupled to
 	BuildCache.pm now.
 
-	* makepp_tests/build_cache.test, BuildCacheControl.pm,
+	* t/build_cache.test, BuildCacheControl.pm,
 	pod/makepp_build_cache.pod: De-featured
 	"makepp_build_cache_control populate", because it wasn't working,
 	it's hard to fix, and there are other ways to do it.
 
-	* makepp_tests/additional_tests/2005_07_12_build_cache_cp.test:
+	* t/additional_tests/2005_07_12_build_cache_cp.test:
 	Check that there is no garbage left over in the incoming.dir
 	build cache directory.
 
@@ -2281,7 +2284,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makecmds.pm (c_template): Silently treat undefined arguments as
 	empty.
 
-	* makepp_tests/builtins.test: Test &template more thoroughly.
+	* t/builtins.test: Test &template more thoroughly.
 
 	* pod/makepp_command.pod: Complete the index of options, also
 	showing those which still lack documentation.
@@ -2299,7 +2302,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* makeppbuiltin (getopts_help): Output lowercase option before
 	same in uppercase, as in our doc.
 
-	* makepp_tests/additional_tests/2006_02_18_makeppbuiltin.test:
+	* t/additional_tests/2006_02_18_makeppbuiltin.test:
 	Adapt option order.
 
 2006-06-06  Anders Johnson  <ajohnson@nvidia.com>
@@ -2330,17 +2333,17 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* pod/makepp_variables.pod, pod/makepp_statements.pod: Document
 	export and global.
 
-	* makepp_tests/additional_tests/2006_03_21_smartscan.test: Turn
+	* t/additional_tests/2006_03_21_smartscan.test: Turn
 	into Perl script so that it can also work on native windows.
 
 2006-05-30  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2006_03_21_smartscan.test:
+	* t/additional_tests/2006_03_21_smartscan.test:
 	Use a test script to look at the .makepp_log file, so that the
 	Makeppfile doesn't have to.  (It's not a good idea to read the
 	log while it's being written.)
 
-	* makepp_tests/additional_tests/2006_03_23_c_comments.test:
+	* t/additional_tests/2006_03_23_c_comments.test:
 	Add a missing define to avoid an error on non-GNU compilers.
 	A couple of cleanups in the Makeppfile as well.
 
@@ -2351,7 +2354,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Makesubs.pm (s_global): New statement.
 
-	* makepp_tests/variable_expansion.test: Test global statement.
+	* t/variable_expansion.test: Test global statement.
 
 2006-05-25  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -2369,7 +2372,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	assignments) is now done the standard way while reading the
 	makefile.
 
-	* makepp_tests/variable_expansion.test: Test the things that
+	* t/variable_expansion.test: Test the things that
 	didn't use to work.
 
 2006-05-23  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -2401,7 +2404,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	because those filesystems usually don't support links, which our
 	test needs.
 
-	* makepp_tests/build_cache.test (is_relevant.pl): Skip if links
+	* t/build_cache.test (is_relevant.pl): Skip if links
 	don't work because this test alas thoroughly depends on them.
 
 2006-05-14  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -2448,10 +2451,10 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(find_all_targets_dependencies): Have consistent log file
 	indentation.
 
-	* makepp_tests/additional_tests/2004_12_20_errors.test: Adapt to
+	* t/additional_tests/2004_12_20_errors.test: Adapt to
 	fact that warn now produces real perl messages.
 
-	* makepp_tests/run_tests.pl (execute): Don't complain about the
+	* t/run_tests.pl (execute): Don't complain about the
 	newly visible perl warnings out of makefiles.
 
 	* pod/perl_performance.pod: Tell about the inefficiency of
@@ -2536,8 +2539,8 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	bit ops.
 	(lookup_file): Use simpler file name transformation.
 
-	* makepp_tests/build_cache.test,
-	* makepp_tests/additional_tests/2005_07_12_build_cache_cp.test:
+	* t/build_cache.test,
+	* t/additional_tests/2005_07_12_build_cache_cp.test:
 	Use makeppbuiltin -MBuildCacheControl instead of shell script.
 
 	* makeppbuiltin (doit): Allow loaded
@@ -2558,7 +2561,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	predefs if gcc -E doesn't work.	 Avoid ``.  Don't mutilate
 	@cpp_cmd.
 
-	* makepp_tests/additional_tests/2006_03_21_smartscan.test:
+	* t/additional_tests/2006_03_21_smartscan.test:
 	Renamed from condscan (a duplicate base name).	Removed
 	trailing whitespace.  Use $(PERL) instead of site-specific
 	version of perl.  Removed use of if[].
@@ -2603,7 +2606,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* CommandParser/Gcc.pm: Handle explicit line numbering from
 	gcc (v3.4) -E -dM.
 
-	* makepp_tests/additional_tests/2006_03_23_c_comments.test:
+	* t/additional_tests/2006_03_23_c_comments.test:
 	Unless __GNUC__ is set, use a header file that doesn't rely
 	on any GNU extensions or other unportable fanciness.
 
@@ -2623,8 +2626,8 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Scanner/C.pm: Many improvements to the accuracy of conditional
 	scanning and comment parsing.  Added $dont_scan_hook.
 
-	* makepp_tests/additional_tests/2006_03_21_condscan.test,
-	makepp_tests/additional_tests/2006_03_23_c_comments.test:
+	* t/additional_tests/2006_03_21_condscan.test,
+	t/additional_tests/2006_03_23_c_comments.test:
 	Tests for the above.
 
 2006-04-04  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -2685,14 +2688,14 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* pod/makepp_extending.pod, pod/makepp_speedup.pod: Document the
 	new possibility of "use Makesubs" for external modules.
 
-	* makepp_tests/additional_tests/2004_04_28_unshift_makefile_lines.test
+	* t/additional_tests/2004_04_28_unshift_makefile_lines.test
 	(Makeppfile):
-	* makepp_tests/directories.test (Makeppfile): Don't rely on
+	* t/directories.test (Makeppfile): Don't rely on
 	makepp's internal functions being exported to the makefile's
 	package, as this is no longer the case.
 
-	* makepp_tests/additional_tests/2005_07_28_mkdir_wildcard.test:
-	* makepp_tests/verilog.test: Use builtin commands, speeding up the test by 10%.
+	* t/additional_tests/2005_07_28_mkdir_wildcard.test:
+	* t/verilog.test: Use builtin commands, speeding up the test by 10%.
 
 2006-03-27  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -2730,17 +2733,17 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* makeppbuiltin (doit): Use $ENV{INSTALL_LOG} or provide new ROOT
 	property for install & uninstall.
 
-	* makepp_tests/implicit_load.test: Test not going out of a root
+	* t/implicit_load.test: Test not going out of a root
 	directory, but not performing this check when leaving a dir with a
 	normal makefile.
 
-	* makepp_tests/load_makefile.test: Test that load_makefile makes a
+	* t/load_makefile.test: Test that load_makefile makes a
 	directory outside the root buildable.
 
-	* makepp_tests/variable_expansion.test: Use RootMakeppfile so we
+	* t/variable_expansion.test: Use RootMakeppfile so we
 	can test $(ROOT).
 
-	* makepp_tests/additional_tests/2003_11_25_wild.test: Revert
+	* t/additional_tests/2003_11_25_wild.test: Revert
 	--do-build change of 2005-11-13.  Use new makefile names.
 
 	* pod/makepp*.pod: Document RootMakeppfile and various minor
@@ -2763,7 +2766,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2006-03-11  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/additional_tests/2006_02_18_makeppbuiltin.test
+	* t/additional_tests/2006_02_18_makeppbuiltin.test
 	(worker.pm): Take care of Ebcdic.
 
 	* pod/makepp.css (tall): Heighten to 150%.
@@ -2782,7 +2785,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2006-03-02  Anders Johnson  <ajohnson@nvidia.com>
 
 	* FileInfo.pm, Glob.pm, Makefile.pm,
-	makepp_tests/additional_tests/2005_07_28_mkdir_wildcard.test:
+	t/additional_tests/2005_07_28_mkdir_wildcard.test:
 	Handle globbing on '/' correctly.  Mkdir invalidates the parent
 	directory's LSTAT info, and added a test case to show why this
 	is necessary.
@@ -2803,7 +2806,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	target in the build_cache_key.
 
 	* Makefile.pm, Makesubs.pm,
-	makepp_tests/additional_tests/2004_12_20_errors.test: If a
+	t/additional_tests/2004_12_20_errors.test: If a
 	warning occurs within user code and is not already identified as
 	such, then report the closest enclosing user scope as well.
 	Also, if this occurs when the MAKEPP_DIE_STACK_TRACE environment
@@ -2838,7 +2841,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Scanner/Verilog.pm: Reworked implementation to handle comments
 	more accurately.
 
-	* makepp_tests/verilog.test: Basic test for Verilog scanning.
+	* t/verilog.test: Basic test for Verilog scanning.
 
 2006-02-28  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -2866,10 +2869,10 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	builtin commands as they take care of this themselves.	Allow
 	command to already be present in error message.
 
-	* makepp_tests/builtins.test (uc.out): New subtest to see that
+	* t/builtins.test (uc.out): New subtest to see that
 	frame can be used by own command and within a module.
 
-	* makepp_tests/additional_tests/2006_02_18_makeppbuiltin.test: New
+	* t/additional_tests/2006_02_18_makeppbuiltin.test: New
 	test.
 
 	* pod/makepp_builtins.pod: Document changed options.
@@ -2887,7 +2890,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makecmds.pm ($opt{o}, _close): Implement inplace editing via
 	perl-like -o +<
 
-	* makepp_tests/builtins.test (sed.out): Test -o +<
+	* t/builtins.test (sed.out): Test -o +<
 
 	* pod/makepp_builtins.pod: Document -o +<
 
@@ -2902,7 +2905,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	Redhat EL3.0) wherein $Config{perlpath} is corrupted if you
 	access $Config{sig_name} first.
 
-	* makepp_tests/additional_tests/2004_12_06_scancache.test:
+	* t/additional_tests/2004_12_06_scancache.test:
 	Call wait_timestamp.pl on x.o where needed.
 
 2006-02-07  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -2910,7 +2913,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makecmds.pm (c_grep): Don't add extra args to &perl.
 	New option -l.
 
-	* makepp_tests/builtins.test: Test &grep -l/-xl/-xxl.
+	* t/builtins.test: Test &grep -l/-xl/-xxl.
 
 	* pod/makepp_builtins.pod: Reorder options one per line, as in
 	makepp.pod.  Document &grep -l.	 Link to makeppbuiltin.pod.
@@ -2966,9 +2969,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Glob.pm (wild_to_regex): Do a regexp that's really case
 	insensitive, when needed.
 
-	* makepp_tests/pattern_rule.test: Test mixed case rules.
+	* t/pattern_rule.test: Test mixed case rules.
 
-	* makepp_tests/builtins.test: Test &sort -r.
+	* t/builtins.test: Test &sort -r.
 
 	* pod/makepp_builtins.pod: Document &sort -n and -r.
 
@@ -2981,7 +2984,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makecmds.pm (&sort, &uninstall): New commands.
 	(&install): New options and write all actions to log file.
 
-	* makepp_tests/builtins.test: Test new commands.
+	* t/builtins.test: Test new commands.
 
 	* install.pl (highlight_keywords): Highlight new builtins.
 
@@ -3022,9 +3025,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makefile.pm (_read_makefile_line_stripped_1): Append
 	continuation lines as long as a $(( )) is not complete.
 
-	* makepp_tests/builtins.test: Test &cut --lines.
+	* t/builtins.test: Test &cut --lines.
 
-	* makepp_tests/variable_expansion.test: Test multiline $(( )).
+	* t/variable_expansion.test: Test multiline $(( )).
 
 	* pod/makepp_builtins.pod: Document &cut --lines as an alternative
 	to head or tail.
@@ -3077,7 +3080,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* CommandParser/*.pm (new), Scanner/Verilog.pm (new): Don't repeat
 	class determination and blessing.
 
-	* makepp_tests/esqlc.test: Test Oracle Pro*C harder.
+	* t/esqlc.test: Test Oracle Pro*C harder.
 
 2005-11-15  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -3091,10 +3094,10 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* install.pl: Eliminate client/server mode.
 	(highlight_variables): Don't put markup into title.
 
-	* makeppclient, makepp_tests/client_server_unix.test:
+	* makeppclient, t/client_server_unix.test:
 	* pod/makeppclient.pod: Eliminate files.
 
-	* makepp_tests/additional_tests/2003_11_25_wild.test (makepp_test_script.pl):
+	* t/additional_tests/2003_11_25_wild.test (makepp_test_script.pl):
 	Also works on older Perl.
 
 	* makepp_builtin_rules.mk: Remove warning for ./test from linker
@@ -3133,7 +3136,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makesubs.pm (f_infer_linker, f_infer_objects, f_make)
 	(s_prebuild): Call ::maybe_stop.
 
-	* makepp_tests/additional_tests/2003_11_25_wild.test (makepp_test_script.pl):
+	* t/additional_tests/2003_11_25_wild.test (makepp_test_script.pl):
 	Replaces Shell script and explicitly allows makepp to build
 	something outside of the build tree.
 
@@ -3216,7 +3219,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	sensitivity separately from Windows, since Linux and others can
 	also access such file systems.
 
-	* makepp_tests/variable_expansion.test: Test $(ROOT).
+	* t/variable_expansion.test: Test $(ROOT).
 
 	* pod/makepp_variables.pod (Predefined Variables): New section.
 
@@ -3449,9 +3452,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makecmds.pm (c_cp, c_ln): Fix -f in case target is given as a
 	directory.  Used to test existence of directory for deletion here.
 
-	* makepp_tests/builtins.test: Test &ln fix.
+	* t/builtins.test: Test &ln fix.
 
-	* makepp_tests/additional_tests/2005_07_12_build_cache_cp.test:
+	* t/additional_tests/2005_07_12_build_cache_cp.test:
 	Skip if MD5 not available.
 
 2005-08-18  gholt  <holt-makepp@gholt.net>
@@ -3476,7 +3479,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2005-07-12  Anders Johnson  <ajohnson@nvidia.com>
 
 	* makepp, BuildCache.pm, BuildCheck.pm, BuildCheck/exact_match.pm,
-	makepp_tests/additional_tests/2005_07_12_build_cache_cp.test:
+	t/additional_tests/2005_07_12_build_cache_cp.test:
 	Build cache policy change: Key equality now must imply
 	substitutability.  Use MD5 signatures for dependencies in the
 	build cache key if the signature is otherwise not MD5-based.
@@ -3500,7 +3503,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	building anything (e.g. "makepp clean" and "makepp test").
 	Properly handle the case in which build_target_done bails out.
 
-	* makepp_tests/client_server_unix.test: Tracked change to final
+	* t/client_server_unix.test: Tracked change to final
 	diagnostic.
 
 2005-07-01  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -3508,13 +3511,13 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* pod/makepp_compatibility.pod: Document 5.8.7 and sourceforge
 	compile farm results.
 
-	* makepp_tests/additional_tests/2004_03_24_scanner_c_lib.test (libxyz.a):
+	* t/additional_tests/2004_03_24_scanner_c_lib.test (libxyz.a):
 	Fix ar options for Darwin.
 
-	* makepp_tests/spar ($extractor): Fixed for Darwin.
+	* t/spar ($extractor): Fixed for Darwin.
 	(Emacs spar-fix): Also update modification time stamp.
 
-	* makepp_tests/additional_tests/spar_unix.test: Test version 0.8.
+	* t/additional_tests/spar_unix.test: Test version 0.8.
 
 2005-06-30  Gary Holt  <holt-makepp@gholt.net>
 
@@ -3540,14 +3543,14 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(scanners, f_CC, f_CFLAGS, f_CXX, f_CXXFLAGS): Handle Visual
 	Studio and Borland.
 
-	* makepp_tests/run_tests.pl (un_spar):
+	* t/run_tests.pl (un_spar):
 	* Makecmds.pm (c_mkdir): Don't call mkdir() with trailing '/', as
 	this fails on Darwin.
 
 	* Rule.pm (execute_command): Exec /usr/bin/true for BSD, which
 	doesn't have /bin/true.
 
-	* makepp_tests/c_compilation.test: Make it work on native Windows.
+	* t/c_compilation.test: Make it work on native Windows.
 
 2005-06-27  Anders Johnson  <ajohnson@nvidia.com>
 
@@ -3560,19 +3563,19 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makesubs.pm (eval_or_die): Revert undocumented commenting out of
 	code line determination, as this broke 2004_12_20_errors.test.
 
-	* makepp_tests/additional_tests/2003_11_14_timestamp.test,
-	* makepp_tests/additional_tests/2004_02_27_srctarg.test,
-	* makepp_tests/additional_tests/2004_03_03_minusk.test,
-	* makepp_tests/additional_tests/2004_03_03_scan_build.test,
-	* makepp_tests/additional_tests/2004_03_31_stale.test,
-	* makepp_tests/additional_tests/2004_12_20_errors.test: Replace
+	* t/additional_tests/2003_11_14_timestamp.test,
+	* t/additional_tests/2004_02_27_srctarg.test,
+	* t/additional_tests/2004_03_03_minusk.test,
+	* t/additional_tests/2004_03_03_scan_build.test,
+	* t/additional_tests/2004_03_31_stale.test,
+	* t/additional_tests/2004_12_20_errors.test: Replace
 	Shell code with Perl for native Windows compatibility.
 
-	* makepp_tests/additional_tests/2004_03_26_exit_status.test: New
+	* t/additional_tests/2004_03_26_exit_status.test: New
 	test combines two almost identical tests.
 
-	* makepp_tests/additional_tests/2004_03_26_perl_exit_status.test,
-	* makepp_tests/additional_tests/2003_10_17_shell_exit_status.test:
+	* t/additional_tests/2004_03_26_perl_exit_status.test,
+	* t/additional_tests/2003_10_17_shell_exit_status.test:
 	Remove old tests.
 
 2005-06-15  Gary Holt  <holt-makepp@gholt.net>
@@ -3591,13 +3594,13 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makesubs.pm (f_find_program, f_findfile, f_MAKE): Use
 	split_path.
 
-	* makepp_tests/variable_expansion.test (shell_command): Eliminate
+	* t/variable_expansion.test (shell_command): Eliminate
 	';' on native Windows.	Add trailing space for Unix because this
 	is apparently inevitable on Windows.
 	(x): Extend this to cover all cases of former export.test.
 	Alternately use Windows variable syntax.
 
-	* makepp_tests/export.test: Drop redundant test.
+	* t/export.test: Drop redundant test.
 
 2005-06-14  Anders Johnson  <ajohnson@nvidia.com>
 
@@ -3613,11 +3616,11 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* TextSubs.pm (format_exec_args): Fix native Windows handling.
 
-	* makepp_tests/run_tests.pl (makepp): Return true on success (in
+	* t/run_tests.pl (makepp): Return true on success (in
 	case a test script ends with this).
 
-	* makepp_tests/dry_run_what_if.test,
-	makepp_tests/directories.test: Eliminate complex Shell commands
+	* t/dry_run_what_if.test,
+	t/directories.test: Eliminate complex Shell commands
 	for the benefit of native Windows.
 
 2005-06-09  Anders Johnson  <ajohnson@nvidia.com>
@@ -3632,7 +3635,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makecmds.pm (_opts): Select $outfile so perlcode can print.
 	(c_perl): New command.
 
-	* makepp_tests/builtins.test (sed.out): Test &perl.
+	* t/builtins.test (sed.out): Test &perl.
 
 	* pod/makepp_builtins.pod: Document &perl.
 
@@ -3661,7 +3664,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	call the latter.
 
 	* FileInfo_makepp.pm, Rule.pm, Makefile.pm, makepp,
-	makepp_tests/directories.test: Handle the case in which a stale
+	t/directories.test: Handle the case in which a stale
 	generated file can still be built because it now comes from a
 	repository.  This is complicated, because properly handling the
 	cases in which it is built after its rule is deleted becomes
@@ -3673,17 +3676,17 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* makepp_build_cache_control: Fixed a couple of spurious warnings.
 
-	* makepp_tests/build_cache.test: Fixed the test case for the
+	* t/build_cache.test: Fixed the test case for the
 	2005-06-02 change.
 
-	* makepp_tests/additional_tests/2004_11_02_repository_rmstale.test:
+	* t/additional_tests/2004_11_02_repository_rmstale.test:
 	Added test case for getting a formerly generated file out of a
 	repository.
 
 2005-06-06  Anders Johnson  <ajohnson@nvidia.com>
 
 	* Makesubs.pm,
-	makepp_tests/additional_tests/2004_03_24_scanner_c_lib.test:
+	t/additional_tests/2004_03_24_scanner_c_lib.test:
 	Don't use 'our', because it overrides the package inside an eval
 	call from within its scope (e.g. from eval_or_die).
 
@@ -3707,12 +3710,12 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Makefile.pm (_truthval): Don't expect uname to work.
 
-	* makepp_tests/run_tests.pl (execute): Handle un_spar failing for
+	* t/run_tests.pl (execute): Handle un_spar failing for
 	symlinks on natve Windows.
 	($ENV{PERL}, $perl): Set these reliably in case of multiple
 	installed versions.
 
-	* makepp_tests/builtins.test (echo.out): Don't expect native
+	* t/builtins.test (echo.out): Don't expect native
 	Windows "shell" to handle complex command.
 
 	* pod/makepp_compatibility.pod: Added 6 Linux and 3 Solaris tests.
@@ -3720,16 +3723,16 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2005-06-02  Anders Johnson  <ajohnson@nvidia.com>
 
-	* BuildCache.pm, makepp_tests/build_cache.test: Fixed a bug in
+	* BuildCache.pm, t/build_cache.test: Fixed a bug in
 	which stale file attributes were not discarded after importing a
 	file from a build cache.
 
-	* Makefile.pm, makepp_tests/conditionals.test: Fixed a bug in
+	* Makefile.pm, t/conditionals.test: Fixed a bug in
 	which a conditional after an inactive conditional was ignored.
 
 2005-05-31  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/run_tests.pl: Use File::Path::rmtree since its more
+	* t/run_tests.pl: Use File::Path::rmtree since its more
 	efficient than forking 3 processes and since 2>&- doesn't work on
 	native Windows.
 
@@ -3751,10 +3754,10 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Makesubs.pm (f_error, f_warning): New functions.
 
-	* makepp_tests/run_tests.pl (execute): Don't report failure
+	* t/run_tests.pl (execute): Don't report failure
 	chmod`ing to-be-deleted dir.
 
-	* makepp_tests/builtins.test: Don't fail if Perl can't chmod on
+	* t/builtins.test: Don't fail if Perl can't chmod on
 	cygwin (probably a //server/share).
 
 	* install.pl: Handle makepp_compatibility so that it can be easily
@@ -3781,15 +3784,15 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makecmds.pm (c_ln): Add $ENV{MAKEPP_LN_CP} for making this sort
 	of portable to systems where (sym)link doesn't work.
 
-	* makepp_tests/run_tests.pl (no_symlink): New constant.	 Use it to
+	* t/run_tests.pl (no_symlink): New constant.	 Use it to
 	eliminate repository based tests on Samba mounts, Windows shares
 	and MinGW.
 
-	* makepp_tests/builtins.test: Don't die on systems where chmod or
+	* t/builtins.test: Don't die on systems where chmod or
 	link don't work.
 
-	* makepp_tests/wildcard_repository.test:
-	* makepp_tests/additional_tests/2003_11_14_repository_unlink.test,
+	* t/wildcard_repository.test:
+	* t/additional_tests/2003_11_14_repository_unlink.test,
 	2003_11_25_repository_tot.test, 2003_12_05_phony_repository.test,
 	2004_01_21_repository_build.test, 2004_02_19_repository_change.test,
 	2004_03_25_repository_rule.test, 2004_04_01_stale_repository.test,
@@ -3823,14 +3826,14 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* makepp_builtin_rules.mk: Use FileInfo::is_windows.
 
-	* makepp_tests/run_tests.pl (is_windows): New constant.
+	* t/run_tests.pl (is_windows): New constant.
 
-	* makepp_tests/additional_tests/2004_03_24_scanner_c_lib.test
+	* t/additional_tests/2004_03_24_scanner_c_lib.test
 	(EXE_SUFFIX): Use FileInfo::is_windows.
 
-	* makepp_tests/client_server_unix.test:
-	* makepp_tests/parallel_unix.test:
-	* makepp_tests/additional_tests/spar_unix.test: Added _unix to
+	* t/client_server_unix.test:
+	* t/parallel_unix.test:
+	* t/additional_tests/spar_unix.test: Added _unix to
 	file name so as to skip on all Windows environments.
 
 2005-05-22  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -3856,7 +3859,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(skip_makefile_until_else_or_endif): On initial success with else
 	ifxxx, don't also do else.
 
-	* makepp_tests/conditionals.test: Test the above.
+	* t/conditionals.test: Test the above.
 
 2005-05-13  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -3877,7 +3880,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(_read_makefile_line_stripped_1): Implemented and/or/else ifxxx
 	combinations.
 
-	* makepp_tests/conditionals.test: Test ifsys (with a match all
+	* t/conditionals.test: Test ifsys (with a match all
 	wildcard), and the and/or/else ifxxx combinations.
 
 	* pod/makepp_statements.pod: Document new conditionals and
@@ -3890,18 +3893,18 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* makeppclient (--start-server): Exit if FIFO can't be created.
 
-	* makepp_tests/builtins.test:
-	* makepp_tests/client_server.test:
-	* makepp_tests/additional_tests/spar.test: These fail for various
+	* t/builtins.test:
+	* t/client_server.test:
+	* t/additional_tests/spar.test: These fail for various
 	reason on a Samba drive, so make them irrelevant there.
 
-	* makepp_tests/variable_expansion.test: Integrate
+	* t/variable_expansion.test: Integrate
 	2004_04_27_target_specific_append.test and drop that.
 
-	* makepp_tests/conditionals.test: Integrate 2004_05_13_ifdef.test
+	* t/conditionals.test: Integrate 2004_05_13_ifdef.test
 	and 2004_12_16_endif.test and drop them.
 
-	* makepp_tests/pattern_rule.test: Integrate
+	* t/pattern_rule.test: Integrate
 	2004_12_29_static_pattern_rule.test and drop that.
 
 2005-05-05  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -3938,18 +3941,18 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	targets and dependencies for them).
 
 	* ActionParser.pm,
-	makepp_tests/additional_tests/2004_12_20_errors.test: Commented
+	t/additional_tests/2004_12_20_errors.test: Commented
 	out one of Daniel's changes from 2005-04-16, and cover the
 	problem in the test suite.  (Need to discus how to fix this for
 	real.)
 
 	* Makesubs.pm,
-	makepp_tests/additional_tests/2004_12_20_errors.test: Deal with
+	t/additional_tests/2004_12_20_errors.test: Deal with
 	diagnostics from perl actions in a rule defined in an included
 	makefile, and cover in the test suite.	Call touched_filesystem
 	*after* evaluating generic code.
 
-	* Rule.pm, makepp_tests/additional_tests/2004_12_06_scancache.test:
+	* Rule.pm, t/additional_tests/2004_12_06_scancache.test:
 	Re-added a line that was inadvertently (I assume) deleted by Daniel
 	on 2005-04-21, and cover the issue in the test suite.  Also backed
 	out a few other nearby optimizations that compromise
@@ -3957,7 +3960,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	complex loop).	Added a comment indicating why the line numbers
 	from perl action diagnostics are off by a little.
 
-	* Rule.pm, makepp, makepp_tests/client_server.test: Flush the
+	* Rule.pm, makepp, t/client_server.test: Flush the
 	log file before a perl action fails.  (Probably not robust with
 	-j, but it's better than nothing.)  Made diagnostics from perl
 	actions a little more readable.
@@ -3966,7 +3969,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* TextSubs.pm (format_exec_args): Reinstate { for Bash patterns.
 
-	* makepp_tests/variable_expansion.test: Move trivial
+	* t/variable_expansion.test: Move trivial
 	2004_02_11_export_colon.test into this one.
 
 2005-04-27  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -3993,11 +3996,11 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	ifdef/ifeq.  Fix problems with ifeq and quoting which became
 	evident after the above unquote fix.
 
-	* makepp_tests/conditionals.test: Test above ifdef/ifeq fixes.
+	* t/conditionals.test: Test above ifdef/ifeq fixes.
 
-	* makepp_tests/perl.test: Test $((perl )).
+	* t/perl.test: Test $((perl )).
 
-	* makepp_tests/additional_tests/2004_12_17_idl.test: Fix problems
+	* t/additional_tests/2004_12_17_idl.test: Fix problems
 	with AIX and BS2000 compiler pickiness.
 	This evidences a new problem with parsing $(CC) ..  >$(output),
 	which only works if there is a space after >, but I didn't find
@@ -4014,7 +4017,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	when it decides that scan info can'tbe cached.
 
 	* Makesubs.pm, pod/makepp_functions.pod,
-	makepp_tests/conditionals.test: Added $(iftrue).  Preload
+	t/conditionals.test: Added $(iftrue).  Preload
 	CommandParser::Gcc and CommandParser::Basic, and avoid some shift
 	statements, for efficiency.
 
@@ -4042,7 +4045,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	functions, don't modify call stack and other minor optimizations.
 	(xscan_file): Don't treat "//*...*/" as "/".
 
-	* makepp_tests/additional_tests/2004_12_17_idl.test: Extend this
+	* t/additional_tests/2004_12_17_idl.test: Extend this
 	as in our real use, namely that a C++ source includes a header,
 	which has to be generated from IDL.  This currently gives a
 	warning.
@@ -4071,9 +4074,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makecmds.pm (run): Use Makesubs::f_find_program.
 	(&uniq): Invert meaning of -c.
 
-	* makepp_tests/builtins.test (&uniq): Invert meaning of -c.
+	* t/builtins.test (&uniq): Invert meaning of -c.
 
-	* makepp_tests/additional_tests/2004_12_06_scancache.test: #undef
+	* t/additional_tests/2004_12_06_scancache.test: #undef
 	because AIX xlc doesn't allow redefinition.
 
 2005-04-12  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -4083,7 +4086,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(c_template): Give it an assignment and Perlcode embedding syntax,
 	and allow arguments to macros.
 
-	* makepp_tests/builtins.test: Update tests.
+	* t/builtins.test: Update tests.
 
 	* pod/makepp_builtins.pod: Update.
 
@@ -4113,9 +4116,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	error messages at least to line number of beginning of rule (we
 	don't really know what line a single command came from).
 
-	* makepp_tests/builtins.test: Add tests for new commands and features.
+	* t/builtins.test: Add tests for new commands and features.
 
-	* makepp_tests/special_chars_unix.test: Fix trailing slash in
+	* t/special_chars_unix.test: Fix trailing slash in
 	&echo by suppressing \escapes.	Remove redundant check for Cygwin
 	already handled by test name.
 
@@ -4147,21 +4150,21 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	this time adding a parser_c_compilation so that it will work
 	when it's specified as a rule option.
 
-	* makepp, makepp_tests/client_server.test: Changed final message
+	* makepp, t/client_server.test: Changed final message
 	from "compilation aborted" to the more general "build failed".
 
-	* makepp_tests/variable_expansion.test,
-	makepp_tests/directories.test,
-	makepp_tests/additional_tests/2005_02_17_define.test,
-	makepp_tests/additional_tests/2005_01_31_slash.test:
+	* t/variable_expansion.test,
+	t/directories.test,
+	t/additional_tests/2005_02_17_define.test,
+	t/additional_tests/2005_01_31_slash.test:
 	Moved some trivial tests into larger tests, for testing
 	efficiency.
 
-	* makepp_tests/additional_tests/2005_03_31_scanfail.test:
+	* t/additional_tests/2005_03_31_scanfail.test:
 	Test for the scanner diagnostic change, as well as the 3/31/05
 	include directive cache fix.
 
-	* makepp_tests/makepp_test_case: Issue a warning when it sees
+	* t/makepp_test_case: Issue a warning when it sees
 	a cleanup_script, in case it's being used like I've been using
 	it until now.
 
@@ -4233,45 +4236,45 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* makepp, Rule.pm: Added --final-rule-only option.
 
-	* makepp_tests/additional_tests/2005_01_17_runtime.test,
-	makepp_tests/additional_tests/2005_01_31_slash.test,
-	makepp_tests/additional_tests/2005_02_17_define.test:
+	* t/additional_tests/2005_01_17_runtime.test,
+	t/additional_tests/2005_01_31_slash.test,
+	t/additional_tests/2005_02_17_define.test:
 	New tests.
 
 2005-03-20  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2004_04_27_else.test,
-	makepp_tests/conditionals.test: Merged the trivial "else" test
+	* t/additional_tests/2004_04_27_else.test,
+	t/conditionals.test: Merged the trivial "else" test
 	into "conditionals".
 
 2005-03-18  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/wait_timestamp.pl:
+	* t/wait_timestamp.pl:
 	Make it work when overwriting an empty file doesn't update the
 	timestamp.  (Some of the NVIDIA machines do this, others don't.)
 
-	* makepp_tests/dry_run_what_if.test:  Don't run makepp again
+	* t/dry_run_what_if.test:  Don't run makepp again
 	until the current time is greater than the newest file (not the
 	oldest).
 
 2005-03-18  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/run_tests.pl: Document -v and also make it output
+	* t/run_tests.pl: Document -v and also make it output
 	time stats.
 
-	* makepp_tests/dry_run_what_if.test: Fix file not always closed
+	* t/dry_run_what_if.test: Fix file not always closed
 	problems.
 
 2005-03-17  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/run_tests.pl (makepp, execute): New functions.
+	* t/run_tests.pl (makepp, execute): New functions.
 	(test_loop): For each of the possible scripts, check for an
 	alternative Perl variant.  Also catch internal errors, such as
 	dangling critical sections.
 
-	* makepp_tests/wait_timestamp.pl: New file.
+	* t/wait_timestamp.pl: New file.
 
-	* makepp_tests/**/*.test: Eliminate almost all sleeps, replacing
+	* t/**/*.test: Eliminate almost all sleeps, replacing
 	them with the minimum wait till we get a new timestamp.	 Also fix
 	tests that failed on some platform.
 
@@ -4290,14 +4293,14 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(c_rm): When deleting metainfo, also delete .makepp/, if it
 	becomes empty.
 
-	* makepp_tests/run_tests.pl ($makepp_path): Localize, so it can be
+	* t/run_tests.pl ($makepp_path): Localize, so it can be
 	accessed in modules loaded with do().
 	(execute): New function for alternately running a script if found
 	with .pl appended as a module, or as a shell script.
 	(foreach $tarfile): Use execute for all three scripts optionally
 	available.
 
-	* makepp_tests/**/*.test: Replace some shell scripts with modules, and use
+	* t/**/*.test: Replace some shell scripts with modules, and use
 	builtin commands wherever possible.
 
 2005-03-06  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -4315,7 +4318,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(c_rm, c_chmod, c_cp, c_install, c_mv, c_rm): New commands.
 	(--count, --except): New options for c_grep.
 
-	* makepp_tests/builtins.test: Test all changes.
+	* t/builtins.test: Test all changes.
 
 	* pod/makepp_builtins.pod: Document all changes.
 
@@ -4324,7 +4327,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makecmds.pm (c_grep): New command.
 	(--infail, --outfail, --separator): New options.
 
-	* makepp_tests/builtins.test: Test them.
+	* t/builtins.test: Test them.
 
 	* pod/makepp_builtins.pod: Document them and fixes.
 
@@ -4343,9 +4346,9 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* pod/makepp_builtins.pod: New POD.
 
-	* makepp_tests/builtins.test: New test.
+	* t/builtins.test: New test.
 
-	* makepp_tests/additional_tests/2004_12_17_idl.test: New test.
+	* t/additional_tests/2004_12_17_idl.test: New test.
 
 2005-01-09  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -4366,7 +4369,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* pod/makepp_rules.pod, pod/makepp_extending.pod: Document
 	&action.
 
-	* makepp_tests/perl.test: Adapt to changed context of $(perl) and
+	* t/perl.test: Adapt to changed context of $(perl) and
 	test &action.
 
 2005-01-08  Gary Holt  <holt-makepp@gholt.net>
@@ -4404,7 +4407,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* pod/makepp_compatibility.html: Eliminate 5.005.
 
-	* makepp_tests/client_server.test: Close file to be sure to flush
+	* t/client_server.test: Close file to be sure to flush
 	it.  Eliminate workaround for makeppclient not being executable in
 	CVS.
 
@@ -4472,7 +4475,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* pod/makepp_variables.pod: Fix changed_inputs and add it to index.
 
-	* makepp_tests/perl.test: Split up script.out into the statement
+	* t/perl.test: Split up script.out into the statement
 	and rule generated parts, because the latter now seems to delete
 	target first.
 
@@ -4510,11 +4513,11 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* Makesubs.pm: Add esqlc scanners.
 	(run_forked): Use POSIX::_exit.
 
-	* makepp_tests/perl.test (script.pl): Be well behaved and close.
+	* t/perl.test (script.pl): Be well behaved and close.
 
 2004-12-20  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2004_12_20_errors.test: Test
+	* t/additional_tests/2004_12_20_errors.test: Test
 	case for line numbers in diagnostics.
 
 	* CommandParser/Vcs.pm: Match -f only as a whole option.
@@ -4535,7 +4538,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* CommandParser/Vcs.pm: Properly parse the -f option, to that
 	options such as "-full64" don't match.
 
-	* makepp_tests/additional_tests/2004_12_14_comma.test: Added
+	* t/additional_tests/2004_12_14_comma.test: Added
 	a comment pointing out that it tests a feature that we ultimately
 	don't want, and it should test what we do want when it works.
 
@@ -4548,7 +4551,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* install.pl: Install them.
 
-	* makepp_tests/esqlc.test: New test.
+	* t/esqlc.test: New test.
 
 	* Makesubs.pm (scanner_esqlc_compilation): New scanner.
 	(%Makesubs::scanners): Register it.
@@ -4565,20 +4568,20 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* BuildCheck.pm, CommandParser.pm, Makefile.pm, Rule.pm, makepp,
 	BuildCheck/exact_match.pm, BuildCheck/target_newer.pm,
 	pod/makepp_rules.pod,
-	makepp_tests/additional_tests/2004_11_16_envdep.test: Added
+	t/additional_tests/2004_11_16_envdep.test: Added
 	support for dependencies on environment variables.
 
 	* FileInfo_makepp.pm, Glob.pm, Makesubs.pm, Scanner.pm, makepp,
 	pod/makepp_command.pod,
-	makepp_tests/additional_tests/2004_11_02_rmstale.test: Added
+	t/additional_tests/2004_11_02_rmstale.test: Added
 	--rm-stale option.
 
-	* Glob.pm, makepp_tests/additional_tests/2004_12_14_comma.test:
+	* Glob.pm, t/additional_tests/2004_12_14_comma.test:
 	Wildcard functions don't match filenames containing commas. (A
 	temporary measure, until they can be safely passed to functions
 	that currently interpret them as argument delimiters.)
 
-	* MakeEvent.pm, makepp, makepp_tests/client_server.test:
+	* MakeEvent.pm, makepp, t/client_server.test:
 	Signal handling fixes.	Don't leave processes running in the
 	background.  Ignore SIGINT and SIGQUIT if the child process
 	absorbs them, but propagate them if the child process terminates
@@ -4608,15 +4611,15 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* CommandParser/Vcs.pm: Added support for almost every VCS 7.1
 	option that generates dependencies.
 
-	* makepp_tests/additional_tests/2004_12_06_scancache.test:
+	* t/additional_tests/2004_12_06_scancache.test:
 	Tests that targets built on behalf of cached scanner info can fail
 	without stopping the build if they aren't actually needed.
 
-	* makepp_tests/additional_tests/2004_12_14_clean.test: Tests
+	* t/additional_tests/2004_12_14_clean.test: Tests
 	signal propagation and makeppclean.
 
 	* Makefile.pm,
-	makepp_tests/additional_tests/2004_12_16_endif.test: Fixed
+	t/additional_tests/2004_12_16_endif.test: Fixed
 	parsing of commands whose executable is "perl".
 
 	* CommandParser.pm, Rule.pm: Scanner failures are propagated with
@@ -4636,12 +4639,12 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Makesubs.pm (run): Prefer local script over one found in $PATH.
 
-	* makepp_tests/perl.test: Revert fix.
+	* t/perl.test: Revert fix.
 
 2004-12-16  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/perl.test,
-	makepp_tests/additional_tests/2004_05_04_double_dollar: Fixes
+	* t/perl.test,
+	t/additional_tests/2004_05_04_double_dollar: Fixes
 	to make them work whether or not "." is in $PATH.
 
 2004-12-15  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -4687,7 +4690,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	Also handle else within perl { }.  Let the statement functions do
 	the parsing for perl { } and perl_begin.
 
-	* makepp_tests/conditionals.test: Test these fixes and additions.
+	* t/conditionals.test: Test these fixes and additions.
 
 2004-11-23  Gary Holt  <holt-makepp@gholt.net>
 
@@ -4696,7 +4699,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2004-11-22  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/md5.test: Back to using dumb sleep's, because
+	* t/md5.test: Back to using dumb sleep's, because
 	otherwise the .o can look like it didn't change if the compiler
 	runs in less than a second.
 
@@ -4721,7 +4724,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	inline, instead of in its own file in @INC.  Automatically adds
 	"CommandParser::" prefix to class name, if necessary.
 
-	* makepp_tests/additional_tests/2003_10_11_idash.test: Added the
+	* t/additional_tests/2003_10_11_idash.test: Added the
 	sleep calls required to make it run reliably.
 
 	* Makefile: Reverted Gary's changes to BINDIR, etc., which were
@@ -4731,7 +4734,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2004-11-03  Gary Holt  <holt-makepp@gholt.net>
 
-	* makepp_tests/run_tests.pl: Remove MAKEFLAGS and MAKEPPFLAGS from
+	* t/run_tests.pl: Remove MAKEFLAGS and MAKEPPFLAGS from
 	the environment before running the tests.
 
 	* Makefile.pm (read_makefile_line_stripped): Fix problem where
@@ -4753,10 +4756,10 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2004-07-13  Anders Johnson  <ajohnson@nvidia.com>
 
 	* Makefile.pm,
-	makepp_tests/additional_tests/2004_04_27_else.test,
-	makepp_tests/additional_tests/2004_04_27_target_specific_append.test,
-	makepp_tests/additional_tests/2004_04_28_unshift_makefile_lines.test,
-	makepp_tests/additional_tests/2004_05_13_ifdef.test:
+	t/additional_tests/2004_04_27_else.test,
+	t/additional_tests/2004_04_27_target_specific_append.test,
+	t/additional_tests/2004_04_28_unshift_makefile_lines.test,
+	t/additional_tests/2004_05_13_ifdef.test:
 	If the first assignment is a target-sepcific '+=', then use
 	deferred evaluation and don't prepend a space. Print a log
 	message when we detect a recursive makefile. Added a mechanism
@@ -4862,7 +4865,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2004-04-22  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2004_04_22_envexe.test,
+	* t/additional_tests/2004_04_22_envexe.test,
 	CommandParser.pm: Don't add executable dependency if it contains
 	shell metacharacters.
 	* FileInfo_makepp.pm: A target of additional dependencies is not
@@ -4877,7 +4880,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2004-04-19  Anders Johnson  <ajohnson@nvidia.com>
 
-	* Glob.pm, makepp_tests/additional_tests/2004_04_19_onlyphony.test:
+	* Glob.pm, t/additional_tests/2004_04_19_onlyphony.test:
 	With $(only_phony_targets), only the file part of the glob is
 	supposed to be phony, *not* the ancestor directories.
 
@@ -4885,7 +4888,7 @@ Version 1.40 beta1 released
 
 2004-04-16  Gary Holt  <holt-makepp@gholt.net>
 
-	* makepp_tests/run_tests.pl: Fix problem where if . was not in
+	* t/run_tests.pl: Fix problem where if . was not in
 	path, run_tests.pl failed if invoked as "perl run_tests.pl".
 
 2004-04-14  Gary Holt  <holt-makepp@gholt.net>
@@ -4925,7 +4928,7 @@ Version 1.40 beta1 released
 	filesystems on unix.  Autodetect whether we are in a
 	case-insensitive file system and set flags appropriately.
 	* Added --no-case-sensitive-filenames switch.
-	* makepp_tests/wildcard_repositories.test: don't try this on a
+	* t/wildcard_repositories.test: don't try this on a
 	windows share because making files unreadable doesn't seem to
 	work.
 
@@ -4949,12 +4952,12 @@ Version 1.40 beta1 released
 
 2004-04-01  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2004_04_01_append_to_undef.test,
+	* t/additional_tests/2004_04_01_append_to_undef.test,
 	Makefile.pm: Deal with appending to an undefined variable in
 	the same way as GNU make.
 	* Makesubs.pm, FileInfo_makepp.pm, pod/makepp_functions.pod,
-	makepp_tests/additional_tests/2004_03_31_stale.test,
-	makepp_tests/additional_tests/2004_04_01_stalerep.test: Added
+	t/additional_tests/2004_03_31_stale.test,
+	t/additional_tests/2004_04_01_stalerep.test: Added
 	$(only_generated) and $(only_stale) functions. Nukes a repository
 	symlink if there is no current alternate version.
 	* Rule.pm, makepp: If scanning fails, then propagate error
@@ -4970,16 +4973,16 @@ Version 1.40 beta1 released
 
 2004-03-26  Gary Holt  <holt-makepp@gholt.net>
 
-	* makepp_tests/additional_tests/2004_03_24_scanner_c_lib.test: fix
+	* t/additional_tests/2004_03_24_scanner_c_lib.test: fix
 	for cygwin.
 
 	* FileInfo_makepp.pm (set_rule), Makefile.pm (parse_rule): set
 	$finfo->{PATTERN_LEVEL} only if the rule is not overridden
 	(suggestion by Anders Johnson).
 
-	* makepp_tests/additional_tests/2003_10_17_shell_exit_status.test:
+	* t/additional_tests/2003_10_17_shell_exit_status.test:
 	fix so that it works on cygwin.
-	makepp_tests/additional_tests/2004_03_26_perl_exit_status.test:
+	t/additional_tests/2004_03_26_perl_exit_status.test:
 	new test.
 
 2004-03-25  Anders Johnson  <ajohnson@nvidia.com>
@@ -4988,7 +4991,7 @@ Version 1.40 beta1 released
 	think might be a bug with FileInfo->{PATTERN_LEVEL}.
 	* Scanner.pm: Include suffixes are reported in quotes, in case
 	any of them is the empty string.
-	* makepp, makepp_tests/additional_tests/2004_03_25_reprule.test:
+	* makepp, t/additional_tests/2004_03_25_reprule.test:
 	Fixed a nasty bug in which files from a repository were published
 	before they actually could be built, which caused them *not* to
 	be published when a rule to build them was encountered. Added a
@@ -5002,8 +5005,8 @@ Version 1.40 beta1 released
 	ActionParser::parse_rule, and allow find_command_parser to return
 	0 without thinking that no meaningful scanning happened.
 	* Makefile.pm,
-	makepp_tests/additional_tests/2004_03_12_condscan.test,
-	makepp_tests/additional_tests/2004_03_16_recscan.test: Fixed
+	t/additional_tests/2004_03_12_condscan.test,
+	t/additional_tests/2004_03_16_recscan.test: Fixed
 	parsing of :option on a subsequent rule line, and added support
 	for :\s+smartscan and :\s+quickscan. Added this to existing test
 	cases.
@@ -5054,9 +5057,9 @@ Version 1.40 beta1 released
 	* Scanner/Verilog.pm: Don't return undef when you resolve a
 	module that is already resolved. Added support for `else.
 	Don't process modules and instances when the scanner is inactive.
-	* makepp_tests/additional_tests/2004_03_12_condscan.test:
+	* t/additional_tests/2004_03_12_condscan.test:
 	Test case for conditional scanning.
-	* makepp_tests/additional_tests/2004_03_16_recscan.test:
+	* t/additional_tests/2004_03_16_recscan.test:
 	Test case for conditional recursive scanning.
 	* pod/makepp_extending.pod: Noted that functions aren't always
 	evaluated in the environment that you might expect.
@@ -5068,7 +5071,7 @@ Version 1.40 beta1 released
 
 2004-03-09  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2003_08_13_load_makefile_quotes.test,
+	* t/additional_tests/2003_08_13_load_makefile_quotes.test,
 	Makefile.pm: Generate an error if an unterminated reference is
 	found. Fixed a test that had an unterminated reference in it.
 	* Makesubs.pm, CommandParser/Gcc.pm, Scanner/C.pm:
@@ -5086,12 +5089,12 @@ Version 1.40 beta1 released
 
 2004-03-03  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2004_03_03_minusk.test,
-	makepp_tests/additional_tests/2004_03_03_scan_build.test:
+	* t/additional_tests/2004_03_03_minusk.test,
+	t/additional_tests/2004_03_03_scan_build.test:
 	Tests for -k option.
-	* makepp_tests/run_tests.pl: Keep the .makepp_log file around,
+	* t/run_tests.pl: Keep the .makepp_log file around,
 	but rename it.
-	* makepp_tests/additional_tests/2004_02_27_srctarg.test:
+	* t/additional_tests/2004_02_27_srctarg.test:
 	Fixed so that it doesn't rm -f w/o args, which isn't portable.
 	* makepp, MakeEvent.pm: Fixes for -k. Don't throw away the build
 	handle if there was non-zero status. If a process fails, then
@@ -5115,24 +5118,24 @@ Version 1.40 beta1 released
 	private variables got changed.
 	* makepp (build_target_done): Fix bug where recursive make
 	commands were stored in the build info.
-	* makepp_tests/recursive_make_unix.test: Add test for above bug.
+	* t/recursive_make_unix.test: Add test for above bug.
 	* makepp: Suppress warning message about getcwd redefinition by
 	not importing symbols from POSIX.
 	* Makesubs.pm (f_find_upwards): Improved error message.
 	* pod/makepp_statements.pod, makepp_cookbook.pod: Minor fixes to
 	documentation.
 	* install.pl, config.pl: Update to current file list.
-	* makepp_tests/additional_tests/2004_02_25_only_targest_rule.test:
+	* t/additional_tests/2004_02_25_only_targest_rule.test:
 	Add missing test file for bug fixed earlier.
 
 2004-02-27  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2004_02_27_srctarg.test,
+	* t/additional_tests/2004_02_27_srctarg.test,
 	FileInfo_makepp.pm: Fixed a nasty bug which would cause files
 	with no rule to look like targets, and added a test case.
 	* CommandParser/Vcs.pm: Vera files are treated as simple
 	dependencies. (Still need to handle their includes too, though.)
-	* makepp_tests/additional_tests/2003_08_13_non_readable_makefile.test:
+	* t/additional_tests/2003_08_13_non_readable_makefile.test:
 	Fixed n_files to track phony target accounting changes.
 
 2004-02-27  Gary Holt  <holt-makepp@gholt.net>
@@ -5160,7 +5163,7 @@ Version 1.40 beta1 released
 	targets are specified (duh!)
 	* pod/makepp_command.pod: Explains the nuances of -f, -F and -C
 	in more detail.
-	* makepp_tests/additional_tests/2004_02_19_rep_change.test:
+	* t/additional_tests/2004_02_19_rep_change.test:
 	Also covers the case in which a generated repository file is
 	regenerated in the repository before it is used locally.
 
@@ -5176,7 +5179,7 @@ Version 1.40 beta1 released
 
 2004-02-23  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2004_02_19_rep_change.test,
+	* t/additional_tests/2004_02_19_rep_change.test,
 	FileInfo_makepp.pm, Rule.pm: Test case and fixes for files
 	in the repository changing after links are left behind.
 	* Rule.pm: Fixes so that we don't try to build things unnecessarily
@@ -5191,12 +5194,12 @@ Version 1.40 beta1 released
 	both the link and its referent as possibly changed. (A well-behaved
 	build system doesn't write through symbolic links, but we need to
 	be prepared for that anyway.)
-	* makepp_tests/run_tests.pl: Before removing $testname.failed, try
+	* t/run_tests.pl: Before removing $testname.failed, try
 	to change its permissions so that it's more likely to succeed.
-	* makepp_tests/additional_tests/2004_02_11_export_colon.test,
+	* t/additional_tests/2004_02_11_export_colon.test,
 	Makefile.pm, Makesubs.pm: Added a new syntax rule so that we can
 	support the "export FOO := bar" syntax.
-	* makepp_tests/additional_tests/2004_02_12_xargs.test,
+	* t/additional_tests/2004_02_12_xargs.test,
 	Makesubs.pm, pod/makepp_functions.pod: Added $(xargs) function.
 
 2004-02-15  Gary Holt  <holt-makepp@gholt.net>
@@ -5219,18 +5222,18 @@ Version 1.40 beta1 released
 2004-02-05  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	* makepp (print_warning): new function
-	* makepp, makepp_tests/client_server.test, Makefile.pm,
+	* makepp, t/client_server.test, Makefile.pm,
 	Makesubs.pm, MakeEvent.pm, CommandParser/Vcs.pm,
 	FileInfo_makepp.pm, Signature/exact_match.pm, Scanner/Verilog.pm,
 	RuleParser.pm, Scanner.pm, Rule.pm: use it and put anything that
 	can be gone to (`file' or `file:lineno') into quotes so an IDE can
 	turn messages into hyperlinks.
-	* makepp_tests/run_tests.pl: remove old <test>.failed dir first
+	* t/run_tests.pl: remove old <test>.failed dir first
 
 2004-02-02  Anders Johnson  <ajohnson@nvidia.com>
 
 	* FileInfo_makepp.pm,
-	makepp_tests/additional_tests/2004_01_21_repbuild.test:
+	t/additional_tests/2004_01_21_repbuild.test:
 	Don't try to build things in a repository, because it doesn't
 	really work even if you try.
 	* FileInfo_makepp.pm: Copy over the build info from the
@@ -5318,9 +5321,9 @@ Version 1.40 beta1 released
 
 2003-12-09  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp_tests/run_tests.pl: Also redirect cleanup to log.  Don't
+	* t/run_tests.pl: Also redirect cleanup to log.  Don't
 	back up .. unless it's the full name.  Also check files in subdirs.
-	* makepp_tests/additional_tests/2003_11_25_wild.test: Don't assume
+	* t/additional_tests/2003_11_25_wild.test: Don't assume
 	PATH contains '.'
 
 2003-12-08  Anders Johnson  <ajohnson@nvidia.com>
@@ -5328,20 +5331,20 @@ Version 1.40 beta1 released
 	* FileInfo_makepp.pm: Phony targets never exist, even if they
 	are found in a repository. Don't create symbolic links to files
 	in a repository that can't exist.
-	* makepp_tests/additional_tests/2003_12_05_phonyrep.test: Test
+	* t/additional_tests/2003_12_05_phonyrep.test: Test
 	case for not creating links to files that don't exist.
 	* Rule.pm: Factored out setup_environment().
 	* Scanner.pm: Fixed a bug caching the list of INCLUDES.
 	* install.pl, CommandParser/Gcc.pm, Scanner/C.pm: Added the
 	beginnings of a replacement C/C++ scanner.
 	* Scanner/Verilog.pm: Removed vestigial "use FileHandle".
-	* makepp_tests/additional_tests/2003_11_25_reptot.test,
-	makepp_tests/additional_tests/2003_11_25_wild.test: Made
+	* t/additional_tests/2003_11_25_reptot.test,
+	t/additional_tests/2003_11_25_wild.test: Made
 	cleanup_script less noisy.
 
 2003-12-01  Anders Johnson  <ajohnson@nvidia.com>
 
-	* makepp_tests/additional_tests/2003_11_25_reptot.test,
+	* t/additional_tests/2003_11_25_reptot.test,
 	FileInfo_makepp.pm: Fixed a nasty bug in exists_or_can_be_built
 	(wherein a file could be made to exist by virtue of having
 	previously been sought), and added a test case.
@@ -5355,7 +5358,7 @@ Version 1.40 beta1 released
 	* makepp: Added --eval option for executing perl code before loading
 	the first Makeppfile. (This is often useful for installing a
 	first reference hook.)
-	* makepp_tests/makepp_test_case: Handles "." as an arg. Don't
+	* t/makepp_test_case: Handles "." as an arg. Don't
 	makepp clean if there is a cleanup_script.
 	* MakeEvent.pm, Makesubs.pm, Rule.pm: If exec fails, print the command.
 	(This is useful if there are a lot of noecho actions, and you can't
@@ -5367,15 +5370,15 @@ Version 1.40 beta1 released
 	* Makefile.pm: Make sure that expressions not inside a rule are
 	evaluated without $Makesubs::rule defined, even if the Makefile was
 	loaded implicitly on behalf of a scanner.
-	* makepp_tests/additional_tests/2003_11_25_wild.test: Test case for
+	* t/additional_tests/2003_11_25_wild.test: Test case for
 	the bug fixed by the change to Makefile.pm.
 
 2003-11-17  Anders Johnson  <ajohnson@nvidia.com>
 
 	* makepp_test_case, spar: Added utilities for generating test cases.
 	spar comes from CPAN, but it's sort of hard to find there.
-	* makepp_tests/additional_tests/2003_11_14_rep_unlink.test,
-	makepp_tests/additional_tests/2003_11_14_timestamp.test: A couple
+	* t/additional_tests/2003_11_14_rep_unlink.test,
+	t/additional_tests/2003_11_14_timestamp.test: A couple
 	of portabilitiy fixes.
 
 2003-11-14  Anders Johnson  <ajohnson@nvidia.com>
@@ -5386,12 +5389,12 @@ Version 1.40 beta1 released
 	sure that its repository symbolic link and build info (if any) is
 	completely nuked. Then, ignore its FileInfo signature when
 	running build_check, because we know that it was written.
-	* makepp_tests/additional_tests/2003_11_14_rep_unlink.test,
-	makepp_tests/additional_tests/2003_11_14_timestamp.test:
+	* t/additional_tests/2003_11_14_rep_unlink.test,
+	t/additional_tests/2003_11_14_timestamp.test:
 	Tests for the previous item.
-	* makepp_tests/additional_tests/2003_10_11_idash.test: Because of
+	* t/additional_tests/2003_10_11_idash.test: Because of
 	the first item, it doesn't need to sleep any more.
-	* makepp_tests/run_tests.pl: Supports absolute paths to tests.
+	* t/run_tests.pl: Supports absolute paths to tests.
 
 2003-11-14  Anders Johnson  <ajohnson@nvidia.com>
 
@@ -5419,7 +5422,7 @@ Version 1.40 beta1 released
 	yet).
 	* makepp: Added provision to avoid having a repository contain the
 	directory based on the repository (e.g. "repository .=..").
-	* makepp_tests/run_tests.pl: Save the failed test products even
+	* t/run_tests.pl: Save the failed test products even
 	if the die message is more than one word.
 
 2003-11-03  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -5445,7 +5448,7 @@ Version 1.40 beta1 released
 	* infer_objects.mk: Remove obsolete file.
 	* c_compilation_md5.mk: Remove obsolete file.
 
-	* makepp_tests/repository.test and wildcard_repositories.test:
+	* t/repository.test and wildcard_repositories.test:
 	Make sure that soft links are supported by the file system.  Skip
 	the test if they aren't.
 
@@ -5459,8 +5462,8 @@ Version 1.40 beta1 released
 	* FileInfo.pm, FileInfo_makepp.pm: moved exists_or_can_be_built
 	to restore 5.005_03 compatibility
 
-	* makepp_tests/additional_tests/*.tar: renamed to .test
-	* makepp_tests/**/*.test: recreated with spar, so the tests can
+	* t/additional_tests/*.tar: renamed to .test
+	* t/**/*.test: recreated with spar, so the tests can
 	run on platforms not compatible with Gnu tars (Ebcdic indicator)
 	* run_tests.pl (un_spar): new function
 
@@ -5475,7 +5478,7 @@ Version 1.40 beta1 released
 
 	* FileInfo.pm: New variable $case_sensitive_filenames
 
-	* makepp_tests/run_tests.pl: pass $^O to is_relevant and move a
+	* t/run_tests.pl: pass $^O to is_relevant and move a
 	failed tdir to testname.failed.
 
 2003-10-17  Gary Holt  <holt-makepp@gholt.net>
@@ -5605,7 +5608,7 @@ Version 1.40 beta1 released
 	* Makefile.pm (load): minor speed up for expand_text(): convert
 	variables from = style to := style if it won't matter.
 
-	* makepp_tests/run_tests.pl: Support additional tests in other
+	* t/run_tests.pl: Support additional tests in other
 	directories so we can have additional tests that aren't shipped
 	with every distribution.
 
@@ -5765,7 +5768,7 @@ Version 1.40 beta1 released
 
 2003-06-13  Gary Holt  <holt-makepp@gholt.net>
 
-	* makepp_tests/run_tests.pl: Add an is_relevant script in the
+	* t/run_tests.pl: Add an is_relevant script in the
 	tests so that we can easily skip tests on different platforms.
 	This was intended to be able to skip the C compilation test on
 	platforms where we can't find a C compiler.

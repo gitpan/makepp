@@ -124,15 +124,15 @@ all: test
 test: .test_done
 
 .test_done: *.pm Signature/*.pm Scanner/*.pm CommandParser/*.pm ActionParser/*.pm makepp \
-	makepp_tests/*.test makepp_tests/run_tests.pl
-	cd makepp_tests && PERL=$(PERL) $(PERL) run_tests.pl
+	t/*.test t/run_tests.pl
+	cd t && PERL=$(PERL) $(PERL) run_tests.pl
 	touch $@
 
 testall: .testall_done
 
 .testall_done: *.pm Signature/*.pm Scanner/*.pm CommandParser/*.pm ActionParser/*.pm makepp \
-	makepp_tests/*.test makepp_tests/*/*.test makepp_tests/run_tests.pl
-	cd makepp_tests && PERL=$(PERL) $(PERL) run_tests.pl *.test */*.test
+	t/*.test t/*/*.test t/run_tests.pl
+	cd t && PERL=$(PERL) $(PERL) run_tests.pl *.test */*.test
 	touch $@
 
 distribution: $(VERSION).tar.gz
@@ -142,12 +142,12 @@ $(VERSION).tar.gz: README INSTALL LICENSE VERSION makepp.lsm ChangeLog \
 	Signature/*.pm Scanner/*.pm \
 	BuildCheck/*.pm CommandParser/*.pm ActionParser/*.pm *.mk *.pm \
 	pod/*.pod \
-	makepp_tests/*.test makepp_tests/*/*.test makepp_tests/run_tests.pl \
+	t/*.test t/*/*.test t/run_tests.pl \
 	config.pl configure install.pl makepp_build_cache_control
 	rm -rf $(VERSION)
 	./configure         # Reset Makefile.
 	mkdir $(VERSION) \
-	   $(VERSION)/pod $(VERSION)/makepp_tests \
+	   $(VERSION)/pod $(VERSION)/t \
 	   $(VERSION)/Signature $(VERSION)/Scanner \
 	   $(VERSION)/CommandParser $(VERSION)/ActionParser
 	for file in $^; do cp $$file $(VERSION)/$$file; done

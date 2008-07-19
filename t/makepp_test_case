@@ -10,7 +10,7 @@
 # are removed.
 #
 # "spar" must be in the path, or the SPAR environment variable must point
-# to it. "spar" is in the makepp CVS tree under makepp_tests.
+# to it. "spar" is in the makepp CVS tree under t.
 
 if [ ! -n "$1" ]
 then

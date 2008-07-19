@@ -73,7 +73,9 @@ sub mail {
   my $a = 'occitan@esperanto.org';
   if( open MAIL, "| exec 2>/dev/null; mailx -s$_[0] $a || mail -s$_[0] $a || /usr/lib/sendmail $a || mail $a" ) {
     print MAIL "$_[0]\n";
-    $Config{$_} && printf MAIL "%-30s => $Config{$_}\n", $_ for sort keys %Config;
+    my %acc;
+    $Config{$_} && push @{$acc{$Config{$_}}}, $_ for sort keys %Config;
+    print MAIL "@{$acc{$_}} => $_\n" for sort keys %acc;
     1;
   }
 }
@@ -92,6 +94,7 @@ if( $T ) {
     rename $_, "$v/$_";
   }
   rename 'tdir', "$v/tdir" if -d 'tdir';
+  exit $ret;
 } else {
   my @failed = <*.failed */*.failed>;
   push @failed, map substr( $_, 0, -6 ) . 'log', @failed;
@@ -100,13 +103,13 @@ if( $T ) {
     my @logs = <*.log */*.log>;
     push @failed, $logs[-1] if @logs;
   }
+  ($v = "$Config{myarchname}-$v") =~ tr/ ;&|\\'"()[]*\//-/d;
   if( !@failed ) {
-    mail "SUCCESS-$^O-$v";
-  } elsif( mail "FAIL-$^O-$v" ) {
+    mail "SUCCESS-$v";
+  } elsif( mail "FAIL-$v" ) {
     print MAIL "<@failed>";
     open SPAR, '-|', $^X, 'spar', '-d', '-', @failed;
     undef $/;
-    print MAIL "\nbegin 755 $^O-$v.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
+    print MAIL "\nbegin 755 $v.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
   }
 }
-exit $ret;

@@ -46,24 +46,28 @@ formats.
 
  GNU/Linux (alpha)#	| x	|	#	|	|	|	|	|	|	|	|	#	#
 
- FreeBSD (x86)	#	| x	|	#	|	|	|	|	|	|	|	|	#	#
+ FreeBSD (x86)	#	| x	| x	#	|	|	|	|	|	|	|	| x	# x	#
+
+ NetBSD (alpha)	#	|	|	#	|	|	|	|	|	|	|	|	# x	#
 
  OpenBSD (x86)	#	|	|	# x	|	|	|	|	|	|	|	|	#	#
 
+
+ AIX (PPC)	#	|	|	#	| x	| x	|	|	|	|	| x	| x	#	#
+
+ Darwin (PPC)	# x	|	|	#	|	|	|	|	|	|	|	|	#	#
+
+ HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	#	#
+
+ Irix		#	|	|	#	|	|	|	|	|	|	|	| x	#	#
+
+ Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	#	#
 
  Solaris (Sparc)# x	| req	|	# x	| x	| x	| x	| x	| x	| x	| x	| x	# x	#
 
  Solaris (64bit)#	|	|	#	| x	|	|	|	|	|	|	| x	#	#
 
  Solaris (x86)	#	| x	|	#	| x	|	|	|	|	|	|	| x	#	#
-
- AIX (PPC)	#	|	|	#	| x	| x	|	|	|	|	| x	| x	#	#
-
- HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	#	#
-
- Darwin (PPC)	# x	|	|	#	|	|	|	|	|	|	|	|	#	#
-
- Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	#	#
 
 
  BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	#	#
