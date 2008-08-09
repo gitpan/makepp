@@ -1,8 +1,9 @@
 package FileInfo;
 require Exporter;
 use Cwd;
+use POSIX qw(S_ISDIR);
 
-# $Id: FileInfo.pm,v 1.80 2008/06/01 21:48:12 pfeiffer Exp $
+# $Id: FileInfo.pm,v 1.82 2008/08/09 09:24:51 pfeiffer Exp $
 
 #use English;
 # Don't ever include this!  This turns out to slow down
@@ -140,12 +141,6 @@ BEGIN {
   *STAT_MTIME = \&TextSubs::CONST4;
   *STAT_DEV =   \&TextSubs::CONST5; # Added by lstat only for dirs.
 }
-
-sub S_IFMT()  { 0170000 }	# Bits in stat modes field for file type
-sub S_IFREG() { 0100000 }	# Bit in stat modes field that indicates this
-				# is a regular file.
-sub S_IFDIR() { 040000 }	# This is a directory.
-sub S_IWUSR() { 0200 }		# Owner has write permission
 
 =head2 case_sensitive_filenames
 
@@ -385,7 +380,7 @@ sub dereference {
 #    return $finfo if exists $finfo->{ALTERNATE_VERSIONS};
 				# Treat a repository link as not a link.
     $finfo = $finfo->{LINK_DEREF} ||= # Have we already dereferenced it?
-      file_info( readlink absolute_filename_nolink( $finfo ), $finfo->{'..'} );
+      path_file_info( readlink absolute_filename_nolink( $finfo ), $finfo->{'..'} );
     $finfo->{LSTAT} or lstat_array( $finfo );
   }
   die 'symlink: infinite loop trying to resolve symbolic link ', &absolute_filename, "\n";
@@ -436,18 +431,55 @@ before using the above code snippet.
 =cut
 
 sub file_info {
-  return $_[0] if ref $_[0];	# Don't do anything if we were already
-				# passed a FileInfo structure.
+  goto &path_file_info if ::is_windows ? $_[0] =~ /[\/\\]/ : $_[0] =~ /\//;
+  my $dinfo = $_[1] || $CWD_INFO;
+  unless( exists $dinfo->{DIRCONTENTS} ) {
+				# If the DIRCONTENTS field doesn't exist, then
+				# we haven't checked yet whether the parent is
+				# a directory or not.
+    if( is_symbolic_link( $dinfo )) { # Follow symbolic links.
+      my $orig_dinfo = $dinfo;
+      $dinfo = dereference $dinfo; # Get where it points to.
+      mark_as_directory( $dinfo ); # Remember that this is a directory.
+      $orig_dinfo->{DIRCONTENTS} = $dinfo->{DIRCONTENTS};
+				# Set the DIRCONTENTS field of the soft link
+				# to point to the DIRCONTENTS of the actual
+				# directory.
+    } else {
+      mark_as_directory( $dinfo ); # Let the wildcard routines know that we
+				# discovered a new directory.
+      publish( $dinfo );	# Alert any wildcard routines.
+    }
+  }
+  if( 3 > length $_[0] ) {
+    if( $_[0] eq '..' ) {	# Go up a directory?
+      return $dinfo = $dinfo->{'..'} || $root; # Don't go up above the root.
+    } elsif( $_[0] eq '.' ) {	# Do nothing in same directory.
+      return $dinfo;
+    }
+  }
+  $dinfo->{DIRCONTENTS}{case_sensitive_filenames ? $_[0] : lc $_[0]} ||=
+    bless { NAME => case_sensitive_filenames ? $_[0] : lc $_[0], '..' => exists $dinfo->{LINK_DEREF} ? dereference $dinfo : $dinfo };
+}
+
+=head2 path_file_info
+
+Does the work of file_info when I<filename> contains directory separators.  You can call this
+explicitly in places where I<filename> is (almost) sure to have directory separators.
+
+=cut
+
+sub path_file_info {
   my $file = case_sensitive_filenames ? $_[0] : lc $_[0];
 				# Copy the file name only if we continue.
 				# Switch to all lower case to avoid
 				# confounds with mix case.
   my $dinfo;			# The fileinfo we start from.
 
-  $file =~ tr|\\|/| if ::is_windows > 0 && $file !~ /\//; # Sometimes gives 'C:\'
+  $file =~ tr|\\|/| if ::is_windows; # 'C:\temp/foo' is a valid file name
 
-  if( $file =~ s@^/@@s ) {
-    if( ::is_windows && $file =~ s@^(/[^/]+/[^/]+)/?@@s ) {
+  if( $file =~ s@^/+@@s ) {
+    if( ::is_windows && length( $file ) + 2 == length( $_[0] ) && $file =~ s@^([^/]+/[^/]+)/?@@s ) {
 				# If we get a //server/share syntax, treat the
 				# "/server/share" piece as one directory, since
 				# it is never legal to try to access //server
@@ -455,22 +487,26 @@ sub file_info {
 				# This has the odd effect of making the top
 				# level directory's filename actually have
 				# a couple of slashes in it, but that's ok.
-      $dinfo = $root->{DIRCONTENTS}{$1} ||=
-	bless { NAME => $1, '..' => $root };
-      unless( exists $dinfo->{DIRCONTENTS} ) {
-	mark_as_directory($dinfo); # Let the wildcard routines know that we
+      my $share = "/$1";
+      if( -e $share ) {		# False alarm, e.g. //bin/ls
+	substr $file, 0, 0, $1;
+	$dinfo = $root;
+      } else {
+	$dinfo = $root->{DIRCONTENTS}{$share} ||=
+	  bless { NAME => $share, '..' => $root };
+	unless( exists $dinfo->{DIRCONTENTS} ) {
+	  mark_as_directory($dinfo); # Let the wildcard routines know that we
 				# discovered a new directory.
-	publish($dinfo);	# Alert any wildcard routines.
+	  publish($dinfo);	# Alert any wildcard routines.
+	}
       }
     } else {
       $dinfo = $root;
     }
+  } elsif( ::is_windows && $file =~ /^[A-Z]:/is ) {
+    $dinfo = $root;		# Treat "C:" as if it's in the root directory.
   } else {
-    if( ::is_windows && $file =~ /^[A-Za-z]:/s ) {
-      $dinfo = $root;		# Treat "C:" as if it's in the root directory.
-    } else {
-      $dinfo = $_[1] || $CWD_INFO;
-    }
+    $dinfo = $_[1] || $CWD_INFO;
   }
 
   for( split /\/+/, $file ) { # Handle each piece of the filename.
@@ -485,34 +521,35 @@ sub file_info {
 				# a directory or not.
       if( is_symbolic_link( $dinfo )) { # Follow symbolic links.
 	my $orig_dinfo = $dinfo;
-	$dinfo = dereference( $dinfo ); # Get where it points to.
-	mark_as_directory($dinfo); # Remember that this is a directory.
+	$dinfo = dereference $dinfo; # Get where it points to.
+	mark_as_directory( $dinfo ); # Remember that this is a directory.
 	$orig_dinfo->{DIRCONTENTS} = $dinfo->{DIRCONTENTS};
 				# Set the DIRCONTENTS field of the soft link
 				# to point to the DIRCONTENTS of the actual
 				# directory.
       } else {
-	mark_as_directory($dinfo); # Let the wildcard routines know that we
+	mark_as_directory( $dinfo ); # Let the wildcard routines know that we
 				# discovered a new directory.
-	publish($dinfo);	# Alert any wildcard routines.
+	publish( $dinfo );	# Alert any wildcard routines.
       }
-
     }
 
 #
 # At this point, $dinfo points to the the parent directory.  Now handle the
 # file:
 #
-    if( $_ eq '..' ) {		# Go up a directory?
-      $dinfo = $dinfo->{'..'} || $root;
-				# Don't go up above the root.
-    } elsif( $_ ne '.' ) {	# Do nothing in same directory.
-      $dinfo = ($dinfo->{DIRCONTENTS}{$_} ||=
-		bless { NAME => $_, '..' => exists $dinfo->{LINK_DEREF} ? dereference $dinfo : $dinfo });
+    if( 3 > length ) {
+      if( $_ eq '..' ) {		# Go up a directory?
+	$dinfo = $dinfo->{'..'} || $root; # Don't go up above the root.
+	next;
+      } elsif( $_ eq '.' ) {	# Do nothing in same directory.
+	next;
+      }
+    }
+    $dinfo = ($dinfo->{DIRCONTENTS}{$_} ||=
+	      bless { NAME => $_, '..' => exists $dinfo->{LINK_DEREF} ? dereference $dinfo : $dinfo });
 				# Point to the entry for the file, or make one
 				# if there is not one already.
-    }
-
   }
 
   $dinfo;
@@ -547,7 +584,7 @@ this kind of directory, use is_or_will_be_dir().
 
 =cut
 
-sub is_dir { (((&lstat_array)->[STAT_MODE] || 0) & S_IFDIR) ? $_[0] : undef }
+sub is_dir { S_ISDIR( (&lstat_array)->[STAT_MODE] || 0 ) ? $_[0] : undef }
 
 =head2 is_or_will_be_dir
 
@@ -563,7 +600,7 @@ sub is_or_will_be_dir {
   my $dinfo = $_[0];
   my $result = $dinfo->{DIRCONTENTS} ||
     (($dinfo->{LSTAT} || &lstat_array),
-     ((exists $dinfo->{LINK_DEREF} ? &dereference : $dinfo)->{LSTAT}[STAT_MODE] || 0) & S_IFDIR) ?
+     S_ISDIR( (exists $dinfo->{LINK_DEREF} ? &dereference : $dinfo)->{LSTAT}[STAT_MODE] || 0 )) ?
       $dinfo : undef;
   if($FileInfo::directory_first_reference_hook) {
     $dinfo=$dinfo->{'..'} unless $result;
@@ -632,7 +669,7 @@ sub is_readable {
 # Checking for readability is very complicated and file-system
 # dependent, so we just try to open the file.
 #
-  if ($stat->[STAT_MODE] & S_IFDIR) {	# A directory?
+  if( S_ISDIR $stat->[STAT_MODE] ) {	# A directory?
     opendir my $fh, &absolute_filename or return undef;
   } else {
     open my $fh, &absolute_filename or return undef;
@@ -730,7 +767,7 @@ Determines if a given file is writable by its owner by just checking the
 mode bits.  This does not test whether the current user is the owner.
 
 =cut
-sub is_writable_owner { (((&stat_array)->[STAT_MODE] || 0) & S_IWUSR) != 0 }
+sub is_writable_owner { ((&stat_array)->[STAT_MODE] || 0) & 0200 }
 
 =head2 link_to
 

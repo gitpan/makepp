@@ -1,4 +1,4 @@
-# $Id: C.pm,v 1.21 2007/04/20 20:46:31 pfeiffer Exp $
+# $Id: C.pm,v 1.22 2008/08/04 21:57:01 pfeiffer Exp $
 
 =head1 NAME
 
@@ -146,15 +146,14 @@ sub expand_defines {
 #arithmetic expression on input and number on output.
 #Any remaining words are undefined macros and should be eval to 0.
 sub eval_condition {
-  for( "$_[0]" ) {
-    tr/`//d;			# TODO: What's this good for?
-    s/\b([_a-z]\w*)/ 0 /ig;
-    my $funny;
-    local $SIG{__WARN__} = sub { $funny++ };
-    $_ = eval;
-    return UNKNOWN if $@ || $funny;
-    return $_ ? 1 : 0;
-  }
+  my $cond = $_[0];
+  $cond =~ tr/`//d;		# TODO: What's this good for?
+  $cond =~ s/\b([_a-z]\w*)/ 0 /ig;
+  my $funny;
+  local $SIG{__WARN__} = sub { $funny = 1 };
+  $cond = eval $cond;
+  return UNKNOWN if $@ || $funny;
+  $cond ? 1 : 0;
 }
 
 sub expand_macros {

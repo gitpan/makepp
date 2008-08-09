@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: config.pl,v 1.21 2008/05/21 21:55:49 pfeiffer Exp $
+# $Id: config.pl,v 1.22 2008/07/19 21:47:09 pfeiffer Exp $
 #
 # Configure this package.
 #

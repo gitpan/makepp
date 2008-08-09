@@ -1,4 +1,4 @@
-# $Id: ActionParser.pm,v 1.33 2008/07/09 21:34:04 pfeiffer Exp $
+# $Id: ActionParser.pm,v 1.34 2008/07/30 23:17:01 pfeiffer Exp $
 
 =head1 NAME
 
@@ -409,27 +409,26 @@ sub relative_path {
   "$base/$name";
 }
 
-# NOTE: $name can be either a filename of a FileInfo object. If it's undefined,
+# NOTE: $finfo can be either a filename of a FileInfo object. If it's undefined,
 # then that means that there *would be* a dependency on the file if it existed
 # (i.e. rebuild if it comes into existence), so $incname must be defined in
 # order to cache the nonexistent dependency.
 sub add_any_dependency_ {
-  my ($dir, $dirinfo, $rule, $meta, $name, $tag, $src, $incname)=@_;
-  my $finfo;
-  if(defined $name) {
-    $incname ||= relative_path($dir, $name) unless ref $name;
-    $finfo=file_info($name, $dirinfo);
-  }
-  else {
+  my( $dir, $dirinfo, $rule, $meta, $finfo, $tag, $src, $incname ) = @_;
+  if( defined $finfo ) {
+    unless( ref $finfo ) {
+      $incname ||= relative_path $dir, $finfo;
+      $finfo = file_info $finfo, $dirinfo;
+    }
+  } else {
     die unless defined $incname;
   }
   return 1 if $incname eq "";	# This is an error, so don't add a dep
   my $method = $meta ? "add_meta_dependency" : "add_implicit_dependency";
   $rule->$method(
     $tag,
-    (defined $src and FileInfo::relative_filename
-      FileInfo::is_or_will_be_dir( $src ) || $src->{".."},
-      $rule->build_cwd),
+    (defined $src and
+     FileInfo::relative_filename FileInfo::is_or_will_be_dir( $src ) || $src->{".."}, $rule->build_cwd),
     $incname,
     $finfo
   ) and $meta and do {

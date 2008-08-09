@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.77 2008/06/02 20:15:24 pfeiffer Exp $
+# $Id: install.pl,v 1.78 2008/07/19 21:32:36 pfeiffer Exp $
 #
 
 use Config;

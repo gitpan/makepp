@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.91 2008/06/03 21:44:30 pfeiffer Exp $
+# $Id: Rule.pm,v 1.92 2008/08/04 21:57:01 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Rule;
@@ -136,10 +136,10 @@ sub find_all_targets_dependencies {
     $makefile->expand_text($self->{TARGET_STRING}, $self->{RULE_SOURCE});
 
 
-  foreach (unquote_split_on_whitespace($target_string)) {
-    my $tinfo = ::find_makepp_info( $_, $build_cwd );
+  for( split_on_whitespace $target_string ) {
+    my $tinfo = file_info( unquote(), $build_cwd );
     push @explicit_targets, $tinfo;
-    $self->add_target($tinfo);
+    $self->add_target( $tinfo );
   }
 
 # This is a good time to expand the dispatch rule option, if any:
@@ -159,10 +159,10 @@ sub find_all_targets_dependencies {
     $makefile->expand_text($self->{DEPENDENCY_STRING}, $self->{RULE_SOURCE});
 				# Get the list of files.
 
-  foreach (unquote_split_on_whitespace($dependency_string)) {
+  for( split_on_whitespace $dependency_string ) {
     push @explicit_dependencies, /[\[\*\?]/ ?		# Is it a wildcard?
-      Glob::zglob_fileinfo($_, $build_cwd) :
-      ::find_makepp_info($_, $build_cwd);
+      Glob::zglob_fileinfo( unquote(), $build_cwd ) :
+      file_info( unquote(), $build_cwd );
   }
 
 #
@@ -172,9 +172,8 @@ sub find_all_targets_dependencies {
     my $env_dependency_string = $makefile->expand_text(
       $self->{ENV_DEPENDENCY_STRING}, $self->{RULE_SOURCE}
     );
-    foreach (unquote_split_on_whitespace($env_dependency_string)) {
-      $self->add_env_dependency( $_ );
-    }
+    $self->add_env_dependency( unquote )
+      for split_on_whitespace $env_dependency_string;
   }
 
   push @explicit_dependencies, @extra_dependencies;
@@ -1382,11 +1381,11 @@ sub expand_additional_deps {
     foreach (@{$oinfo->{ADDITIONAL_DEPENDENCIES}}) {
       my ($dep_str, $makefile, $makefile_line) = @$_;
 				# Name the components of the stored info.
-      for( unquote_split_on_whitespace($makefile->expand_text($dep_str, $makefile_line)) ) {
+      for( split_on_whitespace $makefile->expand_text( $dep_str, $makefile_line ) ) {
 	push @dep_infos, /[\[\*\?]/ ?		# Is it a wildcard?
-	  Glob::zglob_fileinfo( $_, $makefile->{CWD} ) :
+	  Glob::zglob_fileinfo( unquote(), $makefile->{CWD} ) :
 				# Get which files this is referring to.
-	  ::find_makepp_info( $_, $makefile->{CWD} );
+	  file_info( unquote(), $makefile->{CWD} );
       }
     }
     return @dep_infos;

@@ -1,11 +1,84 @@
+2008-08-09  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* BuildCache.pm:
+	* FileInfo*.pm: Use POSIX::S_IS* instead of hard wired non portable
+	constants.
+
+	* pod/makepp_release_notes.pod:
+	* pod/makepp_compatibility.pod: Document z/OS as mostly working.
+
+2008-08-04  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Makefile.pm, t/perl.test: Abolish the undocumented fancy
+	renaming of only '.' to '_dot_'.
+
+	* makepp (find_makepp_info, ..._register): Abolish wrapper useful
+	only when file_info was object oriented.
+
+	* Makesubs.pm: Directly get my $cwd, when that was all $makefile
+	was used for.
+
+	* *: Don't call unquote_split_on_whitespace in loops which can
+	call both parts directly.  'my $x =' and '$x =~' is cheaper than
+	'local $_ =' is cheaper than 'local *_ = \' is cheaper than 'for'.
+
+	* t/builtins.test: Test &cut -p.
+
+	* t/run_tests.pl: Use getopts and make installed makepp or mpp
+	testable again.
+
+	* t/run_all.t (-?, -S): New options.
+
+2008-07-30  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* ActionParser.pm (add_any_dependency_):
+	* BuildCheck/exact_match.pm (build_check):
+	* Glob.pm (zglob_fileinfo):
+	* Makefile.pm (load):
+	* Scanner.pm (find):
+	* FileInfo.pm (file_info): Handle simple file names efficiently.
+	(path_file_info): Renames old file_info.  No longer takes a ref --
+	adapted the three calling places.  Handle C:\temp/foo on Windows
+	and //bin/ls not as a server share.
+
+	* FileInfo_makepp.pm (update_build_infos): Inline minimal file_info.
+
+	* Makesubs.pm (f_*_filename): Optimize.
+
+	* t/run_tests.pl (un_spar): Simplify.
+
+	* pod/makepp_builtins.pod, t/builtins.test: Document and test -r0.
+
 2008-07-19  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Repository.pm: Revert code to package FileInfo, because it uses
+	it so much, and because some symbols hadn't been qualified.
+
+	* FileInfo_makepp.pm (version): Give same output as installed beta.
 
 	* config.pl:
 	* t/: Renames makepp_tests for conformance with Perl test frameworks.
 
+	* t/run_all.t: Send mail with details only when run by CPAN testers.
+
+	* pod/makepp_compatibility.pod: Add findings of CPAN testers.
+
+	* t/wildcard_repository.test:
+	* pod/makepp_repositories.pod: chmod 0 masking doesn't work for user
+	root.
+
+	* t/additional_tests/2006_02_18_makeppbuiltin.test: Be more robust
+	about finding base test.
+
+	* t/log_graph.test: Rewriting rules need a minimum directory depth.
+
+	* t/spar:
+	* t/additional_tests/spar_unix.test: Give better warnings.
+
 	* install.pl:
 	* t/run_tests.pl:
-	* makepp: Move rewriting for broken perls to uninstalled makepp, to be sure it gets performed before running.
+	* makepp: Move rewriting for broken perls to uninstalled makepp,
+	to be sure it gets performed before running.
 
 2008-07-09  Daniel Pfeiffer  <occitan@esperanto.org>
 

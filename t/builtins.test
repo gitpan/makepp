@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	189	421	1162935563	1210354077	RootMakeppfile
+###	191	421	1162935563	1217791125	RootMakeppfile
 #
 # This file tests the builtin commands.
 #
@@ -63,11 +63,12 @@ dir2/subdir/c dir2/subdir/d: dir1/c dir1/d dir2
 dir2/subdir/d1: dir1/d dir2
 	&ln -vr $(input) $(output)
 
-
+# Test &sed and -r0
 # helper variable for sed
 what = just
-%.out: %.in
-	&perl 'print "$$.\n"' $(input) --output=$(output)
+%.out: %.in uniq.in
+	&perl -r0 'print tr/a-e//d, ":"' $(inputs) --output=$(output)
+	&perl 'print "$$.\n"' $(input) --output=>>$(output)
 	&sed -v s/$$what/only/o $(input) --output=>>$(output)
 	&sed -v 'chomp; $$_ .= "|" . reverse . "\n"' -o +<$(output)
 
@@ -80,6 +81,7 @@ cat.out: sed.in uniq.in
 # Test various variants of &cut
 cut.out: cut.in
 	&cut -vf1..-2 -d\  $(input) -o $(output)
+	&cut -vmp '%s\0%3s\0%2s\n' -f1,3,-1 -d\  $(input) -o >>$(output)
 	&cut -vmf16 -d\  $(input) -o >>$(output)
 	&cut -vf1 -sdf $(input) -o >>$(output)
 	&cut -vc0,1,4..6,11..-1 $(input) -o >>$(output)
@@ -296,7 +298,7 @@ bb
 bcd
 #line 1 "sed.in"
 just some text
-###	42	644	1134924208	1180381669	answers/cut.out
+###	48	644	1134924208	1217791214	answers/cut.out
  ! " # $ % & ' ( ) * + , - .
 1 2 3 4 5 6 7 8 9 : ; < = >
 A B C D E F G H I J K L M N
@@ -308,7 +310,13 @@ q r s t u v w x y z { | }
 @ABC	DEFG	HIJK	LMNO
 PQRS	TUVW	XYZ[	\]^_
 `abc	defg	hijk	lmno
-pqrs	tuvw	xyz{	|}~/
+pqrs	tuvw	xyz{	|}~   "  /
+1   3  ?
+A   C  O
+Q   S  _
+a   c  o
+q   s  ~
+/
  g h i j k l m n o
 g	hijk	lmno
   " # & ' ( ) * + , - . /
@@ -401,8 +409,8 @@ con- \
 no  continuation
 show aa = ; v1 = 5 5; v2 = 5 5; v3 = long var; v4 = 1
 include plain text
-###	2	644	1139987227	1105998624	answers/sed.out
-1|1
+###	2	644	1139987227	1217368876	answers/sed.out
+2:10:1|1:01:2
 only some text|txet emos ylno
 ###	69	644	1137661544	1134935825	answers/sort.out
 @@

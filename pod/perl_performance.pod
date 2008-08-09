@@ -2,7 +2,7 @@
 
 makepp_perl_performance -- How to make perl faster
 
-=for vc $Id: perl_performance.pod,v 1.6 2006/12/03 23:00:51 pfeiffer Exp $
+=for vc $Id: perl_performance.pod,v 1.7 2008/08/04 21:57:02 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -111,6 +111,7 @@ ordered from slowest to fastest:
 
     $o->method( ... );		# searched in class of $o and its @ISA
     Class::method( $o, ... );	# static function, new stack
+    Class::method $o, ...;	# static function, new stack, checked at compile time
     &Class::method;		# static function, reuse stack
 
 This last form always possible if method (or normal function) takes no
@@ -229,10 +230,23 @@ can still query it as a boolean.
 These are definitely not equivalent.  Depending on your use (i.e. the list and
 the complexity of your code), one or the other may be faster.
 
-    my @l = 0..99; for( 0..99_999 ) { map $a = " $_ ", @l }
-                   for( 0..99_999 ) { map $a = " $_ ", 0..99 }
-    my @l = 0..99; for( 0..99_999 ) { $a = " $_ " for @l }
-                   for( 0..99_999 ) { $a = " $_ " for 0..99 }
+    my @l = 0..99;
+    for( 0..99_999 ) { map $a = " $_ ", @l }
+    for( 0..99_999 ) { map $a = " $_ ", 0..99 }
+    for( 0..99_999 ) { $a = " $_ " for @l }
+    for( 0..99_999 ) { $a = " $_ " for 0..99 }
+
+=item Don't alias $_
+
+While it is convenenient, it is rather expensive, even copying reasonable
+strings is faster.  The last example is twice as fast as the first "for".
+
+    my $x = "abcdefg"; my $b = 0;
+    for( "$x" ) { $b = 1 - $b if /g/ } # Copy needed only if modifying.
+    for( $x ) { $b = 1 - $b if /g/ }
+    local *_ = \$x; $b = 1 - $b if /g/;
+    local $_ = $x; $b = 1 - $b if /g/; # Copy cheaper than alias.
+    my $y = $x; $b = 1 - $b if $y =~ /g/;
 
 =back
 

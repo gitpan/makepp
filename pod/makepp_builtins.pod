@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.36 2008/06/01 21:47:19 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.37 2008/07/30 23:13:36 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -143,7 +143,8 @@ fail.
 =item --record-size=number
 
 Locally sets C<$/> for the current builtin.  This splits input into records of
-length I<number> rather than line by line.
+length I<number> rather than line by line.  If I<number> is zero, each input
+file as a whole is one record.
 
 =item -s string
 

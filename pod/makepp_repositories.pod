@@ -3,7 +3,7 @@
 makepp_repositories -- How to use repositories for variant builds, for
 maintaining a central set of sources, and other things
 
-=for vc $Id: makepp_repositories.pod,v 1.17 2008/06/01 21:54:04 pfeiffer Exp $
+=for vc $Id: makepp_repositories.pod,v 1.18 2008/07/19 21:44:20 pfeiffer Exp $
 
 =head1 DESCRIPTION
 

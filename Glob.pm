@@ -1,6 +1,6 @@
 package Glob;
 
-# $Id: Glob.pm,v 1.28 2008/05/24 21:42:27 pfeiffer Exp $
+# $Id: Glob.pm,v 1.30 2008/08/04 21:57:01 pfeiffer Exp $
 use strict;
 
 use FileInfo qw(file_info chdir absolute_filename relative_filename $CWD_INFO);
@@ -102,7 +102,7 @@ sub zglob_fileinfo_atleastone {
 sub zglob_fileinfo {
   local $_ = $_[0];		# Access the filename or wildcard.
   m@^/\*\*@ and die "Refusing to expand /** as wildcard--you don't want to search every directory in the file system\n";
-  my $startdir = $_[1] ? file_info($_[1]) : $CWD_INFO;
+  my $startdir = $_[1] || $CWD_INFO;
 				# Get the current directory.
   my $dont_follow_soft = $_[2];
   my $phony = $_[3] ? 1 : 0;
@@ -427,74 +427,65 @@ sub find_all_subdirs_recursively {
 #
 my @regexp_cache;
 sub wild_to_regex {
-  for( $_[0] ) {		# Alias the filename to $_.
-    my $anchor = $_[1] || 0;
-    return $regexp_cache[$anchor]{$_} if $regexp_cache[$anchor]{$_}; # Processed this before.
+  local $_ = $_[0];
+  my $anchor = $_[1] || 0;
+  return $regexp_cache[$anchor]{$_} if $regexp_cache[$anchor]{$_}; # Processed this before.
 
-    if( $anchor || /[[?*]/ ) {	# Is it possible that there are wildcards?  If
+  if( $anchor || /[[?*]/ ) {	# Is it possible that there are wildcards?  If
 				# not, don't bother to do the more complicated
 				# parsing.
-      my $is_wildcard = 0;	# Haven't seen a wildcard yet.
-      my $file_regex = '';	# A regular expression to match this level.
-      pos() = 0;
+    my $is_wildcard = 0;	# Haven't seen a wildcard yet.
+    my $file_regex = '';	# A regular expression to match this level.
+    pos() = 0;
 
-    parseloop:
-      while( pos() < length ) {
-	if( /\G([^\\\[\]\*\?]+)/gc ) { # Ordinary characters?
-	  $file_regex .= quotemeta($1); # Just add to regex verbatim, with
+  parseloop:
+    while( pos() < length ) {
+      if( /\G([^\\\[\]\*\?]+)/gc ) { # Ordinary characters?
+	$file_regex .= quotemeta($1); # Just add to regex verbatim, with
 				# appropriate backslashes.
-	}
-
-	elsif( /\G(\\.)/gc ) {	# \ + some char?
-	  $file_regex .= $1;	# Just add it verbatim.
-	}
-
-	elsif( /\G\*/gc ) {	# Any number of chars?
-	  $is_wildcard = 1;	# We've actually seen a wildcard char.
-	  $file_regex .= /\G\*/gc ?
-	    '(?:[^\/.][^\/]*\/)*' : # Match any number of directories.
-	    '[^\/]*';		# Convert to proper regular expression syntax.
-	}
-
-	elsif( /\G\?/gc ) {	# Single character wildcard?
-	  $is_wildcard = 1;
-	  $file_regex .= '[^\/]';
-	}
-
-	else {			# Must be beginning of a character class?
-	  ++pos();		# Skip it.
-	  $is_wildcard = 1;
-	  $file_regex .= '[';	# Begin the character class.
-	CLASSLOOP:		# Nested loop for parsing the character class.
-	  {
-	    if( /\G([^\\\]]+)/gc ) { $file_regex .= $1; redo CLASSLOOP; }
+      } elsif( /\G(\\.)/gc ) {	# \ + some char?
+	$file_regex .= $1;	# Just add it verbatim.
+      } elsif( /\G\*/gc ) {	# Any number of chars?
+	$is_wildcard = 1;	# We've actually seen a wildcard char.
+	$file_regex .= /\G\*/gc ?
+	  '(?:[^\/.][^\/]*\/)*' : # Match any number of directories.
+	  '[^\/]*';		# Convert to proper regular expression syntax.
+      } elsif( /\G\?/gc ) {	# Single character wildcard?
+	$is_wildcard = 1;
+	$file_regex .= '[^\/]';
+      } else {			# Must be beginning of a character class?
+	++pos();		# Skip it.
+	$is_wildcard = 1;
+	$file_regex .= '[';	# Begin the character class.
+      CLASSLOOP:		# Nested loop for parsing the character class.
+	{
+	  if( /\G([^\\\]]+)/gc ) { $file_regex .= $1; redo CLASSLOOP; }
 				# No quotemeta because we want it to
 				# interpret '-' and '^' as wildcards, and those
 				# are the only special characters within a
 				# character class except \.
-	    if( /\G(\\.)/gc )	  { $file_regex .= $1; redo CLASSLOOP; }
-	    if( /\G\]/gc )	  { $file_regex .= ']'; }
-	    else { die "$0: unterminated character class in '$_'\n" }
+	  if( /\G(\\.)/gc )	  { $file_regex .= $1; redo CLASSLOOP; }
+	  if( /\G\]/gc )	  { $file_regex .= ']'; }
+	  else { die "$0: unterminated character class in '$_'\n" }
 				# TODO: sh ] is only special 2 or more chars after [
-	  }
 	}
       }
-      if( $is_wildcard || $anchor ) { # It's a regular expression.
-	if( $anchor ) {
-	  substr $file_regex, 0, 0, '^' if $anchor & 1;
-	  $file_regex .= '$' if $anchor > 1; # Cheaper than: & 2
-	}
-	return $regexp_cache[$anchor]{$_} = FileInfo::case_sensitive_filenames ?
-	  qr/$file_regex/ :
-	  qr/$file_regex/i;	# Make it case insensitive.
+    }
+    if( $is_wildcard || $anchor ) { # It's a regular expression.
+      if( $anchor ) {
+	substr $file_regex, 0, 0, '^' if $anchor & 1;
+	$file_regex .= '$' if $anchor > 1; # Cheaper than: & 2
       }
+      return $regexp_cache[$anchor]{$_} = FileInfo::case_sensitive_filenames ?
+	qr/$file_regex/ :
+	qr/$file_regex/i;	# Make it case insensitive.
     }
   }
 
-  (my $fname = $_[0]) =~ s/\\(.)/$1/g;	# Unquote any backslashed characters.
+  s/\\(.)/$1/g;			# Unquote any backslashed characters.
   FileInfo::case_sensitive_filenames ?
-    $fname :
-    lc $fname;			# Not case sensitive--switch to lc.
+    $_ :
+    lc;				# Not case sensitive--switch to lc.
 }
 
 =head2 Glob::wildcard_action
@@ -626,7 +617,7 @@ sub wildcard_action {
 	++$idx;
       }
 
-      for( join '/', @file_pieces ) {
+      local $_ = join '/', @file_pieces;
 	my @deep = 1 if @file_pieces > 1 || /\*\*/;
 	my $anchor = 0;
 	unless( $needed ) {
@@ -657,7 +648,6 @@ sub wildcard_action {
 				# this directory, so that any subsequent files
 				# which match also cause the subroutine to
 				# be called.
-      }
     }
   }
 

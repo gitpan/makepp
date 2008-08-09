@@ -2,7 +2,7 @@ package FileInfo;
 
 use FileInfo;			# Override some subroutines from the
 				# generic FileInfo package.
-# $Id: FileInfo_makepp.pm,v 1.85 2008/06/03 21:44:30 pfeiffer Exp $
+# $Id: FileInfo_makepp.pm,v 1.89 2008/08/09 09:24:51 pfeiffer Exp $
 
 #
 # This file defines some additional subroutines for the FileInfo package that
@@ -101,8 +101,7 @@ sub get_rule {
       if( my $minfo = $mdir->{MAKEINFO} ) {
 	AUTOLOAD: while( my $auto = shift @{$minfo->{AUTOLOAD} || []} ) {
 	  ::log AUTOLOAD => $finfo;
-	  my $afile = file_info($auto, $mdir);
-	  Makefile::load( $afile, $mdir, {}, '', [],
+	  Makefile::load( $auto, $mdir, {}, '', [],
 			  $minfo->{ENVIRONMENT}, undef, 'AUTOLOAD' );
 	  last AUTOLOAD if exists $finfo->{RULE};
 	}
@@ -657,7 +656,7 @@ sub signature {
 				# Get everything we can get about the file
 				# without actually opening it.
   !@$stat ? undef :		# Undef means file doesn't exist.
-    $stat->[STAT_MODE] & S_IFDIR ? 1 :
+    S_ISDIR( $stat->[STAT_MODE] ) ? 1 :
 				# If this is a directory, the modification time
 				# is meaningless (it's inconsistent across
 				# file systems, and it may change depending
@@ -712,13 +711,13 @@ sub update_build_infos {
 	if $::log_level;
       next;
     }
-    my $build_info_subdir = absolute_filename_nolink( $finfo->{'..'} ) .
-      "/$build_info_subdir";
 
-    my $build_info_subdir_info = file_info($build_info_subdir, $finfo->{'..'});
-    FileInfo::mkdir( $build_info_subdir_info ); # Make sure the build info subdir exists.
+    FileInfo::mkdir		 # Make sure the build info subdir exists.
+      ($finfo->{'..'}{DIRCONTENTS}{$build_info_subdir} ||=
+       bless { NAME => $build_info_subdir, '..' => $finfo->{'..'} });
 
-    my $build_info_fname = "$build_info_subdir/$finfo->{NAME}.mk";
+    my $build_info_fname = absolute_filename_nolink( $finfo->{'..'} ) .
+      "/$build_info_subdir/$finfo->{NAME}.mk";
 				# Form the name of the build info file.
 
     my $build_info = $finfo->{BUILD_INFO}; # Access the hash.
@@ -928,7 +927,7 @@ sub version {
   chomp( $::VERSION = <$fh> );
   if( $::VERSION =~ s/beta// ) {
     my %VERSION;
-    for( my $copy = $0, <$::datadir/*.pm $::datadir/*/*.pm $::datadir/makepp_builtin_rules.mk> ) {
+    for( "$0", <$::datadir/*.pm $::datadir/*/*.pm $::datadir/makepp_builtin_rules.mk> ) {
       open my( $fh ), $_;
       while( <$fh> ) {
 	if( /\$Id: .+,v [.0-9]+ ([\/0-9]+)/ ) {

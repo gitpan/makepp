@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.121 2008/07/09 21:33:17 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.123 2008/08/04 21:48:31 pfeiffer Exp $
 package Makefile;
 
 use Glob qw(wildcard_action needed_wildcard_action);
@@ -264,9 +264,9 @@ sub expand_expression {
 				# makefile.
     my( $rtn, $rest_of_line ) = ($1, $2);
     my $orig = $rtn;
-    $rtn =~ tr/-/_/;		# Convert - into _ so it's more perl friendly.
-    $rtn =~ s/\./_dot_/g;
-    my $code = *{"$self->{PACKAGE}::f_$rtn"}{CODE} || *{"$self->{PACKAGE}::f_$orig"}{CODE};
+    my $code = $rtn =~ tr/-/_/ && *{"$self->{PACKAGE}::f_$rtn"}{CODE} ||
+				# Convert - into _ so it's more perl friendly.
+      *{"$self->{PACKAGE}::f_$orig"}{CODE};
 				# See if it's a known function.
     if( $code ) {
       $result = eval {		# Evaluate the function.
@@ -279,7 +279,7 @@ sub expand_expression {
       die "$makefile_line: unknown function $rtn\n";
     }
   } elsif( $expr =~ s/^&// ) {
-    my( $cmd, @args ) = unquote_split_on_whitespace( $expr );
+    my( $cmd, @args ) = unquote_split_on_whitespace $expr;
     local $Makesubs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
     local *OSTDOUT;		# TODO: convert to my $fh, when discontinuing 5.6.
     open OSTDOUT, ">&STDOUT" or die;
@@ -307,8 +307,8 @@ sub expand_expression {
     $result =~ s/\s+$//;	# Strip out trailing whitespace.
   } elsif( $expr =~ /^([^\s:\#=]+):([^=]+)=([^=]+)$/ ) {
 				# Substitution reference (e.g., 'x:%.o=%.c')?
-    my( $from, $to ) = ($2, $3); # Save the variables.
-    /%/ or substr $_, 0, 0, '%' for $from, $to;	# Use the full GNU make style
+    my $from = (0 <= index $2, '%') ? $2 : "%$2"; # Use the full GNU make style
+    my $to = (0 <= index $3, '%') ? $3 : "%$3";
     $result = join ' ',
       TextSubs::pattern_substitution $from, $to,
 	split_on_whitespace expand_variable( $self, $1, $makefile_line );
@@ -422,21 +422,19 @@ sub expand_variable {
       and last;
 
 # 6th attempt:
-    for( "$self->{PACKAGE}::f_$var" ) { # Name of the function with no arguments?
+    my $fn = "$self->{PACKAGE}::f_$var"; # Name of the function with no arguments?
 				# Localizes $_; causes very weird errors if $_ is messed up.
-      my $orig = $_;
-      tr/-/_/;			# Convert - to _ so it's more perl friendly.
-      s/\./_dot_/g;
-      $_ = *{$_}{CODE} || *{$orig}{CODE};
-      if( defined ) {	# Defined in the makefile?
-	my $tmp = !$::environment_override && $self->{ENVIRONMENT}{$var};
-	if( $tmp && $_ == *{"Makesubs::f_$var"}{CODE} ) {
-	  $result = $tmp;
-	} else {
-	  local $::makefile = $self; # Pass the function a reference to the makefile.
-	  $result = &$_( '', $self, $makefile_line ) and
-	    $reexpand = 0;	# It was a := variable.
-	}
+    my $orig = $fn;
+    $fn = $fn =~ tr/-/_/ && *{$fn}{CODE} || # Convert - to _ so it's more perl friendly.
+      *{$orig}{CODE};
+    if( defined $fn ) {	# Defined in the makefile?
+      my $tmp = !$::environment_override && $self->{ENVIRONMENT}{$var};
+      if( $tmp && $fn == *{"Makesubs::f_$var"}{CODE} ) {
+	$result = $tmp;
+      } else {
+	local $::makefile = $self; # Pass the function a reference to the makefile.
+	$result = &$fn( '', $self, $makefile_line ) and
+	  $reexpand = 0;	# It was a := variable.
       }
     }
     last if defined $result;	# Did we find it?
@@ -674,9 +672,10 @@ has been rebuilt.
 
 =cut
 
+my( $makepp_default_makefile, $makepp_builtin_rules );
 sub load {
-  my $minfo = &file_info;	# Get the FileInfo struct for the
-				# makefile.
+  my $minfo = ref( $_[0] ) ? $_[0] : &file_info;
+				# Get the FileInfo struct for the makefile.
   my( undef, $mdinfo, $command_line_vars, $makecmdgoals, $include_path, $env,
       $makeppfile_only, $autoload ) = @_; # Name the other arguments.
   my %this_ENV = %$env;		# Make a modifiable copy of the environment.
@@ -716,7 +715,7 @@ sub load {
 # If there's no makefile, then load the default makefile as if it existed in
 # that directory.
 #
-    file_info "$::datadir/makepp_default_makefile.mk"
+    ($makepp_default_makefile ||= FileInfo::path_file_info "$::datadir/makepp_default_makefile.mk")
     if $is_dir;
   if( grep { $_ eq $minfo->{NAME} } @root_makefiles ) {
     find_root_makefile_upwards $mdinfo->{'..'};
@@ -870,9 +869,9 @@ sub load {
   }
   read_makefile($self, $minfo); # Read this makefile again.
   if( !expand_variable $self, 'makepp_no_builtin' ) {
-    my $finfo = file_info "$::datadir/makepp_builtin_rules.mk";
-    read_makefile( $self, $finfo );
-    ::log LOAD_INCL => $finfo, $minfo
+    $makepp_builtin_rules ||= FileInfo::path_file_info "$::datadir/makepp_builtin_rules.mk";
+    read_makefile( $self, $makepp_builtin_rules );
+    ::log LOAD_INCL => $makepp_builtin_rules, $minfo
       if $::log_level;
   }
 
@@ -1042,17 +1041,16 @@ sub assign {
 
   } else {
 
-    for( "global::$name" ) {
-      if( defined $$_ ) {	# Newly or already global?
-	$varref = \$$_;
-	$reexpandref = $global;
-      }
+    my $var = "global::$name";
+    if( defined $$var ) {	# Newly or already global?
+      $varref = \$$var;
+      $reexpandref = $global;
+    }
 
-      s/\w+/$self->{PACKAGE}/;
-      if( !$varref || defined $$_ ) { # Even if global, we might have a local.
-	$varref = \$$_;
-	$reexpandref = $self;
-      }
+    substr $var, 0, 6, $self->{PACKAGE};
+    if( !$varref || defined $$var ) { # Even if global, we might have a local.
+      $varref = \$$var;
+      $reexpandref = $self;
     }
   }
 
@@ -1143,7 +1141,10 @@ sub parse_assignment {
   $var_name = expand_text($self, $var_name, $makefile_line);
 				# Make sure we can handle indirect assignments
 				# like x$(var:y=z) = value.
-  s/^\s+//, s/\s+$// for $var_name, $var_value;	# Strip leading/trailing whitespace.
+  $var_name =~ s/^\s+//;	# Strip leading/trailing whitespace.
+  $var_name =~ s/\s+$//;
+  $var_value =~ s/^\s+//;
+  $var_value =~ s/\s+$//;
 
   my @list;
   if( $var_name =~ /:/ and (@list = split_on_colon $var_name) > 1 ) {
@@ -1172,7 +1173,7 @@ sub parse_assignment {
 				# to expand the wildcard.
 				# Can't just &cd; because for some reason Perl
 				# up to 5.6.2 has clobbered @_.
-    wildcard_action unquote_split_on_whitespace($targets),
+    wildcard_action unquote_split_on_whitespace( $targets ),
       sub {			# This subroutine is called for every file
 				# that matches the wildcard.
 	local $private = $_[0];	# Prior PRIVATE_VARS for +=, and for storing new value.
@@ -1562,7 +1563,7 @@ sub parse_rule {
 
     &cd;			# Make sure we're in the correct directory,
 				# or everything will be all messed up.
-    wildcard_action unquote_split_on_whitespace(expand_text($self, $foreach, $makefile_line)),
+    wildcard_action unquote_split_on_whitespace( expand_text( $self, $foreach, $makefile_line )),
     sub {
 #
 # This subroutine is called once for each file that matches the foreach clause.
@@ -1618,8 +1619,7 @@ sub parse_rule {
 				# Get the targets for this rule.
 
       foreach (@targets) {
-	tr/A-Z/a-z/ if !FileInfo::case_sensitive_filenames;
-	my $tinfo = ::find_makepp_info(unquote(), $self->{CWD}); # Access the target object.
+	my $tinfo = file_info unquote(), $self->{CWD}; # Access the target object.
 	FileInfo::set_rule($tinfo, $rule); # Update its rule.  This will be ignored if
 				# it is overriding something we shouldn't
 				# override.
@@ -1632,8 +1632,7 @@ sub parse_rule {
       }
     };				# End subroutine called on every file that
 				# matches the wildcard.
-  }
-  elsif(!defined $foreach) { # it's not a foreach rule
+  } elsif(!defined $foreach) { # it's not a foreach rule
 #
 # This rule is not a pattern rule.  If there is an action, then it's
 # a non-pattern rule; otherwise, we're just adding extra dependencies to
@@ -1694,16 +1693,15 @@ sub parse_rule {
 	$scanner and $rule->{ACTION_SCANNER} = $scanner;
         defined($conditional_scanning) and
           $rule->{CONDITIONAL_SCANNING} = $conditional_scanning;
-	foreach (split_on_whitespace($tstring)) {
-	  my $tinfo = ::find_makepp_info(unquote(), $self->{CWD}); # Access the target object.
-	  if ($is_double_colon && $tinfo->{RULE} && # Append to previous rule?
-	      $tinfo->{RULE}{LOAD_IDX} == $rule->{LOAD_IDX}) {
+	for( split_on_whitespace $tstring ) {
+	  my $tinfo = file_info unquote(), $self->{CWD}; # Access the target object.
+	  if( $is_double_colon && $tinfo->{RULE} && # Append to previous rule?
+	      $tinfo->{RULE}{LOAD_IDX} == $rule->{LOAD_IDX} ) {
 				# Other rule for same target is not just from
 				# loading the same makefile twice?
 	    $tinfo->{RULE}->append($rule); # Append the dependency list and the
 				# build commands.
-	  }
-	  else {
+	  } else {
 	    FileInfo::set_rule($tinfo, $rule); # Update its rule.
 	  }
 	  $self->{FIRST_TARGET} ||= $tinfo;
@@ -1722,10 +1720,9 @@ sub parse_rule {
 	  my ($pct_re, $pct_glob) = expand_variable( $self, 'makepp_percent_subdirs', $makefile_line ) ? ('.*', '**/*') : ('[^/]*', '*');
 	  my @wild_targets;
 	  foreach (split_on_whitespace($tstring)) {
-	    if(index_ignoring_quotes($_, '%') >= 0) {
-	      push @wild_targets, unquote();
-	    }
-	    else {
+	    if( index_ignoring_quotes($_, '%') >= 0 ) {
+	      push @wild_targets, unquote;
+	    } else {
 	      warn "$makefile_line: Because this is a :last_chance rule, it might not get found for non-pattern targets (e.g. \"$_\")." unless exists file_info($_, $self->{CWD})->{IS_TEMP} || $warned_non_wild++;
 	    }
 	  }
@@ -1750,10 +1747,10 @@ sub parse_rule {
 		  TextSubs::join_with_protection(
 		    map {
 		      my @m = @matches;
-		      my $x = $_;
-		      $x =~ s/\%/@m ? shift(@m) : die "$makefile_line: Not enough wildcards in target `$pattern' (matching filename `$rel_fname') to resolve other target `$_'.\n"/eg;
-		      $x
-		    } unquote_split_on_whitespace($tstring)
+		      $_ = unquote;
+		      s/\%/@m ? shift(@m) : die "$makefile_line: Not enough wildcards in target `$pattern' (matching filename `$rel_fname') to resolve other target `$_'.\n"/eg;
+		      $_
+		    } split_on_whitespace($tstring)
 		  )
 		);
 		++$found;
@@ -1778,8 +1775,8 @@ sub parse_rule {
 	return if exists $ignored_targets{$targets[0]};
 	if( $targets[0] eq '.PHONY' ) {
 				# Mark other targets as phony?
-	  undef ::find_makepp_info( unquote(), $self->{CWD} )->{IS_PHONY} # Mark as phony.
-	    for split_on_whitespace( expand_text( $self, $after_colon[0], $makefile_line ));
+	  undef file_info( unquote(), $self->{CWD} )->{IS_PHONY} # Mark as phony.
+	    for split_on_whitespace expand_text $self, $after_colon[0], $makefile_line;
 	  return;
 	}
 	if( $targets[0] eq '.SUFFIXES' ) {
@@ -1793,8 +1790,7 @@ sub parse_rule {
       }
 
       foreach (@targets) {
-	FileInfo::case_sensitive_filenames or tr/A-Z/a-z/;
-	my $tinfo = ::find_makepp_info(unquote(), $self->{CWD});
+	my $tinfo = file_info unquote(), $self->{CWD};
 	FileInfo::set_additional_dependencies($tinfo, $after_colon[0], $self, $makefile_line);
 	$self->{FIRST_TARGET} ||= $tinfo;
 				# Remember what the first target is, in case
@@ -1909,7 +1905,6 @@ sub read_makefile {
 	$self->{RE_COUNT} = keys %{"$self->{PACKAGE}::"};
 	$self->{RE} = join '|', grep {
 	  if( s/^s_// ) {
-	    s/_dot_/./g;
 	    s/_/[-_]/g;
 	    1;
 	  }
@@ -1924,8 +1919,8 @@ sub read_makefile {
 	next;
       } elsif( $1 eq 'include' or my $optional = ($1 eq '-include' || $1 eq '_include') ) {
 				# Do our own, since standard statement tries to build.
-	for( unquote_split_on_whitespace expand_text( $self, $2, $makefile_line ) ) {
-	  my $finfo = file_info $_, $self->{CWD};
+	for( split_on_whitespace expand_text $self, $2, $makefile_line ) {
+	  my $finfo = file_info unquote(), $self->{CWD};
 	  next if $optional && !file_exists $finfo;
 	  read_makefile( $self, $finfo );
 	}
@@ -1982,7 +1977,6 @@ sub read_makefile {
     if( /^\s*([-\w]+)(.*)/ ) {	# Statement at beginning of line?
       my ($rtn, $rest_of_line) = ($1, $2);
       $rtn =~ tr/-/_/;		# Make routine names more perl friendly.
-      $rtn =~ s/\./_dot_/g;
       substr $rtn, 0, 0, "$self->{PACKAGE}::s_";
       if( defined &{$rtn} ) { # Function from makefile?
 	eval { &$rtn( $rest_of_line, $self, $makefile_line ) };
@@ -2121,13 +2115,14 @@ sub _truthval($$) {
       $idx + 1 < length $b and
 	die "$file: Trailing cruft after closing paren in `if$cond$line'\n";
       chop $b;			# Strip )
-    }
-    elsif( 0 <= $idx ) {	# Comma syntax
+    } elsif( 0 <= $idx ) {	# Comma syntax
       $a = substr $line, 0, $idx;
+      $a =~ s/\s+$//;
+      $a =~ s/^\s+//;
       $b = substr $line, $idx + 1;
-      s/^\s+//, s/\s+$// for $a, $b;
-    }
-    else {
+      $b =~ s/\s+$//;
+      $b =~ s/^\s+//;
+    } else {
       ($a, $b) = (split_on_whitespace($line), '', '');
 				# Split on whitespace except whitespace inside
 				# the quotes.
@@ -2149,8 +2144,8 @@ sub _truthval($$) {
 	if ::is_windows < 2;
     }
   REGEX:
-    for( unquote_split_on_whitespace $line ) {
-      my $regex = Glob::wild_to_regex $_;
+    for( split_on_whitespace $line ) {
+      my $regex = Glob::wild_to_regex unquote;
       FileInfo::case_sensitive_filenames or $regex =~ s/\(\?i-/(?-i/; # Want this to be case_sensitive
       $truthval = /$regex/ and last REGEX
 	for keys %sys;

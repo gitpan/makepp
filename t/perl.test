@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	67	644	1067451878	1209131346	Makeppfile
+###	67	644	1067451878	1217599890	Makeppfile
 #
 # This file tests the perl(_begin) statement, the sub statement,
 # the perl function and perl actions.
@@ -9,7 +9,7 @@ $(phony all): statements function oneline multiline rule-script.out
 
 perl_begin
 
-sub f_xyz_dot__ { return "xyz"; }
+*{'f_xyz._'} = sub { "xyz" }
 
 perl_end
 

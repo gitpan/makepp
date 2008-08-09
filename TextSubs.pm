@@ -1,4 +1,4 @@
-# $Id: TextSubs.pm,v 1.38 2008/06/01 21:47:19 pfeiffer Exp $
+# $Id: TextSubs.pm,v 1.39 2008/08/04 21:57:01 pfeiffer Exp $
 package TextSubs;
 require Exporter;
 @ISA = qw(Exporter);
@@ -9,7 +9,7 @@ require Exporter;
 	     requote format_exec_args whitespace_len hash_neq
 	     is_cpp_source_name is_object_or_library_name);
 
-use Config ();
+use Config;
 
 # Centrally provide constants which are needed repeatedly for aliasing, since
 # perl implements them as subs, and each sub takes about 1.5kb RAM.
@@ -30,7 +30,7 @@ BEGIN {
       $^X :
       eval "use Cwd; cwd . '/$^X'";
   } else {			# Emergency fallback.
-    $perl = $Config::Config{perlpath};	# Prefer appended version number for precision.
+    $perl = $Config{perlpath};	# Prefer appended version number for precision.
     my $version = sprintf '%vd', $^V;
     $perl .= $version if -x "$perl$version";
   }
@@ -87,8 +87,7 @@ sub pattern_substitution {
       defined($Makesubs::rule) and
 	$Makesubs::rule->{PATTERN_STEM} = $pattern_stem;
 				# Set it up so $* can return the stem.
-    }
-    else {
+    } else {
       push @ret_words, $_;	# If the pattern doesn't match, then we copy
 				# it without modification to the output.
     }
@@ -115,23 +114,22 @@ inside quotes or a make expression.
 
 sub index_ignoring_quotes {
   my $substr = $_[1];
-  for( $_[0] ) {		# Alias arg to $_
-    pos = 0;			# Start at the beginning.
+  local $_ = $_[0];
+  pos = 0;			# Start at the beginning.
 
-    for (;;) {
-      my $last_pos = pos;
-      if( /\G([^"'\\\$]+)/gc ) { # Just ordinary characters?
-	my $idx = index $1, $substr; # See if it's in those characters.
-	$idx >= 0 and return $last_pos + $idx;
-      }
+  for (;;) {
+    my $last_pos = pos;
+    if( /\G([^"'\\\$]+)/gc ) { # Just ordinary characters?
+      my $idx = index $1, $substr; # See if it's in those characters.
+      $idx >= 0 and return $last_pos + $idx;
+    }
 
-      return -1 if length() <= pos; # End of string?  That means no match.
+    return -1 if length() <= pos; # End of string?  That means no match.
 				# For reasons that I don't understand, testing
 				# for /\G\z/gc doesn't work here.
 
-      # It's one of the standard cases ", ', \ or $.
-      &{$skip_over{substr $_, pos()++, 1}};
-    }
+    # It's one of the standard cases ", ', \ or $.
+    &{$skip_over{substr $_, pos()++, 1}};
   }
 }
 
@@ -197,33 +195,23 @@ sub split_on_whitespace {
 
     my $cur_pos = pos;		# Remember the current position.
     if ($cmds && /\G(?<=[<>])&/gc) {	# Skip over redirector, where & is not a separator
-    }
-
-    elsif ($cmds ? /\G[;|&]+/gc : /\G\s+/gc) { # Found some whitespace?
+    } elsif ($cmds ? /\G[;|&]+/gc : /\G\s+/gc) { # Found some whitespace?
       push(@pieces, substr($_, $last_pos, $cur_pos-$last_pos));
       $last_pos = pos;		# Beginning of next string is after this space.
-    }
-
-    elsif (!$cmds and /\G"/gc) { # Double quoted string?
+    } elsif (!$cmds and /\G"/gc) { # Double quoted string?
       while (pos() < length) {
 	next if /\G[^\\"]+/gc;	# Skip everything except quote and \.
 	/\G"/gc and last;	# We've found the end of the string.
 	pos() += 2;		# Skip char after backslash.
       }
-    }
-
-    elsif (/\G'[^']*'/gc) {	# Skip until end of single quoted string.
-    }
-
-    elsif (/\G`/gc) {		# Back quoted string?
+    } elsif (/\G'[^']*'/gc) {	# Skip until end of single quoted string.
+    } elsif (/\G`/gc) {		# Back quoted string?
       while (pos() < length) {
 	next if /\G[^\\`]+/gc;	# Skip everything except quote and \.
 	/\G`/gc and last;	# We've found the end of the string.
 	pos() += 2;		# Skip char after backslash.
       }
-    }
-
-    else {			# It's one of the standard cases ", \ or $.
+    } else {			# It's one of the standard cases ", \ or $.
       # $ only gets here in commands, where we use the similarity of make expressions
       # to skip over $(cmd; cmd), $((var|5)), ${var:-foo&bar}.
       # " only gets here in commands, where we need to catch nested things like
@@ -281,10 +269,7 @@ semicolon are ignored.	This is to support parsing of this horrible rule:
 sub split_on_colon {
   my @pieces;
 
-  local *_ = \$_[0];		# Put the string in $_ (without copying it).
-				# (Just doing local $_ = $_[0] actually
-				# duplicates the string in memory.)
-
+  local $_ = $_[0];
   my $last_pos = 0;
   pos = 0;			# Start at the beginning.
 
@@ -297,13 +282,9 @@ sub split_on_colon {
     if (/\G(:+)/gc) {		# Found our colon?
       push @pieces, substr $_, $last_pos, pos() - $last_pos - length $1;
       $last_pos = pos;		# Beginning of next string is after this space.
-    }
-
-    elsif (/\G;/gc) {		# Found end of the rule?
+    } elsif (/\G;/gc) {		# Found end of the rule?
       pos = length;		# Don't look for any more colons.
-    }
-
-    else {			# It's one of the standard cases ", ', \ or $.
+    } else {			# It's one of the standard cases ", ', \ or $.
       &{$skip_over{substr $_, pos()++, 1}};
     }
   }
@@ -383,8 +364,7 @@ sub skip_over_make_expression {
     if( /\G$endre/gc ) {
       return $double + 1 if !$double or //gc; # Quit if closing parens.
       ++pos;			# A simple ) within $(( )) or } within ${{ }}
-    }
-    else {			# It's one of the standard cases ", ' or $.
+    } else {			# It's one of the standard cases ", ' or $.
       &{$skip_over{substr $_, pos()++, 1}};
     }
   }
@@ -456,13 +436,11 @@ unquote() knows nothing about make expressions.
 =cut
 
 sub unquote {
-#  local *_ = \$_[0];		# Put the string in $_ (without copying it).
-  local $_ = $_[0] if @_;
-				# (Just doing local $_ = $_[0] actually
-				# duplicates the string in memory.)
   my $ret_str = '';
 
+  local $_ = $_[0] if @_;
   pos = 0;			# Start at beginning of string.
+
   for (;;) {
     /\G([^"'\\]+)/gc and $ret_str .= $1; # Skip over ordinary characters.
     last if length() <= pos;
@@ -473,8 +451,7 @@ sub unquote {
 	if( /\G\\/gc ) {	# Handle quoted chars.
 	  if( length() <= pos ) {
 	    die "single backslash at end of string '$_'\n";
-	  }
-	  else {		# Other character escaped with backslash.
+	  } else {		# Other character escaped with backslash.
 	    $ret_str .= substr $_, pos()++, 1; # Put it in verbatim.
 	  }
 	} else {
@@ -482,27 +459,22 @@ sub unquote {
 	    ++pos;		# Skip quote.
 	}
       }
-    }
-    elsif (/\G'/gc) {		# Single quoted string?
+    } elsif (/\G'/gc) {		# Single quoted string?
       /\G([^']+)/gc and $ret_str .= $1; # Copy up to terminating quote.
       last if length() <= pos;	# End of string w/o matching quote.
       ++pos;			# Or skip quote.
-    }
-    else {
+    } else {
       ++pos;			# Must be '\', skip it
       if( length() <= pos ) {
 	die "single backslash at end of string '$_'\n";
-      }
-      elsif (/\G([0-7]{1,3})/gc) { # Octal character code?
+      } elsif (/\G([0-7]{1,3})/gc) { # Octal character code?
 	$ret_str .= chr oct $1;	# Convert the character to binary.
-      }
-      elsif (/\G([*?[\]])/gc) { # Backslashed wildcard char?
+      } elsif (/\G([*?[\]])/gc) { # Backslashed wildcard char?
 				# Don't weed out backslashed wildcards here,
 				# because they're recognized separately in
 				# the wildcard routines.
 	$ret_str .= '\\' . $1;	# Leave the backslash there.
-      }
-      else {			# Other character escaped with backslash.
+      } else {			# Other character escaped with backslash.
 	$ret_str .= substr $_, pos()++, 1; # Put it in verbatim.
       }
     }
@@ -522,10 +494,10 @@ $unquoted_text.
 =cut
 
 sub requote {
-  local $_ = $_[0];		# Get a modifiable copy of the string.
-  s/(["\\])/\\$1/g;		# Protect all backslashes and double quotes.
-  s{([\0-\037])}{sprintf '\%o', ord $1}eg; # Protect any binary characters.
-  qq["$_"];			# Return the quoted string.
+  my( $str ) = @_;		# Get a modifiable copy of the string.
+  $str =~ s/(["\\])/\\$1/g;	# Protect all backslashes and double quotes.
+  $str =~ s{([\0-\037])}{sprintf '\%o', ord $1}eg; # Protect any binary characters.
+  qq["$str"];			# Return the quoted string.
 }
 
 #
@@ -541,26 +513,25 @@ sub requote {
 # of arguments suitable for exec() or system().
 #
 sub format_exec_args {
-  for( $_[0] ) {
-    return $_			# No Shell available.
-      if ::is_windows > 1;
-    if( ::is_windows == 1 && /[%"\\]/ ) { # Despite multi-arg system(), these chars mess up command.com
-      require Makesubs;
-      my $tmp = Makesubs::f_mktemp( '' );
-      open my $fh, '>', $tmp;
-      print $fh $_;
-      return ($ENV{SHELL}, $tmp);
-    }
-    return ($ENV{SHELL}, '-c', $_)
-      if ::is_windows == -2 || ::is_windows == 1 ||
-      	/[()<>\\"'`;&|*?[\]]/ || # Any shell metachars?
-	/\{.*,.*\}/ || # Pattern in Bash (blocks were caught by ';' above).
-	/^\s*(?:\w+=|[.:!]\s|e(?:val|xec|xit)\b|source\b|test\b)/;
+  my( $cmd ) = @_;
+  return $cmd			# No Shell available.
+    if ::is_windows > 1;
+  if( ::is_windows == 1 && $cmd =~ /[%"\\]/ ) { # Despite multi-arg system(), these chars mess up command.com
+    require Makesubs;
+    my $tmp = Makesubs::f_mktemp( '' );
+    open my $fh, '>', $tmp;
+    print $fh $cmd;
+    return ($ENV{SHELL}, $tmp);
+  }
+  return ($ENV{SHELL}, '-c', $cmd)
+    if ::is_windows == -2 || ::is_windows == 1 ||
+      $cmd =~ /[()<>\\"'`;&|*?[\]]/ || # Any shell metachars?
+      $cmd =~ /\{.*,.*\}/ || # Pattern in Bash (blocks were caught by ';' above).
+      $cmd =~ /^\s*(?:\w+=|[.:!]\s|e(?:val|xec|xit)\b|source\b|test\b)/;
 				# Special commands that only
 				# the shell can execute?
 
-    return $_;			# Let perl do its optimization.
-  }
+  return $cmd;			# Let perl do its optimization.
 }
 
 #
@@ -685,53 +656,52 @@ sub getopts(@) {
     or shift;
   my( @ret, %short );
   while( @ARGV ) {
-    for( shift @ARGV ) {	# alias to $_
-      if( s/^-(-?)// ) {
-	my $long = $1;
-	if( $_ eq '' ) {	# nothing after -(-)
-	  if( $long ) {		# -- explicit end of opts
-	    unshift @ARGV, @ret;
-	    return;
-	  }
-	  push @ret, '-';	# - stdin; TODO: this assumes $mixed
-	  next;
+    my $opt = shift @ARGV;
+    if( $opt =~ s/^-(-?)// ) {
+      my $long = $1;
+      if( $opt eq '' ) {	# nothing after -(-)
+	if( $long ) {		# -- explicit end of opts
+	  unshift @ARGV, @ret;
+	  return;
 	}
-	SPECS: for my $spec ( @_, $argfile, undef ) {
-	  die "$0: unknown option -$long$_\n" unless defined $spec;
-	  if( $long ) {
-	    if( $$spec[3] ) {
-	      next unless /^$$spec[1](?:=(.*))?$/;
-	      ${$$spec[2]} = defined $1 ? $1 : @ARGV ? shift @ARGV :
-		die "$0: no argument to --$_\n";
-	    } else {		# want no arg
-	      next unless /^$$spec[1]$/;
-	      ${$$spec[2]}++;
-	    }
-	  } else {		# short opt
-	    next unless $$spec[0] && s/^$$spec[0]//;
-	    if( $$spec[3] ) {
-	      ${$$spec[2]} = $_ ne '' ? $_ : @ARGV ? shift @ARGV :
-		die "$0: no argument to -$$spec[0]\n";
-	      $_ = '';
-	    } else {
-	      ${$$spec[2]}++;
-	    }
-	    print STDERR "$0: -$$spec[0] is short for --"._getopts_long($spec)."\n"
-	      if $::verbose && !$short{$$spec[0]};
-	    $short{$$spec[0]} = 1;
-	  }
-	  ref $$spec[4] ? do { local $_; &{$$spec[4]} } : (${$$spec[2]} = $$spec[4]) if exists $$spec[4];
-	  goto SPECS if !$long && length;
-	  last;
-	}
-      } elsif( $hash and /^(\w[-\w.]*)=(.*)/ ) {
-	$vars->{$1} = $2;
-      } elsif( $mixed ) {
-	push @ret, $_;
-      } else {
-	unshift @ARGV, $_;
-	return;
+	push @ret, '-';		# - stdin; TODO: this assumes $mixed
+	next;
       }
+    SPECS: for my $spec ( @_, $argfile, undef ) {
+	die "$0: unknown option -$long$opt\n" unless defined $spec;
+	if( $long ) {
+	  if( $$spec[3] ) {
+	    next unless $opt =~ /^$$spec[1](?:=(.*))?$/;
+	    ${$$spec[2]} = defined $1 ? $1 : @ARGV ? shift @ARGV :
+	      die "$0: no argument to --$opt\n";
+	  } else {		# want no arg
+	    next unless $opt =~ /^$$spec[1]$/;
+	    ${$$spec[2]}++;
+	  }
+	} else {		# short opt
+	  next unless $$spec[0] && $opt =~ s/^$$spec[0]//;
+	  if( $$spec[3] ) {
+	    ${$$spec[2]} = $opt ne '' ? $opt : @ARGV ? shift @ARGV :
+	      die "$0: no argument to -$$spec[0]\n";
+	    $opt = '';
+	  } else {
+	    ${$$spec[2]}++;
+	  }
+	  print STDERR "$0: -$$spec[0] is short for --"._getopts_long($spec)."\n"
+	    if $::verbose && !$short{$$spec[0]};
+	  $short{$$spec[0]} = 1;
+	}
+	ref $$spec[4] ? &{$$spec[4]} : (${$$spec[2]} = $$spec[4]) if exists $$spec[4];
+	goto SPECS if !$long && length $opt;
+	last;
+      }
+    } elsif( $hash and $opt =~ /^(\w[-\w.]*)=(.*)/ ) {
+      $vars->{$1} = $2;
+    } elsif( $mixed ) {
+      push @ret, $opt;
+    } else {
+      unshift @ARGV, $opt;
+      return;
     }
   }
   @ARGV = @ret;
@@ -739,14 +709,13 @@ sub getopts(@) {
 
 # Transform regexp to be human readable.
 sub _getopts_long($) {
-  for( "$_[0][1]" ) {
-    s/.*?://;			# remove qr// decoration
-    s/\[-_\]\??/-/g;
-    s/\(\?:([^(]+)\|[^(]+?\)/$1/g; # reduce inner groups (?:...|...) to 1st variant
-    s/\|/, --/g;
-    tr/()?://d;
-    return $_;
-  }
+  my $str = "$_[0][1]";
+  $str =~ s/.*?://;		# remove qr// decoration
+  $str =~ s/\[-_\]\??/-/g;
+  $str =~ s/\(\?:([^(]+)\|[^(]+?\)/$1/g; # reduce inner groups (?:...|...) to 1st variant
+  $str =~ s/\|/, --/g;
+  $str =~ tr/()?://d;
+  $str;
 }
 
 1;

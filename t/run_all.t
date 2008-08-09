@@ -32,6 +32,20 @@ use Config;
 my $bits = $Config{ptrsize} == 8 ? '-64bit' : '';
 
 $0 =~ s!.*/!!;
+my $makepp = @ARGV && $ARGV[0] =~/\bm(?:ake)?pp$/ && shift;
+if( @ARGV && $ARGV[0] eq '-?' ) { print <<EOF; exit }
+$0\[ path/to/makepp][ options in following order][ tests]
+    -T  run_tests.pl -dv rather than default -t
+    -n<name>  Give this run a name which becomes part of the result dir.
+    -b  Add all build_cache tests to list.
+    -c  Select only those which use the C compiler.
+    -C  Select none of those which use the C compiler.
+    -R  Add all repository tests to list.
+    -S  None of the stress_tests.
+
+    If no path to makepp is given, looks for it one directory higher.
+    If no tests are given, runs all in and below the current directory.
+EOF
 $0 =~ s!all\.t!tests.pl!;
 my $T = @ARGV && $ARGV[0] eq '-T' and shift;
 my $n = @ARGV && $ARGV[0] =~ s/^-n// && shift;
@@ -39,7 +53,7 @@ my $b = @ARGV && $ARGV[0] eq '-b' and shift;
 my $c = @ARGV && $ARGV[0] eq '-c' and shift;
 my $C = @ARGV && $ARGV[0] eq '-C' and shift;
 my $R = @ARGV && $ARGV[0] eq '-R' and shift;
-my $makepp = @ARGV && $ARGV[0] =~/\bmakepp$/ && shift;
+my $S = @ARGV && $ARGV[0] eq '-S' and shift;
 
 push @ARGV, <*build_cache*.test */*build_cache*.test> if $b;
 push @ARGV, <*repository*.test */*repository*.test> if $R;
@@ -49,10 +63,12 @@ push @ARGV, <*repository*.test */*repository*.test> if $R;
   <*.test */*.test>;
 @ARGV = grep exists $c{$_}, @ARGV if $c;
 @ARGV = grep !exists $c{$_}, @ARGV if $C;
-unshift @ARGV, $makepp if $makepp;
-print "@ARGV\n" if $ENV{DEBUG};
+@ARGV = grep !/stress_tests/, @ARGV if $S;
 
-unshift @ARGV, $T ? qw(-d -v) : '-t';
+unshift @ARGV, $T ? '-dv' : '-t';
+unshift @ARGV, $makepp if $makepp;
+print "$0 @ARGV\n" if $ENV{DEBUG};
+
 print "$n " if $n && $T;
 
 if( $^O =~ /^MSWin/ ) {
@@ -95,7 +111,7 @@ if( $T ) {
   }
   rename 'tdir', "$v/tdir" if -d 'tdir';
   exit $ret;
-} else {
+} elsif( $ENV{AUTOMATED_TESTING} ) { # CPAN testers don't send success or error details
   my @failed = <*.failed */*.failed>;
   push @failed, map substr( $_, 0, -6 ) . 'log', @failed;
   if( -d 'tdir' ) {

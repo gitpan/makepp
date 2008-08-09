@@ -2,7 +2,7 @@
 
 makepp_compatibility -- Compatibility list for makepp
 
-=for vc $Id: makepp_compatibility.pod,v 1.15 2008/07/09 20:51:27 pfeiffer Exp $
+=for vc $Id: makepp_compatibility.pod,v 1.17 2008/08/09 09:34:03 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -13,7 +13,8 @@ with various subtle bugs.  We have tried to work around most of them, but a
 few remain.  We have a test suite of around 75 tests, all of which usually
 pass.  On some platforms lacking some features, notably Cygwin, a few tests
 are explicitly skipped.  This table shows with what version this has been
-tested where, and whether it was successful.
+tested where, and whether it was successful.  We would like to hear of your
+results on other platforms too!
 
 =for html
 <style type="text/css">
@@ -72,6 +73,8 @@ formats.
 
  BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	#	#
 
+ z/OS USS (S/390)#	|	|	#	|	|	|	|	|	|	|	| zOS	#	#
+
 
  Cygwin (x86)	#	|	|	#	|	|	|	|	|	|	| Win	| x	# x	#
 
@@ -86,14 +89,13 @@ formats.
 =item HPUX
 
 Perl at least up to V5.8.8 has a 64bitall bug on HP/UX that hurts makepp
-badly.  Therefore the test suite, if it recognized that its running on a 64
-bit Perl, will rewrite several sources so as to have a workaround for this
-problem.
+badly.  If it recognized that its running on a 64 bit Perl, it will rewrite
+several sources so as to have a workaround for this problem.
 
 =item req
 
 Some instances of 5.6 at least on Linux and Solaris will dump in a Perl
-require statement.  Strangely this only happens in one test, so you are
+C<require> statement.  Strangely this only happens in one test, so you are
 probably ok using these Perls.
 
 =item Win
@@ -133,15 +135,19 @@ C<$/> is a forward or backward slash, depending on the environment.  If you
 tell makepp, via the SHELL variable, where to find a a Unix-like Shell, you
 don't have these worries.
 
-It cannot do smart B<recursive> makes (but who would want them, since they are
+It cannot do smart recursive makes (but who would want them, since they are
 known to be a broken paradigm) and B<parallel> builds.  Perl 5.6.0 fails on
-quite a few tests, especially with $SHELL, 5.6.1 fails on two tests.  The test
-suite, if it is running on 5.8.6 or lower, will rewrite FileInfo.pm so as to
-have a needed workaround for an lstat bug.
-
-
+quite a few tests, especially with $SHELL, 5.6.1 fails on two tests.  It will
+rewrite FileInfo.pm so as to have a needed workaround for an lstat bug.
 
 =back
+
+=item zOS
+
+On z/OS Unix System Services smart recursive make doesn't work.  If your
+compiler is picky about option order, you may have to write your own rules.
+(Perl 5.10.0 is not compilable on an Ebcdic system and for 5.8.8 in
+miniperlmain.c you may have to remove the silly "(void)env;".)
 
 =item Nest
 

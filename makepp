@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.167 2008/06/03 21:44:30 pfeiffer Exp $
+# $Id: makepp,v 1.169 2008/08/04 21:58:24 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 require 5.006;
@@ -1033,40 +1033,6 @@ sub build_target_done {
   undef;			# Return a success code.
 }
 
-=head2 find_makepp_info
-
-  $minfo = find_makepp_info("name"[, $default_dir]);
-
-Returns the object information for the particular object.  If the object is
-a file, this subroutine just calls FileInfo::file_info.	 If it is a user
-defined object, then it invokes the registered findinfo routine for that
-object type.
-
-=cut
-my @registered_findinfos = (\&FileInfo::file_info);
-				# By default, we only know about finding
-				# information about files.
-
-sub find_makepp_info {
-  foreach (@registered_findinfos) {
-    my $info = &$_;		# Call the routine to see if it can provide one.
-    return $info if $info;
-  }
-}
-
-=head2 find_makepp_info_register
-
-  find_makepp_info_register(\&find_makepp_info_routine);
-
-Registers a new routine that can return makepp information structures for
-some object class.
-
-=cut
-
-sub find_makepp_info_register {
-  unshift @registered_findinfos, @_; # Put them on the front of the list.
-}
-
 
 my $stop;
 sub maybe_stop {
@@ -1242,7 +1208,7 @@ sub parse_command_line(\%@) {
     delete $command_line_vars{makepp_no_builtin} if !defined $command_line_vars{makepp_no_builtin};
 				# Ref above brought this into existence.
 
-    push @targets, find_makepp_info(shift @ARGV, $target_cwd)
+    push @targets, file_info shift @ARGV, $target_cwd
       if @ARGV;
 				# Evidently it is a real target.  This is a
 				# hack, because getopts has no way of handling

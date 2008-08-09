@@ -1,4 +1,4 @@
-# $Id: Scanner.pm,v 1.46 2008/04/15 21:47:02 pfeiffer Exp $
+# $Id: Scanner.pm,v 1.47 2008/07/30 23:17:01 pfeiffer Exp $
 
 =head1 NAME
 
@@ -471,7 +471,7 @@ sub find {
 	  return $base->{SCANNER_CACHE}{$name} if $base->{SCANNER_CACHE}{$name};
 	  next;
 	}
-	my $finfo = exists $base->{DIRCONTENTS} && $base->{DIRCONTENTS}{$name} || file_info $name, $base;
+	my $finfo = exists $base->{DIRCONTENTS} && $base->{DIRCONTENTS}{$name} || FileInfo::path_file_info $name, $base;
 	return $base->{SCANNER_CACHE}{$name} = $finfo if FileInfo::exists_or_can_be_built_or_remove( $finfo );
 	undef $base->{SCANNER_CACHE}{$name};
       }

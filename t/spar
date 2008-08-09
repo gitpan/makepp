@@ -26,8 +26,7 @@ GetOptions \%opt,
     };
 
 my $extractor = q{
-    (local $0 = $0) =~ s!.*/!!;
-    my( $lines, $kind, $mode, $atime, $mtime, $name, $nl ) = (-1, 0);
+    my( $lines, $kind, $mode, %mode, $atime, $mtime, $name, $nl ) = (-1, 0);
     while( <DATA> ) {
 	s/\r?\n$//;		# cross-plattform chomp
 	if( $lines >= 0 ) {
@@ -40,35 +39,34 @@ my $extractor = q{
 	    }
 	    $kind = 0;
 	} elsif( /^###\t(?!SPAR)/ ) {
-	    ($kind, $mode, $atime, $mtime, $name) = (split /\t/, $_, 6)[1..5];
+	    (undef, $kind, $mode, $atime, $mtime, $name) = split /\t/, $_, 6;
 	    if( !$name ) {
 	    } elsif( $kind eq 'D' ) {
 		$name =~ s!/+$!!;
-		-d $name or mkdir $name, 0700 or warn "$0: can't mkdir `$name': $!\n";
-		$SPAR::mode{$name} = [oct( $mode ), $atime, $mtime];
+		-d $name or mkdir $name, 0700 or warn "spar: can't mkdir `$name': $!\n";
+		$mode{$name} = [$atime, $mtime, oct $mode];
 	    } elsif( $kind ne 'L' ) {
-		open F, ">$name" or warn "$0: can't open >`$name': $!\n";
+		open F, ">$name" or warn "spar: can't open >`$name': $!\n";
 		$lines = abs $kind;
 		$nl = ($kind < 0) ? '' : "\n";
 	    }
 	} elsif( defined $mode ) {
-	    warn "$0: $archive:$.: trailing garbage ignored\n";
+	    warn "spar: $archive:$.: trailing garbage ignored\n";
 	}			# else before beginning of spar
     } continue {
 	if( !$lines-- ) {
 	    close F;
 	    chmod oct( $mode ), $name and
 		utime $atime, $mtime, $name or
-		warn "$0: $archive:$name: Failed to set file attributes: $!\n";
+		warn "spar: $archive:$name: Failed to set file attributes: $!\n";
 	}
     }
 
-    for( keys %SPAR::mode ) {
-	chmod shift @{$SPAR::mode{$_}}, $_ and
-	    utime @{$SPAR::mode{$_}}, $_ or
-	    warn "$0: $archive:$_: Failed to set directory attributes: $!\n";
+    for( keys %mode ) {
+	chmod pop @{$mode{$_}}, $_ and
+	    utime @{$mode{$_}}, $_ or
+	    warn "spar: $archive:$_: Failed to set directory attributes: $!\n";
     }
-    %SPAR::mode = ();
 };
 
 my $archive = shift;

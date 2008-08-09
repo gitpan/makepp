@@ -65,19 +65,9 @@ BEGIN {
     ($source_path =~ s@/\.(?=/|$)@@) || # Convert x/./y into x/y.
     ($source_path =~ s@/[^/]+/\.\.(?=/|$)@@); # Convert x/../y into y.
 
-  shift if @ARGV and
-    ($test = $ARGV[0] eq '-t' or
-     $dot = $ARGV[0] eq '-d');
-
-  if( $verbose = @ARGV && $ARGV[0] eq '-v' ) {
-    shift;
-    printf "%sPerl V%vd %dbits - %s %s\n",
-      $Config{cf_email} =~ /(Active)(?:Perl|State)/ ? $1 : '',
-      $^V, $Config{ptrsize} * 8, $^O, $Config{archname};
-  }
-
-  if( $ARGV[0] =~ /\/makepp$/ ) {
+  if( $ARGV[0] =~ s/\bm(?:ake)?pp$/makepp/ ) {
     $makepp_path = shift;
+    $makepp_path =~ m@^/@ or $makepp_path = "$old_cwd/$makepp_path";
   } else {
     $makepp_path = $source_path;
     $makepp_path =~ s@/([^/]+)$@/makepp@; # Get the path to the makepp
@@ -86,7 +76,39 @@ BEGIN {
   }
 
   push @INC, substr $makepp_path, 0, rindex $makepp_path, '/';
-  require TextSubs;
+  unless( eval { require TextSubs } ) {
+    open my $fh, '<', $makepp_path;
+    while( <$fh> ) {
+      if( /^\$datadir = / ) {
+	eval;
+	require TextSubs;
+	last;
+      }
+      die "Can't locate path to makepp libraries." if $. == 99;
+    }
+  }
+
+  TextSubs::getopts(
+    [qw(d dots), \$dot],
+    [qw(t test), \$test],
+    [qw(v verbose), \$verbose],
+    [qr/[h?]/, 'help', undef, 0, sub { print <<EOF; exit }] );
+run_tests.pl[ path/to/makepp][ options][ tests]
+    -d, --dots
+	Output only a dot for every successful test.
+    -t, --test
+	Output in format expected by Test::Harness.
+    -v, --verbose
+	Give some initial info and final statistics.
+
+    If no path to makepp is given, looks for it one directory higher.
+    If no tests are given, runs all in the current directory.
+EOF
+
+  printf "%sPerl V%vd %dbits - %s %s\n",
+    $Config{cf_email} =~ /(Active)(?:Perl|State)/ ? $1 : '',
+    $^V, $Config{ptrsize} * 8, $^O, $Config{archname}
+    if $verbose;
 
   mkdir 'd';
   my $symlink = (stat 'd')[1] &&	# Do we have inums?
@@ -168,8 +190,7 @@ eval { require Time::HiRes };	# Preload the library.
 # spar <http://www.cpan.org/scripts/> extraction function
 # assumes DATA to be opened to the spar
 sub un_spar() {
-    (local $0 = $0) =~ s!.*/!!;
-    my( $lines, $kind, $mode, $atime, $mtime, $name, $nl ) = (-1, 0);
+    my( $lines, $kind, $mode, %mode, $atime, $mtime, $name, $nl ) = (-1, 0);
     while( <DATA> ) {
 	s/\r?\n$//;		# cross-plattform chomp
 	if( $lines >= 0 ) {
@@ -182,35 +203,34 @@ sub un_spar() {
 	    }
 	    $kind = 0;
 	} elsif( /^###\t(?!SPAR)/ ) {
-	    ($kind, $mode, $atime, $mtime, $name) = (split /\t/, $_, 6)[1..5];
+	    (undef, $kind, $mode, $atime, $mtime, $name) = split /\t/, $_, 6;
 	    if( !$name ) {
 	    } elsif( $kind eq 'D' ) {
 		$name =~ s!/+$!!;
-		-d $name or mkdir $name, 0700 or warn "$0: can't mkdir `$name': $!\n";
-		$SPAR::mode{$name} = [oct( $mode ), $atime, $mtime];
+		-d $name or mkdir $name, 0700 or warn "spar: can't mkdir `$name': $!\n";
+		$mode{$name} = [$atime, $mtime, oct $mode];
 	    } elsif( $kind ne 'L' ) {
-		open F, ">$name" or warn "$0: can't open >`$name': $!\n";
+		open F, ">$name" or warn "spar: can't open >`$name': $!\n";
 		$lines = abs $kind;
 		$nl = ($kind < 0) ? '' : "\n";
 	    }
 	} elsif( defined $mode ) {
-	    warn "un_spar: $archive:$.: trailing garbage ignored\n";
+	    warn "spar: $archive:$.: trailing garbage ignored\n";
 	}			# else before beginning of spar
     } continue {
 	if( !$lines-- ) {
 	    close F;
 	    chmod oct( $mode ), $name and
 		utime $atime, $mtime, $name or
-		warn "$0: $archive:$name: Failed to set file attributes: $!\n";
+		warn "spar: $archive:$name: Failed to set file attributes: $!\n";
 	}
     }
 
-    for( keys %SPAR::mode ) {
-	chmod shift @{$SPAR::mode{$_}}, $_ and
-	    utime @{$SPAR::mode{$_}}, $_ or
-	    warn "$0: $archive:$_: Failed to set directory attributes: $!\n";
+    for( keys %mode ) {
+	chmod pop @{$mode{$_}}, $_ and
+	    utime @{$mode{$_}}, $_ or
+	    warn "spar: $archive:$_: Failed to set directory attributes: $!\n";
     }
-    %SPAR::mode = ();
 }
 
 
@@ -228,15 +248,13 @@ sub dot($$) {
       print $_[$dot ? 0 : 1];
       $dotted = 1 if $dot;
     }
+  } elsif( $test ) {
+    print "not ok $test $_[1]";
+    $test++;
   } else {
-    if( $test ) {
-      print "not ok $test $_[1]";
-      $test++;
-    } else {
-      print "\n" if defined $dotted;
-      print "FAILED $_[1]";
-      undef $dotted;
-    }
+    print "\n" if defined $dotted;
+    print "FAILED $_[1]";
+    undef $dotted;
   }
 }
 
@@ -351,7 +369,8 @@ foreach $archive (@ARGV) {
 	die "$0: can't extract testfile $archive\n";
     } elsif( !$dirtest ) {
       open DATA, $archive or die "$0: can't open $archive--$!\n";
-      eval { local $SIG{__WARN__} = sub { die @_ }; un_spar };
+      eval { local $SIG{__WARN__} = sub { die @_ if $_[0] !~ /Failed to set/ }; un_spar };
+				# Alas happens a lot on native Windows.
       die +(is_windows && $@ =~ /symlink .* unimplemented/) ? "skipped s\n" :
 	$@ =~ /: can't open >`/ ? "skipped\n" : $@
       	if $@;

@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.40 2008/06/01 21:49:31 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.41 2008/08/09 09:24:52 pfeiffer Exp $
 #
 # Key things to do before this is production-ready:
 #
@@ -102,7 +102,7 @@ use FileInfo;
 use FileInfo_makepp;
 use Makecmds;
 use Sys::Hostname;
-use POSIX ':errno_h';
+use POSIX qw(:errno_h S_ISREG);
 
 BEGIN {
   eval { $_ = ESTALE };		# Not defined on Win ActiveState.
@@ -198,7 +198,7 @@ sub cache_file {
   my $input_filename = FileInfo::absolute_filename_nolink( $input_finfo );
   my $orig_prot = (FileInfo::lstat_array( $input_finfo ))->[FileInfo::STAT_MODE];
   return 1			# Succeed without doing anything
-    if ($orig_prot & FileInfo::S_IFMT) != FileInfo::S_IFREG; # if not a regular file?
+    unless S_ISREG $orig_prot;	# if not a regular file?
 
   # TBD: Perhaps we ought to succeed without doing anything if the entry
   # is already in the cache.  This reduces the likelihood of thrashing, but

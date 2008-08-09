@@ -1,4 +1,4 @@
-# $Id: Makecmds.pm,v 1.56 2008/06/01 21:47:19 pfeiffer Exp $
+# $Id: Makecmds.pm,v 1.57 2008/08/04 21:57:01 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains builtin commands which can be called from a rule.
@@ -220,21 +220,9 @@ sub _chomp(\$) {
   return '' if ref $/;
   my $tail = ${$_[0]};
   my $len = chomp ${$_[0]};
-  return '' if !$len;
+  return '' unless $len;
   substr $tail, -$len;
 }
-
-
-# quoting as in double quoted strings, but without var interpolation
-sub _escape(\$) {
-  return if $noescape;
-  for( ${$_[0]} ) {
-    s/([\$\@!])/\\$1/g; # protect variable chars and next line's quote
-    $_ = eval "qq!$_!";
-    die $@ if $@;
-  }
-}
-
 
 
 sub c_cat {
@@ -304,13 +292,11 @@ sub c_cut {
 			 'unpack "(a1)*", $_ }');
     my( @idxs, $eol );
     local @::F;	     # Use Perl's autosplit variable into Makeppfile's package
-    for( $fields ) {
-      @idxs = eval_or_die $_
-	unless /^[-+.,\d\s]+$/ &&
-	  s/((?:,|^)\d+\.\.)-/"$1\$#::F+" . (defined $lines ? '2-' : '1-')/eg;
-    }
+    @idxs = eval_or_die $fields
+      unless $fields =~ /^[-+.,\d\s]+$/ &&
+	$fields =~ s/((?:,|^)\d+\.\.)-/"$1\$#::F+" . (defined $lines ? '2-' : '1-')/eg;
     if( defined $lines ) {
-      warn "options --matching or --printf make no sence with --lines\n" if $matching || $only_delim || defined $printf;
+      warn "options --matching or --printf make no sence with --lines\n" if $matching || $only_delim || $printf;
       while( <> ) {
 	push @::F, $_;
 	if( eof ) {
@@ -325,6 +311,11 @@ sub c_cut {
 	}
       }
     } elsif( defined $fields ) {
+      if( $printf && !$noescape ) {
+	$printf =~ s/([\$\@!])/\\$1/g; # protect variable chars and next line's quote
+	$printf = eval "qq!$printf!";
+	die $@ if $@;
+      }
       while( <> ) {
 	$eol = _chomp $_;
 	&$split;
@@ -350,7 +341,7 @@ sub c_cut {
     [qw(f fields), \$fields, 1, sub { warn $err if defined $characters or defined $lines }],
     [qw(l lines), \$lines, 1, sub { warn $err if defined $fields; $fields = $lines }],
     [qw(m matching), \$matching],
-    [qw(p printf), \$printf, 1, sub { _escape $printf }],
+    [qw(p printf), \$printf, 1],
     ['s', qr/only[-_]?delimited/, \$only_delim];
 }
 
@@ -367,7 +358,11 @@ sub c_echo {
       $res = '' unless defined $res;
     } else {
       $res = $cmd == 2 ? shift @ARGV : "@ARGV";
-      _escape $res;
+      unless( $noescape ) {
+	$res =~ s/([\$\@!])/\\$1/g; # protect variable chars and next line's quote
+	$res = eval "qq!$res!";
+	die $@ if $@;
+      }
       $res = sprintf $res, @ARGV if $cmd == 2;
     }
     if( $cmd == 3 ) {
@@ -415,7 +410,7 @@ sub c_grep {
       } elsif( $waste ) {
 	print $waste $_ or die $!;
       }
-      if( $revert > 1 && $list && eof ) {
+      if( $list && $revert > 1 && eof ) {
 	print "$ARGV\n" or die $! if !$fn;
 	$fn = 0;
       }
@@ -744,7 +739,7 @@ sub c_uniq {
   local @ARGV = @_;             # for <>
   my $cmp;
   frame {
-    $cmp = eval_or_die "sub {$cmp\n}" if defined $cmp;
+    $cmp = eval_or_die "sub {$cmp\n}" if $cmp;
     no strict 'refs';
     local *a = \${"$Makesubs::rule->{MAKEFILE}{PACKAGE}::a"};
     local *b = \${"$Makesubs::rule->{MAKEFILE}{PACKAGE}::b"};
