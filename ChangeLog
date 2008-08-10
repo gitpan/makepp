@@ -1,5 +1,7 @@
 2008-08-09  Daniel Pfeiffer  <occitan@esperanto.org>
 
+Snapshot makepp-1.50-cvs-080810.tgz, version 1.50-08093-08048-07303 on CPAN.
+
 	* BuildCache.pm:
 	* FileInfo*.pm: Use POSIX::S_IS* instead of hard wired non portable
 	constants.
