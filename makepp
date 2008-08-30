@@ -405,10 +405,12 @@ sub build {
   # If the file still looks stale (now that we've tried to load its rule), and
   # we're not treating stale files as source files, then we need to error out
   # here, because something specifically requested a stale file.
-  if($rm_stale_files && FileInfo::is_stale( $oinfo )) {
+  if( $rm_stale_files && &FileInfo::is_stale ) {
     print_error(
       'Not building ', $oinfo, " because it's a stale generated file"
     );
+    &FileInfo::unlink;
+    $failed_count++;		# Wouldn't get counted, since there's no rule
     return 1;
   }
 
@@ -752,13 +754,17 @@ sub build_dependencies_done {
       # stale stuff (repository links and build info) from the filesystem.
       foreach my $tinfo (@$all_targets) {
         ++$tinfo->{BUILDING} if $::virtual_sandbox_flag;
-	next if exists $tinfo->{TEMP_BUILD_INFO};
+#	next if exists $tinfo->{TEMP_BUILD_INFO};
+	if( exists $tinfo->{TEMP_BUILD_INFO} ) {
+	  next if file_exists file_info $tinfo->{TEMP_BUILD_INFO}{SYMLINK}, $tinfo->{'..'};
+	  delete $tinfo->{TEMP_BUILD_INFO};
+	}
 	if( grep $_, FileInfo::build_info_string( $tinfo, qw'FROM_REPOSITORY LINKED_TO_CACHE' ) ||
 	    !(exists $tinfo->{IS_PHONY} || FileInfo::is_writable_owner $tinfo )) {
 				# Marked read only?
 	  ::log REMOVE => $tinfo
 	    if $log_level;
-	  FileInfo::unlink $tinfo;	# If it's from a repository, get rid of it.
+	  FileInfo::unlink $tinfo; # If it's from a repository, get rid of it.
 				# It might be a bogus file from the past.
                                 # If it's from a build cache, delete it so
                                 # we don't corrupt the file in the build

@@ -257,7 +257,7 @@ my( @logfiles, $outfile, $plain );
   TextSubs::getopts
     ['b', qr/because|build[-_]?reasons?/, \$because],
     ['D', qr/dependenc(?:ies|y)/, \$dependencies],
-    ['d', qr/down(?:wards?)/, \$down],
+    ['d', qr/down(?:wards?)?/, \$down],
     ['g', qr/graphviz|dot/, \$type, 0, 'dot'],
     [qw(h html), \$type, 0, 'html'],
     ['I', qr/include(?:[-_]?dir)?/, \$tmp, 1, sub { unshift @INC, $tmp }],
@@ -271,7 +271,7 @@ my( @logfiles, $outfile, $plain );
     ['s', qr/separate[-_]?directions?/, \$bidirectional, 0, 0],
     ['t', qr/te?xt/, \$type, 0, 'txt'],
     [0, 'version', undef, 0, \&FileInfo::version],
-    ['u', qr/up(?:wards?)/, \$up],
+    ['u', qr/up(?:wards?)?/, \$up],
 
     [qr/[h?]/, 'help', undef, 0, \&usage];
 }

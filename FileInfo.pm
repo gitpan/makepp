@@ -410,9 +410,6 @@ sub file_exists {
 Returns the FileInfo structure for the given file.  If no FileInfo
 structure exists, creates a new one for it.
 
-If you pass a FileInfo structure to file_info, it just returns
-its argument.
-
 The optional second argument specifies a directory the file name
 should be relative to.	By default, this is the current directory.
 

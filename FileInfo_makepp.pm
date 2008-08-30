@@ -2,7 +2,7 @@ package FileInfo;
 
 use FileInfo;			# Override some subroutines from the
 				# generic FileInfo package.
-# $Id: FileInfo_makepp.pm,v 1.89 2008/08/09 09:24:51 pfeiffer Exp $
+# $Id: FileInfo_makepp.pm,v 1.90 2008/08/19 07:02:23 pfeiffer Exp $
 
 #
 # This file defines some additional subroutines for the FileInfo package that
@@ -238,18 +238,19 @@ sub exists_or_can_be_built_or_remove {
   my $result = &exists_or_can_be_built;
   return $result if $result || !$::rm_stale_files;
   if( $finfo->{EXISTS} || &signature ) {
+    unless( &was_built_by_makepp ) {
+      die '`' . &absolute_filename . "' is both a source file and a phony target\n" if exists $finfo->{IS_PHONY};
+      return unless &have_read_permission; # Hidden from mpp.
+      require Carp; Carp::confess( &absolute_filename );
+    }
     ::log DEL_STALE => $finfo
       if $::log_level;
-    unless(&was_built_by_makepp) {
-      die "`".&absolute_filename."' is both a source file and a phony target" if exists $finfo->{IS_PHONY};
-      die "Internal error";
-    }
     # TBD: What if the unlink fails?
     &FileInfo::unlink;
     # Remove the build info file as well, so that it won't be treated as
     # a generated file if something other than makepp puts it back with the
     # same signature.
-    CORE::unlink(&build_info_fname);
+    CORE::unlink &build_info_fname;
   }
   $result;
 }
@@ -752,6 +753,10 @@ Returns TRUE iff the file was put there by makepp and not since modified.
 sub was_built_by_makepp {
   defined and return 1
     for build_info_string( $_[0], qw'BUILD_SIGNATURE FROM_REPOSITORY' );
+  if( exists $_[0]{TEMP_BUILD_INFO} ) {
+    defined and return 1
+      for @{$_[0]{TEMP_BUILD_INFO}}{qw'BUILD_SIGNATURE FROM_REPOSITORY'};
+  }
   0;
 }
 
@@ -849,43 +854,39 @@ sub parse_build_info_file {
 sub load_build_info_file {
   my $build_info_fname = &build_info_fname;
   open my $fh, $build_info_fname or
-    return undef;
+    return;
 
-  my $finfo = $_[0];
-  my $sig = &signature || '';	# Calculate the signature for the file, so
-				# we know whether the build info has changed.
   my $build_info = parse_build_info_file $fh;
   if( defined $build_info ) {
+    my( $finfo ) = @_;
+    my $sig = &signature || '';	# Calculate the signature for the file, so
+				# we know whether the build info has changed.
     my $sig_match = ($build_info->{SIGNATURE} || '') eq $sig;
 
     if( exists $build_info->{FROM_REPOSITORY} ) {
-      my $oldrepfinfo = file_info $build_info->{FROM_REPOSITORY}, $finfo->{'..'};
-
       # If we linked the file in from a repository, but it was since modified in
       # the repository, then we need to remove the link to the repository now,
       # because otherwise we won't remove the link before the target gets built.
       # Note that this code may need to track changes to is_stale.
       unless( $sig_match && exists $finfo->{ALTERNATE_VERSIONS} || &dont_build ) {
-	if( &dereference == $oldrepfinfo ) {
-	  if( &in_sandbox || !-e &absolute_filename ) {
-	    # If the symlink points nowhere, then there is no race here even
-	    # if it is out of sandbox, because the result is the same no matter
-	    # who wins the race.  However, this probably isn't 100%
-	    # bulletproof, because some makepp process other than the one that
-	    # deletes the file might think that it still exists after it and
-	    # its build info file have been removed.  That's probably still
-	    # better than getting permanently stuck when a repository file is
-	    # deleted.
-	    ::log REP_OUTDATED => $finfo
-	      if $::log_level;
-	    &unlink;
-	  } else {
-	    warn $::sandbox_warn_flag ? '' : 'error: ',
-	      "Can't remove outdated repository link " . &absolute_filename . " because it's out of my sandbox\n";
-	    die unless $::sandbox_warn_flag;
-	  }
-	} else {
+	if( &dereference != file_info $build_info->{FROM_REPOSITORY}, $finfo->{'..'} ) {
 	  undef $sig_match;	# The symlink was modified outside of makepp
+	} elsif( &in_sandbox || !-e &absolute_filename ) {
+	  # If the symlink points nowhere, then there is no race here even
+	  # if it is out of sandbox, because the result is the same no matter
+	  # who wins the race.  However, this probably isn't 100%
+	  # bulletproof, because some makepp process other than the one that
+	  # deletes the file might think that it still exists after it and
+	  # its build info file have been removed.  That's probably still
+	  # better than getting permanently stuck when a repository file is
+	  # deleted.
+	  ::log REP_OUTDATED => $finfo
+	    if $::log_level;
+	  &unlink;
+	} else {
+	  warn $::sandbox_warn_flag ? '' : 'error: ',
+	    "Can't remove outdated repository link " . &absolute_filename . " because it's out of my sandbox\n";
+	  die unless $::sandbox_warn_flag;
 	}
       }
     }
@@ -894,12 +895,20 @@ sub load_build_info_file {
       if( $build_info->{SYMLINK} ) {
 				# Signature is that of linked file.  The symlink
 				# is checked before possibly rebuilding it.
-	$build_info->{SIGNATURE} = $sig;
-	$finfo->{TEMP_BUILD_INFO} = $build_info; # Rule::execute will pick it up.
+	if( $sig or not $::rm_stale_files || $build_info->{FROM_REPOSITORY} ) {
+				# Link and linkee exist or not supposed to wipe.
+	  $build_info->{SIGNATURE} = $sig;
+	  $finfo->{TEMP_BUILD_INFO} = $build_info; # Rule::execute will pick it up.
+	} else {
+	  ::log DEL_STALE => $finfo
+	    if $::log_level;
+	  &unlink;
+	  CORE::unlink $build_info_fname;
+	}
       } else {
 	::log OUT_OF_DATE => $finfo
 	  if $::log_level;
-	CORE::unlink($build_info_fname); # Get rid of bogus file.
+	CORE::unlink $build_info_fname; # Get rid of bogus file.
 	# NOTE: We assume that if we failed to unlink $finfo, then we'll fail to
 	# unlink $build_info_fname as well, so that the FROM_REPOSITORY turd will
 	# remain behind, which is what we want. Furthermore, because we remember
@@ -910,7 +919,7 @@ sub load_build_info_file {
     }
   } else {
     warn "$build_info_fname: build info file corrupted\n";
-    CORE::unlink($build_info_fname); # Get rid of bogus file.
+    CORE::unlink $build_info_fname; # Get rid of bogus file.
   }
   $build_info;
 }
@@ -924,7 +933,8 @@ sub version {
 # amounts.
 #
   open my $fh, '<', "$::datadir/VERSION";
-  chomp( $::VERSION = <$fh> );
+  chomp( $::VERSION		# Hide assignment from CPAN scanner.
+	 = <$fh> );
   if( $::VERSION =~ s/beta// ) {
     my %VERSION;
     for( "$0", <$::datadir/*.pm $::datadir/*/*.pm $::datadir/makepp_builtin_rules.mk> ) {

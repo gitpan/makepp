@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.92 2008/08/04 21:57:01 pfeiffer Exp $
+# $Id: Rule.pm,v 1.93 2008/08/19 07:01:44 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Rule;
@@ -230,7 +230,7 @@ sub find_all_targets_dependencies {
     ::log SCAN_RULE => $oinfo, $msg
       if $::log_level;
     unless(eval { $self->parser->parse_rule($command_string, $self) }) {
-      die $@ if $@ && $@ !~ /^SCAN_FAILED\s/;
+      die $@ if $@ && $@ ne "SCAN_FAILED\n";
       $self->{SCAN_FAILED} ||= 1;
     }
 				# Look for any additional dependencies (or
@@ -830,9 +830,10 @@ sub execute {
 
   # Check for a symlink that doesn't need rebuilding, even though the linkee got built.
   if( @$all_targets == 1 && exists $all_targets->[0]{TEMP_BUILD_INFO} ) {
-    if( $actions eq $all_targets->[0]{TEMP_BUILD_INFO}{COMMAND} &&
+    if( $actions eq $all_targets->[0]{TEMP_BUILD_INFO}{COMMAND} and
 	$all_targets->[0]{TEMP_BUILD_INFO}{SYMLINK} eq
-	  readlink( FileInfo::absolute_filename_nolink $all_targets->[0] ) || '' ) {
+	  readlink( FileInfo::absolute_filename_nolink $all_targets->[0] ) || '' and
+	file_exists file_info $all_targets->[0]{TEMP_BUILD_INFO}{SYMLINK}, $all_targets->[0]{'..'} ) {
       $all_targets->[0]{BUILD_INFO} = delete $all_targets->[0]{TEMP_BUILD_INFO};
       $::n_files_changed--;	# Don't count this one, since we're not rebuilding it.
       ::log SYMLINK_KEEP => $all_targets->[0], $self->source

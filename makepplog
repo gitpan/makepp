@@ -33,7 +33,7 @@ my %log_msg =
   BUILD_RECURSIVE => 'Rebuild %s because command is recursive invocation of make',
 
   CACHED_DEP => 'Building %s as a cached scanned dependency of %s',
-  DEL_STALE => 'Removing stale generated file %s',
+  DEL_STALE => 'Removing stale generated file or symlink %s',
   DEPEND => ' Targets %s depend on %s',
   IFEQ => 'if(n)eq comparing %s with %s at %s',
   INCL => '%s includes %s',
