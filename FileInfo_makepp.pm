@@ -935,7 +935,8 @@ sub version {
   open my $fh, '<', "$::datadir/VERSION";
   chomp( $::VERSION		# Hide assignment from CPAN scanner.
 	 = <$fh> );
-  if( $::VERSION =~ s/beta// ) {
+  if( $::VERSION		# -"-
+      =~ s/beta// ) {
     my %VERSION;
     for( "$0", <$::datadir/*.pm $::datadir/*/*.pm $::datadir/makepp_builtin_rules.mk> ) {
       open my( $fh ), $_;

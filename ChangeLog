@@ -1,4 +1,18 @@
+2008-08-30  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* FileInfo.pm
+
+	* makepp:
+	* FileInfo_makepp.pm:
+	* Rule.pm:
+	* makepplog:
+	* t/additional_tests/2004_04_01_stale_repository.test: Handle stale symlinks in, via or without repository cleanly.
+
+	* BuildCheck/exact_match.pm: Use cheaper unless.
+
 	* makeppgraph (--up, --down): Accept these advertised options.
+
+	* pod/makepp_functions.pod: Fix find_program doc to "not-found".
 
 2008-08-19  Daniel Pfeiffer  <occitan@esperanto.org>
 
