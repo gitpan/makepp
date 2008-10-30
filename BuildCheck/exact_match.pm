@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.28 2008/07/30 23:17:01 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.29 2008/09/01 07:47:43 pfeiffer Exp $
 use strict;
 package BuildCheck::exact_match;
 

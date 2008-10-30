@@ -29,31 +29,32 @@ BEGIN {
 
 use Config;
 
-my $bits = $Config{ptrsize} == 8 ? '-64bit' : '';
-
 $0 =~ s!.*/!!;
 my $makepp = @ARGV && $ARGV[0] =~/\bm(?:ake)?pp$/ && shift;
 if( @ARGV && $ARGV[0] eq '-?' ) { print <<EOF; exit }
-$0\[ path/to/makepp][ options in following order][ tests]
-    -T  run_tests.pl -dv rather than default -t
-    -n<name>  Give this run a name which becomes part of the result dir.
+$0\[ options in following order][ -- run_tests options][ tests]
+    -T  run_tests.pl -dvs rather than default -ts
     -b  Add all build_cache tests to list.
     -c  Select only those which use the C compiler.
     -C  Select none of those which use the C compiler.
     -R  Add all repository tests to list.
     -S  None of the stress_tests.
 
-    If no path to makepp is given, looks for it one directory higher.
     If no tests are given, runs all in and below the current directory.
 EOF
 $0 =~ s!all\.t!tests.pl!;
 my $T = @ARGV && $ARGV[0] eq '-T' and shift;
-my $n = @ARGV && $ARGV[0] =~ s/^-n// && shift;
 my $b = @ARGV && $ARGV[0] eq '-b' and shift;
 my $c = @ARGV && $ARGV[0] eq '-c' and shift;
 my $C = @ARGV && $ARGV[0] eq '-C' and shift;
 my $R = @ARGV && $ARGV[0] eq '-R' and shift;
 my $S = @ARGV && $ARGV[0] eq '-S' and shift;
+
+my @opts;
+if( @ARGV && $ARGV[0] eq '--' ) {
+  shift;
+  push @opts, shift while @ARGV && $ARGV[0] =~ /^-/;
+}
 
 push @ARGV, <*build_cache*.test */*build_cache*.test> if $b;
 push @ARGV, <*repository*.test */*repository*.test> if $R;
@@ -65,25 +66,14 @@ push @ARGV, <*repository*.test */*repository*.test> if $R;
 @ARGV = grep !exists $c{$_}, @ARGV if $C;
 @ARGV = grep !/stress_tests/, @ARGV if $S;
 
-unshift @ARGV, $T ? '-dv' : '-t';
-unshift @ARGV, $makepp if $makepp;
+unshift @ARGV, @opts, $T ? '-dvs' : '-ts';
 print "$0 @ARGV\n" if $ENV{DEBUG};
 
-print "$n " if $n && $T;
-
-if( $^O =~ /^MSWin/ ) {
+if( $ENV{AUTOMATED_TESTING} ) {
   system $^X, $0, @ARGV;
-} elsif( !fork ) {
-  do $0;
-  die "run_tests didn't exit--$@\n" if $@ and $@ !~ /Invalid argument at run_tests.pl line 169/;
-  exit 1;
+} else {
+  exec $^X, $0, @ARGV;
 }
-
-my $v = sprintf $Config{ptrsize} == 4 ? 'V%vd' : 'V%vd-%dbits', $^V, $Config{ptrsize} * 8;
-$v .= "-$n" if $n;
-
-wait;
-my $ret = $? ? 1 : 0;
 
 sub mail {
   my $a = 'occitan@esperanto.org';
@@ -95,37 +85,19 @@ sub mail {
     1;
   }
 }
-if( $T ) {
-  if( -d $v ) {
-    require File::Path;
-    eval { File::Path::rmtree $v } && last
-      or $_ < 9 && select undef, undef, undef, .1
-	for 0..9;
-    die $@ if $@;
-  }
-  mkdir $v or warn $!;
 
-  for( map { s/\.test$// ? grep -e, "$_.log", "$_.failed" : () } @ARGV ) {
-    rename "$1/$_", $_ if s!^(.*/)!!; # Some systems don't mv from one dir to another
-    rename $_, "$v/$_";
-  }
-  rename 'tdir', "$v/tdir" if -d 'tdir';
-  exit $ret;
-} elsif( $ENV{AUTOMATED_TESTING} ) { # CPAN testers don't send success or error details
-  my @failed = <*.failed */*.failed>;
-  push @failed, map substr( $_, 0, -6 ) . 'log', @failed;
-  if( -d 'tdir' ) {
-    push @failed, 'tdir';
-    my @logs = <*.log */*.log>;
-    push @failed, $logs[-1] if @logs;
-  }
-  ($v = "$Config{myarchname}-$v") =~ tr/ ;&|\\'"()[]*\//-/d;
-  if( !@failed ) {
-    mail "SUCCESS-$v";
-  } elsif( mail "FAIL-$v" ) {
-    print MAIL "<@failed>";
-    open SPAR, '-|', $^X, 'spar', '-d', '-', @failed;
-    undef $/;
-    print MAIL "\nbegin 755 $v.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
-  }
+# CPAN testers don't send success or error details
+my $v = sprintf $Config{ptrsize} == 4 ? 'V%vd' : 'V%vd-%dbits', $^V, $Config{ptrsize} * 8;
+my $perltype =
+  $Config{cf_email} =~ /(Active)(?:Perl|State)/ ? $1 :
+  $Config{ldflags} =~ /(vanilla|strawberry|chocolate)/i ? ucfirst lc $1 :
+  '';
+$v .= "-$perltype" if $perltype;
+(my $arch = $Config{myarchname}) =~ tr/ ;&|\\'"()[]*\//-/d; # clear out shell meta chars
+if( !<$v/*.failed> ) {
+  mail "SUCCESS-$arch-$v";
+} elsif( mail "FAIL-$arch-$v" ) {
+  open SPAR, '-|', $^X, 'spar', '-d', '-', $v;
+  undef $/;
+  print MAIL "\nbegin 755 $arch-$v.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
 }

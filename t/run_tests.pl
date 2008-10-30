@@ -7,6 +7,16 @@ use Cwd;
 use File::Path;
 use File::Copy 'cp';
 
+# on some (Windowsish) filesystems rmtree may temporarily fail
+sub slow_rmtree(@) {
+  for my $tree ( grep -d, @_ ) {
+    eval { rmtree $tree } && last
+      or $_ < 9 && select undef, undef, undef, .1
+      for 0..9;
+    die $@ if $@;
+  }
+}
+
 
 #
 # See if this architecture defines the INT signal.
@@ -15,17 +25,22 @@ my $sigint;
 if(defined $Config{sig_name}) {
   my $i=0;
   for(split(' ', $Config{sig_name})) {
-    $sigint=$i if $_ eq 'INT';
+    $sigint=$i,last if $_ eq 'INT';
     ++$i;
   }
 }
 
 my $archive = $Config{perlpath}; # Temp assignment is work-around for a nasty perl5.8.0 bug
-my $source_path;
+our $source_path;
 my $old_cwd;
 my $dot;
 my $verbose;
 my $test;
+my $keep;
+my $name;
+my $perltype;
+my $basedir;
+my $subdir;
 my $dotted;
 our $makepp_path;
 
@@ -65,15 +80,10 @@ BEGIN {
     ($source_path =~ s@/\.(?=/|$)@@) || # Convert x/./y into x/y.
     ($source_path =~ s@/[^/]+/\.\.(?=/|$)@@); # Convert x/../y into y.
 
-  if( $ARGV[0] =~ s/\bm(?:ake)?pp$/makepp/ ) {
-    $makepp_path = shift;
-    $makepp_path =~ m@^/@ or $makepp_path = "$old_cwd/$makepp_path";
-  } else {
-    $makepp_path = $source_path;
-    $makepp_path =~ s@/([^/]+)$@/makepp@; # Get the path to the makepp
+  $makepp_path = $source_path;
+  $makepp_path =~ s@/([^/]+)$@/makepp@; # Get the path to the makepp
 				# executable, which should always be in the
-				# directory above us unless given as arg.
-  }
+				# directory above us.
 
   push @INC, substr $makepp_path, 0, rindex $makepp_path, '/';
   unless( eval { require TextSubs } ) {
@@ -89,27 +99,63 @@ BEGIN {
   }
 
   TextSubs::getopts(
+    [qw(b basedir), \$basedir, 1],
     [qw(d dots), \$dot],
+    [qw(k keep), \$keep],
+    [qw(m makepp), \$makepp_path, 1],
+    [qw(n name), \$name, 1],
+    [qw(s subdir), \$subdir],
     [qw(t test), \$test],
     [qw(v verbose), \$verbose],
     [qr/[h?]/, 'help', undef, 0, sub { print <<EOF; exit }] );
-run_tests.pl[ path/to/makepp][ options][ tests]
+run_tests.pl[ options][ tests]
+    -b, --basedir=BASEDIR
+	Put tdirs into subdir of given dir, to perform tests elsewhere.
     -d, --dots
 	Output only a dot for every successful test.
+    -k, --keep
+	Keep the tdir even if the test was successful.
+    -m, --makepp=PATH_TO_MAKEPP
+	Use that makepp, instead of the one above run_tests.pl.
+    -n, --name=NAME
+	Give this test series a name.
+    -s, --subdir
+	Put tdirs into a subdir named [BASEDIR/]perlversion[-NAME].
     -t, --test
 	Output in format expected by Test::Harness.
     -v, --verbose
 	Give some initial info and final statistics.
 
-    If no path to makepp is given, looks for it one directory higher.
     If no tests are given, runs all in the current directory.
 EOF
 
-  printf "%sPerl V%vd %dbits - %s %s\n",
-    $Config{cf_email} =~ /(Active)(?:Perl|State)/ ? $1 : '',
+  $perltype =
+    $Config{cf_email} =~ /(Active)(?:Perl|State)/ ? $1 :
+    $Config{ldflags} =~ /(vanilla|strawberry|chocolate)/i ? ucfirst lc $1 :
+    '';
+
+  printf "%s%sPerl V%vd %dbits - %s %s\n",
+    $name ? "$name " : '',
+    $perltype,
     $^V, $Config{ptrsize} * 8, $^O, $Config{archname}
     if $verbose;
 
+  if( defined $basedir ) {
+    substr $basedir, 0, 0, "$old_cwd/" if is_windows ? $basedir !~ /^(?:[a-z]:)?\// : $basedir !~ /^\//;
+    $basedir .= '/' if $basedir !~ /\/$/
+  } else {
+    $basedir = "$old_cwd/";
+  }
+  if( $subdir ) {
+    $basedir .= sprintf $Config{ptrsize} == 4 ? 'V%vd' : 'V%vd-%dbits', $^V, $Config{ptrsize} * 8;
+    $basedir .= "-$perltype" if $perltype;
+    $basedir .= "-$name" if $name;
+    slow_rmtree $basedir;
+    mkdir $basedir or die "can't mkdir $basedir--$!";
+    $basedir .= '/';
+  }
+
+  chdir $basedir;
   mkdir 'd';
   my $symlink = (stat 'd')[1] &&	# Do we have inums?
     eval { symlink 'd', 'e' } &&	# Dies on MSWin32.
@@ -128,6 +174,7 @@ EOF
   eval 'sub no_link() {' . ($link ? '' : 1) . '}';
   # Under 5.6.2 (at least on linux) we cannot repeatedly test for require :-(
   eval 'sub no_md5() {' . ($] > 5.007 || eval { require Digest::MD5; 1 } ? 0 : 1) . '}';
+  chdir $old_cwd;
 }
 
 $ENV{PERL} ||= PERL;
@@ -273,16 +320,6 @@ sub execute($$;$) {
   $ret || $@;
 }
 
-# on some (Windowsish) filesystems rmtree may temporarily fail
-sub slow_rmtree(@) {
-  for my $tree ( grep -d, @_ ) {
-    eval { rmtree $tree } && last
-      or $_ < 9 && select undef, undef, undef, .1
-      for 0..9;
-    die $@ if $@;
-  }
-}
-
 sub n_files(;$$) {
   my( $outf, $code ) = @_;
   open my $logfh, '.makepp/log' or die ".makepp/log--$!\n";
@@ -307,7 +344,7 @@ print OSTDOUT '1..'.@ARGV."\n" if $test;
 test_loop:
 foreach $archive (@ARGV) {
   my $testname = $archive;
-  my( $tarcmd, $dirtest, $warned );
+  my( $tarcmd, $dirtest, $warned, $tdir, $tdir_failed, $log );
   $SIG{__WARN__} = sub {
     warn defined $dotted ? "\n" : '',
       $warned ? '' : "$testname: warning: ",
@@ -316,7 +353,10 @@ foreach $archive (@ARGV) {
     $warned = 1;
   };
   if( -d $archive ) {
-    chdir $archive;
+    $tdir = $archive;
+    substr $tdir, 0, 0, "$old_cwd/" if is_windows ? $tdir !~ /^(?:[a-z]:)?\// : $tdir !~ /^\//;
+    ($log = $tdir) =~ s!/*$!.log!;
+    chdir $tdir;
     $dirtest = 1;
   } else {
     $testname =~ s/\..*$//; # Test name is tar file name w/o extension.
@@ -353,14 +393,16 @@ foreach $archive (@ARGV) {
     elsif ($testname =~ /\.bz2$/) { # Tar file compressed harder?
       $tarcmd = "bzip2 -dc $archive | tar xf -";
     }
-    slow_rmtree 'tdir', "$testname.failed";
-    mkdir "tdir", 0755 or die "$0: can't make directory tdir--$!\n";
+    ($tdir = "$testname.tdir") =~ s!.*/!!;
+    substr $tdir, 0, 0, $basedir;
+    $log = substr( $tdir, 0, -4 ) . 'log';
+    $tdir_failed = substr( $tdir, 0, -4 ) . 'failed';
+    slow_rmtree $tdir, $tdir_failed;
+    mkdir $tdir, 0755 or die "$0: can't make directory $tdir--$!\n";
 				# Make a directory.
-    chdir "tdir" or die "$0: can't cd into tdir--$!\n";
+    chdir $tdir or die "$0: can't cd into tdir--$!\n";
   }
 
-  my $log = "$testname.log";
-  $log="../$log" if $log !~ /^\//;
   eval {
     local $SIG{ALRM} = sub { die "timed out\n" };
     eval { alarm( $ENV{MAKEPP_TEST_TIMEOUT} || 600 ) }; # Dies in Win Active State 5.6
@@ -412,13 +454,13 @@ foreach $archive (@ARGV) {
 	return if $_ eq 'n_files'; # Skip the special file.
 	return if -d;		   # Skip subdirectories, find recurses.
 	local $/ = undef;		# Slurp in the whole file at once.
-	open TFILE, $_ or die "$0: can't open tdir/$File::Find::name--$!\n";
+	open TFILE, $_ or die "$0: can't open $tdir/$File::Find::name--$!\n";
 	$tfile_contents = <TFILE>; # Read in the whole thing.
 	$tfile_contents =~ s/\r//g; # For cygwin, strip out the extra CRs.
 
 	# Get the name of the actual file, older find can't do no_chdir.
 	($mtfile = $File::Find::name) =~ s!answers/!!;
-	open MTFILE, "$old_cwd/" . ($dirtest ? $archive : 'tdir') . "/$mtfile"
+	open MTFILE, "$tdir/$mtfile"
 	  or die "$mtfile\n";
 	my $mtfile_contents = <MTFILE>; # Read in the whole file.
 	$mtfile_contents =~ s/\r//g; # For cygwin, strip out the extra CRs.
@@ -467,7 +509,7 @@ foreach $archive (@ARGV) {
       if( !$dirtest ) {
 	$@ = '' if ::is_perl_5_6;
 	execute 'cleanup_script', ">$log";
-	slow_rmtree 'tdir';		# Get rid of the test directory.
+	slow_rmtree $tdir;	# Get rid of the test directory.
       }
       chdir $old_cwd;		# Get back to the old directory.
       next;
@@ -481,14 +523,15 @@ foreach $archive (@ARGV) {
     ++$n_failures;
     close TFILE; close MTFILE;	# or cygwin will hang
     chdir $old_cwd;		# Get back to the old directory.
-    rename tdir => "$testname.failed";
+    rename $tdir => $tdir_failed;
     last if $testname eq 'aaasimple'; # If this one fails something is very wrong
   } else {
     dot '.', "passed $testname\n";
     if( !$dirtest ) {
       execute 'cleanup_script', ">$log";
       chdir $old_cwd;		# Get back to the old directory.
-      slow_rmtree 'tdir';		# Get rid of the test directory.
+      slow_rmtree $tdir
+	unless $keep;		# Get rid of the test directory.
     } else {
       chdir $old_cwd;		# Get back to the old directory.
     }
@@ -509,7 +552,7 @@ run_tests.pl -- Run makepp regression tests
 
 =head1 SYNOPSYS
 
-  run_tests.pl [-d] [-v] test1.test test2.test
+    run_tests.pl[ options] test1.test test2.test ...
 
 If no arguments are specified, defaults to *.test.
 
@@ -530,14 +573,16 @@ handy when parallely running this on many setups, and the used time for the
 runner (and perl scripts it runs directly) on the one hand and for the makepp
 (and shell) child processes on the other hand.
 
+With the -? option help more available options are shown.
+
 A test is stored as a file with an extension of F<.test> (very economic and --
 with some care -- editable spar format), or F<.tar>, F<.tar.bz2> or
 F<.tar.gz>.
 
-First a directory is created called F<tdir> (called the test directory
+First a directory is created called F<I<testname>.tdir> (called the test directory
 below).	 Then we cd to the directory, then extract the contents of the
 tar file.  This means that the tar file ought to contain top-level
-files, i.e., it should contain F<./Makeppfile>, not F<tdir/Makeppfile>.
+files, i.e., it should contain F<./Makeppfile>, not F<I<testname>.tdir/Makeppfile>.
 
 A test may also be the name of an existing directory.  In that case, no
 archive is unpacked and no cleanup is performed after the test.
@@ -560,8 +605,8 @@ supposed to use (which is not necessarily the one in the path).
 =item makepp_test_script.pl / makepp_test_script
 
 If this file exists, it should be a perl script or shell script which runs
-makepp after setting up whatever is necessary.  If this script returns false
-(a non-zero value), then the test fails.
+makepp after setting up whatever is necessary.  If this script dies or returns
+false (see above), then the test fails.
 
 In a Perl script you can use the predefined function makepp() to run it with
 the correct path and wanted interpreter.  It will die if makepp fails.  You
@@ -623,17 +668,17 @@ Files in the main test directory do not have to exist in the F<answers>
 subdirectory; if not, their contents are not compared.
 
 There is one special file in the F<answers> subdirectory: the file
-F<answers/n_files> should contain two integers in ASCII format which are the
-number of files that makepp ought to build and that are expected to have
-failed.  This is compared to the corresponding number of files that it
-actually built, extracted from the logfile F<.makepp/log>.
+F<answers/n_files> should contain three integers in ASCII format which are the
+number of files that makepp ought to build, phony targets and that are
+expected to have failed.  This is compared to the corresponding number of
+files that it actually built, extracted from the logfile F<.makepp/log>.
 
 =item cleanup_script.pl / cleanup_script
 
 If this file exists, it should be a perl script or shell script that is
 executed when the test is done.  This script is executed just before the test
 directory is deleted.  No cleanup script is necessary if the test directory
-and all the byproducts of the test can be deleted with just S<C<rm -rf tdir>>.
+and all the byproducts of the test can be deleted with just S<C<rm -rf I<testname>.tdir>>.
 (This is usually the case, so most tests don't include a cleanup script.)
 
 =back

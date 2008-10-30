@@ -3,7 +3,7 @@ require Exporter;
 use Cwd;
 use POSIX qw(S_ISDIR);
 
-# $Id: FileInfo.pm,v 1.82 2008/08/09 09:24:51 pfeiffer Exp $
+# $Id: FileInfo.pm,v 1.85 2008/09/28 22:04:52 pfeiffer Exp $
 
 #use English;
 # Don't ever include this!  This turns out to slow down
@@ -208,7 +208,7 @@ my @ids_for_check;
 $root = bless { NAME => '',
 		FULLNAME => '',
 		DIRCONTENTS => {},
-		EXISTS => 1
+		EXISTS => undef
 	       };
 
 #
@@ -238,10 +238,8 @@ $root = bless { NAME => '',
 #		mark_as_directory().  This is so the wildcard routines are
 #		reliably informed that a new directory exists.	See the
 #		documentation for Glob::wildcard_action for details.
-# EXISTS	1 if we know the file exists (either because we lstatted it,
-#		or because its name was in the directory), 0 if we know
-#		it doesn't exist (because its name wasn't in the directory,
-#		or the lstat failed).
+# EXISTS	Exists iff we know the file exists (either because we lstatted it,
+#		or because its name was in the directory).
 # IS_PHONY	Exists iff this has been tagged as a phony target.
 # LINK_DEREF	Exists iff this is a soft link.  False if we have not dereferenced
 #		it, else the cached value of the symbolic link.
@@ -399,7 +397,7 @@ sub file_exists {
   exists $_[0]{EXISTS} or	# See if we already know whether it exists.
     &lstat_array;		# Stat it to see if it exists.	This will set
 				# the EXISTS flag.
-  $_[0]{EXISTS} ? $_[0] : undef;
+  exists $_[0]{EXISTS} ? $_[0] : undef;
 }
 
 =head2 file_info
@@ -764,21 +762,8 @@ Determines if a given file is writable by its owner by just checking the
 mode bits.  This does not test whether the current user is the owner.
 
 =cut
+
 sub is_writable_owner { ((&stat_array)->[STAT_MODE] || 0) & 0200 }
-
-=head2 link_to
-
-  FileInfo::symlink( $finfo, $other_finfo);
-
-Sets up $finfo to be a soft link to the file contained in $other_finfo.
-
-=cut
-sub symlink {
-  CORE::symlink relative_filename( $_[1], $_[0]{'..'} ),
-		&absolute_filename_nolink
-    or die 'error linking ' . absolute_filename( $_[1] ) . ' to ' . &absolute_filename . "--$!\n";
-  $_[0]{EXISTS} = 1;		# We know this file exists now.
-}
 
 =head2 touched_filesystem
 
@@ -812,7 +797,7 @@ sub lstat_array {
       $fileinfo->{'..'} and
 	($fileinfo->{'..'}{READDIR} || 0) != $epoch and
 	read_directory( $fileinfo->{'..'} );
-      $fileinfo->{EXISTS} or
+      exists $fileinfo->{EXISTS} or
 	return $fileinfo->{LSTAT} = $empty_array;
     }
     if( lstat &absolute_filename_nolink ) { # Restat the file, and cache the info.
@@ -835,8 +820,8 @@ sub lstat_array {
 	    &mark_as_directory;	# Tell the wildcard system about it.
 	}
       }
-      until( $fileinfo->{EXISTS} ) {
-	$fileinfo->{EXISTS} = 1;
+      until( exists $fileinfo->{EXISTS} ) {
+	undef $fileinfo->{EXISTS};
 	publish( $fileinfo );	# If we now know the file exists but we didn't
 				# use to know that, activate any waiting
 				# subroutines.
@@ -969,7 +954,7 @@ sub read_directory {
 		 bless { NAME => $_, '..' => $dirinfo });
 				# Get the file info structure, or make
 				# one if there isn't one available.
-    $finfo->{EXISTS} = 1;	# Remember that this file exists.
+    undef $finfo->{EXISTS};	# Remember that this file exists.
     publish($finfo);		# Activate any wildcard routines.
   }
 
@@ -1107,12 +1092,10 @@ a directory and you need to get accurate timestamps or link counts.
 
 =cut
 sub dir_stat_array {
-  my $dirinfo = $_[0];
   # If READDIR is current, then LSTAT is also guaranteed to be current.
   # Otherwise, we make READDIR current, which updates LSTAT.
-  if(!$dirinfo->{READDIR} || $dirinfo->{READDIR}!=$epoch) {
-    read_directory( $dirinfo );
-  }
+  &read_directory
+    unless $_[0]{READDIR} && $_[0]{READDIR} == $epoch;
   goto &stat_array;
 }
 
@@ -1261,6 +1244,7 @@ matter how many extra args get passed in:
 
 check_for_change (1 arg)
 dereference (1 arg)
+dir_stat_array (1 arg)
 file_exists (1 arg)
 have_read_permission (1 arg)
 is_dir (1 arg)
@@ -1276,7 +1260,6 @@ read_directory (1 arg)
 relative_filename (1 to 3 args)
 signature (1 arg)
 stat_array (1 arg)
-symlink (2 args)
 unlink (1 arg)
 was_built_by_makepp (1 arg)
 

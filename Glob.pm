@@ -1,6 +1,6 @@
 package Glob;
 
-# $Id: Glob.pm,v 1.30 2008/08/04 21:57:01 pfeiffer Exp $
+# $Id: Glob.pm,v 1.31 2008/09/28 22:05:52 pfeiffer Exp $
 use strict;
 
 use FileInfo qw(file_info chdir absolute_filename relative_filename $CWD_INFO);
@@ -81,12 +81,9 @@ sub zglob {
 
 sub zglob_fileinfo_atleastone {
   my @files = &zglob_fileinfo;	# Get a list of files.
-  if (@files == 0) {		# No files matched at all?
-    @files = file_info $_[0], $_[1] || $CWD_INFO;
-				# Make a fileinfo structure for whatever the
-				# wildcard itself (or non-existent file) was.
-  }
-
+  @files = &file_info		# Make a fileinfo structure for whatever the
+    unless @files;		# wildcard itself (or non-existent file) was,
+				# if no files matched at all?
   @files;
 }
 
@@ -235,6 +232,7 @@ We do not follow symbolic links.  This is necessary to avoid infinite
 recursion and a lot of other bad things.
 
 =cut
+
 sub find_all_subdirs {
   my $dirinfo = $_[0];	# Get a fileinfo struct for this directory.
 
@@ -244,11 +242,11 @@ sub find_all_subdirs {
 # become directories.)	We make sure that all real directories have a
 # DIRCONTENTS hash (even if it's empty).
 #
-  if( !exists $dirinfo->{SCANNED_FOR_SUBDIRS} ) {
+  unless( exists $dirinfo->{SCANNED_FOR_SUBDIRS} ) {
     undef $dirinfo->{SCANNED_FOR_SUBDIRS};
 				# Don't do this again, because we may have
 				# to stat a lot of files.
-    if( FileInfo::is_dir $dirinfo ) {	# Don't even try to do this if this directory
+    if( &FileInfo::is_dir ) {	# Don't even try to do this if this directory
 				# itself doesn't exist yet.
 
       FileInfo::mark_as_directory $_ # Make sure that it's tagged as a directory.
@@ -281,7 +279,7 @@ sub find_real_subdirs {
 # means that we can know without statting any files whether there are any
 # subdirectories.
 #
-  my $dirstat = FileInfo::dir_stat_array( $dirinfo );
+  my $dirstat = &FileInfo::dir_stat_array;
   my $expected_subdirs = 0;
   defined($dirstat->[FileInfo::STAT_NLINK]) and	# If this directory doesn't exist, then it
 				# doesn't have subdirectories.
@@ -292,7 +290,7 @@ sub find_real_subdirs {
 
   $expected_subdirs or return (); # Don't even bother looking if this is a
 				# leaf directory.
-  $dirinfo->{READDIR} or FileInfo::read_directory( $dirinfo );
+  $dirinfo->{READDIR} or &FileInfo::read_directory;
 				# Load all the files known in the directory.
 
   my @subdirs;			# Where we build up the list of subdirectories.
@@ -383,7 +381,6 @@ Subdirectories beginning with '.' are not returned unless
 $Glob::allow_dot_files is true.
 
 =cut
-
 sub find_all_subdirs_recursively {
   my @subdirs;
 

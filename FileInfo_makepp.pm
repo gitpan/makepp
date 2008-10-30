@@ -2,7 +2,7 @@ package FileInfo;
 
 use FileInfo;			# Override some subroutines from the
 				# generic FileInfo package.
-# $Id: FileInfo_makepp.pm,v 1.90 2008/08/19 07:02:23 pfeiffer Exp $
+# $Id: FileInfo_makepp.pm,v 1.94 2008/09/28 22:04:02 pfeiffer Exp $
 
 #
 # This file defines some additional subroutines for the FileInfo package that
@@ -56,7 +56,7 @@ sub build_info_string {
 
   if( wantarray ) {
     shift;
-    map $binfo->{$_}, @_;
+    @{$binfo}{@_};		# This would deliver length in scalar context.
   } else {
     $binfo->{$_[1]};
   }
@@ -158,7 +158,7 @@ sub exists_or_can_be_built_norecurse {
   if( &is_symbolic_link ) {
     &dont_build or
       $finfo->{BUILD_INFO} ||= &load_build_info_file; # blow away bogus repository links
-  } elsif ($finfo->{EXISTS} &&
+  } elsif( exists $finfo->{EXISTS} &&
       !&have_read_permission) { # File exists, but can't be read, and
 				# isn't a broken symbolic link?
     return $finfo->{EXISTS_OR_CAN_BE_BUILT} = 0;
@@ -166,8 +166,8 @@ sub exists_or_can_be_built_norecurse {
 				# to inhibit imports from repositories.
   }
 
-  if($finfo->{EXISTS} ||	# We know it exists?
-    (ref($finfo) ne 'FileInfo' && &signature)) {	# Has a valid signature.
+  if( exists $finfo->{EXISTS} || # We know it exists?
+    (ref($finfo) ne 'FileInfo' && &signature)) { # Has a valid signature.
     # If we think it's a stale file when this is called, then just pretend
     # it isn't there, but don't remove it because we might find out later
     # that there is a rule for it.
@@ -191,7 +191,7 @@ sub exists_or_can_be_built {
 
   if( &dont_build ) {
     &lstat_array;
-    return unless $finfo->{EXISTS};
+    return unless exists $finfo->{EXISTS};
   }
   if($directory_first_reference_hook) {
     &is_or_will_be_dir;
@@ -232,12 +232,12 @@ sub exists_or_can_be_built_or_remove {
   my $finfo = $_[0];
   if( &dont_build ) {
     &lstat_array;
-    return unless $finfo->{EXISTS};
+    return unless exists $finfo->{EXISTS};
   }
   $warned_stale{int $finfo} = 1 if $::rm_stale_files; # Avoid redundant warning
   my $result = &exists_or_can_be_built;
   return $result if $result || !$::rm_stale_files;
-  if( $finfo->{EXISTS} || &signature ) {
+  if( exists $finfo->{EXISTS} || &signature ) {
     unless( &was_built_by_makepp ) {
       die '`' . &absolute_filename . "' is both a source file and a phony target\n" if exists $finfo->{IS_PHONY};
       return unless &have_read_permission; # Hidden from mpp.
@@ -752,7 +752,7 @@ Returns TRUE iff the file was put there by makepp and not since modified.
 
 sub was_built_by_makepp {
   defined and return 1
-    for build_info_string( $_[0], qw'BUILD_SIGNATURE FROM_REPOSITORY' );
+    for build_info_string $_[0], qw'BUILD_SIGNATURE FROM_REPOSITORY';
   if( exists $_[0]{TEMP_BUILD_INFO} ) {
     defined and return 1
       for @{$_[0]{TEMP_BUILD_INFO}}{qw'BUILD_SIGNATURE FROM_REPOSITORY'};

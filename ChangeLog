@@ -1,6 +1,45 @@
-2008-08-30  Daniel Pfeiffer  <occitan@esperanto.org>
+2008-10-30  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* FileInfo.pm
+	* t/run_tests.pl: Default of running only basic tests works again.  Each test now gets its own tdir, to avoid (Windows) problems where it couldn't be cleaned because it was randomly locked.
+	($source_path): "our" for finding builtins.test.
+	(-b, -k, -m, -n & -s): New options.
+
+	* t/run_all.t: Path to makepp and -n moved to run_tests.pl.  '--' passes through options.
+
+	* t/additional_tests/2006_02_18_makeppbuiltin.test: Adapt to run_tests change.
+
+2008-10-15  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	Mention Strawberry Perl as working.
+
+	* makepp: Rewrite on Win ActiveState only up to 5.8.6.
+
+2008-09-28  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Makefile.pm (find_root_makefile_upwards): When importing a
+	RootMakeppfile from a repository, check that this hadn't been done
+	previously in a lower directory.
+
+	* ActionParser.pm (parse_rule): Add dependency on user perl
+	command in such a way that it will not occasionally be temporarily
+	dropped.
+
+	* makepp (build_dependencies_done): Fix evaluation order.
+
+	* Glob.pm:
+	* FileInfo.pm (dir_stat_array):
+	* FileInfo_makepp.pm (build_info_string): Optimize.
+
+2008-09-02  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* FileInfo.pm:
+	* FileInfo_makepp.pm:
+	* Makefile.pm:
+	* Makesubs.pm: Make EXISTS be undef/exists based, to save quite some memory.
+
+	* Repository.pm (symlink): Move here from FileInfo.pm, as nobody else uses it.
+
+2008-09-01  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	* makepp:
 	* FileInfo_makepp.pm:
@@ -8,11 +47,11 @@
 	* makepplog:
 	* t/additional_tests/2004_04_01_stale_repository.test: Handle stale symlinks in, via or without repository cleanly.
 
-	* BuildCheck/exact_match.pm: Use cheaper unless.
+	* BuildCheck/exact_match.pm: Use cheaper "unless".
 
 	* makeppgraph (--up, --down): Accept these advertised options.
 
-	* pod/makepp_functions.pod: Fix find_program doc to "not-found".
+	* pod/makepp_functions.pod: Fix find-program doc to "not-found".
 
 2008-08-19  Daniel Pfeiffer  <occitan@esperanto.org>
 

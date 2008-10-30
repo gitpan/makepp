@@ -1,4 +1,4 @@
-# $Id: Repository.pm,v 1.2 2008/07/19 21:37:52 pfeiffer Exp $
+# $Id: Repository.pm,v 1.3 2008/09/02 08:37:59 pfeiffer Exp $
 #
 # This file groups all the functions needed only if repositories are actually used.
 # The actual functionality is also dispersed in makepp and other modules.
@@ -8,6 +8,13 @@
 package FileInfo;		# Use this a lot.
 
 use FileInfo ();
+
+sub symlink {
+  CORE::symlink relative_filename( $_[1], $_[0]{'..'} ),
+		&absolute_filename_nolink
+    or die 'error linking ' . absolute_filename( $_[1] ) . ' to ' . &absolute_filename . "--$!\n";
+  undef $_[0]{EXISTS};		# We know this file exists now.
+}
 
 #
 # Because automake/autoconfig is so #@%!(#%&!)#$&(^)$(^&!( hacked up, there
@@ -234,10 +241,11 @@ sub Repository::get {
 				# they can point to another file in the repository
 				# of which we have a different version locally.
       $build_info{SYMLINK} = readlink absolute_filename $src_finfo;
-      CORE::symlink $build_info{SYMLINK}, &absolute_filename
-				# Don't use our symlink(), to preserve absolute link too.
-	and $dest_finfo->{EXISTS} = 1 # We know this file exists now.
-	or $@ = "$!";
+      if( CORE::symlink $build_info{SYMLINK}, &absolute_filename ) {
+	undef $dest_finfo->{EXISTS}; # We know this file exists now.
+      } else {
+	$@ = "$!";
+      }
     } else {
       eval { &symlink };	# Make the link.
     }

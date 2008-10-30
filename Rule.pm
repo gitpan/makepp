@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.93 2008/08/19 07:01:44 pfeiffer Exp $
+# $Id: Rule.pm,v 1.94 2008/09/01 07:53:04 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Rule;

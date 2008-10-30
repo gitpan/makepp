@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.123 2008/08/04 21:48:31 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.125 2008/09/28 21:23:32 pfeiffer Exp $
 package Makefile;
 
 use Glob qw(wildcard_action needed_wildcard_action);
@@ -508,7 +508,7 @@ sub implicitly_load {
   exists($dirinfo->{MAKEINFO}) and return;
 				# Already tried to load something.
   FileInfo::is_writable( $dirinfo ) ||	# Directory already exists?
-    !$dirinfo->{EXISTS} && FileInfo::is_or_will_be_dir( $dirinfo ) &&
+    !exists $dirinfo->{EXISTS} && FileInfo::is_or_will_be_dir( $dirinfo ) &&
     exists $dirinfo->{ALTERNATE_VERSIONS}
     or return;			# If the directory isn't writable, don't
 				# try to load from it.	(Directories from
@@ -621,6 +621,18 @@ sub find_root_makefile_upwards {
 				# to be the first makefile we load, so no
 				# other can give us the rule.  This avoids
 				# going into load recursion.
+    }
+    if( $found && exists $found->{ALTERNATE_VERSIONS} && !file_exists $found ) {
+				# RootMakeppfile to be imported first time.
+				# Check downwards that this is no accident.
+      my @subdirs = grep $_->{NAME} !~ /^\./, Glob::find_real_subdirs $found->{'..'};
+      while( @subdirs ) {
+	for( @root_makefiles ) {
+	  die "makepp: Must not have nested directories with a RootMakeppfile\n"
+	    if file_exists file_info $_, $subdirs[-1];
+	}
+	push @subdirs, grep $_->{NAME} !~ /^\./, Glob::find_real_subdirs pop @subdirs;
+      }
     }
     last if $found or $cwd == $FileInfo::root;
     push @path, $cwd = $cwd->{'..'}; # Look in all directories above us.

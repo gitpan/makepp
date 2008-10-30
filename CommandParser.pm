@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.28 2008/06/03 21:44:29 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.29 2008/09/28 22:10:16 pfeiffer Exp $
 
 =head1 NAME
 
@@ -32,7 +32,7 @@ use Makesubs ();
   my $parser=new CommandParser($rule, $dir);
 
 Returns a new C<CommandParser> object for rule $rule.
-$dir is the directory (a FileInfo object) in which the command runs.
+$dir is the directory (a string) in which the command runs.
 The derived class may override this method and its parameters.
 
 =cut

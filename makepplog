@@ -2,7 +2,7 @@
 
 use strict;
 
-# $Id: makepplog,v 1.25 2008/05/17 14:08:37 pfeiffer Exp $
+# $Id: makepplog,v 1.26 2008/09/01 07:53:05 pfeiffer Exp $
 
 # Shall we put a period after each message?  Or once for all before the \n when printing?
 my %log_msg =

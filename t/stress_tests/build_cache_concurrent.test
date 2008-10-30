@@ -1,6 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	3	644	1148062992	1210873871	is_relevant.pl
-is_windows < 1			# ActiveState can crash
+###	3	644	1148062992	1224089593	is_relevant.pl
+is_windows < 1			# Strawberry and ActiveState can crash
   and !no_link
   and fork ? wait>0 : exit	# Make sure we can fork.
 ###	65	755	1103935704	1185997009	makepp_test_script.pl

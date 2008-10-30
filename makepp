@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.169 2008/08/04 21:58:24 pfeiffer Exp $
+# $Id: makepp,v 1.172 2008/10/15 21:31:38 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 require 5.006;
@@ -71,8 +71,8 @@ BEGIN {
       qw(BuildCheck/exact_match.pm BuildCacheControl.pm CommandParser.pm FileInfo.pm FileInfo_makepp.pm Makefile.pm Rule.pm Scanner.pm
 	 makepp makeppinfo) );
     exec $^X, $0, @ARGV unless $makeppok;
-  } elsif( $^O =~ /^MSWin/ ) {
-    # This is a very bad hack!  On Win Active State "lstat 'file'; lstat _ or -l _" is broken.
+  } elsif( $^O =~ /^MSWin/ && $] < 5.008007 ) {
+    # This is a very bad hack!  On earlier Win Active State "lstat 'file'; lstat _ or -l _" is broken.
     &$workaround( sub {
 	s/\blstat\b/stat/g;
 	s/-l _/0/g;
@@ -759,7 +759,7 @@ sub build_dependencies_done {
 	  next if file_exists file_info $tinfo->{TEMP_BUILD_INFO}{SYMLINK}, $tinfo->{'..'};
 	  delete $tinfo->{TEMP_BUILD_INFO};
 	}
-	if( grep $_, FileInfo::build_info_string( $tinfo, qw'FROM_REPOSITORY LINKED_TO_CACHE' ) ||
+	if( grep $_, FileInfo::build_info_string $tinfo, qw'FROM_REPOSITORY LINKED_TO_CACHE' or
 	    !(exists $tinfo->{IS_PHONY} || FileInfo::is_writable_owner $tinfo )) {
 				# Marked read only?
 	  ::log REMOVE => $tinfo

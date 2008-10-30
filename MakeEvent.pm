@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: MakeEvent.pm,v 1.22 2008/05/17 14:38:05 pfeiffer Exp $
+# $Id: MakeEvent.pm,v 1.23 2008/10/15 21:30:24 pfeiffer Exp $
 
 package MakeEvent;
 
@@ -469,8 +469,8 @@ use POSIX qw(:signal_h :errno_h :sys_wait_h);
 sub start {
   my $self = $_[0];
   MakeEvent::process_finished( $self ), return if $self->{STATUS};
-  if( ::is_windows > 0 ) {	# On Win ActiveState, we don't fork because the
-				# operating system doesn't support this well.
+  if( ::is_windows > 0 ) {	# On Win Strawberry or ActiveState, we don't fork because the
+				# perl port doesn't support a following exec well.
     if (@{$self->{PARAMS}}) {
       die "makepp: internal error: parameters to MakeEvent::Process not supported on windows\n";
     }

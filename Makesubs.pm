@@ -1,4 +1,4 @@
-# $Id: Makesubs.pm,v 1.163 2008/08/04 21:48:57 pfeiffer Exp $
+# $Id: Makesubs.pm,v 1.164 2008/09/02 08:35:10 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains subroutines which can be called from a makefile.
@@ -428,7 +428,7 @@ sub f_find_program {
 	my( $exists_exe, $finfo_exe );
 	$exists_exe = FileInfo::exists_or_can_be_built $finfo_exe = FileInfo::path_file_info "$name.exe", $makefile->{CWD}
 	  if !$exists ||
-	    $_[3] && $FileInfo::stat_exe_separate ? !$finfo->{EXISTS} : !open my $fh, '<', absolute_filename $finfo;
+	    $_[3] && $FileInfo::stat_exe_separate ? !exists $finfo->{EXISTS} : !open my $fh, '<', absolute_filename $finfo;
 				# Check for exe, but don't bother returning it, unless full path wanted.
 				# If stat has .exe magic, EXISTS is meaningless.
 	return $_[3] ? absolute_filename( $finfo_exe ) : $name if $exists_exe;
@@ -452,7 +452,7 @@ sub f_find_program {
 	my( $exists_exe, $finfo_exe );
 	$exists_exe = FileInfo::exists_or_can_be_built $finfo_exe = file_info( "$name.exe", $dir ), undef, undef, 1
 	  if !$exists ||
-	    $_[3] && $FileInfo::stat_exe_separate ? !$finfo->{EXISTS} : !open my $fh, '<', absolute_filename $finfo;
+	    $_[3] && $FileInfo::stat_exe_separate ? !exists $finfo->{EXISTS} : !open my $fh, '<', absolute_filename $finfo;
 				# Check for exe, but don't bother returning it, unless full path wanted.
 	return $_[3] ? absolute_filename( $finfo_exe ) : $name if $exists_exe;
       }
