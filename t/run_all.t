@@ -32,7 +32,7 @@ use Config;
 $0 =~ s!.*/!!;
 my $makepp = @ARGV && $ARGV[0] =~/\bm(?:ake)?pp$/ && shift;
 if( @ARGV && $ARGV[0] eq '-?' ) { print <<EOF; exit }
-$0\[ options in following order][ -- run_tests options][ tests]
+$0\[ options][ -- run_tests options][ tests]
     -T  run_tests.pl -dvs rather than default -ts
     -b  Add all build_cache tests to list.
     -c  Select only those which use the C compiler.
@@ -43,17 +43,17 @@ $0\[ options in following order][ -- run_tests options][ tests]
     If no tests are given, runs all in and below the current directory.
 EOF
 $0 =~ s!all\.t!tests.pl!;
-my $T = @ARGV && $ARGV[0] eq '-T' and shift;
-my $b = @ARGV && $ARGV[0] eq '-b' and shift;
-my $c = @ARGV && $ARGV[0] eq '-c' and shift;
-my $C = @ARGV && $ARGV[0] eq '-C' and shift;
-my $R = @ARGV && $ARGV[0] eq '-R' and shift;
-my $S = @ARGV && $ARGV[0] eq '-S' and shift;
-
-my @opts;
-if( @ARGV && $ARGV[0] eq '--' ) {
+my( $T, $b, $c, $C, $R, $S, @opts );
+while( @ARGV ) {
+  last unless $ARGV[0] =~ /^-(.*)/;
   shift;
-  push @opts, shift while @ARGV && $ARGV[0] =~ /^-/;
+  if( $1 eq '-' ) {
+    @opts = shift;
+  } elsif( @opts ) {
+    push @opts, "-$1";
+  } else {
+    eval "\$$1 = 1";
+  }
 }
 
 push @ARGV, <*build_cache*.test */*build_cache*.test> if $b;
@@ -71,6 +71,9 @@ print "$0 @ARGV\n" if $ENV{DEBUG};
 
 if( $ENV{AUTOMATED_TESTING} ) {
   system $^X, $0, @ARGV;
+} elsif( $^O =~ /^MSWin/ ) {	# exec detaches a child process and exit immediately
+  system $^X, $0, @ARGV;
+  exit $? >> 8;
 } else {
   exec $^X, $0, @ARGV;
 }
@@ -78,7 +81,9 @@ if( $ENV{AUTOMATED_TESTING} ) {
 sub mail {
   my $a = 'occitan@esperanto.org';
   if( open MAIL, "| exec 2>/dev/null; mailx -s$_[0] $a || mail -s$_[0] $a || /usr/lib/sendmail $a || mail $a" ) {
-    print MAIL "$_[0]\n";
+    print MAIL "$_[0]\n\n";
+    open VERSION, "$^X ../makeppinfo --version|";
+    print MAIL <VERSION>, "\n";
     my %acc;
     $Config{$_} && push @{$acc{$Config{$_}}}, $_ for sort keys %Config;
     print MAIL "@{$acc{$_}} => $_\n" for sort keys %acc;
@@ -97,7 +102,7 @@ $v .= "-$perltype" if $perltype;
 if( !<$v/*.failed> ) {
   mail "SUCCESS-$arch-$v";
 } elsif( mail "FAIL-$arch-$v" ) {
-  open SPAR, '-|', $^X, 'spar', '-d', '-', $v;
+  open SPAR, "$^X spar -d - $v|";
   undef $/;
   print MAIL "\nbegin 755 $arch-$v.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
 }

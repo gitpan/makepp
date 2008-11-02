@@ -10,10 +10,12 @@ use File::Copy 'cp';
 # on some (Windowsish) filesystems rmtree may temporarily fail
 sub slow_rmtree(@) {
   for my $tree ( grep -d, @_ ) {
-    eval { rmtree $tree } && last
-      or $_ < 9 && select undef, undef, undef, .1
-      for 0..9;
-    die $@ if $@;
+    for( 0..9 ) {
+      eval { $@ = ''; local $SIG{__WARN__} = sub { die @_ }; rmtree $tree };
+      -d $tree or last;
+      $_ < 9 and select undef, undef, undef, .1;
+    }
+    warn $@ if $@;
   }
 }
 
@@ -141,7 +143,7 @@ EOF
     if $verbose;
 
   if( defined $basedir ) {
-    substr $basedir, 0, 0, "$old_cwd/" if is_windows ? $basedir !~ /^(?:[a-z]:)?\// : $basedir !~ /^\//;
+    substr $basedir, 0, 0, "$old_cwd/" if &is_windows ? $basedir !~ /^(?:[a-z]:)?\//i : $basedir !~ /^\//;
     $basedir .= '/' if $basedir !~ /\/$/
   } else {
     $basedir = "$old_cwd/";
@@ -509,9 +511,11 @@ foreach $archive (@ARGV) {
       if( !$dirtest ) {
 	$@ = '' if ::is_perl_5_6;
 	execute 'cleanup_script', ">$log";
+	chdir $old_cwd;		# Get back to the old directory.
 	slow_rmtree $tdir;	# Get rid of the test directory.
+      } else {
+	chdir $old_cwd;		# Get back to the old directory.
       }
-      chdir $old_cwd;		# Get back to the old directory.
       next;
     } elsif ($@ =~ /^\S+$/) {	# Just one word?
       my $loc = $@;
@@ -523,7 +527,7 @@ foreach $archive (@ARGV) {
     ++$n_failures;
     close TFILE; close MTFILE;	# or cygwin will hang
     chdir $old_cwd;		# Get back to the old directory.
-    rename $tdir => $tdir_failed;
+    rename $tdir => $tdir_failed unless $dirtest;
     last if $testname eq 'aaasimple'; # If this one fails something is very wrong
   } else {
     dot '.', "passed $testname\n";
