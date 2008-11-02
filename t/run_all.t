@@ -69,11 +69,15 @@ push @ARGV, <*repository*.test */*repository*.test> if $R;
 unshift @ARGV, @opts, $T ? '-dvs' : '-ts';
 print "$0 @ARGV\n" if $ENV{DEBUG};
 
-if( $ENV{AUTOMATED_TESTING} ) {
+my $reason;
+if( $ENV{AUTOMATED_TESTING} || $^O =~ /^MSWin/ ) {	# exec detaches a child process and exit immediately
   system $^X, $0, @ARGV;
-} elsif( $^O =~ /^MSWin/ ) {	# exec detaches a child process and exit immediately
-  system $^X, $0, @ARGV;
-  exit $? >> 8;
+  exit( $? >> 8 || $? ) unless $ENV{AUTOMATED_TESTING};
+  $reason =
+    $? == -1 ? "system $^X, $0, @ARGV failed: $!\n" :
+    $? & 127 ? "system $^X, $0, @ARGV died with signal $?\n" :
+    $? ? "system $^X, $0, @ARGV exited with value " . ($? >> 8) . "\n" :
+    '';
 } else {
   exec $^X, $0, @ARGV;
 }
@@ -81,7 +85,7 @@ if( $ENV{AUTOMATED_TESTING} ) {
 sub mail {
   my $a = 'occitan@esperanto.org';
   if( open MAIL, "| exec 2>/dev/null; mailx -s$_[0] $a || mail -s$_[0] $a || /usr/lib/sendmail $a || mail $a" ) {
-    print MAIL "$_[0]\n\n";
+    print MAIL "$_[0]\n$reason\n";
     open VERSION, "$^X ../makeppinfo --version|";
     print MAIL <VERSION>, "\n";
     my %acc;
