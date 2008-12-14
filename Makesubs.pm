@@ -1,4 +1,4 @@
-# $Id: Makesubs.pm,v 1.164 2008/09/02 08:35:10 pfeiffer Exp $
+# $Id: Makesubs.pm,v 1.165 2008/12/14 17:03:46 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains subroutines which can be called from a makefile.
@@ -109,6 +109,14 @@ sub scanner_skip_word {
   (
    # These words usually introduce another command
    # which actually is the real compilation command:
+   ash		=> \&scanner_skip_word,
+   bash		=> \&scanner_skip_word,
+   csh		=> \&scanner_skip_word,
+   ksh		=> \&scanner_skip_word,
+   sh		=> \&scanner_skip_word,
+   tcsh		=> \&scanner_skip_word,
+   zsh		=> \&scanner_skip_word,
+
    ccache	=> \&scanner_skip_word,
    condor_compile => \&scanner_skip_word,
    diet		=> \&scanner_skip_word, # dietlibc
@@ -120,7 +128,6 @@ sub scanner_skip_word {
    purecov	=> \&scanner_skip_word,
    purify	=> \&scanner_skip_word,
    quantify	=> \&scanner_skip_word,
-   sh		=> \&scanner_skip_word,
    time		=> \&scanner_skip_word,
    if		=> \&scanner_skip_word, # Sometimes people do things like
    then		=> \&scanner_skip_word, # "if gcc main.o -labc -o my_program; ..."

@@ -6,6 +6,7 @@ my %c;				# CC=gehtnich CXX=gehtnich ./run_all.pl
 @c{qw(
 c_compilation.test
 log_graph.test
+makeppreplay.test
 md5.test
 additional_tests/2003_10_11_idash.test
 additional_tests/2003_11_25_wild.test
@@ -89,7 +90,12 @@ sub mail {
     open VERSION, "$^X ../makeppinfo --version|";
     print MAIL <VERSION>, "\n";
     my %acc;
-    $Config{$_} && push @{$acc{$Config{$_}}}, $_ for sort keys %Config;
+    for( sort keys %Config ) {
+      next unless defined $Config{$_};
+      my $value = $Config{$_} eq $_ ? '~' : $Config{$_};
+      push @{$acc{$value}},
+      @{$acc{$value}} ? (/^${$acc{$value}}[-1](.+)/ ? "~$1" : $_) : $_
+    }
     print MAIL "@{$acc{$_}} => $_\n" for sort keys %acc;
     1;
   }

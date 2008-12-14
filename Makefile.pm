@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.125 2008/09/28 21:23:32 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.127 2008/12/14 17:10:01 pfeiffer Exp $
 package Makefile;
 
 use Glob qw(wildcard_action needed_wildcard_action);
@@ -721,7 +721,7 @@ sub load {
 				# makefile from this directory.
 				# This prevents recursion with implicitly
 				# loading a makefile.
-  $minfo = find_makefile_in( $minfo, $makeppfile_only ) ||
+  $minfo = ::MAKEPP && find_makefile_in( $minfo, $makeppfile_only ) ||
 				# Find a makefile.
 #
 # If there's no makefile, then load the default makefile as if it existed in
@@ -740,7 +740,7 @@ sub load {
   } else {			# Look upwards for root makefile.
     my $rootmf = find_root_makefile_upwards $mdinfo->{'..'};
     $mdinfo->{ROOT} = $mdinfo->{'..'}{ROOT};
-    load( $rootmf, 0, @_[2..6] ) if $rootmf; # Load this one first.
+    load( $rootmf, 0, @_[2..6] ) if ::MAKEPP && $rootmf; # Load this one first.
   }
 
   my $mpackage;
@@ -867,24 +867,25 @@ sub load {
   chdir( $mdinfo );		# Get in the correct directory for wildcard
 				# action routines.
 
+  if( ::MAKEPP ) {
 #
-# Read in the makefile:
+# Read in the makefile, except in makeppreplay:
 #
-  if ($this_ENV{MAKEFILES}) {	# Supposed to pre-load some files?
-    foreach (split(' ', $this_ENV{MAKEFILES})) {
-      my $finfo = file_info($_, $mdinfo);
-      eval { read_makefile($self, $finfo) };
-      if ($@) {
-	warn "can't read ", absolute_filename( $finfo ), " (listed in \$MAKEFILES):\n$@";
+    if( $this_ENV{MAKEFILES} ) { # Supposed to pre-load some files?
+      foreach( split ' ', $this_ENV{MAKEFILES} ) {
+	my $finfo = file_info $_, $mdinfo;
+	eval { read_makefile($self, $finfo) };
+	warn "can't read ", absolute_filename( $finfo ), " (listed in \$MAKEFILES):\n$@"
+	  if $@;
       }
     }
-  }
-  read_makefile($self, $minfo); # Read this makefile again.
-  if( !expand_variable $self, 'makepp_no_builtin' ) {
-    $makepp_builtin_rules ||= FileInfo::path_file_info "$::datadir/makepp_builtin_rules.mk";
-    read_makefile( $self, $makepp_builtin_rules );
-    ::log LOAD_INCL => $makepp_builtin_rules, $minfo
-      if $::log_level;
+    read_makefile($self, $minfo); # Read this makefile (possibly again).
+    unless( expand_variable $self, 'makepp_no_builtin' ) {
+      $makepp_builtin_rules ||= FileInfo::path_file_info "$::datadir/makepp_builtin_rules.mk";
+      read_makefile( $self, $makepp_builtin_rules );
+      ::log LOAD_INCL => $makepp_builtin_rules, $minfo
+	if $::log_level;
+    }
   }
 
 #
@@ -933,9 +934,9 @@ sub load {
 # This must be done after setting up the EXPORTS variables above, because
 # makefile rebuilding might depend on that.
 #
-  if ($::remake_makefiles && # This often causes problems, so we provide
+  if( ::MAKEPP && $::remake_makefiles && # This often causes problems, so we provide
 				# a way of turning it off.
-      $minfo->{NAME} ne 'makepp_default_makefile.mk') {
+      $minfo->{NAME} ne 'makepp_default_makefile.mk' ) {
     my $old_n_files = $::n_files_changed;
     # If there isn't a rule for the Makefile at this point, then it has already
     # been re-generated, or there isn't a rule to be found.  In the first case

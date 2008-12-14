@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 
-# $Id: makeppinfo,v 1.3 2007/10/22 19:04:31 pfeiffer Exp $
+# $Id: makeppinfo,v 1.4 2008/12/14 17:11:06 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 use Config;
@@ -87,33 +87,21 @@ while( @ARGV ) {
   }
   next if exists $seen{int $finfo};
   undef $seen{int $finfo};
-  unless( file_exists $finfo ) {
-    warn 'makeppinfo: file `' . relative_filename( $finfo ) . "' not found\n";
-    next;
-  }
-  my $build_info_fname = FileInfo::build_info_fname $finfo;
-  my $fh;
-  unless( open $fh, $build_info_fname ) {
-    warn "makeppinfo: build info file `$build_info_fname' not found\n"
-      unless $no_warn;
-    next;
-  }
-  my $build_info = FileInfo::parse_build_info_file $fh;
-  unless( $build_info ) {
-    warn "makeppinfo: build info file `$build_info_fname' corrupted\n";
-    next;
-  }
+  warn 'makeppinfo: file `' . relative_filename( $finfo ) . "' not found\n"
+    unless file_exists $finfo;
+
+  my $build_info = FileInfo::load_build_info_file $finfo
+    or next;
 
   $cwd = file_info $build_info->{CWD}, exists $finfo->{DIRCONTENTS} ? $finfo : $finfo->{'..'}
     if $traverse && exists $build_info->{CWD};
   if( $build_info->{DEP_SIGS} && $build_info->{SORTED_DEPS} ) {
     my @dep_sigs = split /\cA/, delete $build_info->{DEP_SIGS};
-    my @sorted_deps = split /\cA/, $build_info->{SORTED_DEPS};
+    my @sorted_deps = split /\cA/, delete $build_info->{SORTED_DEPS};
     push @ARGV, map file_info( $_, $cwd ), @sorted_deps
       if $traverse;
-    $build_info->{SORTED_DEPS} = '';
-    $build_info->{SORTED_DEPS} .= sprintf "\n%-22s %s", shift @dep_sigs, shift @sorted_deps
-      while @dep_sigs;
+    $build_info->{'DEP_SIGS SORTED_DEPS'} = join "\n", '',
+      map sprintf( "%-22s %s", $_, shift @sorted_deps ), @dep_sigs;
   }
 
   if( $keylist ) {
@@ -159,9 +147,8 @@ sub usage {
   print << 'END_OF_USAGE';
 Usage: makeppinfo [file ...]
 
-For each file print a human readable version of makepp's build info.
-SORTED_DEPS has the DEP_SIGS prepended.  Tagged lists have the tag
-prepended.
+For each file print a human readable version of makepp's build info.  DEP_SIGS
+and SORTED_DEPS get merged.  Tagged lists have the tag prepended.
 
 -k LIST, --keys=LIST or --keylist=LIST
 	Show only messages with, !without or ^without keys, {bash,patterns}.

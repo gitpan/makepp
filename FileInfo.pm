@@ -3,7 +3,7 @@ require Exporter;
 use Cwd;
 use POSIX qw(S_ISDIR);
 
-# $Id: FileInfo.pm,v 1.85 2008/09/28 22:04:52 pfeiffer Exp $
+# $Id: FileInfo.pm,v 1.87 2008/12/14 16:56:41 pfeiffer Exp $
 
 #use English;
 # Don't ever include this!  This turns out to slow down
@@ -174,7 +174,9 @@ BEGIN {
     -e $test_fname || -e uc $test_fname or
     ::is_windows and -e "$test_fname.exe" || -e uc "$test_fname.exe";
   $test_fname .= '.exe' if ::is_windows;
-  unless( open my $fh, '>', $test_fname ) { # Create the file.
+  if( open my $fh, '>', $test_fname ) { # Create the file.
+    close $fh;			# For unlinking on Windows.
+  } else {
     $stat_exe_separate = ::is_windows > 0;
     *case_sensitive_filenames = ::is_windows ? \&TextSubs::CONST0 : \&TextSubs::CONST1
       unless $done;
@@ -1230,9 +1232,11 @@ unless there are optional args:
 absolute_filename (1 arg)
 absolute_filename_nolink (1 arg)
 assume_unchanged (1 arg)
+build_info_fname (1 arg)
 dont_build (1 arg)
 dont_read (1 arg)
 in_sandbox (1 arg)
+mark_build_info_for_update (1 arg)
 may_have_changed (1 arg)
 parent (1 arg)
 publish (1 or 2 args)
@@ -1252,6 +1256,7 @@ is_or_will_be_dir (1 arg)
 is_stale (1 arg)
 is_symbolic_link (1 arg)
 is_writable_owner (1 arg)
+load_build_info_file (1 arg)
 lstat_array (1 arg)
 mark_as_directory (1 arg)
 mkdir (1 arg)

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.172 2008/10/15 21:31:38 pfeiffer Exp $
+# $Id: makepp,v 1.174 2008/12/14 17:13:35 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 require 5.006;
@@ -84,6 +84,7 @@ BEGIN {
 }
 
 use TextSubs;
+BEGIN { *MAKEPP = \&TextSubs::CONST1 } # Differentiate from makeppreplay
 use POSIX ();
 
 
@@ -815,13 +816,14 @@ sub build_dependencies_done {
     				# Since we don't know whether the command
 				# modified the link or its referent or both,
 				# need to invalidate both.
-	  unless( $is_recursive_make || $dry_run ) {
+	  unless( $is_recursive_make || $dry_run || ref($rule) eq 'DefaultRule' ) {
 				# Never store build information on recursive
 				# makes.  They always need to be rerun every
 				# time we run through the makefile.
-	    FileInfo::set_build_info_string( $tinfo,
-					     BUILD_SIGNATURE => 'FAILED',
-					     COMMAND => 'FAILED' );
+	    FileInfo::set_build_info_string $tinfo,
+	      BUILD_SIGNATURE => 'FAILED',
+	      COMMAND => "|FAILED|$command_string",
+	      CWD => relative_filename $rule->{MAKEFILE}{CWD}, $tinfo->{'..'};
 	  }
 	}
 	&FileInfo::update_build_infos # Flush the build info to disk.
@@ -920,21 +922,20 @@ sub build_target_done {
       push(@built_targets, $tinfo);
     }
     $rule->cache_scaninfo(\@built_targets);
+    my $sorted_dep_names = join "\cA", map relative_filename( $_, $build_cwd ), @$all_dependencies;
+    my $sorted_dep_sigs = join "\cA", map { $sig_method->signature($_) || '' } @$all_dependencies;
     foreach my $tinfo (@built_targets) {
       if (!$is_recursive_make && !$dry_run) {
 				# Never store build information on recursive
 				# makes.  They always need to be rerun every
 				# time we run through the makefile.
-        my $tsig = $sig_method->signature($tinfo);
-        if ($tsig) {		# File actually exists now:
+        if( my $tsig = $sig_method->signature( $tinfo )) { # File actually exists now:
 				# Store the information on how we built it.
-	  my $sorted_dep_names = join("\01", map relative_filename( $_, $build_cwd ), @$all_dependencies);
-	  my $sorted_dep_sigs = join("\01", map { $sig_method->signature($_) || '' } @$all_dependencies);
           my @extra;
           if( %$env ) {
 	    my @deps = sort keys %$env;
 	    @extra = (
-	      ENV_DEPS => join("\01", @deps), ENV_VALS => join("\01", @{$env}{@deps})
+	      ENV_DEPS => join( "\cA", @deps ), ENV_VALS => join( "\cA", @{$env}{@deps} )
 	    );
           }
 	  if( $tinfo->{LINK_DEREF} && $tinfo->{LSTAT}[FileInfo::STAT_NLINK] == 1 ) {
@@ -957,14 +958,14 @@ sub build_target_done {
 	&ln -fr \$(outputs)\n\n"
 	      if !grep $_ == $linkee, @$all_dependencies, @$all_targets;
 	  }
-	  FileInfo::set_build_info_string( $tinfo,
-					   SORTED_DEPS => $sorted_dep_names,
-					   DEP_SIGS => $sorted_dep_sigs,
-					   BUILD_SIGNATURE => $tsig,
-					   COMMAND => $command_string,
-					   CWD => relative_filename( $build_cwd, $tinfo->{'..'} ),
-					   ARCH => ARCHITECTURE, @extra);
-				# Tag the build with the architecture, too.
+	  FileInfo::set_build_info_string $tinfo,
+	    SORTED_DEPS => $sorted_dep_names,
+	    DEP_SIGS => $sorted_dep_sigs,
+	    BUILD_SIGNATURE => $tsig,
+	    COMMAND => $command_string,
+	    CWD => relative_filename( $build_cwd, $tinfo->{'..'} ),
+	    ARCH => ARCHITECTURE, # Tag the build with the architecture, too.
+	    @extra;
           if ($build_cache && !$nopopulate_bc) {     # Store this file in a build cache?
             my $bc_key = $build_check_method->
               build_cache_key($tinfo, $all_dependencies, $command_string,
@@ -1130,11 +1131,10 @@ sub parse_command_line(\%@) {
     TextSubs::getopts \%command_line_vars, 1,
       @_,
       ['c', qr/root(?:[-_]?dir(?:ectory)?)?/, \$tmp, undef, sub {
-	 $tmp = Makefile::find_root_makefile_upwards( $CWD_INFO ) || $CWD_INFO->{ROOT}
+	 $tmp = $CWD_INFO->{ROOT} || Makefile::find_root_makefile_upwards( $CWD_INFO )
 	   or die "$0: No RootMakeppfile(.mk) found above `", absolute_filename( $CWD_INFO ), "'\n";
 				# See if we find a RootMakeppfile from here.
 	 $root_makefile ||= $tmp;
-	 $tmp = $tmp->{'..'};
 	 chdir $tmp;		# Switch to that directory.
 	 $target_cwd = $tmp;	# It's now the directory relative to which
                                 # further targets are specified.

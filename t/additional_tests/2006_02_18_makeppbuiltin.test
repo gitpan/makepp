@@ -79,7 +79,7 @@ sub c_clonetest {
 
 1;
 ###	D	755	1140344139	1140344139	answers
-###	173	644	1153678523	1212231467	answers/help
+###	174	644	1153678523	1229044125	answers/help
 cat options:
   -f, --force
   -i, --inpipe=arg
@@ -93,6 +93,7 @@ chmod options:
 cp options:
   -f, --force
   -l, --link
+  -s, --symbolic-link
   -v, --verbose
 cut options:
   -c, --characters=arg

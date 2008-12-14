@@ -1,4 +1,4 @@
-# $Id: Scanner.pm,v 1.47 2008/07/30 23:17:01 pfeiffer Exp $
+# $Id: Scanner.pm,v 1.48 2008/12/14 17:10:01 pfeiffer Exp $
 
 =head1 NAME
 
@@ -318,10 +318,10 @@ sub scan_file1 {
   my $need_to_scan;
   if($cache_includes) {
     my %includes;
-    @includes{keys %{$self->{INFO_STRING}}} =
-      FileInfo::build_info_string( $finfo, values %{$self->{INFO_STRING}} );
-    if( grep !defined, values %includes ) {
-      $need_to_scan=1;
+    (my $rescan, @includes{keys %{$self->{INFO_STRING}}}) =
+      FileInfo::build_info_string $finfo, 'RESCAN', values %{$self->{INFO_STRING}};
+    if( $rescan || grep !defined, values %includes ) {
+      $need_to_scan = 1;
     } else {
       for my $inctag (keys %includes) {
         for(split(' ', $includes{$inctag})) {
@@ -331,8 +331,7 @@ sub scan_file1 {
         }
       }
     }
-  }
-  else {
+  } else {
     $need_to_scan=1;
   }
   if( $need_to_scan && !FileInfo::is_dir $finfo ) {

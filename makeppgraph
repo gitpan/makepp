@@ -2,7 +2,7 @@
 #TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
 use strict;
 
-# $Id: makeppgraph,v 1.15 2008/09/01 07:48:26 pfeiffer Exp $
+# $Id: makeppgraph,v 1.16 2008/11/23 21:02:55 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 use POSIX ();
@@ -263,15 +263,15 @@ my( @logfiles, $outfile, $plain );
     ['I', qr/include(?:[-_]?dir)?/, \$tmp, 1, sub { unshift @INC, $tmp }],
     ['i', qr/includes/, \$includes],
     ['l', qr/log(?:[-_]?file)?/, \$tmp, 1, sub { push @logfiles, $tmp }],
-    [qw(M module), \$tmp, 1, sub { eval_or_die "use $tmp" }],
+    [qw(M module), \$tmp, 1, sub { $tmp =~ s/=(.*)/ qw($1)/ and $tmp =~ tr/,/ /; eval_or_die "use $tmp" }],
     [qw(m merge), \$merge, 1],
     [qw(o output), \$outfile, 1],
     [qw(p plain), \$plain],
     [qw(r rename), \$rename, 1],
     ['s', qr/separate[-_]?directions?/, \$bidirectional, 0, 0],
     ['t', qr/te?xt/, \$type, 0, 'txt'],
-    [0, 'version', undef, 0, \&FileInfo::version],
     ['u', qr/up(?:wards?)?/, \$up],
+    [undef, 'version', undef, undef, \&FileInfo::version],
 
     [qr/[h?]/, 'help', undef, 0, \&usage];
 }
@@ -281,6 +281,8 @@ Usage: makeppgraph [-options] [starting-point ...]
 Generate a graphical representation of the last build for viewing with
 uDraw(Graph), Graphviz or as a textual representation.
 
+-A or --args-file=filename
+	Take additional args from named file.
 -b or -because or --build-reasons
 	Highlight build reasons in red.
 -D or --dependencies
@@ -295,7 +297,7 @@ uDraw(Graph), Graphviz or as a textual representation.
 	Show includes instead of dependencies.
 -l filename or --log=filename or --log-file=filename
 	Where makepp wrote its log.
--M module or --module=module
+-M module or --module=module[=arg,...]
 	Load module and import any functions it exports.
 -m perlcode or --merge=perlcode
 	Perform perlcode late for every target and its dependencies.
@@ -311,6 +313,8 @@ uDraw(Graph), Graphviz or as a textual representation.
 	Produce a human readable .txt file.
 -u or --up or --upwards
 	Follow the edges only upwards from starting-points.
+--version
+	Print out the current version.
 
 Look at @htmldir@/makeppgraph.html for more details,
 or at http://makepp.sourceforge.net/@BASEVERSION@/makeppgraph.html

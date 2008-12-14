@@ -2,7 +2,7 @@ package FileInfo;
 
 use FileInfo;			# Override some subroutines from the
 				# generic FileInfo package.
-# $Id: FileInfo_makepp.pm,v 1.94 2008/09/28 22:04:02 pfeiffer Exp $
+# $Id: FileInfo_makepp.pm,v 1.96 2008/12/14 17:10:01 pfeiffer Exp $
 
 #
 # This file defines some additional subroutines for the FileInfo package that
@@ -166,8 +166,7 @@ sub exists_or_can_be_built_norecurse {
 				# to inhibit imports from repositories.
   }
 
-  if( exists $finfo->{EXISTS} || # We know it exists?
-    (ref($finfo) ne 'FileInfo' && &signature)) { # Has a valid signature.
+  if( exists $finfo->{EXISTS} ) { # We know it exists?
     # If we think it's a stale file when this is called, then just pretend
     # it isn't there, but don't remove it because we might find out later
     # that there is a rule for it.
@@ -255,16 +254,16 @@ sub exists_or_can_be_built_or_remove {
   $result;
 }
 
-=head2 flush_build_info
+#=head2 clean_fileinfos
 
-  clean_fileinfos($dirinfo)
+#  clean_fileinfos($dirinfo)
 
-Discards all the build information for all files in the given directory
-after making sure they've been written out to disk.  Also discards all
-FileInfos for files which we haven't tried to build and don't have a
-build rule.
+#Discards all the build information for all files in the given directory
+#after making sure they've been written out to disk.  Also discards all
+#FileInfos for files which we haven't tried to build and don't have a
+#build rule.
 
-=cut
+#=cut
 #sub clean_fileinfos {
 #
 # For some reason, the code below doesn't actually save very much memory at
@@ -847,7 +846,8 @@ sub parse_build_info_file {
 
 #
 # Load a build info file, if it matches the signature on the actual file.
-# Returns undef if this build info file didn't exist or wasn't valid.
+# Returns undef if this build info file didn't exist or wasn't valid,
+# except if called from mppr, in which case it deletes SIGNATURE.
 # Arguments:
 # a) The FileInfo struct for the file.
 #
@@ -868,7 +868,7 @@ sub load_build_info_file {
       # the repository, then we need to remove the link to the repository now,
       # because otherwise we won't remove the link before the target gets built.
       # Note that this code may need to track changes to is_stale.
-      unless( $sig_match && exists $finfo->{ALTERNATE_VERSIONS} || &dont_build ) {
+      unless( $sig_match && (::MAKEPP ? exists $finfo->{ALTERNATE_VERSIONS} : 1) || &dont_build ) {
 	if( &dereference != file_info $build_info->{FROM_REPOSITORY}, $finfo->{'..'} ) {
 	  undef $sig_match;	# The symlink was modified outside of makepp
 	} elsif( &in_sandbox || !-e &absolute_filename ) {
@@ -892,7 +892,9 @@ sub load_build_info_file {
     }
 
     unless( $sig_match ) {	# Exists but has the wrong signature?
-      if( $build_info->{SYMLINK} ) {
+      if( !::MAKEPP ) {
+	delete $build_info->{SIGNATURE}; # Remember to handle this later in makeppreplay.
+      } elsif( $build_info->{SYMLINK} ) {
 				# Signature is that of linked file.  The symlink
 				# is checked before possibly rebuilding it.
 	if( $sig or not $::rm_stale_files || $build_info->{FROM_REPOSITORY} ) {
@@ -905,6 +907,7 @@ sub load_build_info_file {
 	  &unlink;
 	  CORE::unlink $build_info_fname;
 	}
+	return undef;
       } else {
 	::log OUT_OF_DATE => $finfo
 	  if $::log_level;
@@ -914,8 +917,8 @@ sub load_build_info_file {
 	# remain behind, which is what we want. Furthermore, because we remember
 	# that we tried to unlink $finfo, it should appear to makepp that it
 	# no longer exists, which is also what we want.
+	return undef;
       }
-      return undef;
     }
   } else {
     warn "$build_info_fname: build info file corrupted\n";

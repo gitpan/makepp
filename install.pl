@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.78 2008/07/19 21:32:36 pfeiffer Exp $
+# $Id: install.pl,v 1.80 2008/12/14 17:10:01 pfeiffer Exp $
 #
 
 use Config;
@@ -153,7 +153,7 @@ if($findbin) {
 $USR1 = $sig_num{USR1}; $USR1 = $USR1; 	# suppress used-only-once warning
 
 substitute_file( $_, $bindir, 0755, 1 ) for
-  qw(makepp makeppbuiltin makeppclean makeppgraph makeppinfo makepplog makepp_build_cache_control);
+  qw(makepp makeppbuiltin makeppclean makeppgraph makeppinfo makepplog makeppreplay makepp_build_cache_control);
 
 substitute_file( $_, $datadir, 0644 ) for
   qw(recursive_makepp FileInfo_makepp.pm BuildCacheControl.pm);
@@ -305,7 +305,8 @@ if ($htmldir_val ne 'none') {
 	       makeppclean => 'makeppclean',
 	       makeppgraph => 'makeppgraph',
 	       makeppinfo => 'makeppinfo',
-	       makepplog => 'makepplog');
+	       makepplog => 'makepplog',
+	       makeppreplay => 'makeppreplay');
   for( @pods ) {
     my $pod = $_;
     (my $file = $_) =~ s/pod$/html/;
@@ -330,7 +331,8 @@ if ($htmldir_val ne 'none') {
 	    'makeppclean.html' => '~1',
 	    'makeppgraph.html' => '~2',
 	    'makeppinfo.html' => '~3',
-	    'makepplog.html' => '~4');
+	    'makepplog.html' => '~4',
+	    'makeppreplay.html' => '~5');
   my $home = ($htmldir_val =~ /\/[0-9.]+(?:\/|$)/);
   my @links =
       sort { (exists $order{$a} ? $order{$a} : $nolink{$a}) cmp (exists $order{$b} ? $order{$b} : $nolink{$b}) }
@@ -460,8 +462,8 @@ if ($htmldir_val ne 'none') {
 	    $empty_line = '';
 	  }
 
-	  s!^([%\$]? ?)(makepp(?:builtin|clean|log|graph|_build_cache_control)?)\b!$1<b>$2</b>!g or
-	  s!^([%\$]? ?)(mpp(?:[bclg]c{0,2})?)\b!$1<b>$2</b>!g or
+	  s!^([%\$]? ?)(makepp(?:builtin|clean|log|graph|replay|_build_cache_control)?)\b!$1<b>$2</b>!g or
+	  s!^([%\$]? ?)(mpp(?:[bclgr]c{0,2})?)\b!$1<b>$2</b>!g or
 				# g creates BOL \G for keywords
 	    highlight_keywords;
 	  highlight_variables;

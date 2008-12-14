@@ -2,7 +2,7 @@
 require 5.006;
 use strict;
 
-# $Id: Utils.pm,v 1.7 2008/05/17 14:08:38 pfeiffer Exp $
+# $Id: Utils.pm,v 1.8 2008/11/23 21:16:50 pfeiffer Exp $
 
 # This is syntactically needed by many modules but not called in utils.
 sub log;
@@ -14,10 +14,12 @@ my %progname =
   c => 'clean',
   g => 'graph',
   i => 'info',
-  l => 'log');
-$::progname =~ s/^mpp([bcgil]|bcc)$/makepp$progname{$1}/;
+  l => 'log',
+  r => 'replay');
+$::progname =~ s/^mpp([bcgilr]|bcc)$/makepp$progname{$1}/;
 
 use TextSubs ();
+BEGIN { *MAKEPP = \&TextSubs::CONST0 } # Differentiate from makepp
 
 # Replace a function which depends on Makefile context to rewrite messages in
 # a way we don't need here.  Hope that didn't get inlined.  Maybe we should

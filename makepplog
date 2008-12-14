@@ -2,7 +2,7 @@
 
 use strict;
 
-# $Id: makepplog,v 1.26 2008/09/01 07:53:05 pfeiffer Exp $
+# $Id: makepplog,v 1.27 2008/11/23 21:05:48 pfeiffer Exp $
 
 # Shall we put a period after each message?  Or once for all before the \n when printing?
 my %log_msg =
@@ -175,6 +175,7 @@ my $showkey = '';
     [qw(p prefix), \$prefix, 0, 'makepplog: '],
     [qw(t tabulate), \$tabulate],
     ['u', qr/uniq(?:ue)?/, \$uniq],
+    [undef, 'version', undef, undef, \&FileInfo::version],
 
     [qr/[h?]/, 'help', undef, 0, \&usage];
 }
@@ -185,6 +186,8 @@ sub usage { print << 'END_OF_USAGE'; exit 0 }
 Usage: makepplog [-options]
 Render and optionally filter what makepp logged about the last build.
 
+-A or --args-file=filename
+	Take additional args from named file.
 -c, --current-working-dir or --current-working-directory
 	Make all files under current dir, be relative to it.
 -C N, --current-working-dir-and-up=N or --current-working-directory-and-up=N
@@ -207,6 +210,8 @@ Render and optionally filter what makepp logged about the last build.
 	Put each list item on a new line.
 -u, --uniq or --unique
 	Don't repeat lines about inclusion or scanning.
+--version
+	Print out the current version.
 
 Look at @htmldir@/makepplog.html for more details,
 or at http://makepp.sourceforge.net/@BASEVERSION@/makepplog.html

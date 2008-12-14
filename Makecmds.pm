@@ -1,4 +1,4 @@
-# $Id: Makecmds.pm,v 1.57 2008/08/04 21:57:01 pfeiffer Exp $
+# $Id: Makecmds.pm,v 1.58 2008/12/14 16:59:28 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains builtin commands which can be called from a rule.
@@ -262,7 +262,7 @@ sub c_cp {
   my $mv;	     # must separate my from if, or it survives multiple calls
   local @ARGV = @_;
   $mv = shift @ARGV if ref $_[0];
-  my $link;
+  my( $link, $symbolic );
   frame {
     my $dest = @ARGV == 1 ? '.' : pop @ARGV;
     require File::Copy;
@@ -273,10 +273,13 @@ sub c_cp {
       my $dirdest = $d ? $dest . '/' . Makesubs::f_notdir $_ : $dest;
       _rm $dirdest if $force && ($d ? -e( $dirdest ) : defined $d);
       $link && perform { link $_, $dirdest } "link `$_' to `$dirdest'", 1
+	or $symbolic && perform { symlink Makesubs::f_relative_to( $_ . ',' . Makesubs::f_dir $dirdest ), $dirdest } "link `$_' to `$dirdest' symbolically", 1
 	or perform { &$mv( $_, $dirdest ) } "$cmd `$_' to `$dirdest'";
     }
   } 'f',
-    ($mv ? () : [qw(l link), \$link]);
+    $mv ? () :
+	([qw(l link), \$link],
+	 ['s', qr/sym(?:bolic(?:[-_]?link)?|link)/, \$symbolic]);
 }
 sub c_mv { c_cp \1, @_ }
 

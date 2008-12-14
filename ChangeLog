@@ -1,12 +1,56 @@
-2008-10-30  Daniel Pfeiffer  <occitan@esperanto.org>
+2008-12-14  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* t/run_tests.pl: Default of running only basic tests works again.  Each test now gets its own tdir, to avoid (Windows) problems where it couldn't be cleaned because it was randomly locked.
+Snapshot makepp-1.50.081214.tgz, version 1.50-12149-11231-10151 on CPAN.
+
+	* makeppreplay
+	* FileInfo_makepp.pm
+	* Makefile.pm
+	* Rule.pm
+	* Scanner.pm: Update mppr-modified or -recognized build infos, and
+	mark them with new info RESCAN.
+
+	* ActionParser.pm (parse_rule): Remember relative path for &cmd
+	source.
+
+	* Makesubs.pm (%scanners): Recognize all known Shells.
+
+	* Makecmds.pm (&cp): New opt --symlink.
+
+	* makepp (build_target_done): Calculate SORTED_DEPS and DEP_SIGS
+	only once, because they are the same for all targets.
+
+	* makeppinfo: Warn about missing files, but show build info even
+	if sig mismatches.  In that case don't show SIGNATURE.
+
+2008-11-23  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makeppreplay, t/makeppreplay.test: New very fast command and test.
+
+	* makepp
+	* FileInfo_makepp.pm
+	* Makefile.pm
+	* Rule.pm
+	* Utils.pm: Support makeppreplay by differentiating via new constant MAKEPP.
+
+	* FileInfo.pm: Don't leave testfile on Windows.
+
+	* ActionParser.pm (parse_rule): Use simpler filename accessor.
+
+	* makeppbuiltin, makeppgraph: Support Perl style -Mmod=arg,...
+
+2008-11-02  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* t/run_tests.pl: Default of running only basic tests works again.
+	Each test now gets its own tdir, to avoid (Windows) problems where
+	it couldn't be cleaned because it was randomly locked.
 	($source_path): "our" for finding builtins.test.
 	(-b, -k, -m, -n & -s): New options.
 
-	* t/run_all.t: Path to makepp and -n moved to run_tests.pl.  '--' passes through options.
+	* t/run_all.t: Path to makepp and -n moved to run_tests.pl.  '--'
+	passes through options.
 
-	* t/additional_tests/2006_02_18_makeppbuiltin.test: Adapt to run_tests change.
+	* t/additional_tests/2006_02_18_makeppbuiltin.test: Adapt to
+	run_tests change.
 
 2008-10-15  Daniel Pfeiffer  <occitan@esperanto.org>
 

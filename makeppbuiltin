@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #use strict;			# TODO: explore why this breaks the builtins.
 
-# $Id: makeppbuiltin,v 1.13 2008/05/17 14:26:14 pfeiffer Exp $
+# $Id: makeppbuiltin,v 1.14 2008/11/23 21:02:55 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 
@@ -58,9 +58,12 @@ sub eval_or_die($) {
 
 sub metahelp { print STDERR "usage: $0", <<'EOF' }
  [metaoption ...] command [option ...] [argument ...]
-  options depend on the command, while metaoptions are these:
-  -I|--include=dir	dir to load module from
-  -M|--module=module	module with your functions
+Options depend on the command, while metaoptions are these:
+
+-I or --include=dir
+	dir to load module from
+-M or --module=module[=arg,...]
+	module with your functions
 Look at @htmldir@/makeppbuiltin.html for wrapper details,
 or at http://makepp.sourceforge.net/@BASEVERSION@/makeppbuiltin.html
 or type "man makeppbuiltin".
@@ -112,7 +115,7 @@ sub doit {
     my $tmp;
     TextSubs::getopts 1,
       ['I', qr/include(?:[-_]?dir)?/, \$tmp, 1, sub { unshift @INC, $tmp }],
-      [qw(M module), \$tmp, 1, sub { eval_or_die "use $tmp" }],
+      [qw(M module), \$tmp, 1, sub { $tmp =~ s/=(.*)/ qw($1)/ and $tmp =~ tr/,/ /; eval_or_die "use $tmp" }],
       [qr/[h?]/, 'help', undef, 0, sub { &metahelp; &helpfoot }],
       [0, 'version', undef, 0, \&FileInfo::version];
     &metahelp, &helpfoot if !@ARGV;
