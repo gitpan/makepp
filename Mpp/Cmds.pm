@@ -1,4 +1,4 @@
-# $Id: Makecmds.pm,v 1.58 2008/12/14 16:59:28 pfeiffer Exp $
+# $Id: Mpp/Cmds.pm,v 1.60 2009/01/31 23:30:35 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains builtin commands which can be called from a rule.
@@ -11,36 +11,19 @@
 # TODO: autoload these commands only when needed
 # Use file_info -- or don't, because we'd have to refresh it before every new cmd.
 
-package Makesubs;		# Make these importable.
+# builtin commands
+package Mpp::Cmds;
 
 use strict;
 use TextSubs ();
 use FileInfo ();
-use Makesubs ();
+use Mpp::Subs;
 use POSIX ();
 
-#
-# Execute an external Perl script within the running interpreter.
-#
-sub run(@) {
-  local( $0, @ARGV ) = @_;		# Name the arguments.
-  $0 = Makesubs::f_find_program $0,
-    $Makesubs::rule ? $Makesubs::rule->{MAKEFILE} : $Makesubs::makefile,
-    $Makesubs::rule ? $Makesubs::rule->{RULE_SOURCE} : $Makesubs::makefile_line
-    unless -f $0;		# not relative or absolute
-  local $SIG{__WARN__} = local $SIG{__DIE__} = 'DEFAULT';
-  die $@ || "$0 failed--$!\n"
-    if !defined do $0 and $@ || $!;
-}
-
-
-
-# builtin commands
-package Makecmds;
 
 sub eval_or_die($) {
-  $Rule::unsafe = 1;
-  Makesubs::eval_or_die $_[0], $Makesubs::rule->{MAKEFILE}, $Makesubs::rule->{RULE_SOURCE};
+  $Mpp::Rule::unsafe = 1;
+  Mpp::Subs::eval_or_die $_[0], $Mpp::Subs::rule->{MAKEFILE}, $Mpp::Subs::rule->{RULE_SOURCE};
 }
 
 
@@ -53,7 +36,7 @@ sub perform(&$;$) {
       my $msg = $_[1];
       my $cwd = FileInfo::absolute_filename( $FileInfo::CWD_INFO );
       $msg =~ s|`(?=[^/`][^`]*$)|`$cwd/|;
-      if( $MakeEvent::max_proc > 1 ) {
+      if( $Mpp::Event::max_proc > 1 ) {
 	flock $install_log, 2;	# Lock exclusive.
 	if( $install_date =~ /^ / ) { # Additional output
 	  if( (stat $install_log)[7] > tell $install_log ) {
@@ -109,7 +92,11 @@ sub print {
 	$print .= "#line $.\n";
 	$last_line = $.;
       }
-      s/\n(?!\z)/\n#line $.\n/g; # Multiple lines generated from one source line.
+      if( /^\s*#\s*line\s+\d+(\s+\")?/m ) { # Replacement contains #line.
+	$_ .= '#line ' . ($. + 1) . ($1 ? " \"$ARGV\"\n" : "\n");
+      } else {
+	s/\n(?!\z)/\n#line $.\n/g; # Multiple lines generated from one source line.
+      }
       $print_nl = /\n\z/;	# Did we end with a nl?
     }
     $print .= $_;		# Buffer up to about 8kb.
@@ -270,10 +257,10 @@ sub c_cp {
     $mv = $mv ? \&File::Copy::move : \&File::Copy::syscopy;
     for( @ARGV ) {
       my $d = -d $dest;
-      my $dirdest = $d ? $dest . '/' . Makesubs::f_notdir $_ : $dest;
+      my $dirdest = $d ? $dest . '/' . f_notdir $_ : $dest;
       _rm $dirdest if $force && ($d ? -e( $dirdest ) : defined $d);
       $link && perform { link $_, $dirdest } "link `$_' to `$dirdest'", 1
-	or $symbolic && perform { symlink Makesubs::f_relative_to( $_ . ',' . Makesubs::f_dir $dirdest ), $dirdest } "link `$_' to `$dirdest' symbolically", 1
+	or $symbolic && perform { symlink f_relative_to( $_ . ',' . f_dir $dirdest ), $dirdest } "link `$_' to `$dirdest' symbolically", 1
 	or perform { &$mv( $_, $dirdest ) } "$cmd `$_' to `$dirdest'";
     }
   } 'f',
@@ -497,15 +484,15 @@ sub c_ln {
     $dest =~ s|/+$||;
     my $d = -d $dest;
     for( @ARGV ) {
-      my $dirdest = $d ? $dest . '/' . Makesubs::f_notdir $_ : $dest;
+      my $dirdest = $d ? $dest . '/' . f_notdir $_ : $dest;
       _rm $dirdest if $force && ($d ? -l( $dirdest ) || -e _ : defined $d);
       if( $ENV{MAKEPP_LN_CP} and $ENV{MAKEPP_LN_CP} & ($resolve || $symbolic ? 1 : 2) ) {
-	$_ = Makesubs::f_relative_filename Makesubs::f_dir( $dirdest ) . $_
+	$_ = f_relative_filename f_dir( $dirdest ) . $_
 	  if $symbolic && !$resolve;
 	require File::Copy;
 	perform { File::Copy::syscopy( $_, $dirdest ) } "copy `$_' to `$dirdest'";
       } elsif( $resolve || $symbolic ) {
-	$_ = Makesubs::f_relative_to $_ . ',' . Makesubs::f_dir $dirdest if $resolve;
+	$_ = f_relative_to $_ . ',' . f_dir $dirdest if $resolve;
 	perform { symlink $_, $dirdest } "link `$_' to `$dirdest' symbolically";
       } else {
 	perform { link $_, $dirdest } "link `$_' to `$dirdest'";
@@ -551,7 +538,7 @@ sub c_mkdir {
 
 my $package_seed = 0;
 sub c_preprocess {
-  $Rule::unsafe = 1;		# Chdir`s and might perform some Perl code.
+  $Mpp::Rule::unsafe = 1;	# Chdir`s and might perform some Perl code.
   local @ARGV = @_;
   my( $command_line_vars, $assignment, $tmp ) = {};
   frame {
@@ -570,11 +557,11 @@ sub c_preprocess {
 	    PACKAGE => 'preprocess_' . $package_seed++,
 	    CWD => $finfo->{'..'},
 	    COMMAND_LINE_VARS => $command_line_vars,
-	    ENVIRONMENT => $Makesubs::rule->{MAKEFILE}{ENVIRONMENT},
+	    ENVIRONMENT => $Mpp::Subs::rule->{MAKEFILE}{ENVIRONMENT},
 	    RE_COUNT => 0		# Force initial creation of statement RE
 	   }, 'Makefile';
 	FileInfo::chdir $finfo->{'..'};
-	eval "package $Makefile::makefile->{PACKAGE}; use Makesubs \$re";
+	eval "package $Makefile::makefile->{PACKAGE}; use Mpp::Subs \$re";
 	Makefile::read_makefile( $Makefile::makefile, $finfo ); 1;
       } "preprocess `$_'";
     }
@@ -744,8 +731,8 @@ sub c_uniq {
   frame {
     $cmp = eval_or_die "sub {$cmp\n}" if $cmp;
     no strict 'refs';
-    local *a = \${"$Makesubs::rule->{MAKEFILE}{PACKAGE}::a"};
-    local *b = \${"$Makesubs::rule->{MAKEFILE}{PACKAGE}::b"};
+    local *a = \${"$Mpp::Subs::rule->{MAKEFILE}{PACKAGE}::a"};
+    local *b = \${"$Mpp::Subs::rule->{MAKEFILE}{PACKAGE}::b"};
     local *_ = \$b;		# For print.
     undef $a;
     while( $b = <> ) {

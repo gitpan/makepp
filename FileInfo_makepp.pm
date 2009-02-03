@@ -2,7 +2,7 @@ package FileInfo;
 
 use FileInfo;			# Override some subroutines from the
 				# generic FileInfo package.
-# $Id: FileInfo_makepp.pm,v 1.96 2008/12/14 17:10:01 pfeiffer Exp $
+# $Id: FileInfo_makepp.pm,v 1.97 2009/01/08 22:16:06 pfeiffer Exp $
 
 #
 # This file defines some additional subroutines for the FileInfo package that
@@ -172,7 +172,7 @@ sub exists_or_can_be_built_norecurse {
     # that there is a rule for it.
     if(!$stale && $::rm_stale_files && &is_stale) {
       ::log MAYBE_STALE => $finfo
-	if $::log_level && !$warned_stale{int $finfo}++;
+	if $::log_level && !$warned_stale{int $finfo} and $warned_stale{int $finfo} = $finfo;
       return undef;
     }
     $finfo->{EXISTS_OR_CAN_BE_BUILT} = 1;
@@ -233,7 +233,7 @@ sub exists_or_can_be_built_or_remove {
     &lstat_array;
     return unless exists $finfo->{EXISTS};
   }
-  $warned_stale{int $finfo} = 1 if $::rm_stale_files; # Avoid redundant warning
+  $warned_stale{int $finfo} = $finfo if $::rm_stale_files; # Avoid redundant warning
   my $result = &exists_or_can_be_built;
   return $result if $result || !$::rm_stale_files;
   if( exists $finfo->{EXISTS} || &signature ) {
@@ -611,7 +611,7 @@ sub set_rule {
 
   if (exists $finfo->{BUILD_HANDLE} &&
       $finfo->{RULE} &&
-      ref($finfo->{RULE}) ne 'DefaultRule' &&
+      ref($finfo->{RULE}) ne 'Mpp::DefaultRule' &&
       $rule->source !~ /\bmakepp_builtin_rules\.mk:/) {
     warn 'I became aware of the rule `', $rule->source,
       "' for target ", &absolute_filename, " after I had already tried to build it\n"
@@ -663,7 +663,7 @@ sub signature {
 				# on whether the contents of the directory
 				# has changed), so just return a non-zero
 				# constant.
-    # NOTE: This has to track BuildCheck/target_newer.pm, and BuildCache.pm
+    # NOTE: This has to track BuildCheck/target_newer.pm, and Mpp::BuildCache.pm
     # in a couple of places:
     $stat->[STAT_MTIME] . ',' . $stat->[STAT_SIZE];
 }
@@ -739,7 +739,17 @@ sub update_build_infos {
   @build_infos_to_update = ();
 				# Clean out the list of files to update.
 }
-END { &update_build_infos }
+END {
+  &update_build_infos;
+  for my $finfo ( values %warned_stale ) {
+    if( is_stale $finfo and file_exists $finfo ) { # After all, it is still stale.
+      ::log DEL_STALE => $finfo
+	if $::log_level;
+      FileInfo::unlink $finfo;
+      CORE::unlink FileInfo::build_info_fname $finfo;
+    }
+  }
+}
 
 =head2 was_built_by_makepp
 
@@ -775,7 +785,7 @@ sub is_stale {
   (exists $_[0]{IS_PHONY} ||
    !exists($_[0]{RULE}) && !$_[0]{ADDITIONAL_DEPENDENCIES}
   ) && !&dont_build && &was_built_by_makepp &&
-    (defined &Repository::no_valid_alt_versions ? &Repository::no_valid_alt_versions : 1);
+    (defined &Mpp::Repository::no_valid_alt_versions ? &Mpp::Repository::no_valid_alt_versions : 1);
 }
 
 =head2 assume_unchanged
@@ -900,7 +910,7 @@ sub load_build_info_file {
 	if( $sig or not $::rm_stale_files || $build_info->{FROM_REPOSITORY} ) {
 				# Link and linkee exist or not supposed to wipe.
 	  $build_info->{SIGNATURE} = $sig;
-	  $finfo->{TEMP_BUILD_INFO} = $build_info; # Rule::execute will pick it up.
+	  $finfo->{TEMP_BUILD_INFO} = $build_info; # Mpp::Rule::execute will pick it up.
 	} else {
 	  ::log DEL_STALE => $finfo
 	    if $::log_level;

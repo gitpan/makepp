@@ -4,5 +4,5 @@
 use  File::Basename;
 
 my $makeppbuiltin = dirname($0).'/makeppbuiltin';
-exec $makeppbuiltin, -MBuildCacheControl, @ARGV;
+exec $makeppbuiltin, -MMpp::BuildCacheControl, @ARGV;
 die "Failed to exec $makeppbuiltin: $!";

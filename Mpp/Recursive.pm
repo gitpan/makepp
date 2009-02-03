@@ -1,14 +1,14 @@
-# $Id: RecursiveMake.pm,v 1.1 2008/06/01 21:55:24 pfeiffer Exp $
+# $Id: Mpp::Recursive.pm,v 1.1 2008/06/01 21:55:24 pfeiffer Exp $
 #
 # This file groups all the functions needed only if repositories are actually used.
 # The actual functionality is also dispersed in makepp and other modules.
 #
 
-package RecursiveMake;
+package Mpp::Recursive;
 
 use FileInfo;
 use TextSubs;
-use MakeEvent qw(wait_for read_wait);
+use Mpp::Event qw(wait_for read_wait);
 
 our $traditional;		# 1 if we invoke makepp recursively, undef if
 				# we call the recursive_makepp stub and do
@@ -25,7 +25,7 @@ sub setup_socket {
 #
 # Get a temp name that goes away at the end, so we don't clutter up /tmp.
 #
-  $socket_name = Makesubs::f_mktemp '/tmp/makepp.';
+  $socket_name = Mpp::Subs::f_mktemp '/tmp/makepp.';
 				# Name of socket for listening to recursive
 				# make requests.  This is exported to the
 				# environment by Rule::execute.
@@ -90,7 +90,7 @@ sub connection {
 # them.
 #
       chdir shift @words;	# Move to the appropriate directory.
-      MakeEvent::Process::adjust_max_processes(1); # Allow one more process to
+      Mpp::Event::Process::adjust_max_processes(1); # Allow one more process to
 				# run simultaneously.
       my $status;
       eval {
@@ -98,7 +98,7 @@ sub connection {
         $status = wait_for ::parse_command_line %this_ENV;
 				# Build all the targets.
       };
-      MakeEvent::Process::adjust_max_processes(-1); # Undo our increment above.
+      Mpp::Event::Process::adjust_max_processes(-1); # Undo our increment above.
       my $msg = $@;
       if ($msg) {               # Some error occured that caused a die?
         $status ||= 1;          # Force an error code.
@@ -127,7 +127,7 @@ no warnings 'redefine';
 # recursive make invocation.  We pretend it's a function with no arguments.
 #
 our $command;			# Once this is set, we know we can potentially have recursion.
-sub Makesubs::f_MAKE {
+sub Mpp::Subs::f_MAKE {
   if( defined $traditional ) {	# Do it the bozo way?
     unless( defined $command ) { # Haven't figured it out yet?
       $command = $0;		# Get the name of the program.

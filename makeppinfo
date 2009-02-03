@@ -37,7 +37,7 @@ BEGIN {
 				# Add '.' to the path in case the user is
 				# running it with "perl makeppclean" even if
 				# . is not in his path.
-      if (-f "$_/FileInfo.pm") { # Found something we need?
+      if( -d "$_/Mpp" ) {	# Found something we need?
 	$datadir = $_;
 	last;
       }
@@ -51,7 +51,7 @@ BEGIN {
   unshift @INC, $datadir;
 }
 
-use Utils;
+use Mpp::Utils;
 use FileInfo qw(file_info file_exists relative_filename);
 use FileInfo_makepp;
 

@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.80 2008/12/14 17:10:01 pfeiffer Exp $
+# $Id: install.pl,v 1.81 2009/01/31 22:59:38 pfeiffer Exp $
 #
 
 use Config;
@@ -152,17 +152,45 @@ if($findbin) {
 @sig_num{split ' ', $Config{sig_name}} = split ' ', $Config{sig_num};
 $USR1 = $sig_num{USR1}; $USR1 = $USR1; 	# suppress used-only-once warning
 
+make_dir("$datadir/$_") for
+  qw(Mpp ActionParser BuildCheck CommandParser Scanner Signature);
+
+our $useoldmodules = '';
+if( $ENV{MAKEPP_INSTALL_OLD_MODULES} ) {
+  my %packages =		# The renamed or multipackage cases.
+   (BuildCache => [qw(BuildCache BuildCache BuildCache::Entry)],
+    Makecmds => ['Makecmds=Cmds'],
+    MakeEvent =>
+      [qw(MakeEvent=Event MakeEvent=Event MakeEvent::Process=Event::Process MakeEvent::WaitingSubroutine=Event::WaitingSubroutine)],
+    Makesubs => ['Makesubs=Subs'],
+    Rule => [qw(Rule Rule DefaultRule DefaultRule::BuildCheck)]);
+  for $module ( split ' ', $ENV{MAKEPP_INSTALL_OLD_MODULES} ) {
+    $useoldmodules .= "use $module ();\n"
+      if $module =~ s/\+//;
+    $module = $packages{$module} || [$module]; # Create simple cases on the fly.
+    my( $old, $new ) = shift @$module;
+    $new = ($old =~ s/=(.+)//) ? $1 : $old;
+    open my $fh, '>', "$datadir/$old.pm" or die "can't create $old.pm\n";
+    print $fh "warn 'This module is deprecated, use Mpp::$new instead';\nuse Mpp::$new;\n";
+    for( @$module ? @$module : "$old=$new" ) {
+      $new = (s/=(.+)//) ? $1 : $_;
+      print $fh "%${_}:: = %Mpp::${new}::;\n";
+    }
+    print $fh '1;';
+  }
+}
+
 substitute_file( $_, $bindir, 0755, 1 ) for
   qw(makepp makeppbuiltin makeppclean makeppgraph makeppinfo makepplog makeppreplay makepp_build_cache_control);
 
 substitute_file( $_, $datadir, 0644 ) for
-  qw(recursive_makepp FileInfo_makepp.pm BuildCacheControl.pm);
+  qw(recursive_makepp FileInfo_makepp.pm Mpp/BuildCacheControl.pm);
 
-make_dir("$datadir/$_") for
-  qw(ActionParser BuildCheck CommandParser Scanner Signature);
-foreach $module (qw(AutomakeFixer BuildCache FileInfo Glob MakeEvent
-		    Makecmds Makefile Makesubs RecursiveMake Repository
-		    Rule TextSubs Utils
+foreach $module (qw(Mpp/Frame
+
+		    Mpp/AutomakeFixer Mpp/BuildCache FileInfo Mpp/Glob Mpp/Event
+		    Mpp/Cmds Makefile Mpp/Subs Mpp/RecursiveMake Mpp/Repository
+		    Mpp/Rule TextSubs Mpp/Utils
 
 		    ActionParser ActionParser/Legacy ActionParser/Specific
 

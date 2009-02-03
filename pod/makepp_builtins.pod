@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.39 2008/12/14 16:59:28 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.40 2009/01/31 22:49:02 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -370,6 +370,7 @@ Print only lines containing delimiters.
 =back
 
     &cut -c 10-20,-5,25- $(input)
+    &cut -c 'grep $$_ % 3, 0..99' $(input) # 1st 100 columns not multiple of 3
     &cut -d: --fields 0,4 --printf='%10s is %s\n' /etc/passwd
 
 
@@ -497,7 +498,7 @@ Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force, -i,
 --record-size=number, -s, --separator=string, -S, --synclines, --verbose>
 
 The option C<--synclines> only makes sence with C<&perl> if you use
-C<&Makecmds::print> to output C<$_>.  Only C<&grep> has extra options:
+C<&Mpp::Cmds::print> to output C<$_>.  Only C<&grep> has extra options:
 
 =over
 
@@ -544,6 +545,28 @@ As with the normal output, you may modify $_ before returning false.
     &sed '$$_ = uc' f1 f2 f3 -o outfile	# like tr '[:lower:]' '[:upper:]' f1 f2 f3
     &grep '$$. % 3' f1 f2 f3 -o outfile	# eliminate every 3rd line
     &grep -c /match/i f1 f2 f3		# count the lines matching 'match' to STDOUT
+
+Without pushing you to mass generate accessors, here's how you could do it by
+simply putting a comment of RO or RW between each type and desired variable
+name, all on one line.  The generated getter and optionally setter methods go
+into the next found public or protected section:
+
+    # Create get and maybe set method from "type /* R[OW] */ member;".
+    sub cxx_accessors {
+      $acc ||= '';		# Candidate for 5.10.0 state
+      if( m!^\s*(.+?)\s*/\*\s*R([OW])\s*\*/\s*(.+?)\s*;! ) {
+ 	$acc .= "#line $.\n";	# Tell C++ where this came from
+ 	$acc .= "void set\u$3( const $1 &__tmp ) { $3 = __tmp; }"
+ 	  if $2 eq 'W';
+ 	$acc .= "const $1 &get\u$3() const { return $3; }\n";
+      } elsif( /^\s*(?:public|protected)\s*:/ ) {
+ 	$_ .= $acc;
+ 	$acc = '';
+      }
+    }
+ 
+    %.cc: %.cc.in		# Use &sed for I/O handling
+  	&sed --sync-lines &cxx_accessors $(input) -o $(output)
 
 
 

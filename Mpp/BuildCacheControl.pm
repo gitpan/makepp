@@ -1,6 +1,6 @@
-# $Id: BuildCacheControl.pm,v 1.23 2008/05/17 14:21:36 pfeiffer Exp $
+# $Id: Mpp::BuildCacheControl.pm,v 1.23 2008/05/17 14:21:36 pfeiffer Exp $
 
-package BuildCacheControl;
+package Mpp::BuildCacheControl;
 use strict;
 require Exporter;
 
@@ -8,9 +8,9 @@ our @ISA = 'Exporter';
 our @EXPORT = qw(c_clean c_create c_show c_stats);
 
 use FileInfo qw(file_info absolute_filename);
-use BuildCache;
+use Mpp::BuildCache;
 use FileInfo_makepp;
-use Makecmds;
+use Mpp::Cmds;
 use POSIX ':errno_h';
 
 BEGIN {
@@ -28,21 +28,21 @@ BEGIN {
   *::propagate_pending_signals = \&TextSubs::CONST0 unless defined &::propagate_pending_signals;
 
   no warnings;
-  *ESTALE = \&BuildCache::ESTALE; # Overridden on Win ActiveState.
+  *ESTALE = \&Mpp::BuildCache::ESTALE; # Overridden on Win ActiveState.
 }
 
 =head2 group 'path/to/build_cache', ...
 
 Recursively collect all build caches which can be found in the GROUP attribute
-in the $BuildCache::options_file of all the given directories.  Actually the
+in the $Mpp::BuildCache::options_file of all the given directories.  Actually the
 file may contain two hashes, only the last of which is read by
-BuildCache::new.  This function augments each object with values in the first
+Mpp::BuildCache::new.  This function augments each object with values in the first
 of the two hashes, if available.  After calling this function, these variables
 are set:
 
 =head3 @group
 
-This is set to a list of one or more BuildCache objects.  These have more
+This is set to a list of one or more Mpp::BuildCache objects.  These have more
 attributes than the same objects in makepp:
 
     ..		The FileInfo of the build cache directory.
@@ -71,7 +71,7 @@ sub group(@) {
     next if exists $bc{int $dinfo};
     $bc{int $dinfo} = $dinfo;
 
-    my $opt = "$_/$BuildCache::options_file";
+    my $opt = "$_/$Mpp::BuildCache::options_file";
     unless( -r $opt ) {		# Disk or NFS server  might be down.
       push @unreachable, $_ if $! == ENOENT || $! == ENOTDIR;
       undef $bc{int $dinfo};	# Note it so we don't warn for it again.
@@ -82,7 +82,7 @@ sub group(@) {
 #    my @tmp = do $opt or die $@ =~ / $opt / ? $@ : "$opt: $@";
     open my $fh, '<', $opt; local $/; my @tmp = eval <$fh> or die $@ =~ / $opt / ? $@ : "$opt: $@";
     $tmp[-1]{'..'} = $dinfo;	# [0] for non grouped, [1] for grouped.
-    $dinfo->{BC} = new BuildCache $_, $tmp[-1];
+    $dinfo->{BC} = new Mpp::BuildCache $_, $tmp[-1];
 
     if( @tmp > 1 ) {		# Was already grouped
       push @list, @{$tmp[0]{GROUP}} if exists $tmp[0]{GROUP};
@@ -108,7 +108,7 @@ our $blend;
 my $blendopt = ['b', qr/blend(?:[-_]?groups?)?/, \$blend];
 sub ARGVgroups(&) {
   unless( @ARGV ) {
-    -f $BuildCache::options_file
+    -f $Mpp::BuildCache::options_file
       or die "$0: no build cache directories given and not in one\n";
     @ARGV = '.';
   }
@@ -180,7 +180,7 @@ sub groupfind(&;$) {
       my %contents;
       @contents{(readdir $dh)} = (); # Parens needed for list context to readdir.
       delete @contents{qw(. ..), $FileInfo::build_info_subdir};
-      delete @contents{$BuildCache::options_file, $BuildCache::incoming_subdir}
+      delete @contents{$Mpp::BuildCache::options_file, $Mpp::BuildCache::incoming_subdir}
 	if $top;
       push @contents, \%contents;
     } else {
@@ -263,7 +263,7 @@ sub c_clean {
 
   my ($target_files_deleted, $build_info_files_deleted) = (0, 0);
 
-  Makecmds::frame {
+  Mpp::Cmds::frame {
     if( $weekbase ) {
       $weekbase = $unit{w};	# 7 days after epoch.
       my( $min, $hour, $wday ) = (localtime $weekbase)[1, 2, 6];
@@ -320,7 +320,7 @@ sub c_clean {
     ARGVgroups {		# Might specify more than one group.
       # Special rule for incoming subdir:
       for( @group ) {
-	my $inc = "$_->{DIRNAME}/$BuildCache::incoming_subdir";
+	my $inc = "$_->{DIRNAME}/$Mpp::BuildCache::incoming_subdir";
 	opendir my( $dh ), $inc or next;
 	-e "$inc/$_" && !-d _ && (stat _)[MTIME] < $max_inc_mtime && unlink "$inc/$_"
 	  for readdir $dh;
@@ -328,7 +328,7 @@ sub c_clean {
 
       my $delete = sub {
 	my $file = $_[0];	# Copy, because perform { } has own @_.
-	eval { Makecmds::perform { unlink $file } "delete `$file'" };
+	eval { Mpp::Cmds::perform { unlink $file } "delete `$file'" };
 	if( $::verbose ) {
 	  if( $@ ) { warn $@ }
 	  else { ++$target_files_deleted }
@@ -353,7 +353,7 @@ sub c_clean {
 	    if( $build_info and $bi_check ? defined FileInfo::load_build_info_file file_info $file : 1 ) {
 	      if( defined $user && $user != $lstats[$i][UID] ) {
 		$lstats[$i][UID] = $user;
-		Makecmds::perform { chown $user, $lstats[$i][GID], $file } "set owner $user for `$file'";
+		Mpp::Cmds::perform { chown $user, $lstats[$i][GID], $file } "set owner $user for `$file'";
 	      }
 	      if( !defined $found_idx || $preferred && $i < $preferred && $found_extlink < $lstats[$i][EXTLINK] ) {
 		$found_idx = $i;
@@ -361,7 +361,7 @@ sub c_clean {
 		$found_build_info = $build_info;
 		$found_extlink = $lstats[$i][EXTLINK];
 	      }
-	    } elsif( $time - $lstats[$i][MTIME] > 600 ) { # Missing or corrupted build info (see BuildCache::fix_ok).
+	    } elsif( $time - $lstats[$i][MTIME] > 600 ) { # Missing or corrupted build info (see Mpp::BuildCache::fix_ok).
 	      &$delete( $file ); # load_build_info_file wiped build_info.
 	    }
 	  }
@@ -408,7 +408,7 @@ sub c_clean {
 	    }
 	    if( exists $group[$i]{SYMLINK} ) {
 	      -d "$_[0][$i]/$FileInfo::build_info_subdir"
-		|| eval { Makecmds::c_mkdir( $group[$i]{MKDIR_OPT}, "$_[0][$i]/$FileInfo::build_info_subdir" ) }
+		|| eval { Mpp::Cmds::c_mkdir( $group[$i]{MKDIR_OPT}, "$_[0][$i]/$FileInfo::build_info_subdir" ) }
 		and symlink $found_build_info, $build_info
 		and symlink $found, "$_[0][$i]/$_";
 	    } elsif( $group[$i]->cache_file( file_info( $found ), "$_[0][$i]/$_", \(my $reason), $lstats[$found_idx][ATIME] )) {
@@ -462,7 +462,7 @@ sub c_clean {
     ['m', qr/m(?:odification[-_]?)?time/, \$mtime, 1],
     ['M', qr/in(?:coming)?[-_]?m(?:odification[-_]?)?time/, \$inc_mtime, 1],
     ['p', qr/p(?:erl|redicate)/, \$predicate, 1,
-     sub { $predicate = Makecmds::eval_or_die( "sub { $predicate }" ) }],
+     sub { $predicate = Mpp::Cmds::eval_or_die( "sub { $predicate }" ) }],
     [qw(s size), \$size, 1],
     ['u', qr/(?:set[-_]?)?user/, \$user, 1,
      sub { defined( $user = getpwnam $user ) or die "$0: user unknown\n" if $user !~ /^\d+$/ }],
@@ -476,7 +476,7 @@ sub c_clean {
 sub c_create {
   local @ARGV = @_;
   my( $extend, $force, $mode, $preferred, $subdir_chars );
-  Makecmds::frame {
+  Mpp::Cmds::frame {
     @ARGV or die "$0: no build cache directories given\n";
 
     if( defined $mode ) {
@@ -528,14 +528,14 @@ sub c_create {
 	$_ = { DIRNAME => $_ };
       }
     }
-    Makecmds::c_mkdir '-p' . $mode, map "$_->{DIRNAME}/$BuildCache::incoming_subdir", @ARGV;
+    Mpp::Cmds::c_mkdir '-p' . $mode, map "$_->{DIRNAME}/$Mpp::BuildCache::incoming_subdir", @ARGV;
     push @ARGV, @group if $extend;
     for( @ARGV ) {
       my $str;
       if( @ARGV > 1 ) {
 	my $self = $_->{'..'};
 	$str .= "no warnings 'void'; # Scalar context skips next line.\n{ GROUP => [qw(" .
-	  (Makesubs::f_sort # f_sort eliminates dups, which come from re-adding a lost group member.
+	  (Mpp::Subs::f_sort # f_sort eliminates dups, which come from re-adding a lost group member.
 	    join ' ', @unreachable, map { $_->{'..'} == $self ? () : absolute_filename $_->{'..'} } @ARGV ) .
 	  ')]';
 	$str .= ', PREFERRED => undef' if exists $_->{PREFERRED};
@@ -554,7 +554,7 @@ sub c_create {
 	unlink $y, $z;
 	$str .= ', SYMLINK => undef' if $symlink;
       }
-      Makecmds::c_echo "$str }", -o => "$_->{DIRNAME}/$BuildCache::options_file";
+      Mpp::Cmds::c_echo "$str }", -o => "$_->{DIRNAME}/$Mpp::BuildCache::options_file";
     }
   } ['e', qr/extend(?:[-_]?group)?/, \$extend, 1],
     [qw(f force), \$force],
@@ -612,7 +612,7 @@ sub c_show {
   my $time = time;
   my $sort;
 
-  Makecmds::frame {
+  Mpp::Cmds::frame {
     warn "$0: ignoring --sort with --verbose\n" if defined $sort && $::verbose;
     for( $pattern ) {
       last unless defined;
@@ -789,7 +789,7 @@ sub display($$$;$) {
 sub c_stats {
   my( $hours, $pattern );
   my $time = time;
-  Makecmds::frame {
+  Mpp::Cmds::frame {
     for( $pattern ) {
       last unless defined;
       s/([?*])/.$1/g;
@@ -864,8 +864,8 @@ no warnings 'redefine';
 sub ::metahelp { print STDERR <<EOF }
 usage:	makepp_build_cache_control command [option ...] directory ...
 	mppbcc command [option ...] directory ...
-	makeppbuiltin -MBuildCacheControl command [option ...] directory ...
-	mppb -MBuildCacheControl command [option ...] directory ...
+	makeppbuiltin -MMpp::BuildCacheControl command [option ...] directory ...
+	mppb -MMpp::BuildCacheControl command [option ...] directory ...
   available commands:	clean, create, show
   to see options do:	makepp_build_cache_control command --help
 EOF

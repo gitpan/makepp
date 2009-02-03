@@ -2,7 +2,7 @@
 
 # $Id: MakeEvent.pm,v 1.23 2008/10/15 21:30:24 pfeiffer Exp $
 
-package MakeEvent;
+package Mpp::Event;
 
 require Exporter;
 our @ISA = 'Exporter';
@@ -11,15 +11,15 @@ our @EXPORT_OK = qw(wait_for when_done read_wait);
 
 =head1 NAME
 
-MakeEvent -- event loop for makepp
+Mpp::Event -- event loop for makepp
 
 =head1 USAGE
 
-  use MakeEvent;
+  use Mpp::Event;
 
-  $handle = new MakeEvent::Process STDOUT => ">> /tmp/junk", STDIN => undef,
+  $handle = new Mpp::Event::Process STDOUT => ">> /tmp/junk", STDIN => undef,
     "shell command to execute";
-  $handle = new MakeEvent::Process sub { ... };
+  $handle = new Mpp::Event::Process sub { ... };
 
   $handle = when_done $handle1, $handle2, ..., sub {
   # Code that gets executed when the previous handles have finished.
@@ -35,7 +35,7 @@ MakeEvent -- event loop for makepp
 
 =head1 DESCRIPTION
 
-MakeEvent provides a way of multi-threading perl code without actually using
+Mpp::Event provides a way of multi-threading perl code without actually using
 any of the thread extensions.  It relies on perl closures instead.  So it's a
 little harder to write event-driven code than it would be if your code were
 threaded, but not much.
@@ -72,13 +72,13 @@ my @read_subs;			# The read subroutines associated with each
 				# of the handles in @read_handles (also
 				# indexed by fileno).
 
-=head2 MakeEvent::event_loop
+=head2 Mpp::Event::event_loop
 
-  &MakeEvent::event_loop;
+  &Mpp::Event::event_loop;
 
 This is the main event loop.  It waits for one event, processes it, and
 returns.  You probably don't want to call this function directly; most likely,
-you want MakeEvent::wait_until.
+you want Mpp::Event::wait_until.
 
 =cut
 
@@ -117,7 +117,7 @@ sub event_loop {
 #
 # Check for other kinds of interruptions:
 #
-  &MakeEvent::Process::process_reaper
+  &Mpp::Event::Process::process_reaper
     if defined $child_exited;	# Need to wait() on child processes?
 }
 
@@ -179,7 +179,7 @@ sub process_finished {
 				# the error handler, and get rid of it so
 				# there's a place to put the return code from
 				# the error handler.
-      MakeEvent::WaitingSubroutine::start( $handle, 1 );
+      Mpp::Event::WaitingSubroutine::start( $handle, 1 );
 				# Start off the error handler despite status.
     } else {
       $handle->{STATUS} = $handle->{ERROR_HANDLER};
@@ -213,14 +213,14 @@ sub process_finished {
 				# Activate the error handler instead of the subroutine.
 	    $waiter->{ARGS} = [ $waiter->{STATUS} ];
 				# Set the status value.
-	    MakeEvent::WaitingSubroutine::start( $waiter, 1 );
+	    Mpp::Event::WaitingSubroutine::start( $waiter, 1 );
 				# Start off the error handler despite status
 				# it may already have gotten from another
 				# dependency.
 	  } else {
 	    $waiter->{STATUS} = delete $waiter->{ERROR_HANDLER};
 	    $waiter->{CODE} = \&TextSubs::CONST0;
-	    MakeEvent::WaitingSubroutine::start( $waiter, 1 );
+	    Mpp::Event::WaitingSubroutine::start( $waiter, 1 );
 	  }
 	} else {		# Just pass the error to this routine's caller,
 	  process_finished($waiter, $handle->{STATUS}); # without invoking the routine.
@@ -318,14 +318,14 @@ sub when_done {
 	last;
       }
     } elsif( defined ) {	# Skip undef values--undef means success with no waiting.
-      if( ref =~ /^MakeEvent::/s ) { # Is this a handle?
+      if( ref =~ /^Mpp::Event::/s ) { # Is this a handle?
 	if( exists $_->{STATUS} ) { # Did this handle already finish?
 	  $status ||= $_->{STATUS};
 	} else {		# No, we have to wait for it.
 	  push @handles, $_;
 	}
       } elsif( ref eq 'CODE' ) { # Is this a subroutine?
-	$subr = new MakeEvent::WaitingSubroutine $_; # Store it.
+	$subr = new Mpp::Event::WaitingSubroutine $_; # Store it.
       } else {			# Must be an error status code.
 	$status ||= $_;
       }
@@ -347,7 +347,7 @@ sub when_done {
   } elsif( $status ) {		# No, did we already find an error?
     process_finished( $subr, $status ); # Don't even call the routine.
   } else {			# No, start it immediately.
-    MakeEvent::WaitingSubroutine::start( $subr );
+    Mpp::Event::WaitingSubroutine::start( $subr );
   }
 
   $subr;			# Return the handle for the subroutine so if
@@ -374,7 +374,7 @@ sub wait_for {
       or goto DONE;		# Short circuit is more expensive.
   };
 
-  defined $child_exited ? &MakeEvent::Process::process_reaper : &event_loop
+  defined $child_exited ? &Mpp::Event::Process::process_reaper : &event_loop
     until defined $status;	# Wait until our subroutine is called.
 
  DONE:
@@ -386,7 +386,7 @@ sub wait_for {
 # Structure used to keep track of processes that we've started up:
 #
 
-package MakeEvent::Process;
+package Mpp::Event::Process;
 
 use TextSubs;
 
@@ -423,10 +423,10 @@ sub new {
 #
 # See if we can start this job (and maybe another one) immediately:
 #
-  if( $MakeEvent::n_external_processes < $MakeEvent::max_proc ) {
+  if( $Mpp::Event::n_external_processes < $Mpp::Event::max_proc ) {
     start( $proc );
     start( shift @pending_processes )
-      while @pending_processes && $MakeEvent::n_external_processes < $MakeEvent::max_proc;
+      while @pending_processes && $Mpp::Event::n_external_processes < $Mpp::Event::max_proc;
   } else {
     push @pending_processes, $proc; # Queue it up.
   }
@@ -435,7 +435,7 @@ sub new {
 # If we can't start it immediately, wait until we can.	We don't want to get
 # too far ahead of the build.
 #
-  &MakeEvent::event_loop while @pending_processes;
+  &Mpp::Event::event_loop while @pending_processes;
 
   $proc;
 }
@@ -446,10 +446,10 @@ sub new {
 # a) The number to add to the maximum number of processes.
 #
 sub adjust_max_processes {
-  $MakeEvent::max_proc += $_[0]; # Adjust the number of processes.
+  $Mpp::Event::max_proc += $_[0]; # Adjust the number of processes.
 
   start( shift @pending_processes )
-    while @pending_processes && $MakeEvent::n_external_processes < $MakeEvent::max_proc;
+    while @pending_processes && $Mpp::Event::n_external_processes < $Mpp::Event::max_proc;
 }
 
 #
@@ -468,11 +468,11 @@ use POSIX qw(:signal_h :errno_h :sys_wait_h);
 #
 sub start {
   my $self = $_[0];
-  MakeEvent::process_finished( $self ), return if $self->{STATUS};
+  Mpp::Event::process_finished( $self ), return if $self->{STATUS};
   if( ::is_windows > 0 ) {	# On Win Strawberry or ActiveState, we don't fork because the
 				# perl port doesn't support a following exec well.
     if (@{$self->{PARAMS}}) {
-      die "makepp: internal error: parameters to MakeEvent::Process not supported on windows\n";
+      die "makepp: internal error: parameters to Mpp::Event::Process not supported on windows\n";
     }
 
     my $cmd = $self->{CODE};	# Get the thing to execute.
@@ -487,7 +487,7 @@ sub start {
 	$status = "signal " . ($? & 127);
       }
     }
-    MakeEvent::process_finished($self, $status);
+    Mpp::Event::process_finished($self, $status);
 				# Store the status code.
     return;
   }
@@ -499,7 +499,7 @@ sub start {
   &::flush_log if ::is_perl_5_6;
   if( $pid = fork ) {		# In the parent process?
     $running_processes{$pid} = $self; # Store this for later.
-    ++$MakeEvent::n_external_processes; # Keep track of how many things are running.
+    ++$Mpp::Event::n_external_processes; # Keep track of how many things are running.
     return;
   }
 
@@ -512,7 +512,7 @@ sub start {
 				# errors; evidently automatic reaping of
 				# processes interferes with system().)
 
-  ++$MakeEvent::fork_level;
+  ++$Mpp::Event::fork_level;
 #
 # Process the parameters.  These are instructions on how to set up
 # STDIN, STDOUT, and STDERR.
@@ -533,9 +533,9 @@ sub start {
   my $cmd = $self->{CODE};	# Get the thing to execute.
   my $result = 0;
   if( ref $cmd ) {		# Is this a subroutine?
-    local @Makesubs::temp_files; # Might call f_mktemp, but _exit bypasses END
+    local @Mpp::Subs::temp_files; # Might call f_mktemp, but _exit bypasses END
     $result = &$cmd();		# Call the subroutine.
-    unlink $_ for @Makesubs::temp_files;
+    unlink $_ for @Mpp::Subs::temp_files;
   } elsif( ::is_windows ) {	# Fork is only emulated, hence we can't exec
     system format_exec_args $cmd;
     $result = int( $? / 256 ) || 255 if $?;
@@ -575,21 +575,21 @@ sub process_reaper {
 #    next unless WIFEXITED($?); # Make sure it really has exited.
 # The above causes a hang, when the process did not exit normally.
     push @procs, delete $running_processes{$pid} || die;
-				# Returned a process not started by new MakeEvent::Process?
+				# Returned a process not started by new Mpp::Event::Process?
     $procs[-1]{STATUS} ||= $? > 255 ? $? >> 8 : "signal " . ($? & 127)
       if $?;
   }
 
-  $MakeEvent::n_external_processes -= @procs;
+  $Mpp::Event::n_external_processes -= @procs;
 
 #
 # If there were other processes waiting to be run, start some of them now that
 # job slots are free.
 #
   start shift @pending_processes
-    while @pending_processes && $MakeEvent::n_external_processes < $MakeEvent::max_proc;
+    while @pending_processes && $Mpp::Event::n_external_processes < $Mpp::Event::max_proc;
 
-  MakeEvent::process_finished $_ for @procs;
+  Mpp::Event::process_finished $_ for @procs;
 }
 
 #
@@ -599,7 +599,7 @@ sub process_reaper {
 # depend finish.
 #
 sub terminate_all_processes {
-  $MakeEvent::max_proc = 0;
+  $Mpp::Event::max_proc = 0;
   kill TERM => keys %running_processes;
   &process_reaper while %running_processes;
 }
@@ -613,7 +613,7 @@ sub terminate_all_processes {
 # level is correct.
 #
 
-package MakeEvent::WaitingSubroutine;
+package Mpp::Event::WaitingSubroutine;
 
 sub new {
   #my ($classname, $perl_subr, $args) = @_;
@@ -625,7 +625,7 @@ sub new {
 				# Make the structure for the process.
 }
 
-*status = \&MakeEvent::ProcessHandle::status;
+*status = \&Mpp::Event::ProcessHandle::status;
 
 #
 # Start the process running.  This is pretty simple--we just execute the code.
@@ -639,7 +639,7 @@ sub new {
 #
 sub start {
   my $this_subr = $_[0];	# Get a reference to the process.
-  MakeEvent::process_finished( $this_subr ), return if @_ == 1 && $this_subr->{STATUS};
+  Mpp::Event::process_finished( $this_subr ), return if @_ == 1 && $this_subr->{STATUS};
 
 #
 # Look at the return values and figure out what to do:
@@ -651,7 +651,7 @@ sub start {
 				# Set the indentation level properly.
     for( $this_subr->{CODE}( @{$this_subr->{ARGS}} )) {
       if( $_ ) {		# Not 0 or undef?
-	if( ref =~ /^MakeEvent::/s ) { # Something else to wait for?
+	if( ref =~ /^Mpp::Event::/s ) { # Something else to wait for?
 	  if( exists $_->{STATUS} ) { # Did that thing already finish?
 	    $status ||= $_->{STATUS}; # Pick up its status.
 	  } else {		# Hasn't finished yet, we need to wait for it.
@@ -671,7 +671,7 @@ sub start {
     }
   }
 
-  MakeEvent::process_finished $this_subr, $status
+  Mpp::Event::process_finished $this_subr, $status
     unless $this_subr->{WAIT_COUNT}; # Quit now if we're waiting for something else.
 				# Activate anyone who's waiting for this
 				# process.

@@ -14,7 +14,7 @@
 # in here, because then (a) the $(origin ) function doesn't work; (b) the
 # values won't be visible except in rules, because this file is loaded after
 # everything else in the makefile is processed.	 Standard variables are
-# implemented as functions that have no arguments (see Makesubs.pm).
+# implemented as functions that have no arguments (see Mpp/Subs.pm).
 #
 
 #

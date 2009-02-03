@@ -23,7 +23,7 @@ the languageZ<>(s) of the files that it scans for include directives.
 use strict;
 package CommandParser;
 use TextSubs ();
-use Makesubs ();
+use Mpp::Subs ();
 
 =head1 METHODS
 
@@ -41,7 +41,7 @@ sub new {
   my( $self, $rule, $dir ) = @_;
   my $class=ref($self)||$self;
   $rule && $dir or die;
-  UNIVERSAL::isa($rule, 'Rule') or die;
+  UNIVERSAL::isa($rule, 'Mpp::Rule') or die;
   UNIVERSAL::isa($dir, 'FileInfo') and die;
   bless {
     RULE => $rule,
@@ -107,7 +107,7 @@ sub add_executable_dependency {
     if( $exe !~ m@/@ || ::is_windows > 1 && $exe !~ /\\/ ) {
       return if $::no_path_executable_dependencies;
       my $CWD_INFO = $FileInfo::CWD_INFO; # Might load a makefile and chdir there:
-      $exe = Makesubs::f_find_program( $exe, $self->{RULE}{MAKEFILE}, $self->{RULE}{RULE_SOURCE}, 1 );
+      $exe = Mpp::Subs::f_find_program( $exe, $self->{RULE}{MAKEFILE}, $self->{RULE}{RULE_SOURCE}, 1 );
       FileInfo::chdir( $CWD_INFO );
       return if $exe eq 'not-found';
     }

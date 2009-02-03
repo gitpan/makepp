@@ -63,12 +63,12 @@ sub c_clonetest {
   }
 
   # We don't know how many files we created, but just to satisfy the test harness:
-  Makecmds::c_sed 's/(\d+) (\d+) (\d+)/N_FILES\01$1\01$2\01$3\01/', 'answers/n_files', '-o', '.makepp/log';
+  Mpp::Cmds::c_sed 's/(\d+) (\d+) (\d+)/N_FILES\01$1\01$2\01$3\01/', 'answers/n_files', '-o', '.makepp/log';
 
   # Now do as makeppbuiltin does with --help.
   @ARGV = '--help';
   open STDERR, '>help';
-  for $0 ( sort grep { /^c_/ and defined &{"Makecmds::$_"} } keys %Makecmds:: ) {
+  for $0 ( sort grep { /^c_/ and defined &{"Mpp::Cmds::$_"} } keys %Mpp::Cmds:: ) {
     eval { ::doit };
     warn "\n";
   }

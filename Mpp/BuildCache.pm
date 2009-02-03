@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.41 2008/08/09 09:24:52 pfeiffer Exp $
+# $Id: Mpp::BuildCache.pm,v 1.41 2008/08/09 09:24:52 pfeiffer Exp $
 #
 # Key things to do before this is production-ready:
 #
@@ -14,11 +14,11 @@
 
 =head1 NAME
 
-BuildCache -- subroutines for handling the makepp build cache
+Mpp::BuildCache -- subroutines for handling the makepp build cache
 
 =head1 SYNOPSIS
 
-    $bc = new BuildCache("/path/to/build_cache", $create_flags_hash);
+    $bc = new Mpp::BuildCache("/path/to/build_cache", $create_flags_hash);
     $bc->cache_file($file_info_of_file_to_archive, $file_key);
     $bc->cleanup();	 # Clean out files that haven't been used for a while.
     $bc_entry = $bc->lookup_file($file_key);
@@ -26,9 +26,9 @@ BuildCache -- subroutines for handling the makepp build cache
     $build_info = $bc_entry->build_info;
     $bc_entry->copy_from_cache($output_finfo);
 
-=head1 The BuildCache package
+=head1 The Mpp::BuildCache package
 
-The BuildCache is a cache system that makepp uses to store the results
+The Mpp::BuildCache is a cache system that makepp uses to store the results
 of compilation so that they can be used later.	If a file with the same
 input signature is needed, it can be fetched again immediately instead
 of rebuilt.  This can cut down compilation time significantly in a
@@ -71,14 +71,14 @@ The cache is actually a directory hierarchy where the filename of each
 file is the build cache key.  For example, if the build cache key of a
 file is C<0123456789abcdef>, the actual file name might be
 F<01/234/56789abcdef_xyz.o>.  On some file systems, performance suffers
-if there are too many files per directory, so BuildCache can
+if there are too many files per directory, so Mpp::BuildCache can
 automatically break them up into directories as shown.
 
 It remembers the key that it was given, which is presumably some sort of hash
-of all the inputs that went into building the file.  BuildCache does remember
+of all the inputs that went into building the file.  Mpp::BuildCache does remember
 the build info structure for the file.  This is intended to help in the very
 rare case where there is a collision in the key, and several files have the
-same key.  BuildCache cannot store multiple files with the same key, but by
+same key.  Mpp::BuildCache cannot store multiple files with the same key, but by
 storing the build information it is at least possible to determine that the
 given file is the wrong file.
 
@@ -96,11 +96,11 @@ We do use the FileInfo subroutines for files stored elsewhere, however.
 
 =cut
 
-package BuildCache;
+package Mpp::BuildCache;
 use strict;
 use FileInfo;
 use FileInfo_makepp;
-use Makecmds;
+use Mpp::Cmds;
 use Sys::Hostname;
 use POSIX qw(:errno_h S_ISREG);
 
@@ -114,7 +114,7 @@ BEGIN {
 }
 
 
-=head2 new BuildCache("/path/to/cache");
+=head2 new Mpp::BuildCache("/path/to/cache");
 
 Opens an existing build cache.
 
@@ -206,7 +206,7 @@ sub cache_file {
   # actually built together.  Either way, you run the risk of leaving behind
   # a build info file without an MD5_SUM, which makes --md5-check-bc unhappy.
 
-  if( $cache_fname !~ /^\// ) {	# Not called from BuildCacheControl?
+  if( $cache_fname !~ /^\// ) {	# Not called from Mpp::BuildCacheControl?
     substr $cache_fname, $_, 0, '/' for reverse @{$self->{SUBDIR_CHARS}};
     $cache_fname = $self->{DIRNAME} . '/' . $cache_fname;
 				# Get the name of the file to create.
@@ -220,7 +220,7 @@ sub cache_file {
   my $build_info_fname = $cache_fname;
   $build_info_fname =~ s@/([^/]+)$@/$FileInfo::build_info_subdir@;
   -d $build_info_fname or
-    eval { Makecmds::c_mkdir( $self->{MKDIR_OPT}, $build_info_fname ) } or do {
+    eval { Mpp::Cmds::c_mkdir( $self->{MKDIR_OPT}, $build_info_fname ) } or do {
       $$reason = ($! == ENOENT || $! == ESTALE) ? "$@ -- possibly due to aging (OK)" : $@;
       return undef;
     };
@@ -404,8 +404,8 @@ sub cache_file {
   $bc_entry = $bc->lookup_file($file_key);
 
 Lookup a file by its cache key.	 Returns undef if the file does not exist in
-the cache.  Returns a BuildCache::Entry structure if it does exist.  You can
-query the BuildCache::Entry structure to see what the build info is, or to
+the cache.  Returns a Mpp::BuildCache::Entry structure if it does exist.  You can
+query the Mpp::BuildCache::Entry structure to see what the build info is, or to
 copy the file into the current directory.
 
 =cut
@@ -422,7 +422,7 @@ sub lookup_file {
   my $dev = (lstat $cache_fname)[0]; # 0 == real STAT_DEV.  Does the file exist?
 
   defined $dev and		# Quit if file does not exist.
-    bless { FILENAME => $cache_fname, DEV => $dev }, 'BuildCache::Entry';
+    bless { FILENAME => $cache_fname, DEV => $dev }, 'Mpp::BuildCache::Entry';
 }
 
 =head2 copy_check_md5
@@ -530,13 +530,13 @@ sub copy_check_md5 {
 
 ###############################################################################
 #
-# Subroutines in the BuildCache::Entry package:
+# Subroutines in the Mpp::BuildCache::Entry package:
 #
-package BuildCache::Entry;
+package Mpp::BuildCache::Entry;
 
-=head1 The BuildCache::Entry package
+=head1 The Mpp::BuildCache::Entry package
 
-A BuildCache::Entry is an object returned by BuildCache::lookup_file.  You can
+A Mpp::BuildCache::Entry is an object returned by BuildCache::lookup_file.  You can
 do the following with the object:
 
 =head2 absolute_filename
@@ -598,7 +598,7 @@ sub copy_from_cache {
   my $build_info_fname = $cache_fname;
   $build_info_fname =~ s@/([^/]+)$@/$FileInfo::build_info_subdir/$1.mk@;
   open my( $fh ), $build_info_fname or do {
-    if($! == POSIX::ENOENT || $! == BuildCache::ESTALE) {
+    if($! == POSIX::ENOENT || $! == Mpp::BuildCache::ESTALE) {
       $$reason = 'the build info file is missing (OK)';
       unlink $cache_fname if fix_ok($self);
     } else {
@@ -618,7 +618,7 @@ sub copy_from_cache {
 
   # If the target directory doesn't already exist, then we assume that the
   # rule would have created it.
-  Makecmds::c_mkdir( '-p', FileInfo::absolute_filename_nolink( $output_finfo->{'..'} ));
+  Mpp::Cmds::c_mkdir( '-p', FileInfo::absolute_filename_nolink( $output_finfo->{'..'} ));
 
 # It's a real file.  If it's on the same file system, make it an extra hard
 # link since that's faster and takes up almost no disk space.  Otherwise, copy the
@@ -657,7 +657,7 @@ sub copy_from_cache {
       # of ESTALE or ENOENT on a read after the file has been unlinked.  If
       # this is a real hardware error, then we hope that it also shows up on
       # some other operation where it can't happen legitimately.
-      $$reason = ($!==POSIX::ENOENT || $!==BuildCache::ESTALE || $!==POSIX::EIO) ? 'file was just deleted (OK)' : "copy $self->{FILENAME} to $output_fname: $!";
+      $$reason = ($!==POSIX::ENOENT || $!==Mpp::BuildCache::ESTALE || $!==POSIX::EIO) ? 'file was just deleted (OK)' : "copy $self->{FILENAME} to $output_fname: $!";
       return undef;
     }
     my $signature = $mtime . ',' . $size;
@@ -732,6 +732,6 @@ sub copy_from_cache {
   $result
 }
 
-*copy_check_md5 = \&BuildCache::copy_check_md5;
+*copy_check_md5 = \&Mpp::BuildCache::copy_check_md5;
 
 1;

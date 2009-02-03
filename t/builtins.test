@@ -199,7 +199,7 @@ our @EXPORT = 'c_uc';
 
 sub c_uc {
   local @ARGV = @_;
-  Makecmds::frame {
+  Mpp::Cmds::frame {
     print "\u\L$_" while <>;
   } 'f', qw(i I o O r s); # fails in 5.6: qw(f i I o O r s);
 }

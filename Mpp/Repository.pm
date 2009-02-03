@@ -1,10 +1,10 @@
-# $Id: Repository.pm,v 1.3 2008/09/02 08:37:59 pfeiffer Exp $
+# $Id: Mpp::Repository.pm,v 1.3 2008/09/02 08:37:59 pfeiffer Exp $
 #
 # This file groups all the functions needed only if repositories are actually used.
 # The actual functionality is also dispersed in makepp and other modules.
 #
 
-#package Repository;
+#package Mpp::Repository;
 package FileInfo;		# Use this a lot.
 
 use FileInfo ();
@@ -62,7 +62,7 @@ sub load_recurse {
     &dont_read;
 
   warn "repositories are ignored by make subprocesses when --traditional-recursive-make is in effect\n"
-    if defined $RecursiveMake::traditional;
+    if defined $Mpp::Recursive::traditional;
 
   # Handle empty directories properly
   &mark_as_directory;
@@ -77,7 +77,7 @@ sub load_recurse {
                                 # in some repository, so it should spring into existence as needed.
   }
 
-  local $Glob::allow_dot_files = 1; # Temporarily allow dot files, because
+  local $Mpp::Glob::allow_dot_files = 1; # Temporarily allow dot files, because
 				# we need to look into .libs directories
 				# for libtool support.
 #
@@ -114,7 +114,7 @@ sub load_recurse {
 # to which each dirinfo in $dir is passed. If it returns nonzero, then
 # the directory is ignored.
 #
-sub Repository::load {
+sub Mpp::Repository::load {
   my( $dirinfo, $destdirinfo, $prune_code ) = @_; # Name the arguments.
   ::log REP_LOAD => $dirinfo, $destdirinfo
     if $log_level;
@@ -151,7 +151,7 @@ sub Repository::load {
 
 
 
-sub Repository::no_valid_alt_versions {
+sub Mpp::Repository::no_valid_alt_versions {
   return 1 unless exists $_[0]{ALTERNATE_VERSIONS};
   return unless $::rm_stale_files;
   was_built_by_makepp $_
@@ -171,7 +171,7 @@ Returns 0 if successful, nonzero if something went wrong.
 
 =cut
 
-sub Repository::get {
+sub Mpp::Repository::get {
   my( $dest_finfo, $src_finfo ) = @_;
 
   if( $dest_finfo->{DIRCONTENTS} ) { # Is this a directory?
@@ -291,7 +291,7 @@ sub Repository::get {
 #
 no warnings 'redefine';
 
-sub Makesubs::s_repository {
+sub Mpp::Subs::s_repository {
   my( $text_line, $makefile, $makefile_line ) = @_; # Name the arguments.
 
   foreach my $rdir ( split ' ', $makefile->expand_text( $text_line, $makefile_line )) {
@@ -299,11 +299,11 @@ sub Makesubs::s_repository {
     if( $rdir =~ /^([^=]+)=(.*)/ ) { # Destination directory specified?
       my $rinfo = file_info $2, $makefile->{CWD};
       my $dst_info = file_info $1, $makefile->{CWD};
-      Repository::load $rinfo, $dst_info;
+      Mpp::Repository::load $rinfo, $dst_info;
     } else {
       my $rinfo = file_info $rdir, $makefile->{CWD};
 				# Get the fileinfo structure.
-      Repository::load $rinfo, $makefile->{CWD};
+      Mpp::Repository::load $rinfo, $makefile->{CWD};
 				# Load all the files.
     }
   }

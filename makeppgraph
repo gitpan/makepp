@@ -23,7 +23,7 @@ BEGIN {
 				# Add '.' to the path in case the user is
 				# running it with "perl makepp" even if
 				# . is not in his path.
-      if( -f "$_/Glob.pm" ) {	# Found something we need?
+      if( -d "$_/Mpp" ) {	# Found something we need?
 	$datadir = $_;
 	last;
       }
@@ -37,8 +37,8 @@ BEGIN {
   unshift @INC, $datadir;
 }
 
-use Utils;
-use Glob ();
+use Mpp::Utils;
+use Mpp::Glob ();
 use FileInfo qw(absolute_filename file_info $CWD_INFO);
 use FileInfo_makepp;
 use TextSubs ();

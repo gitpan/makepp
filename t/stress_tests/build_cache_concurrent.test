@@ -24,7 +24,7 @@ while( defined( my $val = $ENV{"STRESS_PREFIX$i"} )) {
   $hosts[$i++] = $val;
 }
 
-makepp \'builtin', '-MBuildCacheControl', 'create', $cache
+makepp \'builtin', '-MMpp::BuildCacheControl', 'create', $cache
   unless -d $cache;
 
 $i = 0;
@@ -63,7 +63,7 @@ while( 1 ) {
   }
   %pids or last;
   $no_clean or
-    makepp \'builtin', '-MBuildCacheControl', qw{clean --verbose --mtime +-1 --in-mtime +-1}, $cache;
+    makepp \'builtin', '-MMpp::BuildCacheControl', qw{clean --verbose --mtime +-1 --in-mtime +-1}, $cache;
 }
 
 unlink 'answers/build_cache_stress' unless $insist || -f 'build_cache_stress';

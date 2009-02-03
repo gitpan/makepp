@@ -3,7 +3,7 @@
 open my $x, '>res';
 
 sub reptest {
-  makepp @_;
+  eval { &makepp };
   print $x "-\n";
   -f and print $x $_ . (stat _)[7] . "\n" or
   -l and print $x "$_ -> " . readlink() . "\n"
@@ -53,7 +53,7 @@ x
 ###	-1	644	1080844382	1080844382	rep/e
 x
 ###	D	755	1080845081	1080844879	answers
-###	30	644	1161580578	1220027267	answers/res
+###	29	644	1161580578	1231320028	answers/res
 -
 a0
 al0
@@ -74,7 +74,6 @@ cl0
 dir/d0
 e1
 el1
-fl -> f
 -
 b0
 bl0

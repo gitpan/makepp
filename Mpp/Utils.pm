@@ -2,10 +2,10 @@
 require 5.006;
 use strict;
 
-# $Id: Utils.pm,v 1.8 2008/11/23 21:16:50 pfeiffer Exp $
+# $Id: Utils.pm,v 1.9 2009/01/31 22:53:01 pfeiffer Exp $
 
-# This is syntactically needed by many modules but not called in utils.
-sub log;
+# This is syntactically needed by many modules but not called in utils, except mppr.
+sub log($@);
 
 ($::progname = $0) =~ s@.*/@@; # Get the program name w/o directories.
 my %progname =
@@ -23,7 +23,7 @@ BEGIN { *MAKEPP = \&TextSubs::CONST0 } # Differentiate from makepp
 
 # Replace a function which depends on Makefile context to rewrite messages in
 # a way we don't need here.  Hope that didn't get inlined.  Maybe we should
-# build a switch into Makecmds::eval_or_die.
+# build a switch into Mpp::Cmds::eval_or_die.
 sub maybe_die() {
   if( $@ ) {
     (my $msg = $@) =~ s!\(eval \d+\)!expression!g;

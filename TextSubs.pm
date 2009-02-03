@@ -14,7 +14,7 @@ use Config;
 # Centrally provide constants which are needed repeatedly for aliasing, since
 # perl implements them as subs, and each sub takes about 1.5kb RAM.
 BEGIN {
-  eval "sub CONST$_() { $_ }" for 0..6; # More are defined in BuildCacheControl.pm
+  eval "sub CONST$_() { $_ }" for 0..6; # More are defined in Mpp::BuildCacheControl.pm
   *::is_perl_5_6 = $] < 5.008 ? \&CONST1 : \&CONST0;
   *::is_windows =
     $^O eq 'cygwin' ? sub() { -1 } : # Negative for Unix like
@@ -84,8 +84,8 @@ sub pattern_substitution {
       push @ret_words, $dest_copy;
 				# Save the resulting word(s).  There may be
 				# more than one if $dest contains spaces.
-      defined($Makesubs::rule) and
-	$Makesubs::rule->{PATTERN_STEM} = $pattern_stem;
+      defined($Mpp::Subs::rule) and
+	$Mpp::Subs::rule->{PATTERN_STEM} = $pattern_stem;
 				# Set it up so $* can return the stem.
     } else {
       push @ret_words, $_;	# If the pattern doesn't match, then we copy
@@ -517,8 +517,8 @@ sub format_exec_args {
   return $cmd			# No Shell available.
     if ::is_windows > 1;
   if( ::is_windows == 1 && $cmd =~ /[%"\\]/ ) { # Despite multi-arg system(), these chars mess up command.com
-    require Makesubs;
-    my $tmp = Makesubs::f_mktemp( '' );
+    require Mpp::Subs;
+    my $tmp = Mpp::Subs::f_mktemp( '' );
     open my $fh, '>', $tmp;
     print $fh $cmd;
     return ($ENV{SHELL}, $tmp);

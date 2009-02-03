@@ -1,12 +1,12 @@
 # $Id: Makefile.pm,v 1.127 2008/12/14 17:10:01 pfeiffer Exp $
 package Makefile;
 
-use Glob qw(wildcard_action needed_wildcard_action);
-use MakeEvent qw(wait_for);
+use Mpp::Glob qw(wildcard_action needed_wildcard_action);
+use Mpp::Event qw(wait_for);
 use TextSubs qw(max_index_ignoring_quotes index_ignoring_quotes split_on_whitespace split_on_colon
 		unquote unquote_split_on_whitespace requote hash_neq);
-use Makesubs ();
-use Makecmds ();
+use Mpp::Subs;
+use Mpp::Cmds ();
 use FileInfo qw(file_info file_exists absolute_filename chdir);
 use FileInfo_makepp;
 
@@ -280,21 +280,21 @@ sub expand_expression {
     }
   } elsif( $expr =~ s/^&// ) {
     my( $cmd, @args ) = unquote_split_on_whitespace $expr;
-    local $Makesubs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
+    local $Mpp::Subs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
     local *OSTDOUT;		# TODO: convert to my $fh, when discontinuing 5.6.
     open OSTDOUT, ">&STDOUT" or die;
-    my $temp = Makesubs::f_mktemp '', $self;
+    my $temp = f_mktemp '', $self;
     open STDOUT, '>', $temp or die; # open '+>' screws up from 5.8.0 to 5.8.7 on some OS
     eval {
       local $_;
       if( defined &{$self->{PACKAGE} . "::c_$cmd"} ) { # Function from makefile?
 	local $0 = $cmd;
 	&{$self->{PACKAGE} . "::c_$0"}( @args );
-      } elsif( defined &{"Makecmds::c_$cmd"} ) { # Builtin Function?
+      } elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
 	local $0 = $cmd;
-	&{"Makecmds::c_$0"}( @args );
+	&{"Mpp::Cmds::c_$0"}( @args );
       } else {
-	Makesubs::run( $cmd, @args );
+	run $cmd, @args;
       }
     };
     open STDOUT, ">&OSTDOUT";
@@ -303,7 +303,7 @@ sub expand_expression {
     local $/;
     $result = <$fh>;
     $result =~ s/\r?\n/ /g # Get rid of newlines.
-      unless $Makesubs::s_define;
+      unless $Mpp::Subs::s_define;
     $result =~ s/\s+$//;	# Strip out trailing whitespace.
   } elsif( $expr =~ /^([^\s:\#=]+):([^=]+)=([^=]+)$/ ) {
 				# Substitution reference (e.g., 'x:%.o=%.c')?
@@ -369,21 +369,21 @@ sub expand_variable {
 				# through these:
 
 # 1st attempt:
-    if( exists $Makesubs::perl_unfriendly_symbols{$var} ) { # Is it one of the 1-char
+    if( exists $Mpp::Subs::perl_unfriendly_symbols{$var} ) { # Is it one of the 1-char
 				# symbols like '$@' that conflict with perl
 				# variables?  These can't be per target or global.
-      if( ref $Makesubs::perl_unfriendly_symbols{$var} ) {
-	$result = eval { &{$Makesubs::perl_unfriendly_symbols{$var}}() };
+      if( ref $Mpp::Subs::perl_unfriendly_symbols{$var} ) {
+	$result = eval { &{$Mpp::Subs::perl_unfriendly_symbols{$var}}() };
 	$@ and die "$makefile_line: $@\n";
 	if( 2 == length $var ) { # Variants like $(@D) or $(@F)
 	  if( 'D' eq substr $var, 1 ) {
-	    $result = Makesubs::f_dir_noslash $result;
+	    $result = f_dir_noslash $result;
 	  } elsif( 'F' eq substr $var, 1 ) {
-	    $result = Makesubs::f_notdir $result;
+	    $result = f_notdir $result;
 	  }
 	}
       } else {
-	$result = $Makesubs::perl_unfriendly_symbols{$var};
+	$result = $Mpp::Subs::perl_unfriendly_symbols{$var};
       }
       $reexpand = 0;
       last;
@@ -429,7 +429,7 @@ sub expand_variable {
       *{$orig}{CODE};
     if( defined $fn ) {	# Defined in the makefile?
       my $tmp = !$::environment_override && $self->{ENVIRONMENT}{$var};
-      if( $tmp && $fn == *{"Makesubs::f_$var"}{CODE} ) {
+      if( $tmp && $fn == *{"Mpp::Subs::f_$var"}{CODE} ) {
 	$result = $tmp;
       } else {
 	local $::makefile = $self; # Pass the function a reference to the makefile.
@@ -625,13 +625,13 @@ sub find_root_makefile_upwards {
     if( $found && exists $found->{ALTERNATE_VERSIONS} && !file_exists $found ) {
 				# RootMakeppfile to be imported first time.
 				# Check downwards that this is no accident.
-      my @subdirs = grep $_->{NAME} !~ /^\./, Glob::find_real_subdirs $found->{'..'};
+      my @subdirs = grep $_->{NAME} !~ /^\./, Mpp::Glob::find_real_subdirs $found->{'..'};
       while( @subdirs ) {
 	for( @root_makefiles ) {
 	  die "makepp: Must not have nested directories with a RootMakeppfile\n"
 	    if file_exists file_info $_, $subdirs[-1];
 	}
-	push @subdirs, grep $_->{NAME} !~ /^\./, Glob::find_real_subdirs pop @subdirs;
+	push @subdirs, grep $_->{NAME} !~ /^\./, Mpp::Glob::find_real_subdirs pop @subdirs;
       }
     }
     last if $found or $cwd == $FileInfo::root;
@@ -702,7 +702,7 @@ sub load {
 				# reloads.
 		   '_'};	# Last command executed by Shell, it too seems
 				# to cause problems.
-  local $Makesubs::rule;	# Make sure that subroutine calls not
+  local $Mpp::Subs::rule;	# Make sure that subroutine calls not
   				# associated with a rule do the right thing
 
   $global_command_line_vars ||= $command_line_vars;
@@ -831,12 +831,12 @@ sub load {
   }
 
 #
-# Export all subroutines from the Makesubs package into the given package, so
+# Export all subroutines from the Mpp::Subs package into the given package, so
 # the subroutines can be used directly.
 #
-  eval "package $mpackage; use Makesubs";
+  eval "package $mpackage; use Mpp::Subs";
   $mpackage .= '::';
-  *{$mpackage . 'rule'} = *Makesubs::rule;
+  *{$mpackage . 'rule'} = *Mpp::Subs::rule;
 				# Also pass in the $rule symbol.
   ${$mpackage . 'MAKECMDGOALS'} = $makecmdgoals; # Set up the special
 				# MAKECMDGOALS variable.
@@ -891,7 +891,7 @@ sub load {
 #
 # Build up the MAKEFLAGS variable:
 #
-  if( defined $RecursiveMake::traditional ) {
+  if( defined $Mpp::Recursive::traditional ) {
     my @words =			# Pass commnd line variables down.
       map { "$_=" . requote($command_line_vars->{$_}) } keys %$command_line_vars;
     $::keep_going and
@@ -906,7 +906,7 @@ sub load {
       push @words, $::log_level ? '-v' : '--nolog';
     $::quiet_flag and
       push @words, '-q';
-    defined $RecursiveMake::traditional and
+    defined $Mpp::Recursive::traditional and
       push @words, '--traditional-recursive-make';
 
     ${$mpackage . 'MAKEFLAGS'} = "@words";
@@ -1115,8 +1115,7 @@ sub assign {
 
   } else {			# Must be a !=, run through shell to evaluate.
 
-    $$varref =
-      Makesubs::f_shell expand_text( $self, $value, $makefile_line ), $self, $makefile_line;
+    $$varref = f_shell expand_text( $self, $value, $makefile_line ), $self, $makefile_line;
 
   }
 
@@ -1198,12 +1197,12 @@ sub parse_assignment {
 # Not a target-specific assignment:
 #
     if( $var_name =~ s/^export\s+// ) {
-      Makesubs::s_export( $var_name, $self, $makefile_line );
+      s_export $var_name, $self, $makefile_line;
     } elsif( !$c_preprocess && $var_name =~ s/^global\s+// ) {
-      Makesubs::s_global( $var_name, $self, $makefile_line );
+      s_global $var_name, $self, $makefile_line;
     } elsif( $var_name =~ s/^define\s+// ) {
       die "Trailing cruft after define statement at `$makefile_line'\n" if length $var_value;
-      Makesubs::s_define( $var_name, $self, $makefile_line, $type, $override );
+      s_define $var_name, $self, $makefile_line, $type, $override;
       return $self;
     } elsif( $var_name =~ /[\s:\#]/ ) { # More than one word on the LHS
 				# implies it's not an assignment.
@@ -1375,8 +1374,8 @@ sub parse_rule {
       if ($build_cache_fname eq 'none') {
         $build_cache = undef;   # Turn off the build cache mechanism.
       } else {
-        require BuildCache;
-        $build_cache = new BuildCache( absolute_filename( file_info( $build_cache_fname, $self->{CWD} )));
+        require Mpp::BuildCache;
+        $build_cache = new Mpp::BuildCache( absolute_filename( file_info( $build_cache_fname, $self->{CWD} )));
       }
       $have_build_cache = 1;    # Remember that we have a build cache.
       pop @after_colon;
@@ -1600,12 +1599,12 @@ sub parse_rule {
 				# is an invocation of recursive make in this
 				# file.	 (This is not passed to the wildcard.)
 
-      my $rule = new Rule($target_string, $after_colon[0], $action, $self, $makefile_line_dir);
+      my $rule = new Mpp::Rule($target_string, $after_colon[0], $action, $self, $makefile_line_dir);
       $rule->{MULTIPLE_RULES_OK} = 1 if $multiple_rules_ok;
       $rule->{DISPATCH} = $dispatch if $dispatch;
       $rule->{ENV_DEPENDENCY_STRING} = $env_dep_str if $env_dep_str;
 				# Make the rule.
-      local $Makesubs::rule = $rule; # Put it so $(foreach) can properly expand.
+      local $Mpp::Subs::rule = $rule; # Put it so $(foreach) can properly expand.
       $self->{DEFAULT_SIGNATURE_METHOD} and
 	$rule->set_signature_method_default($self->{DEFAULT_SIGNATURE_METHOD});
 				# Get the signature method from the signature
@@ -1689,7 +1688,7 @@ sub parse_rule {
 
       my $generate_rule = sub {
 	my ($tstring) = @_;
-	my $rule = new Rule($tstring, $after_colon[0], $action, $self, $makefile_line_dir);
+	my $rule = new Mpp::Rule($tstring, $after_colon[0], $action, $self, $makefile_line_dir);
         $rule->{MULTIPLE_RULES_OK} = 1 if $multiple_rules_ok;
         $rule->{DISPATCH} = $dispatch if $dispatch;
         $rule->{ENV_DEPENDENCY_STRING} = $env_dep_str if $env_dep_str;
@@ -1859,11 +1858,11 @@ sub read_makefile {
 
   if( !$c_preprocess ) {
     if ($makefile_contents =~ /^\# Makefile\.in generated by automake/) {
-      require AutomakeFixer;	# Load the automake fixing stuff.
+      require Mpp::AutomakeFixer;	# Load the automake fixing stuff.
       ::log LOAD_AUTOMAKE => $minfo
 	if $::log_level;
       $makefile_contents =
-	AutomakeFixer::remove_automake_junk($makefile_contents);
+	Mpp::AutomakeFixer::remove_automake_junk($makefile_contents);
                                 # Clean out the crap that automake puts in for
                                 # dependency tracking and recursive make.
     }
@@ -1928,7 +1927,7 @@ sub read_makefile {
 	$_ = expand_text( $self, $_, $makefile_line );
 	local $ARGV = $makefile_name;
 	local $. = $makefile_lineno;
-	&Makecmds::print;
+	&Mpp::Cmds::print;
 	next;
       } elsif( $1 eq 'include' or my $optional = ($1 eq '-include' || $1 eq '_include') ) {
 				# Do our own, since standard statement tries to build.
@@ -1961,16 +1960,16 @@ sub read_makefile {
     if( /^\s*(-?)\s*&(\w+)\s*(.*)/ ) { # Command at beginning of line?
       my( $ignore_error, $cmd, @args ) = ($1, $2, $3);
       @args = unquote_split_on_whitespace expand_text( $self, $args[0], $makefile_line ) if @args;
-      local $Makesubs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
+      local $Mpp::Subs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
       eval {
 	if( defined &{$self->{PACKAGE} . "::c_$cmd"} ) { # Function from makefile?
 	  local $0 = $cmd;
 	  &{$self->{PACKAGE} . "::c_$0"}( @args );
-	} elsif( defined &{"Makecmds::c_$cmd"} ) { # Builtin Function?
+	} elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
 	  local $0 = $cmd;
-	  &{"Makecmds::c_$0"}( @args );
+	  &{"Mpp::Cmds::c_$0"}( @args );
 	} else {
-	  Makesubs::run( $cmd, @args );
+	  run $cmd, @args;
 	}
       };
       if( $@ ) {
@@ -2158,14 +2157,14 @@ sub _truthval($$) {
     }
   REGEX:
     for( split_on_whitespace $line ) {
-      my $regex = Glob::wild_to_regex unquote;
+      my $regex = Mpp::Glob::wild_to_regex unquote;
       FileInfo::case_sensitive_filenames or $regex =~ s/\(\?i-/(?-i/; # Want this to be case_sensitive
       $truthval = /$regex/ and last REGEX
 	for keys %sys;
     }
   } elsif( defined $perl ) {
     $makefile->cd;		# Evaluate in the correct directory.
-    $truthval = Makesubs::eval_or_die $line, $makefile, $file;
+    $truthval = Mpp::Subs::eval_or_die $line, $makefile, $file;
   } else {			# must be check for nonzero?
     substr( $line, $idx ) = '' if 0 <= $idx; # Strip comment.
     $line =~ s/\s+$//;	# Strip trailing whitespace.
@@ -2322,7 +2321,7 @@ sub skip_makefile_until_else_or_endif {
     }
     # an else in one of the following is not a makepp statement
     elsif ($line =~ /^\s*(?:make)?(?:perl\s*\{|sub\b)/) {
-      Makesubs::read_block $line;
+      Mpp::Subs::read_block $line;
     }
     elsif ($line =~ /^\s*define\b/) {
       $re = qr/^\s*endd?ef\s*$/;

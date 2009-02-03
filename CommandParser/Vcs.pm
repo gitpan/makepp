@@ -224,8 +224,8 @@ sub xparse_command {
     }
   }
 
-  require Makesubs;
-  foreach (@Makesubs::system_include_dirs) {
+  require Mpp::Subs;
+  foreach (@Mpp::Subs::system_include_dirs) {
     for my $tag ("user", "sys") {
       $vera_scanner->add_include_dir( $tag, $_ );
     }

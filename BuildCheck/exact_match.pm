@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.29 2008/09/01 07:47:43 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.30 2009/01/08 22:17:27 pfeiffer Exp $
 use strict;
 package BuildCheck::exact_match;
 
@@ -73,7 +73,7 @@ argument list.  See F<BuildCheck/architecture_independent.pm> for an example.
 
 =cut
 
-my $last_compilation_warning_x86 = 0;
+my $arch_warning = 0;
 
 our $exact_match = bless \@ISA; # Make the singleton object.
 
@@ -139,8 +139,8 @@ sub build_check {
 # Note that we don't have to check the signature, because if it doesn't match,
 # the build info file will be invalid anyway.  See FileInfo::load_build_info.
 #
-  my( $last_cmd, $arch, $sorted_deps, $dep_sigs, $symlink ) =
-    FileInfo::build_info_string( $tinfo, qw(COMMAND ARCH SORTED_DEPS DEP_SIGS SYMLINK) );
+  my( $last_cmd, $arch, $sorted_deps, $dep_sigs ) =
+    FileInfo::build_info_string $tinfo, qw(COMMAND ARCH SORTED_DEPS DEP_SIGS);
   unless( defined $tinfo->{BUILD_INFO} ) {
     ::log BUILD_NONE => $tinfo
       if $::log_level;
@@ -165,8 +165,8 @@ sub build_check {
 # change too.
 #
 
-  $arch ||= '';			# SYMLINK only gets loaded if it is still valid.
-  if( !$symlink && !$ignore_architecture && ::ARCHITECTURE ne $arch ) {
+  $arch ||= '';
+  unless( ::ARCHITECTURE eq $arch || $ignore_architecture ) { # This bool is rarely true, so test it last.
 #
 # The pentium architectures are all more or less equivalent, but have different
 # architecture flags.  Give a warning (so at least the user is not surprised
@@ -178,15 +178,15 @@ sub build_check {
   but this may not be what you want.  The difference is most likely caused
   by running a different copy of perl.\n"
       if $::warn_level &&
-      ::ARCHITECTURE =~ /^i[34567]86-linux/ && $arch =~ // &&
-      !$last_compilation_warning_x86++;
+      (::ARCHITECTURE =~ /^i[34567]86-linux/ && $arch =~ // || ::ARCHITECTURE =~ /^(\w+-\w+)/ && $arch =~ /^$1/) &&
+      !$arch_warning++;
 
     ::log BUILD_ARCH => $tinfo, $arch, ::ARCHITECTURE
       if $::log_level;
     return 1;
   }
 
-  return undef if $only_action || $symlink;
+  return undef if $only_action;
 
 # Check the environmental dependencies
   return 1 if _check_env $tinfo, $env, $::log_level;

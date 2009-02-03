@@ -1,6 +1,6 @@
-package Glob;
+package Mpp::Glob;
 
-# $Id: Glob.pm,v 1.31 2008/09/28 22:05:52 pfeiffer Exp $
+# $Id: Mpp::Glob.pm,v 1.31 2008/09/28 22:05:52 pfeiffer Exp $
 use strict;
 
 use FileInfo qw(file_info chdir absolute_filename relative_filename $CWD_INFO);
@@ -15,18 +15,18 @@ use strict;
 
 =head1 NAME
 
-Glob -- Subroutines for reading directories easily.
+Mpp::Glob -- Subroutines for reading directories easily.
 
 =head1 USAGE
 
-  my @file_info_structs = Glob::zglob_fileinfo('pattern'[, default dir]);
-  my @filenames = Glob::zglob('pattern'[, default dir]);
-  $Glob::allow_dot_files = 1;	# Enable returning files beginning with '.'.
+  my @file_info_structs = Mpp::Glob::zglob_fileinfo('pattern'[, default dir]);
+  my @filenames = Mpp::Glob::zglob('pattern'[, default dir]);
+  $Mpp::Glob::allow_dot_files = 1;	# Enable returning files beginning with '.'.
   wildcard_action @wildcards, sub { my $finfo = $_[0]; ... };
 
 =head1 DESCRIPTION
 
-=head2 Glob::zglob
+=head2 Mpp::Glob::zglob
 
 This subroutine performs globbing without forking off to the csh, so in
 principle it may be faster than using the builtin perl glob.  It also
@@ -61,7 +61,7 @@ means that it overrides C<chdir> in your module to be something that stores
 the current directory.)
 
 By default, C<zglob> does not return file names beginning with '.'.
-You can force it to return these files by setting $Glob::allow_dot_files=1,
+You can force it to return these files by setting $Mpp::Glob::allow_dot_files=1,
 or (as with the shell) by specifing a leading . in the wildcard pattern (e.g.,
 '.*').
 
@@ -73,7 +73,7 @@ FileInfo package for more details.
 
 =cut
 
-$Glob::allow_dot_files = 0;	# Don't return any files beginning with '.'.
+$Mpp::Glob::allow_dot_files = 0;	# Don't return any files beginning with '.'.
 
 sub zglob {
   map relative_filename($_,$_[1]), &zglob_fileinfo;
@@ -169,7 +169,7 @@ sub zglob_fileinfo {
 #
     my @phony_expr = (@pieces ? () : ($phony, $stale, 1)); # Set $no_last_chance
     if( ref $file_regex_or_name ) { # Was there actually a wildcard?
-      my $allow_dotfiles = $Glob::allow_dot_files || /^\./;
+      my $allow_dotfiles = $Mpp::Glob::allow_dot_files || /^\./;
 				# Allow dot files if we're automatically
 				# accepting them, or if they are explicitly
 				# specified.
@@ -219,9 +219,9 @@ sub zglob_fileinfo {
 				# Return a sorted list of matching files.
 }
 
-=head2 Glob::find_all_subdirs
+=head2 Mpp::Glob::find_all_subdirs
 
-  my @subdirs = Glob::find_all_subdirs($dirinfo)
+  my @subdirs = Mpp::Glob::find_all_subdirs($dirinfo)
 
 Returns FileInfo structures for all the subdirectories immediately under
 the given directory.  These subdirectories might not exist yet; we return
@@ -297,7 +297,7 @@ sub find_real_subdirs {
   for( values %{$dirinfo->{DIRCONTENTS}} ) {
     if( $_->{LSTAT} && FileInfo::is_dir( $_ )) {
       push @subdirs, $_		# Note this directory.
-	unless /^\./ && !$Glob::allow_dot_files;
+	unless /^\./ && !$Mpp::Glob::allow_dot_files;
 				# Skip dot directories.
       --$expected_subdirs;	# We got one of the expected subdirs.
       return @subdirs if !$expected_subdirs; # We got them all.
@@ -356,7 +356,7 @@ sub find_real_subdirs {
 				# Look at each file in the directory.
     if( FileInfo::is_dir $finfo ) {
       push @subdirs, $finfo	# Note this directory.
-	unless /^\./ && !$Glob::allow_dot_files;
+	unless /^\./ && !$Mpp::Glob::allow_dot_files;
 				# Skip dot directories.
       --$expected_subdirs;	# We got one of the expected subdirs.
       last if !$expected_subdirs;
@@ -366,9 +366,9 @@ sub find_real_subdirs {
   @subdirs;
 }
 
-=head2 Glob::find_all_subdirs_recursively
+=head2 Mpp::Glob::find_all_subdirs_recursively
 
-  my @subdirs = Glob::find_all_subdirs_recursively($dirinfo);
+  my @subdirs = Mpp::Glob::find_all_subdirs_recursively($dirinfo);
 
 Returns FileInfo structures for all the subdirectories of the given
 directory, or subdirectories of subdirectories of that directory,
@@ -378,13 +378,13 @@ The subdirectories are returned in a breadth-first manner.  The directory
 specified as an argument is not included in the list.
 
 Subdirectories beginning with '.' are not returned unless
-$Glob::allow_dot_files is true.
+$Mpp::Glob::allow_dot_files is true.
 
 =cut
 sub find_all_subdirs_recursively {
   my @subdirs;
 
-  if ($Glob::allow_dot_files) {
+  if ($Mpp::Glob::allow_dot_files) {
     @subdirs = &find_all_subdirs; # Start with the list of our subdirs.
     for (my $subdir_idx = 0; $subdir_idx < @subdirs; ++$subdir_idx) {
 				# Use this kind of loop because we'll be adding
@@ -485,7 +485,7 @@ sub wild_to_regex {
     lc;				# Not case sensitive--switch to lc.
 }
 
-=head2 Glob::wildcard_action
+=head2 Mpp::Glob::wildcard_action
 
 You generally should not call this subroutine directly; it's intended to be
 called from the chain of responsibility handled by ::wildcard_action.
@@ -511,7 +511,7 @@ they don't exist and there is no build command for them yet.  Use the second
 argument to the subroutine to determine whether there was actually a wildcard
 or not, if you need to know.
 
-As with Glob::zglob, wildcard_action will match files in directories which
+As with Mpp::Glob::zglob, wildcard_action will match files in directories which
 don't yet exist, as long as the appropriate FileInfo structures have been put
 in by calls to file_info().
 

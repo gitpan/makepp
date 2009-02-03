@@ -219,10 +219,18 @@ sub system_intabort {
   return $?;
 }
 
+my $page_break = '';
+my $log_count = 1;
 sub makepp(@) {
   my $suffix = '';
   $suffix = ${shift()} if ref $_[0];
-  print "makepp$suffix @_\n";
+  print "${page_break}makepp$suffix" . (@_ ? " @_\n" : "\n");
+  $page_break = "\cL\n";
+  if( !$suffix && -f '.makepp/log' ) {
+    chdir '.makepp';		# For Win.
+    rename log => 'log' . $log_count++;
+    chdir '..';
+  }
   system_intabort \"makepp$suffix", PERL, -f 'makeppextra.pm' ? '-Mmakeppextra' : (), $makepp_path.$suffix, @_;
   1;				# Command succeeded.
 }
@@ -369,8 +377,11 @@ foreach $archive (@ARGV) {
       dot w => "skipped $testname on Windows\n";
       next;
     }
-    if( no_symlink && $testname =~ /repository/ ) {
+    if( no_symlink && $testname =~ /repository|symlink/ ) {
       dot s => "skipped $testname because symbolic links do not work\n";
+      next;
+    } elsif( no_md5 && $testname =~ /symlink/ ) {
+      dot m => "skipped $testname because MD5 is not available\n";
       next;
     }
     if( (no_link || no_md5) && $testname =~ /build_cache/ ) {
@@ -434,6 +445,8 @@ foreach $archive (@ARGV) {
 	-x( 'is_relevant' ) ? !system_intabort './is_relevant', $makepp_path :
 	1
 	or die "skipped r\n";
+      $page_break = '';
+      $log_count = 1;
       if( -r 'makepp_test_script.pl' ) {
 	do 'makepp_test_script.pl' or
 	  die 'makepp_test_script.pl ' . ($@ ? "died: $@" : "returned false\n");

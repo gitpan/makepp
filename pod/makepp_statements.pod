@@ -2,7 +2,7 @@
 
 makepp_statements -- Various statements in a makefile
 
-=for vc $Id: makepp_statements.pod,v 1.32 2007/09/04 23:43:24 topnerd Exp $
+=for vc $Id: makepp_statements.pod,v 1.33 2009/01/08 22:19:19 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -15,7 +15,7 @@ L<B<g>lobal|/global>,E<nbsp>
 L<B<i>fdef|/ifdef>, L</ifeq>, L</ifmakeperl>, L<ifndef|/ifdef>, L<ifneq|/ifeq>,
   L<ifnsys|/ifsys>, L<ifntrue|/iftrue>, L</ifperl>, L</ifsys>, L</iftrue>, L</include>, L</_include>,E<nbsp>
 L<B<l>oad_makefile|/load_makefile>,E<nbsp>
-L<B<m>ake|/prebuild>, L<perl|/makeperl>, L</makesub>,E<nbsp>
+L<B<m>ake|/prebuild>, L<makeperl|/perl>, L</makesub>,E<nbsp>
 L<B<n>o_implicit_load|/no_implicit_load>,E<nbsp>
 L<B<o>r|/Conditionals>,E<nbsp>
 L<B<p>erl|/perl>, L</perl_begin>, L<perl_end|/perl_begin>, L</prebuild>,E<nbsp>
@@ -388,6 +388,19 @@ this block is ignored.
  	print "as well as this one\n"
       }}
     endif
+
+You can use the Perl debugger for your embedded code, by running makepp itself
+in the debugger, where ... are the arguments, if any, you normally pass:
+
+    perl -d -S mpp ...
+
+It is hard to set breakpoints in Perl code that has not been loaded.  You can
+work around this by putting this line into your embedded Perl, just before
+where you want to break:
+
+    $DB::single = 1;
+
+Then you can type C<c> at the debugger's prompt, to continue till that point.
 
 =item sub
 

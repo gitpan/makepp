@@ -47,7 +47,7 @@ sub parse_arg {
     } elsif( ::is_windows ? s/^config=(?=(\/|[a-z]:)?)//i : s/^config=(?=(\/)?)//i ) { # Oracle Pro*C
       $_[0]->add_simple_dependency( $_ );
       substr $_, 0, 0, &CommandParser::dirinfo->{FULLNAME} . '/' unless defined $1;
-      Makesubs::prebuild file_info( $_ ), $_[0]{RULE}{MAKEFILE}, $_[0]{RULE}{RULE_SOURCE};
+      Mpp::Subs::prebuild file_info( $_ ), $_[0]{RULE}{MAKEFILE}, $_[0]{RULE}{RULE_SOURCE};
 				# Might be a generated file.
       if( open my $fh, $_ ) {
 	while( <$fh> ) {

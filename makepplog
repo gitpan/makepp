@@ -1,8 +1,8 @@
-#!/home/utils/perl-5.8.8/bin/perl -w
+#!/usr/bin/perl -w
 
 use strict;
 
-# $Id: makepplog,v 1.27 2008/11/23 21:05:48 pfeiffer Exp $
+# $Id: makepplog,v 1.28 2009/01/31 23:01:26 pfeiffer Exp $
 
 # Shall we put a period after each message?  Or once for all before the \n when printing?
 my %log_msg =
@@ -68,13 +68,16 @@ my %log_msg =
   REP_OUTDATED => 'Removing outdated repository link %s',
   REP_SKIP => 'Skipping generated repository file %s',
 
+  RULE_ALL => 'Attempt to recover a rule for all files in %s',
   RULE_ALT => 'Alternate rules (%s and %s) for target %s',
   RULE_DISCARD_MAKE => ' Rule %s discarded because it invokes $(MAKE)',
+  RULE_EXTEND => 'Add target %s to rule for %s',
   RULE_FAILED => '*** This failed from rule %s',
   RULE_IGN_MAKE => ' Rule %s ignored because it invokes $(MAKE)',
   RULE_IGN_PATTERN => ' Rule %s ignored because it is a pattern rule',
   RULE_NEARER => ' Rule %s chosen because it is from a nearer makefile',
   RULE_NEARER_KEPT => ' Rule %s kept because it is from a nearer makefile',
+  RULE_NEW => 'Recover rule for %s from previous build info',
   RULE_SHORTER => ' Rule %s chosen because it has a shorter chain of inference',
 
   SCAN => 'Scanning %s',
@@ -136,7 +139,7 @@ BEGIN {
 				# Add '.' to the path in case the user is
 				# running it with "perl makepp" even if
 				# . is not in his path.
-      if( -f "$_/Glob.pm" ) {	# Found something we need?
+      if( -d "$_/Mpp" ) {	# Found something we need?
 	$datadir = $_;
 	last;
       }
@@ -150,7 +153,7 @@ BEGIN {
   unshift @INC, $datadir;
 }
 
-use Utils;
+use Mpp::Utils;
 use FileInfo_makepp;
 use TextSubs ();
 
@@ -328,7 +331,7 @@ for my $logfile ( @logfiles ) {
 	      $dir_name{$3} = '???';
 	      warn "Corrupt log file (probably because of concurrent write access to $logfile)" unless $warned_corrupt++;
 	  }
-	  for( "$dir_name{$3}/$2" ) {
+	  for( $dir_name{$3} eq '/' ? "/$2" : "$dir_name{$3}/$2" ) {
 	    $dir_name{$1} = $_;	# Might be a dir.
 	    &$rename() if $rename;
 	    $file_name{$1} = $_;

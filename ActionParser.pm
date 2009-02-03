@@ -48,7 +48,7 @@ use strict;
 package ActionParser;
 
 use TextSubs;
-use Rule;
+use Mpp::Rule;
 use CommandParser;
 use FileInfo qw(file_info relative_filename);
 use FileInfo_makepp;
@@ -127,7 +127,7 @@ sub parse_rule {
   # 1. Since the non-shell actions might call f_target, tacking on
   #    dependencies here can mess things up.
   # 2. Adding a dependency on the makefile is often the wrong thing to do,
-  #    because the routine could have been defined in Makesubs.pm (in which
+  #    because the routine could have been defined in Mpp/Subs.pm (in which
   #    case a dependency probably isn't needed), or in an include file (in
   #    which case the dependency will be on the wrong file).  This is
   #    probably the common case.
@@ -138,7 +138,7 @@ sub parse_rule {
   #    live with that, it would be more efficient to call
   #    $rule->mark_scaninfo_uncacheable, to save it the effort of trying.
 
-  my( undef, undef, $command, $action, @actions ) = &Rule::split_actions; # Get the commands to execute.
+  my( undef, undef, $command, $action, @actions ) = &Mpp::Rule::split_actions; # Get the commands to execute.
   $#actions -= 4;		# Eliminate bogus undefs.
   while( 1 ) {
     next unless defined $action;
@@ -159,13 +159,13 @@ sub parse_rule {
 				 # For '.' this returns a relative name to where use was performed, but we might be somewhere else now :-(
 				 FileInfo::path_file_info( B::svref_2object( \&$makefile_cmd )->FILE, $cwd ),
 				 $cwd );
-      } elsif( defined &{"Makecmds::c_$cmd"} ) { # Builtin Function?
+      } elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
 	# TODO: Should we use our knowledge of the builtins to find out exactly what files
 	# they handle?  That would mean redoing half of what they'll really do, like option
 	# processing.  E.g. -fo is a -o option, but if it's -o '|...' then there's no file.
       } else {
 	my $finfo = file_info $cmd, $rule->makefile->{CWD}; # Relative path.
-	$finfo = file_info Makesubs::f_find_program( $cmd, $rule->makefile, $rule->{RULE_SOURCE} ),
+	$finfo = file_info Mpp::Subs::f_find_program( $cmd, $rule->makefile, $rule->{RULE_SOURCE} ),
 	  $rule->makefile->{CWD}	# Find in $PATH.
 	  if ($cmd !~ /\// || ::is_windows > 1 && $cmd !~ /\\/) && !FileInfo::exists_or_can_be_built $finfo;
 	$rule->add_dependency( $finfo );
@@ -358,8 +358,8 @@ sub find_command_parser {
 				# directory path and try again.
       $firstword =~ s@^.*/@@ || ::is_windows > 1 && $firstword =~ s@^.*\\@@ and  # Is there a directory path?
         $parser = $scanner_hash->{$firstword};
-      $parser ||= $Makesubs::scanners{$firstword} ||
-	$firstword =~ /gcc|g\+\+/ && \&Makesubs::scanner_gcc_compilation;
+      $parser ||= $Mpp::Subs::scanners{$firstword} ||
+	$firstword =~ /gcc|g\+\+/ && \&Mpp::Subs::scanner_gcc_compilation;
     }
   }
   if ($parser) {               # Did we get one?

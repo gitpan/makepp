@@ -239,7 +239,7 @@ $root = bless { NAME => '',
 #		The DIRCONTENTS field is only created by the subroutine
 #		mark_as_directory().  This is so the wildcard routines are
 #		reliably informed that a new directory exists.	See the
-#		documentation for Glob::wildcard_action for details.
+#		documentation for Mpp::Glob::wildcard_action for details.
 # EXISTS	Exists iff we know the file exists (either because we lstatted it,
 #		or because its name was in the directory).
 # IS_PHONY	Exists iff this has been tagged as a phony target.
@@ -264,7 +264,7 @@ $root = bless { NAME => '',
 #		whenever a new file springs into existence in this directory
 #		or any subdirectory.  These routines are used so that wildcards
 #		can match files which didn't exist when the wildcard was
-#		invoked.  See Glob::wildcard_action() and FileInfo::publish()
+#		invoked.  See Mpp::Glob::wildcard_action() and FileInfo::publish()
 #		for details.
 # <number>	Used in directory finfos, to store the relative path to another
 #		directory, of which this is the integral address.
@@ -911,7 +911,7 @@ sub mkdir {
 				# Make the directory.
   &may_have_changed;		# Restat it.
   # Need to discard the LSTAT of the parent directory, because the number
-  # of links to it has changed, and Glob uses that.
+  # of links to it has changed, and Mpp::Glob uses that.
   # TODO: Is it harmful to just increment it, instead of forcing a restat?
   delete(($dirinfo->{'..'} || {})->{LSTAT});
   $dirinfo->{IS_WRITABLE} = 1;	# This directory is now writable.

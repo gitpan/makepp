@@ -42,7 +42,7 @@ local $/;
 /^RESCAN=/m and $rescan++ while <>;
 die 'rescan' if $rescan != 5;	# a, d, dir/e, dir/f & xreal.c don't need scanning, so they don't lose this flag.
 
-cp 'n_files.win', 'answers/n_files' if is_windows;
+cp 'n_files.win', 'answers/n_files' if is_windows && is_windows < 2;
 
 1;
 ###	35	644	1227216620	1229020504	RootMakeppfile.mk
@@ -92,7 +92,7 @@ require Exporter;
 sub c_cmd {
   open my $fh, '>', $_[0] or
     die $!;
-  print $fh "$_[0]: " . join( ' ', map $Makesubs::rule->{MAKEFILE}->expand_variable( $_ ), qw(LD MYVAR) );
+  print $fh "$_[0]: " . join( ' ', map $Mpp::Subs::rule->{MAKEFILE}->expand_variable( $_ ), qw(LD MYVAR) );
 				# Pick up a standard and a target specific var.
   close $fh;
 }

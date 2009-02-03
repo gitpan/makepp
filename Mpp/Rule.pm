@@ -1,15 +1,15 @@
-# $Id: Rule.pm,v 1.96 2008/12/14 17:10:01 pfeiffer Exp $
+# $Id: Rule.pm,v 1.97 2009/01/08 22:16:06 pfeiffer Exp $
 use strict qw(vars subs);
 
-package Rule;
+package Mpp::Rule;
 
-use MakeEvent qw(when_done wait_for);
+use Mpp::Event qw(when_done wait_for);
 use FileInfo qw(file_info chdir absolute_filename relative_filename file_exists touched_filesystem);
 use FileInfo_makepp;
 use TextSubs;
 use BuildCheck::exact_match;
 use ActionParser;
-use Makecmds;
+use Mpp::Cmds;
 
 our $unsafe;			# Perl code was performed, that might leave files open or chdir.
 
@@ -99,7 +99,7 @@ sub find_all_targets_dependencies {
 
   my %all_targets;		# A hash of all targets, so we can tell quickly
 				# whether we already know about a given target.
-  local $Makesubs::rule = $self; # Set this up so that subroutines can find the
+  local $Mpp::Subs::rule = $self; # Set this up so that subroutines can find the
 				# rule that is currently being expanded.
 
   local $self->{ALL_TARGETS} = \%all_targets;
@@ -161,7 +161,7 @@ sub find_all_targets_dependencies {
 
   for( split_on_whitespace $dependency_string ) {
     push @explicit_dependencies, /[\[\*\?]/ ?		# Is it a wildcard?
-      Glob::zglob_fileinfo( unquote(), $build_cwd ) :
+      Mpp::Glob::zglob_fileinfo( unquote(), $build_cwd ) :
       file_info( unquote(), $build_cwd );
   }
 
@@ -257,7 +257,7 @@ sub find_all_targets_dependencies {
 	if ($explicit_dependencies[$idx] == $_) { # Was it an explicit dependency?
 	  splice(@explicit_dependencies, $idx, 1); # Remove it.
 	  $warn_flag++ or
-	    warn FileInfo::absolute_filename( $_ ) . " depends on itself; circular dependency removed\n";
+	    warn '`' . absolute_filename( $_ ) . "' depends on itself; circular dependency removed\n";
 	}
       }
 
@@ -669,7 +669,7 @@ sub load_scaninfo_single {
 	next TAG;
       }
       my( $tag, @incs ) = split /\01/, $_, -1;
-      die if !defined $tag;
+      die unless defined $tag;
       Scanner::get_tagname( $scanner, $tag) if $tag ne ''; # make it a valid tag
 
       # TBD: Ideally, we should remember which tags are marked should_find
@@ -830,25 +830,33 @@ operation you want, provided it returns the appropriate kind of handles.
 sub execute {
   my ($self, $actions, $all_targets, $all_dependencies) = @_;	# Name the arguments.
 
-  # Check for a symlink that doesn't need rebuilding, even though the linkee got built.
-  if( @$all_targets == 1 && exists $all_targets->[0]{TEMP_BUILD_INFO} ) {
-    if( $actions eq $all_targets->[0]{TEMP_BUILD_INFO}{COMMAND} and
-	$all_targets->[0]{TEMP_BUILD_INFO}{SYMLINK} eq
-	  readlink( FileInfo::absolute_filename_nolink $all_targets->[0] ) || '' and
-	file_exists file_info $all_targets->[0]{TEMP_BUILD_INFO}{SYMLINK}, $all_targets->[0]{'..'} ) {
-      $all_targets->[0]{BUILD_INFO} = delete $all_targets->[0]{TEMP_BUILD_INFO};
-      $::n_files_changed--;	# Don't count this one, since we're not rebuilding it.
-      ::log SYMLINK_KEEP => $all_targets->[0], $self->source
-	if $::log_level;
-      return;
-    } else {
-      delete $all_targets->[0]{TEMP_BUILD_INFO}; # Save some memory
+  # Check for a symlink that doesn't need rebuilding, even though the linkee changed.
+  if( @$all_targets == 1 ) {{	# Extra block for last.
+    my( $cmd, $symlink ) =
+      exists $all_targets->[0]{TEMP_BUILD_INFO} ? @{$all_targets->[0]{TEMP_BUILD_INFO}}{qw(COMMAND SYMLINK)} :
+      last;
+    delete $all_targets->[0]{TEMP_BUILD_INFO}; # Save some memory
+
+    last unless $actions eq $cmd and # Rule or link no longer matches, this is the effective build check for symlinks.
+      $symlink eq (readlink( FileInfo::absolute_filename_nolink $all_targets->[0] ) || '') and
+      file_exists file_info $symlink, $all_targets->[0]{'..'};
+
+    my $linkee = FileInfo::dereference $all_targets->[0];
+    if( exists $linkee->{BUILD_INFO} ) { # Replicate content-based signatures -- build_target_done will mark it for update.
+      while( my( $key, $value ) = each %{$linkee->{BUILD_INFO}} ) {
+	$all_targets->[0]{BUILD_INFO}{$key} = $value
+	  if $key ne 'DEP_SIGS' && Signature::is_content_based $value;
+      }
     }
-  }
+    $::n_files_changed--;	# Undo count, since we're not really rebuilding it.
+    ::log SYMLINK_KEEP => $all_targets->[0], $self->source
+      if $::log_level;
+    return;			# Success, pretend we did rebuild it.
+  }}
 
 
-  RecursiveMake::setup_socket() if # Do we need to listen for recursive make?
-    defined $RecursiveMake::command && $actions =~ /\brecursive_makepp\b/;
+  Mpp::Recursive::setup_socket() if # Do we need to listen for recursive make?
+    defined $Mpp::Recursive::command && $actions =~ /\brecursive_makepp\b/;
 
   my $build_cwd = $self->build_cwd;
 #
@@ -874,7 +882,7 @@ sub execute {
 				# TODO when discontinuing support of 5.6:
 				# switch to: open my $fh, '+>', undef
 				# and dup $fh to STDOUT/ERR
-    my $proc_handle = new MakeEvent::Process sub {
+    my $proc_handle = new Mpp::Event::Process sub {
 #
 # Child process.  Redirect our output to the temporary file and then start
 # the build.
@@ -907,7 +915,7 @@ sub execute {
     when_done $proc_handle, $end_handler, ERROR => $end_handler;
   } else {			# Not parallel.
     print_build_cwd( $build_cwd ); # Display any directory change.
-    wait_for new MakeEvent::Process sub {
+    wait_for new Mpp::Event::Process sub {
       $self->execute_command($actions, $build_cwd, $all_targets, $all_dependencies); # Execute the command.
     };				# Wait for the process, because we don't want
 				# to get ahead and start scanning files we
@@ -998,7 +1006,7 @@ sub exec_or_die {
     $result = system format_exec_args $action;
     print STDERR "system $action failed--$!\n"
       if $result == -1;
-    ::print_profile_end $action if $::profile;
+    ::print_profile_end( $action ) if $::profile;
   }
   close $_ for @::close_fhs;
   ::suicide ::signame $result & 0x7F
@@ -1032,8 +1040,8 @@ sub execute_command {
   chdir( $build_cwd );		# Move to the correct directory.
   $self->{MAKEFILE}->setup_environment;
 
-  $RecursiveMake::socket_name and	# Pass info about recursive make.
-    $ENV{MAKEPP_SOCKET} = $RecursiveMake::socket_name;
+  $Mpp::Recursive::socket_name and	# Pass info about recursive make.
+    $ENV{MAKEPP_SOCKET} = $Mpp::Recursive::socket_name;
 
   $::preexecute_rule_hook and &$::preexecute_rule_hook($self);
 
@@ -1069,7 +1077,7 @@ sub execute_command {
       ::print_profile( defined $perl ? "perl $perl" : "&$action" ) unless $silent_flag;
 				# This prints out makeperl as perl.  That is correct,
 				# because it has already been expanded to plain perl code.
-      local $Makesubs::rule = $self;
+      local $Mpp::Subs::rule = $self;
       local $self->{EXPLICIT_TARGETS} = $all_targets;
       local $self->{EXPLICIT_DEPENDENCIES} = $all_dependencies;
       if( defined $perl ) {
@@ -1080,7 +1088,7 @@ sub execute_command {
 	# into the rule in which the perl actions appears.  Although this is
 	# misleading, it's better than nothing because it usually gets you
 	# very close.  It's hard to fix.
-	eval { Makesubs::eval_or_die $perl, $self->{MAKEFILE}, $self->{RULE_SOURCE} };
+	eval { Mpp::Subs::eval_or_die $perl, $self->{MAKEFILE}, $self->{RULE_SOURCE} };
 	if( $@ ) {
 	  ::print_error( 'perl action: '.$@ );
 	  return 1 if $error_abort;
@@ -1094,12 +1102,12 @@ sub execute_command {
 	    $unsafe = 1;
 	    local $0 = $cmd;
 	    &{$self->{MAKEFILE}{PACKAGE} . "::c_$0"}( @args );
-	  } elsif( defined &{"Makecmds::c_$cmd"} ) { # Builtin Function?
+	  } elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
 	    local $0 = $cmd;
-	    &{"Makecmds::c_$0"}( @args );
+	    &{"Mpp::Cmds::c_$0"}( @args );
 	  } else {
 	    $unsafe = 1;
-	    Makesubs::run( $cmd, @args );
+	    Mpp::Subs::run( $cmd, @args );
 	  }
 	};
 	if( $@ ) {
@@ -1386,7 +1394,7 @@ sub expand_additional_deps {
 				# Name the components of the stored info.
       for( split_on_whitespace $makefile->expand_text( $dep_str, $makefile_line ) ) {
 	push @dep_infos, /[\[\*\?]/ ?		# Is it a wildcard?
-	  Glob::zglob_fileinfo( unquote(), $makefile->{CWD} ) :
+	  Mpp::Glob::zglob_fileinfo( unquote(), $makefile->{CWD} ) :
 				# Get which files this is referring to.
 	  file_info( unquote(), $makefile->{CWD} );
       }
@@ -1438,7 +1446,7 @@ sub add_target {
 # in the file.	Most of the subroutines in this package are dummies to
 # replace the functionality in the Rule class.
 #
-package DefaultRule;
+package Mpp::DefaultRule;
 
 #
 # Establish a default rule for a new file:
@@ -1450,7 +1458,7 @@ sub new { bless { TARGET => $_[1] }, $_[0] }
 
 sub build_cwd { $FileInfo::CWD_INFO }
 
-*expand_additional_deps = \&Rule::expand_additional_deps;
+*expand_additional_deps = \&Mpp::Rule::expand_additional_deps;
 
 sub find_all_targets_dependencies {
   my $self = $_[0];
@@ -1472,25 +1480,29 @@ sub find_all_targets_dependencies {
 # file.
 #
 sub execute {
-  MakeEvent::when_done sub {
+  Mpp::Event::when_done sub {
     my $target = $_[0];
-    if( $target->{ADDITIONAL_DEPENDENCIES} ) {
+    if( $target->{TEMP_BUILD_INFO} ) {
+      ::print_error( 'Attempting to retain stale ', $target );
+      -1;			# Return nonzero to indicate error.
+    } elsif( $target->{ADDITIONAL_DEPENDENCIES} ) {
 				# If it has additional dependencies, then
 				# there was a rule, or at least we have to
 				# pretend there was.
-      #FileInfo::file_exists( $target ) and return 0;
+      #file_exists( $target ) and return 0;
 				# If the file doesn't exist yet, we may
 				# have to link it from a repository.
       # ::build handles linking targets in from a repository after the rule
       # runs, so we don't have to do it here even if there are
       # ALTERNATE_VERSIONS.
-      return 0;			# Return success even if the file doesn't exist.
+      0;			# Return success even if the file doesn't exist.
 				# This is to handle things like
 				# FORCE:
 				# which are really just dummy phony targets.
+    } else {
+      ::print_error( 'No rule to make ', $target );
+      -1;			# Return nonzero to indicate error.
     }
-    ::print_error( 'No rule to make ', $target );
-    -1;				# Return nonzero to indicate error.
   }, [$_[0]{TARGET}];
 }
 
@@ -1516,7 +1528,7 @@ sub print_command {
 #
 sub signature_method { $Signature::signature }
 
-sub build_check_method { $DefaultRule::BuildCheck::build_check_method_object }
+sub build_check_method { $Mpp::DefaultRule::BuildCheck::build_check_method_object }
 
 sub build_cache { undef }	# Build cache disabled for objects with
 				# no actions.  Reused below where we also need a sub
@@ -1525,7 +1537,7 @@ sub build_cache { undef }	# Build cache disabled for objects with
 sub source { 'default rule' }
 *name = \&source;		# Alias for ::log
 
-*sorted_dependencies = \&Rule::sorted_dependencies;
+*sorted_dependencies = \&Mpp::Rule::sorted_dependencies;
 
 # If there is no action, then there is nothing to scan, so presumably nothing
 # was affected by scanning.  Reuse any nop function.
@@ -1533,7 +1545,7 @@ sub source { 'default rule' }
 
 
 
-package DefaultRule::BuildCheck;
+package Mpp::DefaultRule::BuildCheck;
 
 our @ISA = 'BuildCheck';
 
@@ -1543,20 +1555,23 @@ our @ISA = 'BuildCheck';
 # file to be linked in from a repository if we can find it somewhere.
 #
 
-$DefaultRule::BuildCheck::build_check_method_object = bless \@ISA;
+$Mpp::DefaultRule::BuildCheck::build_check_method_object = bless \@ISA;
 				# Make a singleton object that defines our
 				# special build_check method.
 
 sub build_check {
   my $tinfo = $_[1];		# Ignore self
 
-  warn FileInfo::absolute_filename( $tinfo ) . " is a stale file generated by makepp,\n" .
-    "but there is no rule to build it any more.	 Makepp assumes that it\n" .
-    "is now a source file.  If this is correct, then you should add it\n" .
-    "to your source control system (if any), and touch the file to make\n" .
-    "this warning go away.  Otherwise, you should remove the file,\n" .
-    "because the targets that depend on it will not be reproducible.\n"
-      if FileInfo::is_stale( $tinfo );
+  return 'stale symbolic link' if exists $tinfo->{TEMP_BUILD_INFO};
+
+  warn '`' . FileInfo::absolute_filename( $tinfo ) . "' is a stale file generated by makepp,\n" .
+    "  but there is no rule to build it any more.  Makepp assumes that it\n" .
+    "  is now a source file.  If this is correct, then you should add it\n" .
+    "  to your source control system (if any), and touch the file to make\n" .
+    "  this warning go away.  Otherwise, you should remove the file,\n" .
+    "  because the targets that depend on it will not be reproducible.\n" .
+    "  makepp --rm-stale would automatically do this for you.\n"
+      if FileInfo::is_stale $tinfo;
 
   # It would be faster to check for existence first, but that doesn't work,
   # because then if the file were from a repository but the repository version
@@ -1581,7 +1596,7 @@ sub build_check {
 # cache, too, except that we've disabled build caches by not providing a
 # build_cache_key function.)
 #
-*build_check_from_build_info = \&DefaultRule::build_cache;
+*build_check_from_build_info = \&Mpp::DefaultRule::build_cache;
 				# If a file exists in a repository, there's
 				# no reason not to import it since there's
 				# no build rule for this target.

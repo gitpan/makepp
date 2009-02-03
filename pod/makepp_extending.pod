@@ -110,7 +110,7 @@ save memory:
 If you need any of the functions normally available in a Makefile (like the
 C<f_> functions), you must put this line into your module:
 
-    use Makesubs;
+    use Mpp::Subs;
 
 The drawback is that the module would be in a different package than a
 function directly appearing in a makefile.  So you need to pass in everything
@@ -143,7 +143,7 @@ this passes all strings to C<run>.
 You can write your commands within the framework of the builtins, allowing you
 to use the same standard options as they have, and the I/O handling they give.
 
-The block operator C<Makecmds::frame> is followed by a single letter option
+The block operator C<Mpp::Cmds::frame> is followed by a single letter option
 list of the builtins (maximally C<qw(f i I o O r s)>).  Even if you specify
 your own option overriding one of these, you still give the single letter of
 the standard option.  Note how we take one of the letter out of C<qw()>,
@@ -157,7 +157,7 @@ else the option value is stored in it.
 
     sub c_my_ocmd {		# Typical output case
       local @ARGV = @_;
-      Makecmds::frame {
+      Mpp::Cmds::frame {
  
  	... print something here with @ARGV, with options already automatically removed
  
@@ -167,7 +167,7 @@ else the option value is stored in it.
     sub c_my_icmd {		# Typical input case with 2 options
       local @ARGV = @_;
       my( $short, $long );
-      Makecmds::frame {
+      Mpp::Cmds::frame {
  
  	... do something here with <>
  
@@ -181,7 +181,7 @@ input record (equivalent to C<&sed '$$_ = "\u\L$$_"'>):
 
     sub c_uc {
       local @ARGV = @_;
-      Makecmds::frame {
+      Mpp::Cmds::frame {
  	print "\u\L$_" while <>;
       } 'f', qw(i I o O r s);
     }
@@ -189,7 +189,7 @@ input record (equivalent to C<&sed '$$_ = "\u\L$$_"'>):
 Within the block handled by frame, you can have nested blocks for performing
 critical operations, like opening other files.
 
-    Makecmds::perform { ... } 'message';
+    Mpp::Cmds::perform { ... } 'message';
 
 This will output message with C<--verbose> (which every command accepts) iff
 the command is successfully run.  But if the block evaluates as false, it dies

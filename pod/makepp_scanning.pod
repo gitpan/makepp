@@ -44,8 +44,8 @@ this case.  You can ignore the prefixed command by:
 The C/C++ scanner is activated by a command beginning with a compile
 program that makepp knows about.  (I've included every compiler I've
 ever heard of, but if I missed your compiler, you can tell makepp about
-it by adding an entry to the C<%Makesubs::scanners> array (see
-F<Makesubs.pm> in the distribution).  Also send me email at
+it by adding an entry to the C<%Mpp::Subs::scanners> array (see
+F<Mpp/Subs.pm> in the distribution).  Also send me email at
 holt-makepp@gholt.net so I can include it in subsequent releases.
 
 It looks at the command for C<-Idir> options specifying the include path

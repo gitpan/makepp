@@ -133,7 +133,7 @@ sub xparse_command {
 # Get the whole include path.  Swig can tell us the system library path
 # by running it with the -swiglib option.
 #
-  $swig_library_path = Makesubs::f_shell "$swig_binary -swiglib", $rule->makefile, $rule->source
+  $swig_library_path = Mpp::Subs::f_shell "$swig_binary -swiglib", $rule->makefile, $rule->source
     if !defined $swig_library_path;
                                 # This is more or less equivalent to caching
                                 # `$swig_binary -swiglib`.  See f_shell for

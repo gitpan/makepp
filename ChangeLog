@@ -1,3 +1,54 @@
+2009-02-03  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Makecmds.pm:
+	* Makesubs.pm: Cleanly separate these modules, and make the latter "our" based.
+
+2009-01-31  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Frame.pm: New module picks up many things that used to be in
+	makepp.
+
+	* makeppreplay: Use new module to handle signals properly and do
+	logging.
+
+	* Makecmds.pm (print): Respect --sync-lines in replacement (but
+	not in input file).
+
+2009-01-08  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp:
+	* Rule.pm:
+	* FileInfo_makepp.pm: Handle all variants of symlink changes.
+	With --rm-stale also rm files whose stale dependencies get rm`ed,
+	or where it can't initially be decided if it's really stale.
+
+	* BuildCheck/exact_match.pm: Extend arch-change explanation to any
+	similar pairs.
+
+	* makeppreplay (load_build_info_file): A single DEP_SIGS looks
+	like a content_based sig, but isn't.
+
+	* t/run_tests.pl: Add page break between makepp* invocations and
+	backup log files.
+
+	* t/additional_tests/2009_01_08_symlink.test: New test.
+
+	* t/additional_tests/2004_04_01_stale_repository.test:
+	* t/additional_tests/2004_11_02_repository_rmstale.test:
+	* t/additional_tests/2004_03_31_stale.test: Test more stale files
+	being removed.
+
+	* pod/makepp_statements.pod: Document how to debug perl {}.
+
+2008-12-21  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp: Fix -c.
+	(perform): Concat current to previous error message and don't say
+	"no update necessary" when we abort with an error.
+
+	* stress-test.pl (StressTestUtils.pm): Make it a normal module so
+	it can be loaded by mppr.
+
 2008-12-14  Daniel Pfeiffer  <occitan@esperanto.org>
 
 Snapshot makepp-1.50.081214.tgz, version 1.50-12149-11231-10151 on CPAN.

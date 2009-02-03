@@ -123,14 +123,14 @@ all: test
 
 test: .test_done
 
-.test_done: *.pm Signature/*.pm Scanner/*.pm CommandParser/*.pm ActionParser/*.pm makepp \
+.test_done: *.pm Mpp/*.pm Signature/*.pm Scanner/*.pm CommandParser/*.pm ActionParser/*.pm makepp \
 	t/*.test t/run_tests.pl
 	cd t && PERL=$(PERL) $(PERL) run_tests.pl
 	touch $@
 
 testall: .testall_done
 
-.testall_done: *.pm Signature/*.pm Scanner/*.pm CommandParser/*.pm ActionParser/*.pm makepp \
+.testall_done: *.pm Mpp/*.pm Signature/*.pm Scanner/*.pm CommandParser/*.pm ActionParser/*.pm makepp \
 	t/*.test t/*/*.test t/run_tests.pl
 	cd t && PERL=$(PERL) $(PERL) run_tests.pl *.test */*.test
 	touch $@
@@ -139,7 +139,7 @@ distribution: $(VERSION).tar.gz
 
 $(VERSION).tar.gz: README INSTALL LICENSE VERSION makepp.lsm ChangeLog \
 	makepp recursive_makepp makeppclean \
-	Signature/*.pm Scanner/*.pm \
+	Mpp/*.pm Signature/*.pm Scanner/*.pm \
 	BuildCheck/*.pm CommandParser/*.pm ActionParser/*.pm *.mk *.pm \
 	pod/*.pod \
 	t/*.test t/*/*.test t/run_tests.pl \
@@ -148,7 +148,7 @@ $(VERSION).tar.gz: README INSTALL LICENSE VERSION makepp.lsm ChangeLog \
 	./configure         # Reset Makefile.
 	mkdir $(VERSION) \
 	   $(VERSION)/pod $(VERSION)/t \
-	   $(VERSION)/Signature $(VERSION)/Scanner \
+	   $(VERSION)/Mpp $(VERSION)/Signature $(VERSION)/Scanner \
 	   $(VERSION)/CommandParser $(VERSION)/ActionParser
 	for file in $^; do cp $$file $(VERSION)/$$file; done
 	GZIP=-9 tar --create --gzip --file $@ $(VERSION)

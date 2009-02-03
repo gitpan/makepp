@@ -47,7 +47,7 @@ sub signature {
       $ctx->addfile( $infile );	# Read in the whole file.
       close $infile;
 
-      # Digest key and format needs to match BuildCache::copy_from_cache
+      # Digest key and format needs to match Mpp::BuildCache::copy_from_cache
       $stored_cksum = $ctx->b64digest;
       FileInfo::set_build_info_string( $finfo, "MD5_SUM", $stored_cksum);
 				# Store the checksum so we don't have to do

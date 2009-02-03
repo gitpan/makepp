@@ -100,9 +100,9 @@ sub xparse_command {
 	if( /[\*\?\[]/ ) {		# wildcard?
  # TBD: Why is this disabled?  Probably because zglob finds more than the Shell will.  Need chdir & glob.
  if(0) {
-	  require Glob;
+	  require Mpp::Glob;
 	  push @obj_files,
-	    Glob::zglob($_, $self->dirinfo);
+	    Mpp::Glob::zglob($_, $self->dirinfo);
  }
 	} else {
 	  push @obj_files, $_;
@@ -176,8 +176,8 @@ sub xparse_command {
   if( $nostdinc ) {
     $scanner->should_find( 'sys' );
   } else {
-    require Makesubs;
-    for my $dir ( @Makesubs::system_include_dirs ) {
+    require Mpp::Subs;
+    for my $dir ( @Mpp::Subs::system_include_dirs ) {
       $scanner->add_include_dir( $_, $dir )
 	for qw(user sys);
     }
@@ -199,7 +199,7 @@ sub xparse_command {
 
   unless( $stop_at_obj ) {
     $scanner->add_include_dir( lib => $_ )
-      for @Makesubs::system_lib_dirs;
+      for @Mpp::Subs::system_lib_dirs;
     $scanner->add_dependency( $self, lib => "lib$_" )
       for @libs;
     $self->add_simple_dependency( $_ )

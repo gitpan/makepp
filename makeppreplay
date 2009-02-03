@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 
-# $Id: makeppreplay,v 1.2 2008/12/14 17:10:01 pfeiffer Exp $
+# $Id: makeppreplay,v 1.5 2009/01/31 23:01:26 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 use Config;
@@ -23,7 +23,7 @@ BEGIN {
 				# Add '.' to the path in case the user is
 				# running it with "perl makepp" even if
 				# . is not in his path.
-      if( -f "$_/Glob.pm" ) {	# Found something we need?
+      if( -d "$_/Mpp" ) {	# Found something we need?
 	$datadir = $_;
 	last;
       }
@@ -37,52 +37,23 @@ BEGIN {
   unshift @INC, $datadir;
 }
 
+
+use Mpp::Utils;
 use TextSubs ();
 use POSIX ();
-use MakeEvent qw(wait_for);
+use Mpp::Frame;
+
+use Mpp::Event qw(wait_for);
 
 our $progname;
 
-
-
-# stuff that should be used in common with makepp
-
-for( qw(/usr/xpg4/bin/sh /sbin/xpg4/sh /bin/sh) ) {
-  if( -x ) {
-    $ENV{SHELL} = $_;		# Always use a hopefully Posix shell.
-    last;
-  }
-}
-delete $ENV{PWD};		# This is dangerous.
-
-sub suicide {}
-sub signame {}
-sub reset_signal_handlers {}
-sub print_profile {
-  print "$_[0]\n";
-}
-sub print_error {
-  print "$progname: error: $_[0]\n";
-}
-sub log {}
-sub flush_log {
-  $ |= 1;
-}
-
-our $keep_going = 0;		# -k specified.
-our $parallel_make = 0;		# True if we're in parallel make mode.
 my $temporary;
-my $n_files_changed = 0;
-my $failed_count = 0;
 
-
-
-use Utils;
 use FileInfo qw(file_info chdir absolute_filename file_exists relative_filename $CWD_INFO);
 use FileInfo_makepp;
-use Makecmds;
+use Mpp::Cmds;
 use Makefile;
-use Rule;
+use Mpp::Rule;
 
 my @targets;
 my $target_cwd = $CWD_INFO;
@@ -103,7 +74,7 @@ sub load_build_info_file($) {
     while( my( $key, $value ) = each %$build_info ) {
       delete $build_info->{$key} # We may recalculate some of these, but not necessarily all.
 				# So make sure not to save any outdated ones with new SIGNATURE.
-	if Signature::is_content_based $value or
+	if $key ne 'DEP_SIGS' && Signature::is_content_based $value or
 	  $key eq 'LINKED_TO_CACHE' && $_[0]{LSTAT}[FileInfo::STAT_NLINK] == 1 or
 				# Could have more than one link, but none to cache -- how can we know?
 	  $key eq 'FROM_REPOSITORY' && (readlink( &FileInfo::absolute_filename_nolink ) || '') ne $value;
@@ -122,152 +93,168 @@ sub load_build_info_file($) {
 @ARGV = '.' unless @ARGV;
 my $nothing_in_dir;
 my $found_in_dir = 0;
-while( @ARGV) {
-  TextSubs::getopts \%command_line_vars, 1,
-    ['c', qr/root(?:[-_]?dir(?:ectory)?)?/, \$tmp, undef, sub {
-       $target_cwd = $target_cwd->{ROOT} || Makefile::find_root_makefile_upwards( $target_cwd )
-	 or die "$0: No RootMakeppfile(.mk) found above `", absolute_filename( $target_cwd ), "'.\n";
-				# See if we find a RootMakeppfile from here.
-       chdir $target_cwd;	# Switch to that directory.
-     }],
-    [qw(C directory), \$tmp, 1, sub {
-       $target_cwd = file_info $tmp, $target_cwd;
-       chdir $target_cwd;	# Switch to that directory.
-       Makefile::find_root_makefile_upwards $target_cwd;
-				# See if we find a RootMakeppfile from here.
-     }],
-    ['I', qr/include(?:[-_]?dir)?/, \$tmp, 1, sub { unshift @INC, absolute_filename file_info $tmp }],
-    ['k', qr/keep[-_]?going/, \$keep_going],
-    [qw(M module), \$tmp, 1, sub { $tmp =~ s/=(.*)/ qw($1)/ and $tmp =~ tr/,/ /; $modules .= "use $tmp;" }],
-    [qw(t temporary), \$temporary],
-    [undef, 'version', undef, undef, \&FileInfo::version],
+perform eval {
+  while( @ARGV) {
+    TextSubs::getopts \%command_line_vars, 1,
+      ['c', qr/root(?:[-_]?dir(?:ectory)?)?/, \$tmp, undef, sub {
+	 Makefile::find_root_makefile_upwards $target_cwd;
+	 $target_cwd = $target_cwd->{ROOT}
+	   or die "$0: No RootMakeppfile(.mk) found above `", absolute_filename( $target_cwd ), "'.\n";
+				  # See if we find a RootMakeppfile from here.
+	 chdir $target_cwd;	# Switch to that directory.
+       }],
+      [qw(C directory), \$tmp, 1, sub {
+	 $target_cwd = file_info $tmp, $target_cwd;
+	 chdir $target_cwd;	# Switch to that directory.
+	 Makefile::find_root_makefile_upwards $target_cwd;
+				  # See if we find a RootMakeppfile from here.
+       }],
+      ['I', qr/include(?:[-_]?dir)?/, \$tmp, 1, sub { unshift @INC, absolute_filename file_info $tmp }],
+      [qw(M module), \$tmp, 1, sub { $tmp =~ s/=(.*)/ qw($1)/ and $tmp =~ tr/,/ /; $modules .= "use $tmp;" }],
+      [qw(t temporary), \$temporary],
+      @::common_options;
 
-    [qr/[h?]/, 'help', undef, undef, sub { local $/; print <DATA>; exit 0 }];
-
-  @ARGV = '.' unless @ARGV || @targets;
-  my $finfo = file_info shift, $target_cwd;
-  if( is_dir $finfo ) {
-    my $build_info_subdir = file_info relative_filename( $finfo ) . "/$FileInfo::build_info_subdir";
-    $nothing_in_dir = absolute_filename $finfo;
-    unshift @ARGV, grep {
-      $_ = relative_filename $_;
-      s!$FileInfo::build_info_subdir/!! &&
-	s!\.mk$!! &&
-	++$found_in_dir;
-    } Glob::zglob_fileinfo '*.mk', $build_info_subdir;
-    next;
-  }
-
-  my $build_info = $finfo->{BUILD_INFO} = load_build_info_file $finfo;
-  if( $found_in_dir ) {		# Not an explicit target?
-    $found_in_dir--;
-    next unless exists $build_info->{COMMAND}; # Not built by makepp
-    undef $nothing_in_dir;
-  } else {
-    die "$progname: No files built by makepp in `$nothing_in_dir'.\n"
-      if $nothing_in_dir;
-    die "$progname: Nothing known about `" . absolute_filename( $finfo ) . "'.\n"
-      unless defined $build_info;
-    die "$progname: File `" . absolute_filename( $finfo ) . "' not built by makepp.\n"
-      unless exists $build_info->{COMMAND};
-  }
-
-  (my $cmd = $build_info->{COMMAND}) =~ s/\A\|FAILED\|//;
-  $cmd =~ tr/\cC/\n/;
-  (my $deps = $build_info->{SORTED_DEPS} || '') =~ tr/\cA/ /;
-
-  my $dinfo = file_info $build_info->{CWD}, $finfo->{'..'};
-  my $makefile = $dinfo->{MAKEINFO};
-  unless( $makefile ) {
-    $makefile = Makefile::load $dinfo, $dinfo, \%command_line_vars, '', [], \%ENV;
-    if( $modules ) {
-      $makefile->cd;		# Evaluate in the correct directory.
-      Makesubs::eval_or_die $modules, $makefile, 'makeppreplay:1';
+    @ARGV = '.' unless @ARGV || @targets;
+    my $finfo = file_info shift, $target_cwd;
+    if( is_dir $finfo ) {
+      ::log RULE_ALL => $finfo
+	if $::log_level;
+      my $build_info_subdir = file_info relative_filename( $finfo ) . "/$FileInfo::build_info_subdir";
+      $nothing_in_dir = absolute_filename $finfo;
+      unshift @ARGV, grep {
+	$_ = relative_filename $_;
+	s!$FileInfo::build_info_subdir/!! &&
+	  s!\.mk$!! &&
+	  ++$found_in_dir;
+      } Mpp::Glob::zglob_fileinfo '*.mk', $build_info_subdir;
+      next;
     }
-  }
 
-  my $target = relative_filename $finfo, $dinfo;
-  my $rule_cache = "$deps\01$cmd"; # Try to group targets that came from same rule.
-  if( $dinfo->{$rule_cache} ) {
-    $dinfo->{$rule_cache}{TARGET_STRING} .= " $target";
-    push @{$dinfo->{$rule_cache}{TARGETS}}, $finfo;
-  } else {
-    $dinfo->{$rule_cache} = new Rule $target, $deps, $cmd, $makefile, 'makeppreplay:1';
-    push @targets, $finfo;
-    $dinfo->{$rule_cache}{TARGETS} = [$finfo];
-    @{$dinfo->{$rule_cache}{ENV_DEPS}}{split "\cA", $build_info->{ENV_DEPS}} = split "\cA", $build_info->{ENV_VALS}
-      if exists $build_info->{ENV_DEPS};
-  }
-  $finfo->{RULE} = $dinfo->{$rule_cache};
-}
-die "$progname: No files built by makepp in `$nothing_in_dir'.\n"
-  if $nothing_in_dir;
+    my $build_info = $finfo->{BUILD_INFO} = load_build_info_file $finfo;
+    if( $found_in_dir ) {	# Not an explicit target?
+      $found_in_dir--;
+      next unless exists $build_info->{COMMAND}; # Not built by makepp
+      undef $nothing_in_dir;
+    } else {
+      die "$progname: No files built by makepp in `$nothing_in_dir'.\n"
+	if $nothing_in_dir;
+      die "$progname: Nothing known about `" . absolute_filename( $finfo ) . "'.\n"
+	unless defined $build_info;
+      die "$progname: File `" . absolute_filename( $finfo ) . "' not built by makepp.\n"
+	unless exists $build_info->{COMMAND};
+    }
 
-for my $target ( @targets ) {	# Should use ::build et al. here!
-  my $build_info = $target->{BUILD_INFO};
-  FileInfo::unlink $target
-    if delete $build_info->{FROM_REPOSITORY} || delete $build_info->{LINKED_TO_CACHE};
+    (my $cmd = $build_info->{COMMAND}) =~ s/\A\|FAILED\|//;
+    $cmd =~ tr/\cC/\n/;
+    (my $deps = $build_info->{SORTED_DEPS} || '') =~ tr/\cA/ /;
+
+    my $dinfo = file_info $build_info->{CWD}, $finfo->{'..'};
+    my $makefile = $dinfo->{MAKEINFO};
+    unless( $makefile ) {
+      $makefile = Makefile::load $dinfo, $dinfo, \%command_line_vars, '', [], \%ENV;
+      if( $modules ) {
+	$makefile->cd;		# Evaluate in the correct directory.
+	Mpp::Subs::eval_or_die $modules, $makefile, absolute_filename( $dinfo ) . ':0';
+      }
+    }
+
+    my $target = relative_filename $finfo, $dinfo;
+    my $rule_cache = "$deps\01$cmd"; # Try to group targets that came from same rule.
+    if( $dinfo->{$rule_cache} ) {
+      ::log RULE_EXTEND => $finfo, $dinfo->{$rule_cache}{TARGETS}
+	if $::log_level;
+      $dinfo->{$rule_cache}{TARGET_STRING} .= " $target";
+      push @{$dinfo->{$rule_cache}{TARGETS}}, $finfo;
+    } else {
+      ::log RULE_NEW => $finfo
+	if $::log_level;
+      $dinfo->{$rule_cache} = new Mpp::Rule $target, $deps, $cmd, $makefile, FileInfo::build_info_fname( $finfo ) . ':0';
+      push @targets, $finfo;
+      $dinfo->{$rule_cache}{TARGETS} = [$finfo];
+      @{$dinfo->{$rule_cache}{ENV_DEPS}}{split "\cA", $build_info->{ENV_DEPS}} = split "\cA", $build_info->{ENV_VALS}
+	if exists $build_info->{ENV_DEPS};
+    }
+    $finfo->{RULE} = $dinfo->{$rule_cache};
+  }
+  @::common_options = ();
+  close DATA;
+  die "$progname: No files built by makepp in `$nothing_in_dir'.\n"
+    if $nothing_in_dir;
+
+  for my $target ( @targets ) {	# Should use ::build et al. here!
+    my $build_info = $target->{BUILD_INFO};
+    if( delete $build_info->{FROM_REPOSITORY} || delete $build_info->{LINKED_TO_CACHE} ) {
 				# If these survived load_build_info_file, the file is linked.
-  my $rule = $target->{RULE};
-  my $n_files = @{$rule->{TARGETS}};
-  local $rule->{MAKEFILE}{EXPORTS} = $rule->{ENV_DEPS}
-    if exists $rule->{ENV_DEPS};
-  if( my $status = wait_for $rule->execute(
-      $rule->{COMMAND_STRING},
-      $rule->{TARGETS},
-      [map file_info( $_, $target->{'..'} ), split ' ', $rule->{DEPENDENCY_STRING}] ) ) {
-    $rule->{TARGET_STRING} =~ s/ /' `/g;
-    print_error "Failed to build target" . ($n_files>1 ? 's' : '') . " `$rule->{TARGET_STRING}' [$status]";
-    $failed_count += $n_files;
-    unless( $temporary || $build_info->{COMMAND} =~ /\A\|FAILED\|/ ) {
+      ::log REMOVE => $target
+	if $::log_level;
+      FileInfo::unlink $target;
+    }
+    my $rule = $target->{RULE};
+    my $n_files = @{$rule->{TARGETS}};
+    local $rule->{MAKEFILE}{EXPORTS} = $rule->{ENV_DEPS}
+      if exists $rule->{ENV_DEPS};
+    if( $::dry_run ) {
+      $rule->print_command( $rule->{COMMAND_STRING} );
+    } elsif( my $status = wait_for $rule->execute(
+	$rule->{COMMAND_STRING},
+	$rule->{TARGETS},
+	[map file_info( $_, $target->{'..'} ), split ' ', $rule->{DEPENDENCY_STRING}] ) ) {
+      print_error "Failed to build target", (@{$rule->{TARGETS}}>1 ? 's' : ''),
+	map( ' `'.absolute_filename( $_ )."'", @{$rule->{TARGETS}} ), " [$status]";
+      ::log RULE_FAILED => $rule
+	if $::log_level;
+      $::error_found = $status
+	if $status =~ /^signal (?:$::int_signo|$::quit_signo)$/os;
+      $::error_found ||= $status # Remember the error status.  This will
+	unless $::keep_going;	# cause us to stop compilation as soon as
+				# possible.
+      $rule->{TARGET_STRING} =~ s/ /' `/g;
+      $::failed_count += $n_files;
+      unless( $temporary || $build_info->{COMMAND} =~ /\A\|FAILED\|/ ) {
+	for my $tinfo ( @{$rule->{TARGETS}} ) {
+	  substr $tinfo->{BUILD_INFO}{COMMAND}, 0, 0, '|FAILED|';
+	  FileInfo::mark_build_info_for_update $tinfo;
+	}
+	&FileInfo::update_build_infos;
+      }
+      last unless $::keep_going;
+    } else {
+      ::log SUCCESS => $rule, $rule->{TARGETS}
+	if $::log_level;
+      $::n_files_changed += $n_files;
+      next if $temporary;
+      my $sig = $build_info->{SIG_METHOD_NAME}; # All targets have the same.
+      $sig &&= $rule->set_signature_method_scanner( $sig );
+      my $dep_sigs = '';	# Precalculate this for the targets loop
+      my $sep = '';
+      for my $dep ( split /\cA/, $build_info->{SORTED_DEPS} ) {
+	$dep = FileInfo::path_file_info $dep, $rule->{MAKEFILE}{CWD};
+	$dep->{BUILD_INFO} ||= load_build_info_file $dep;
+	$dep_sigs .= $sep .
+	  (($sig ? $sig->signature( $dep ) : FileInfo::signature $dep) || '');
+	$sep = "\cA";
+      }
       for my $tinfo ( @{$rule->{TARGETS}} ) {
-	substr $tinfo->{BUILD_INFO}{COMMAND}, 0, 0, '|FAILED|';
+	$build_info = $tinfo->{BUILD_INFO};
+	delete $tinfo->{LSTAT};
+	$build_info->{SIGNATURE} = FileInfo::signature $tinfo;
+
+	if( $tinfo->{LINK_DEREF} && $tinfo->{LSTAT}[FileInfo::STAT_NLINK] == 1 ) {
+				# Assume nlink > 1 to mean action only created
+				# a link to an already existing symlink.
+	  $build_info->{SYMLINK} = readlink FileInfo::absolute_filename $tinfo;
+	} else {
+	  delete $build_info->{SYMLINK}; # Unlikely to have changed, but just in case.
+	}
+	$build_info->{DEP_SIGS} = $dep_sigs;
+	$build_info->{BUILD_SIGNATURE} = $sig ? $sig->signature( $tinfo ) : $build_info->{SIGNATURE};
+	$build_info->{RESCAN} = 2; # Let makepp double check what we built.
 	FileInfo::mark_build_info_for_update $tinfo;
       }
       &FileInfo::update_build_infos;
     }
-    last unless $keep_going;
-  } else {
-    $n_files_changed += $n_files;
-    next if $temporary;
-    my $sig = $build_info->{SIG_METHOD_NAME}; # All targets have the same.
-    $sig &&= $rule->set_signature_method_scanner( $sig );
-    my $dep_sigs = '';		# Precalculate this for the targets loop
-    my $sep = '';
-    for my $dep ( split /\cA/, $build_info->{SORTED_DEPS} ) {
-      $dep = FileInfo::path_file_info $dep, $rule->{MAKEFILE}{CWD};
-      $dep->{BUILD_INFO} ||= load_build_info_file $dep;
-      $dep_sigs .= $sep .
-	(($sig ? $sig->signature( $dep ) : FileInfo::signature $dep) || '');
-      $sep = "\cA";
-    }
-    for my $tinfo ( @{$rule->{TARGETS}} ) {
-      $build_info = $tinfo->{BUILD_INFO};
-      delete $tinfo->{LSTAT};
-      $build_info->{SIGNATURE} = FileInfo::signature $tinfo;
-
-      if( $tinfo->{LINK_DEREF} && $tinfo->{LSTAT}[FileInfo::STAT_NLINK] == 1 ) {
-				# Assume nlink > 1 to mean action only created
-				# a link to an already existing symlink.
-	$build_info->{SYMLINK} = readlink FileInfo::absolute_filename $tinfo;
-      } else {
-	delete $build_info->{SYMLINK}; # Unlikely to have changed, but just in case.
-      }
-      $build_info->{DEP_SIGS} = $dep_sigs;
-      $build_info->{BUILD_SIGNATURE} = $sig ? $sig->signature( $tinfo ) : $build_info->{SIGNATURE};
-      $build_info->{RESCAN} = 2; # Let makepp double check what we built.
-      FileInfo::mark_build_info_for_update $tinfo;
-    }
-    &FileInfo::update_build_infos;
   }
-}
-
-print "$progname: $n_files_changed file" . ($n_files_changed == 1 ? '' : 's') . ' updated' .
-  ($failed_count ? " and $failed_count target" . ($failed_count == 1 ? '' : 's') . " failed\n" : "\n");
-
-close STDOUT;
-close STDERR;
-POSIX::_exit $failed_count ? 1 : 0;
+};
 
 __END__
 Usage: makeppreplay [-options] [VAR=value] targets

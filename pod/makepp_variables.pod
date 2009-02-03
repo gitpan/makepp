@@ -884,9 +884,9 @@ C<$_[1]>:
     sub f_f { $current_value = $_[1]->expand_variable( 'MAKE_VAR' ) }
 
 Commands are supposed to be called within a rule action, where the makefile
-object is accessible via C<< $Makesubs::rule->{MAKEFILE} >>:
+object is accessible via C<< $Mpp::Subs::rule->{MAKEFILE} >>:
 
-    sub c_cmd { $current_value = $Makesubs::rule->{MAKEFILE}->expand_variable( 'MAKE_VAR' ) }
+    sub c_cmd { $current_value = $Mpp::Subs::rule->{MAKEFILE}->expand_variable( 'MAKE_VAR' ) }
 
 =head1 AUTHOR
 

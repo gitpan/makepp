@@ -21,7 +21,7 @@ BEGIN {
 				# Add '.' to the path in case the user is
 				# running it with "perl makepp" even if
 				# . is not in his path.
-      if( -f "$_/Glob.pm" ) {	# Found something we need?
+      if( -d "$_/Mpp" ) {	# Found something we need?
 	$datadir = $_;
 	last;
       }
@@ -35,12 +35,12 @@ BEGIN {
   unshift @INC, $datadir;
 }
 
-$Makesubs::rule->{MAKEFILE}{PACKAGE} = '';
+$Mpp::Subs::rule->{MAKEFILE}{PACKAGE} = '';
 
-use Utils;
+use Mpp::Utils;
 use FileInfo ();
 use TextSubs ();
-use Makecmds;
+use Mpp::Cmds;
 
 sub eval_or_die($) {
   if( wantarray ) {
@@ -53,7 +53,7 @@ sub eval_or_die($) {
     $result;
   }
 }
-{ no warnings 'redefine'; *Makecmds::eval_or_die = \&eval_or_die }
+{ no warnings 'redefine'; *Mpp::Cmds::eval_or_die = \&eval_or_die }
 
 
 sub metahelp { print STDERR "usage: $0", <<'EOF' }
@@ -101,7 +101,7 @@ sub getopts_help(@) {
 }
 
 
-my $re = join '|', grep { exists &{"Makecmds::$_"} && s/^c_// } keys %Makecmds::;
+my $re = join '|', grep { exists &{"Mpp::Cmds::$_"} && s/^c_// } keys %Mpp::Cmds::;
 
 # This function exists so we can efficiently run many tests in one process.
 sub doit {
@@ -110,7 +110,7 @@ sub doit {
 
   if( $0 =~ /($re)[^\/]*$/ ) {	# Yes, found a builtin.
     $0 = $1;
-    $cmd = "Makecmds::c_$0";
+    $cmd = "Mpp::Cmds::c_$0";
   } else {
     my $tmp;
     TextSubs::getopts 1,
@@ -123,7 +123,7 @@ sub doit {
     $tmp = $0;			# 1st argument must be the command name.
     $0 = shift @ARGV;
     if( !exists &{$cmd = "c_$0"} ) {
-      $cmd = "Makecmds::c_$0";
+      $cmd = "Mpp::Cmds::c_$0";
       die "$tmp: $0 is not a makepp builtin command.\n" if !exists &$cmd;
     }
   }
