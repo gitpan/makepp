@@ -84,7 +84,7 @@ if ( !caller ) {		# Called as a script.
 
 # This is the actual module.
 
-package profiler;
+package Mpp::profiler;
 
 use Time::HiRes qw'gettimeofday tv_interval';
 my @times = (0, 0, 0, 0);

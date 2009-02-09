@@ -68,7 +68,7 @@ if( is_windows ) {
 1;
 ###	29	644	1170452082	1185994720	makefile
 perl {
-  $CommandParser::ignore_exe = 1; # Don't have some path to compiler in log
+  $Mpp::CommandParser::ignore_exe = 1; # Don't have some path to compiler in log
 }
 
 include makepp.mk
@@ -102,7 +102,7 @@ include makepp1.mk
 ###	77	644	1170452082	1211310818	both_up_down.pm
 sub rewrite_test {
   package Rewrite;
-  my $pref = FileInfo::absolute_filename $FileInfo::CWD_INFO;
+  my $pref = Mpp::File::absolute_filename $Mpp::File::CWD_INFO;
   my $result = "cwd:\n";
   for my $arg ( 0, 1, 2, 4 ) {
     for my $file ( '', qw(/ /a /a/b) ) {

@@ -1,7 +1,7 @@
-# $Id: Frame.pm,v 1.1 2009/01/31 22:52:18 pfeiffer Exp $
+# $Id: Frame.pm,v 1.2 2009/02/09 22:07:39 pfeiffer Exp $
 use strict;
 
-use TextSubs;
+use Mpp::Text;
 
 #
 # Signal handling and exiting
@@ -9,7 +9,7 @@ use TextSubs;
 # Do this early, because the END block defined below shall be the first seen
 # by perl, such that it is the last executed.  Unless we need to propagate a
 # signal, it leaves the process via POSIX::_exit, so that no expensive garbage
-# collection of FileInfos occurs.  All other places can use die or normal
+# collection of Mpp::Files occurs.  All other places can use die or normal
 # exit.  If you define additional END blocks in any module, you must take care
 # to not reset $?.
 #
@@ -205,7 +205,7 @@ sub log($@) {
     if( $log_level == 1 ) {
       (my $mppl = $0) =~ s/\w+$/makepplog/;
       -f $mppl or
-	substr $mppl, 0, 0, FileInfo::absolute_filename( $::original_cwd ) . '/';
+	substr $mppl, 0, 0, Mpp::File::absolute_filename( $::original_cwd ) . '/';
       open $logfh, '|' . PERL . " $mppl -pl-" or # Pass the mesages to makepplog for formatting.
 	die "$progname: can't pipe to `makepplog' for verbose option--$!\n";
     } else {
@@ -223,7 +223,7 @@ sub log($@) {
     # when we're entering and exiting the program, because we may be running as
     # a make subprocess.
 
-    Mpp::Rule::print_build_cwd( $FileInfo::CWD_INFO )
+    Mpp::Rule::print_build_cwd( $Mpp::File::CWD_INFO )
       if defined $Mpp::Recursive::traditional;
 
     return unless @_;		# From __WARN__
@@ -240,7 +240,7 @@ sub log($@) {
 	  join "\02", map {		# Array shall only contain objects.
 	    if( exists $_->{LOGGED} ) {	# Already defined
 	      int;			# The cheapest external representation of a ref.
-	    } elsif( !exists $_->{'..'} ) { # not a FileInfo
+	    } elsif( !exists $_->{'..'} ) { # not a Mpp::File
 	      # TODO: These two liness are a reminder for when we store RULE_SOURCE per ref.
 	      #undef $_->{LOGGED};
 	      #int() . "\03" . $_->name;
@@ -252,7 +252,7 @@ sub log($@) {
 	      undef $_->{LOGGED};
 	      undef $_->{'..'}{LOGGED};
 	      int() . "\03$_->{NAME}\03" .
-		int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || FileInfo::absolute_filename( $_->{'..'} ));
+		int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || Mpp::File::absolute_filename( $_->{'..'} ));
 	    }
 	  } @$_;
 # The rest is a verbatim copy of the map block above.  This function is heavy
@@ -260,7 +260,7 @@ sub log($@) {
 # with &reuse_stack semantics.
 	} elsif( exists $_->{LOGGED} ) {	# Already defined
 	  int;			# The cheapest external representation of a ref.
-	} elsif( !exists $_->{'..'} ) { # not a FileInfo
+	} elsif( !exists $_->{'..'} ) { # not a Mpp::File
 	  # TODO: These two liness are a reminder for when we store RULE_SOURCE per ref.
 	  #undef $_->{LOGGED};
 	  #int() . "\03" . $_->name;
@@ -272,7 +272,7 @@ sub log($@) {
 	  undef $_->{LOGGED};
 	  undef $_->{'..'}{LOGGED};
 	  int() . "\03$_->{NAME}\03" .
-	    int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || FileInfo::absolute_filename( $_->{'..'} ));
+	    int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || Mpp::File::absolute_filename( $_->{'..'} ));
 	}
       } @_ ),
       "\n";
@@ -423,7 +423,7 @@ our @common_options =
 				# this the option variable, as it must be
 				# exactly 1, not just true.
      }],
-    [undef, 'version', undef, undef, \&FileInfo::version],
+    [undef, 'version', undef, undef, \&Mpp::File::version],
   );
 
 1;

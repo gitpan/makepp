@@ -2,7 +2,7 @@
 
 makepp_variables -- How to use variables in makepp
 
-=for vc $Id: makepp_variables.pod,v 1.30 2008/11/23 21:14:58 pfeiffer Exp $
+=for vc $Id: makepp_variables.pod,v 1.31 2009/02/09 22:07:39 pfeiffer Exp $
 
 =head1 DESCRIPTION
 

@@ -2,7 +2,7 @@
 
 makepp_statements -- Various statements in a makefile
 
-=for vc $Id: makepp_statements.pod,v 1.33 2009/01/08 22:19:19 pfeiffer Exp $
+=for vc $Id: makepp_statements.pod,v 1.34 2009/02/09 22:07:39 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -675,17 +675,17 @@ C<command_word>.
 =item register_command_parser command_word class_name
 
 Register an anonymous subroutine that constructs and returns an object of
-exact type CommandParser::C<class_name> as the command parser
+exact type Mpp::CommandParser::C<class_name> as the command parser
 for commands whose base name is C<command_word>.
 
 =item register_input_suffix command_word suffix ...
 
 Add C<suffix> ... to the list of input file suffixes recognized when an
 action beginning with C<command_word> is scanned.  The scanner would
-normally pick this up via CommandParser::input_filename_regexp, but it
+normally pick this up via Mpp::CommandParser::input_filename_regexp, but it
 might instead ignore this entirely.
 
-Scanners don't normally pick up all the arguments that aren't recognized as
+Mpp::Scanners don't normally pick up all the arguments that aren't recognized as
 options, because they might be arguments of unrecognized options.
 (For example, F<i386v> is I<not> an input file of the command C<gcc -b i386v foo.c>.)
 Instead, they pick up only positional arguments that look like input filenames.
@@ -726,7 +726,7 @@ Both C<program> and C<library> may contain multiple words, in which case
 each word in C<library> is stored as a runtime dependency of each word in
 C<program>.
 When C<program> is added automatically as the executable dependency
-of a command by the C<CommandParser> base class, its runtime dependencies
+of a command by the C<Mpp::CommandParser> base class, its runtime dependencies
 (if any) are added as well.
 In order for this to happen, C<program> must be specified in the rule
 with a directory component, and without any shell meta characters.
@@ -739,7 +739,7 @@ prohibitively difficult.)
 Runtime dependencies are traversed recursively, so if C<a> has a runtime
 dependency on C<b> and C<b> has a runtime dependency on C<c>, then any rule
 that uses C<./a> will have implicit dependencies on both C<b> and C<c> (unless
-it uses a special C<CommandParser> class that overrides this behavior).
+it uses a special C<Mpp::CommandParser> class that overrides this behavior).
 
 Note that missing dependencies won't necessarily be added after you add this
 statement to a makefile, unless the rule is re-scanned.

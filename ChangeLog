@@ -1,3 +1,14 @@
+2009-02-09  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	Huge change: all modules moved to package Mpp.
+
+2009-02-06  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* BuildCheck/exact_match.pm: Move options for subclasses into
+	singleton, saving silly wrappers.
+
+	* BuildCheck/symlink.pm: Remove deprecated check.
+
 2009-02-03  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	* Makecmds.pm:

@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: MakeEvent.pm,v 1.23 2008/10/15 21:30:24 pfeiffer Exp $
+# $Id: Event.pm,v 1.24 2009/02/09 22:07:39 pfeiffer Exp $
 
 package Mpp::Event;
 
@@ -219,7 +219,7 @@ sub process_finished {
 				# dependency.
 	  } else {
 	    $waiter->{STATUS} = delete $waiter->{ERROR_HANDLER};
-	    $waiter->{CODE} = \&TextSubs::CONST0;
+	    $waiter->{CODE} = \&Mpp::Text::CONST0;
 	    Mpp::Event::WaitingSubroutine::start( $waiter, 1 );
 	  }
 	} else {		# Just pass the error to this routine's caller,
@@ -388,7 +388,7 @@ sub wait_for {
 
 package Mpp::Event::Process;
 
-use TextSubs;
+use Mpp::Text;
 
 my @pending_processes;		# Where we store the processes that we want
 				# to run but can't because too many others
@@ -646,7 +646,7 @@ sub start {
 #
   my $status;
 
-  if( $this_subr->{CODE} != \&TextSubs::CONST0 ) {
+  if( $this_subr->{CODE} != \&Mpp::Text::CONST0 ) {
     local $::indent_level = $this_subr->{INDENT};
 				# Set the indentation level properly.
     for( $this_subr->{CODE}( @{$this_subr->{ARGS}} )) {
@@ -655,7 +655,7 @@ sub start {
 	  if( exists $_->{STATUS} ) { # Did that thing already finish?
 	    $status ||= $_->{STATUS}; # Pick up its status.
 	  } else {		# Hasn't finished yet, we need to wait for it.
-	    $this_subr->{CODE} = \&TextSubs::CONST0;
+	    $this_subr->{CODE} = \&Mpp::Text::CONST0;
 				# Convert this subroutine into a dummy which
 				# isn't harmful to call again.
 	    push @{$_->{WAITING_FOR}}, $this_subr;

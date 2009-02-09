@@ -2,7 +2,7 @@
 
 use strict;
 
-# $Id: makepplog,v 1.28 2009/01/31 23:01:26 pfeiffer Exp $
+# $Id: makepplog,v 1.29 2009/02/09 22:07:39 pfeiffer Exp $
 
 # Shall we put a period after each message?  Or once for all before the \n when printing?
 my %log_msg =
@@ -82,7 +82,7 @@ my %log_msg =
 
   SCAN => 'Scanning %s',
   SCAN_CACHED => 'Using cached scanner info for %s',
-  SCAN_C_NOT => 'Not scanning %s due to $Scanner::C::dont_scan_hook',
+  SCAN_C_NOT => 'Not scanning %s due to $Mpp::Scanner::C::dont_scan_hook',
   SCAN_INFO => ' Trying to retrieve scan info for %s',
   SCAN_INFO_FROM => 'Using %s to retrieve scan info',
   SCAN_INFO_NOT => 'Couldn\'t use %s to retrieve scan info because %s',
@@ -154,8 +154,8 @@ BEGIN {
 }
 
 use Mpp::Utils;
-use FileInfo_makepp;
-use TextSubs ();
+use Mpp::FileOpt;
+use Mpp::Text ();
 
 my( $cwd, $instdir, $keylist, $noindent, $rename, $tabulate, $uniq );
 my( @logfiles, $outfile );
@@ -165,7 +165,7 @@ my $showkey = '';
 
 {
   my $tmp;
-  TextSubs::getopts
+  Mpp::Text::getopts
     ['c', qr/current[-_]?working[-_]?dir(?:ectory)/, \$cwd, 0, 0],
     ['C', qr/current[-_]?working[-_]?dir(?:ectory)[-_]?and[-_]?up/, \$cwd, 1],
     [qw(f follow), \$follow],
@@ -178,7 +178,7 @@ my $showkey = '';
     [qw(p prefix), \$prefix, 0, 'makepplog: '],
     [qw(t tabulate), \$tabulate],
     ['u', qr/uniq(?:ue)?/, \$uniq],
-    [undef, 'version', undef, undef, \&FileInfo::version],
+    [undef, 'version', undef, undef, \&Mpp::File::version],
 
     [qr/[h?]/, 'help', undef, 0, \&usage];
 }
@@ -228,9 +228,9 @@ sub instdir {
     s<(:\d+\()((/?)[^\)]*)> {
       my $ret = $1;
       for( $3 ? "$2" : "$instdir/$2" ) {
-	my $finfo = FileInfo::file_info $_;
-	FileInfo::dereference $finfo;
-	$_ = FileInfo::absolute_filename $finfo;
+	my $finfo = Mpp::File::file_info $_;
+	Mpp::File::dereference $finfo;
+	$_ = Mpp::File::absolute_filename $finfo;
 	Rewrite::cwd $cwd if defined $cwd;
 	$ret .= $_;
       }

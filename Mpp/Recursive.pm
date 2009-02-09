@@ -1,13 +1,21 @@
-# $Id: Mpp::Recursive.pm,v 1.1 2008/06/01 21:55:24 pfeiffer Exp $
-#
-# This file groups all the functions needed only if repositories are actually used.
-# The actual functionality is also dispersed in makepp and other modules.
-#
+# $Id: Recursive.pm,v 1.2 2009/02/09 22:07:39 pfeiffer Exp $
+
+=head1 NAME
+
+Mpp::Recursive - Support for making dumb recursive make smart
+
+=head1 DESCRIPTION
+
+This file groups all the functions needed only if an old style recursive build
+is detected.  The actual functionality is also dispersed in makepp and other
+modules.
+
+=cut
 
 package Mpp::Recursive;
 
-use FileInfo;
-use TextSubs;
+use Mpp::File;
+use Mpp::Text;
 use Mpp::Event qw(wait_for read_wait);
 
 our $traditional;		# 1 if we invoke makepp recursively, undef if
@@ -135,10 +143,10 @@ sub Mpp::Subs::f_MAKE {
 #
 # We have to search the path to figure out where we came from.
 #
-	foreach( TextSubs::split_path(), '.' ) {
+	foreach( Mpp::Text::split_path(), '.' ) {
 	  my $finfo = file_info "$_/$0", $::original_cwd;
 	  if( file_exists $finfo ) { # Is this our file?
-	    $command = FileInfo::absolute_filename $finfo;
+	    $command = Mpp::File::absolute_filename $finfo;
 	    last;
 	  }
 	}
@@ -158,7 +166,7 @@ sub Mpp::Subs::f_MAKE {
     my $makefile = $_[1];	# Get the makefile we're run from.
 
     $command ||= ::PERL . ' ' .
-      FileInfo::absolute_filename( file_info $::datadir, $::original_cwd ) .
+      Mpp::File::absolute_filename( file_info $::datadir, $::original_cwd ) .
 	'/recursive_makepp';
 				# Sometimes we can be run as ../makepp, and
 				# if we didn't hard code the paths into

@@ -2,7 +2,7 @@
 require 5.006;
 use strict;
 
-# $Id: Utils.pm,v 1.9 2009/01/31 22:53:01 pfeiffer Exp $
+# $Id: Utils.pm,v 1.10 2009/02/09 22:07:39 pfeiffer Exp $
 
 # This is syntactically needed by many modules but not called in utils, except mppr.
 sub log($@);
@@ -18,8 +18,8 @@ my %progname =
   r => 'replay');
 $::progname =~ s/^mpp([bcgilr]|bcc)$/makepp$progname{$1}/;
 
-use TextSubs ();
-BEGIN { *MAKEPP = \&TextSubs::CONST0 } # Differentiate from makepp
+use Mpp::Text ();
+BEGIN { *MAKEPP = \&Mpp::Text::CONST0 } # Differentiate from makepp
 
 # Replace a function which depends on Makefile context to rewrite messages in
 # a way we don't need here.  Hope that didn't get inlined.  Maybe we should
@@ -49,7 +49,7 @@ sub Rewrite::cwd(;$$$) {
   if( defined and $_ ne '' ) {
     my( $up, $name, $sep ) = @_;
     if( !$cwd_re ) {
-      my @path = split /(?=\/)/, FileInfo::absolute_filename( FileInfo::dereference( $FileInfo::CWD_INFO ));
+      my @path = split /(?=\/)/, Mpp::File::absolute_filename( Mpp::File::dereference( $Mpp::File::CWD_INFO ));
       if( @path > 1 && $path[0] eq '/' ) { # //server/share
 	shift @path;
 	substr $path[0], 0, 0, '/';
@@ -74,7 +74,7 @@ sub Rewrite::cwd(;$$$) {
 }
 
 my $flags = "\U$::progname\EFLAGS";
-unshift @ARGV, TextSubs::unquote_split_on_whitespace $ENV{$flags}
+unshift @ARGV, Mpp::Text::unquote_split_on_whitespace $ENV{$flags}
   if exists $ENV{$flags};
 
 1;

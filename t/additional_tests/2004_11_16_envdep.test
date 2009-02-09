@@ -38,8 +38,8 @@ perl_begin
  open(RESCAN, '>', "rescan") or die;
  close(RESCAN);
 
- { package CommandParser::foo;
-    our @ISA = qw/CommandParser/;
+ { package Mpp::CommandParser::foo;
+    our @ISA = qw/Mpp::CommandParser/;
     sub xparse_command {
 	my $self = shift;
 	open(RESCAN, '>', "rescan") or die;
@@ -50,8 +50,8 @@ perl_begin
  }
 
  sub parser_foo {
-    require ActionParser::Specific;
-    return new ActionParser::Specific("foo");
+    require Mpp::ActionParser::Specific;
+    return new Mpp::ActionParser::Specific("foo");
  }
 perl_end
 

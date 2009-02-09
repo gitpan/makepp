@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 
-# $Id: makeppinfo,v 1.4 2008/12/14 17:11:06 pfeiffer Exp $
+# $Id: makeppinfo,v 1.5 2009/02/09 22:07:39 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 use Config;
@@ -12,9 +12,9 @@ use POSIX ();
 #
 # Do this early, because the END block defined below shall be the first seen
 # by perl, such that it is the last executed.  It leaves the process via
-# POSIX::_exit, so that no expensive garbage collection of FileInfos occurs.
-# All other places can use die or normal exit.  If you define additional END
-# blocks in any module, you must take care to not reset $?.
+# POSIX::_exit, so that no expensive garbage collection of Mpp::File objects
+# occurs.  All other places can use die or normal exit.  If you define
+# additional END blocks in any module, you must take care to not reset $?.
 #
 END {
   close STDOUT; close STDERR;
@@ -52,15 +52,15 @@ BEGIN {
 }
 
 use Mpp::Utils;
-use FileInfo qw(file_info file_exists relative_filename);
-use FileInfo_makepp;
+use Mpp::File qw(file_info file_exists relative_filename);
+use Mpp::FileOpt;
 
 my( $keylist, $quiet, $traverse, @keys_not, @keys );
-TextSubs::getopts
+Mpp::Text::getopts
   ['k', qr/key(?:s|list)/, \$keylist, 1],
   [qw'q quiet', \$quiet],
   [qw't traverse', \$traverse],
-  [undef, 'version', undef, undef, \&FileInfo::version],
+  [undef, 'version', undef, undef, \&Mpp::File::version],
   [qr/[h?]/, 'help', undef, undef, \&usage];
 
 $SIG{__WARN__} = sub {} if $quiet && $quiet > 1;
@@ -90,7 +90,7 @@ while( @ARGV ) {
   warn 'makeppinfo: file `' . relative_filename( $finfo ) . "' not found\n"
     unless file_exists $finfo;
 
-  my $build_info = FileInfo::load_build_info_file $finfo
+  my $build_info = Mpp::File::load_build_info_file $finfo
     or next;
 
   $cwd = file_info $build_info->{CWD}, exists $finfo->{DIRCONTENTS} ? $finfo : $finfo->{'..'}

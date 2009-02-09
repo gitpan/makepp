@@ -1,4 +1,4 @@
-# $Id: Mpp/Cmds.pm,v 1.60 2009/01/31 23:30:35 pfeiffer Exp $
+# $Id: Cmds.pm,v 1.62 2009/02/09 22:07:39 pfeiffer Exp $
 ###############################################################################
 #
 # This package contains builtin commands which can be called from a rule.
@@ -15,8 +15,8 @@
 package Mpp::Cmds;
 
 use strict;
-use TextSubs ();
-use FileInfo ();
+use Mpp::Text ();
+use Mpp::File ();
 use Mpp::Subs;
 use POSIX ();
 
@@ -34,7 +34,7 @@ sub perform(&$;$) {
     print STDERR "$0: $_[1]\n" if $::verbose;
     if( $install_log ) {
       my $msg = $_[1];
-      my $cwd = FileInfo::absolute_filename( $FileInfo::CWD_INFO );
+      my $cwd = Mpp::File::absolute_filename( $Mpp::File::CWD_INFO );
       $msg =~ s|`(?=[^/`][^`]*$)|`$cwd/|;
       if( $Mpp::Event::max_proc > 1 ) {
 	flock $install_log, 2;	# Lock exclusive.
@@ -130,7 +130,7 @@ sub frame(&@) {
   @opts = grep {		# Put stds last, so they don't override short opts.
     ref or !push @stdopts, $opt{$_};
   } @opts;
-  TextSubs::getopts @opts, @stdopts,
+  Mpp::Text::getopts @opts, @stdopts,
     [qw(v verbose), \$::verbose];
 
   # Setup input context.
@@ -432,7 +432,7 @@ sub c_install {
     local $install_date = localtime() . " [$$]\n";
     my $fh;	    # Don't open $install_log directly as that logs to itself.
     $log ||= $ENV{INSTALL_LOG} ||
-      ($FileInfo::CWD_INFO->{ROOT} ? FileInfo::relative_filename( $FileInfo::CWD_INFO->{ROOT} ) : '.') .
+      ($Mpp::File::CWD_INFO->{ROOT} ? Mpp::File::relative_filename( $Mpp::File::CWD_INFO->{ROOT} ) : '.') .
       '/.install_log';
     perform { open $fh, '>>', $log } "append to `$log'";
     local $install_log = $fh;
@@ -506,7 +506,7 @@ sub c_ln {
 
 sub c_mkdir {
   local @ARGV = @_;
-  my $mode = 755;	 # Makefile must set the option, if this is not right.
+  my $mode = 755;	 	# Makefile must set the option, if this is not right.
   my $parent;
   frame {
     $mode = oct $mode;
@@ -547,22 +547,22 @@ sub c_preprocess {
     my $re = $assignment ?
       qr/f_|s_(?:_?include|(?:make)?(?:perl|sub)|perl_begin|define|(?:un)?export)/ :
       qr/f_|s_(?:_?include|(?:make)?(?:perl|sub)|perl_begin)/;
-    my $cwd = $FileInfo::CWD_INFO;
+    my $cwd = $Mpp::File::CWD_INFO;
     for( @ARGV ) {
       perform {
-	local $Makefile::c_preprocess = $assignment ? 1 : 2;
-	my $finfo = FileInfo::file_info $_, $cwd;
-	local $Makefile::makefile = bless
+	local $Mpp::Makefile::c_preprocess = $assignment ? 1 : 2;
+	my $finfo = Mpp::File::file_info $_, $cwd;
+	local $Mpp::Makefile::makefile = bless
 	  { MAKEFILE => $finfo,
 	    PACKAGE => 'preprocess_' . $package_seed++,
 	    CWD => $finfo->{'..'},
 	    COMMAND_LINE_VARS => $command_line_vars,
 	    ENVIRONMENT => $Mpp::Subs::rule->{MAKEFILE}{ENVIRONMENT},
 	    RE_COUNT => 0		# Force initial creation of statement RE
-	   }, 'Makefile';
-	FileInfo::chdir $finfo->{'..'};
-	eval "package $Makefile::makefile->{PACKAGE}; use Mpp::Subs \$re";
-	Makefile::read_makefile( $Makefile::makefile, $finfo ); 1;
+	   }, 'Mpp::Makefile';
+	Mpp::File::chdir $finfo->{'..'};
+	eval "package $Mpp::Makefile::makefile->{PACKAGE}; use Mpp::Subs \$re";
+	Mpp::Makefile::read_makefile( $Mpp::Makefile::makefile, $finfo ); 1;
       } "preprocess `$_'";
     }
   } $command_line_vars,
@@ -715,7 +715,7 @@ sub c_uninstall {
   local @ARGV = @_;             # for <>
   frame {
     @ARGV = $ENV{INSTALL_LOG} ||
-      ($FileInfo::CWD_INFO->{ROOT} ? FileInfo::relative_filename( $FileInfo::CWD_INFO->{ROOT} ) : '.') .
+      ($Mpp::File::CWD_INFO->{ROOT} ? Mpp::File::relative_filename( $Mpp::File::CWD_INFO->{ROOT} ) : '.') .
       '/.install_log'
       unless $inpipe || @ARGV;
     my %files;

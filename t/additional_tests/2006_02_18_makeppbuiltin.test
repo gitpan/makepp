@@ -54,10 +54,10 @@ sub c_clonetest {
     next if !/^&/;
     warn $_;
     chop;
-    my $comment = TextSubs::index_ignoring_quotes( $_, '#' );
+    my $comment = Mpp::Text::index_ignoring_quotes( $_, '#' );
     $_ = substr $_, 0, $comment if $comment > -1;
     $0 = 'makeppbuiltin';
-    @ARGV = TextSubs::unquote_split_on_whitespace( $_ );
+    @ARGV = Mpp::Text::unquote_split_on_whitespace( $_ );
     substr( $ARGV[0], 0, 1 ) = ''; # Remove &
     eval { ::doit }; warn $@ if $@;
   }

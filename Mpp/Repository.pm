@@ -1,13 +1,20 @@
-# $Id: Mpp::Repository.pm,v 1.3 2008/09/02 08:37:59 pfeiffer Exp $
-#
-# This file groups all the functions needed only if repositories are actually used.
-# The actual functionality is also dispersed in makepp and other modules.
-#
+# $Id: Repository.pm,v 1.4 2009/02/09 22:07:39 pfeiffer Exp $
 
-#package Mpp::Repository;
-package FileInfo;		# Use this a lot.
+=head1 NAME
 
-use FileInfo ();
+Mpp::Repository - Makepp repository functionality
+
+=head1 DESCRIPTION
+
+This file groups all the functions needed only if repositories are actually used.
+The actual functionality is also dispersed in makepp and other modules.
+
+=cut
+
+package Mpp::Repository;	# For CPAN scanner.
+package Mpp::File;		# Use this a lot.
+
+use Mpp::FileOpt;
 
 sub symlink {
   CORE::symlink relative_filename( $_[1], $_[0]{'..'} ),
@@ -82,7 +89,7 @@ sub load_recurse {
 				# for libtool support.
 #
 # Scan the directory.  For speed reasons, this depends on some internals of
-# the FileInfo package.
+# the Mpp::File package.
 #
   $dirinfo->{READDIR} or &read_directory;
 				# Load all the files in the directory.

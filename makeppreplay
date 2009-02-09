@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 
-# $Id: makeppreplay,v 1.5 2009/01/31 23:01:26 pfeiffer Exp $
+# $Id: makeppreplay,v 1.6 2009/02/09 22:07:39 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 use Config;
@@ -39,25 +39,28 @@ BEGIN {
 
 
 use Mpp::Utils;
-use TextSubs ();
+use Mpp::Text ();
 use POSIX ();
 use Mpp::Frame;
 
 use Mpp::Event qw(wait_for);
 
+#@@useoldmodules
+#@@
+
 our $progname;
 
 my $temporary;
 
-use FileInfo qw(file_info chdir absolute_filename file_exists relative_filename $CWD_INFO);
-use FileInfo_makepp;
+use Mpp::File qw(file_info chdir absolute_filename file_exists relative_filename $CWD_INFO);
+use Mpp::FileOpt;
 use Mpp::Cmds;
-use Makefile;
+use Mpp::Makefile;
 use Mpp::Rule;
 
 my @targets;
 my $target_cwd = $CWD_INFO;
-Makefile::find_root_makefile_upwards $target_cwd;
+Mpp::Makefile::find_root_makefile_upwards $target_cwd;
 				# See if we find a RootMakeppfile from here, in case perl code uses ROOT.
 my $modules = '';
 
@@ -65,22 +68,22 @@ my %command_line_vars;
 my $tmp;
 
 sub load_build_info_file($) {
-  my $build_info = &FileInfo::load_build_info_file
+  my $build_info = &Mpp::File::load_build_info_file
     or return;			# No build info -- don't create it by following modification.
   unless( exists $build_info->{SIGNATURE} ) { # Out of date build info?
-    my $sig = &FileInfo::signature; # But file exists.
+    my $sig = &Mpp::File::signature; # But file exists.
     my $count = keys %$build_info;
     delete @{$build_info}{qw(FROM_REPOSITORY LINKED_TO_CACHE)} unless $sig;
     while( my( $key, $value ) = each %$build_info ) {
       delete $build_info->{$key} # We may recalculate some of these, but not necessarily all.
 				# So make sure not to save any outdated ones with new SIGNATURE.
-	if $key ne 'DEP_SIGS' && Signature::is_content_based $value or
-	  $key eq 'LINKED_TO_CACHE' && $_[0]{LSTAT}[FileInfo::STAT_NLINK] == 1 or
+	if $key ne 'DEP_SIGS' && Mpp::Signature::is_content_based $value or
+	  $key eq 'LINKED_TO_CACHE' && $_[0]{LSTAT}[Mpp::File::STAT_NLINK] == 1 or
 				# Could have more than one link, but none to cache -- how can we know?
-	  $key eq 'FROM_REPOSITORY' && (readlink( &FileInfo::absolute_filename_nolink ) || '') ne $value;
+	  $key eq 'FROM_REPOSITORY' && (readlink( &Mpp::File::absolute_filename_nolink ) || '') ne $value;
     }
     if( $sig ) { # But file exists.
-      &FileInfo::mark_build_info_for_update
+      &Mpp::File::mark_build_info_for_update
 	if $count != keys %$build_info; # Found a significant change?
       $build_info->{RESCAN} ||= 1; # If we save this, let makepp double check what we signed.
 				# keep value if it was already 2 from last run.
@@ -95,9 +98,9 @@ my $nothing_in_dir;
 my $found_in_dir = 0;
 perform eval {
   while( @ARGV) {
-    TextSubs::getopts \%command_line_vars, 1,
+    Mpp::Text::getopts \%command_line_vars, 1,
       ['c', qr/root(?:[-_]?dir(?:ectory)?)?/, \$tmp, undef, sub {
-	 Makefile::find_root_makefile_upwards $target_cwd;
+	 Mpp::Makefile::find_root_makefile_upwards $target_cwd;
 	 $target_cwd = $target_cwd->{ROOT}
 	   or die "$0: No RootMakeppfile(.mk) found above `", absolute_filename( $target_cwd ), "'.\n";
 				  # See if we find a RootMakeppfile from here.
@@ -106,7 +109,7 @@ perform eval {
       [qw(C directory), \$tmp, 1, sub {
 	 $target_cwd = file_info $tmp, $target_cwd;
 	 chdir $target_cwd;	# Switch to that directory.
-	 Makefile::find_root_makefile_upwards $target_cwd;
+	 Mpp::Makefile::find_root_makefile_upwards $target_cwd;
 				  # See if we find a RootMakeppfile from here.
        }],
       ['I', qr/include(?:[-_]?dir)?/, \$tmp, 1, sub { unshift @INC, absolute_filename file_info $tmp }],
@@ -119,11 +122,11 @@ perform eval {
     if( is_dir $finfo ) {
       ::log RULE_ALL => $finfo
 	if $::log_level;
-      my $build_info_subdir = file_info relative_filename( $finfo ) . "/$FileInfo::build_info_subdir";
+      my $build_info_subdir = file_info relative_filename( $finfo ) . "/$Mpp::File::build_info_subdir";
       $nothing_in_dir = absolute_filename $finfo;
       unshift @ARGV, grep {
 	$_ = relative_filename $_;
-	s!$FileInfo::build_info_subdir/!! &&
+	s!$Mpp::File::build_info_subdir/!! &&
 	  s!\.mk$!! &&
 	  ++$found_in_dir;
       } Mpp::Glob::zglob_fileinfo '*.mk', $build_info_subdir;
@@ -151,7 +154,7 @@ perform eval {
     my $dinfo = file_info $build_info->{CWD}, $finfo->{'..'};
     my $makefile = $dinfo->{MAKEINFO};
     unless( $makefile ) {
-      $makefile = Makefile::load $dinfo, $dinfo, \%command_line_vars, '', [], \%ENV;
+      $makefile = Mpp::Makefile::load $dinfo, $dinfo, \%command_line_vars, '', [], \%ENV;
       if( $modules ) {
 	$makefile->cd;		# Evaluate in the correct directory.
 	Mpp::Subs::eval_or_die $modules, $makefile, absolute_filename( $dinfo ) . ':0';
@@ -168,7 +171,7 @@ perform eval {
     } else {
       ::log RULE_NEW => $finfo
 	if $::log_level;
-      $dinfo->{$rule_cache} = new Mpp::Rule $target, $deps, $cmd, $makefile, FileInfo::build_info_fname( $finfo ) . ':0';
+      $dinfo->{$rule_cache} = new Mpp::Rule $target, $deps, $cmd, $makefile, Mpp::File::build_info_fname( $finfo ) . ':0';
       push @targets, $finfo;
       $dinfo->{$rule_cache}{TARGETS} = [$finfo];
       @{$dinfo->{$rule_cache}{ENV_DEPS}}{split "\cA", $build_info->{ENV_DEPS}} = split "\cA", $build_info->{ENV_VALS}
@@ -187,7 +190,7 @@ perform eval {
 				# If these survived load_build_info_file, the file is linked.
       ::log REMOVE => $target
 	if $::log_level;
-      FileInfo::unlink $target;
+      Mpp::File::unlink $target;
     }
     my $rule = $target->{RULE};
     my $n_files = @{$rule->{TARGETS}};
@@ -213,9 +216,9 @@ perform eval {
       unless( $temporary || $build_info->{COMMAND} =~ /\A\|FAILED\|/ ) {
 	for my $tinfo ( @{$rule->{TARGETS}} ) {
 	  substr $tinfo->{BUILD_INFO}{COMMAND}, 0, 0, '|FAILED|';
-	  FileInfo::mark_build_info_for_update $tinfo;
+	  Mpp::File::mark_build_info_for_update $tinfo;
 	}
-	&FileInfo::update_build_infos;
+	&Mpp::File::update_build_infos;
       }
       last unless $::keep_going;
     } else {
@@ -228,30 +231,30 @@ perform eval {
       my $dep_sigs = '';	# Precalculate this for the targets loop
       my $sep = '';
       for my $dep ( split /\cA/, $build_info->{SORTED_DEPS} ) {
-	$dep = FileInfo::path_file_info $dep, $rule->{MAKEFILE}{CWD};
+	$dep = Mpp::File::path_file_info $dep, $rule->{MAKEFILE}{CWD};
 	$dep->{BUILD_INFO} ||= load_build_info_file $dep;
 	$dep_sigs .= $sep .
-	  (($sig ? $sig->signature( $dep ) : FileInfo::signature $dep) || '');
+	  (($sig ? $sig->signature( $dep ) : Mpp::File::signature $dep) || '');
 	$sep = "\cA";
       }
       for my $tinfo ( @{$rule->{TARGETS}} ) {
 	$build_info = $tinfo->{BUILD_INFO};
 	delete $tinfo->{LSTAT};
-	$build_info->{SIGNATURE} = FileInfo::signature $tinfo;
+	$build_info->{SIGNATURE} = Mpp::File::signature $tinfo;
 
-	if( $tinfo->{LINK_DEREF} && $tinfo->{LSTAT}[FileInfo::STAT_NLINK] == 1 ) {
+	if( $tinfo->{LINK_DEREF} && $tinfo->{LSTAT}[Mpp::File::STAT_NLINK] == 1 ) {
 				# Assume nlink > 1 to mean action only created
 				# a link to an already existing symlink.
-	  $build_info->{SYMLINK} = readlink FileInfo::absolute_filename $tinfo;
+	  $build_info->{SYMLINK} = readlink Mpp::File::absolute_filename $tinfo;
 	} else {
 	  delete $build_info->{SYMLINK}; # Unlikely to have changed, but just in case.
 	}
 	$build_info->{DEP_SIGS} = $dep_sigs;
 	$build_info->{BUILD_SIGNATURE} = $sig ? $sig->signature( $tinfo ) : $build_info->{SIGNATURE};
 	$build_info->{RESCAN} = 2; # Let makepp double check what we built.
-	FileInfo::mark_build_info_for_update $tinfo;
+	Mpp::File::mark_build_info_for_update $tinfo;
       }
-      &FileInfo::update_build_infos;
+      &Mpp::File::update_build_infos;
     }
   }
 };

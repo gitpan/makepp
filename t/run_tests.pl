@@ -88,19 +88,19 @@ BEGIN {
 				# directory above us.
 
   push @INC, substr $makepp_path, 0, rindex $makepp_path, '/';
-  unless( eval { require TextSubs } ) {
+  unless( eval { require Mpp::Text } ) {
     open my $fh, '<', $makepp_path;
     while( <$fh> ) {
       if( /^\$datadir = / ) {
 	eval;
-	require TextSubs;
+	require Mpp::Text;
 	last;
       }
       die "Can't locate path to makepp libraries." if $. == 99;
     }
   }
 
-  TextSubs::getopts(
+  Mpp::Text::getopts(
     [qw(b basedir), \$basedir, 1],
     [qw(d dots), \$dot],
     [qw(k keep), \$keep],

@@ -2,7 +2,7 @@
 #TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
 use strict;
 
-# $Id: makeppgraph,v 1.16 2008/11/23 21:02:55 pfeiffer Exp $
+# $Id: makeppgraph,v 1.17 2009/02/09 22:07:39 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 use POSIX ();
@@ -39,9 +39,9 @@ BEGIN {
 
 use Mpp::Utils;
 use Mpp::Glob ();
-use FileInfo qw(absolute_filename file_info $CWD_INFO);
-use FileInfo_makepp;
-use TextSubs ();
+use Mpp::File qw(absolute_filename file_info $CWD_INFO);
+use Mpp::FileOpt;
+use Mpp::Text ();
 
 sub eval_or_die($) {
   my $result = eval $_[0];
@@ -50,17 +50,17 @@ sub eval_or_die($) {
 }
 
 BEGIN {
-  *DEPEND = \&TextSubs::CONST1;
-  *INCL = \&TextSubs::CONST2;
-  *PHONY = \&TextSubs::CONST2;
-  *BECAUSE = \&TextSubs::CONST4;
+  *DEPEND = \&Mpp::Text::CONST1;
+  *INCL = \&Mpp::Text::CONST2;
+  *PHONY = \&Mpp::Text::CONST2;
+  *BECAUSE = \&Mpp::Text::CONST4;
 
-  *Makefile::implicitly_load = \&TextSubs::CONST0; # Don't need to and not able to do real stuff.
+  *Mpp::Makefile::implicitly_load = \&Mpp::Text::CONST0; # Don't need to and not able to do real stuff.
 }
 sub SELF() { '' }		# Impossible node name used for own attributes.
 
-my $home = absolute_filename FileInfo::dereference file_info $ENV{HOME};
-$datadir = absolute_filename FileInfo::dereference file_info $datadir;
+my $home = absolute_filename Mpp::File::dereference file_info $ENV{HOME};
+$datadir = absolute_filename Mpp::File::dereference file_info $datadir;
 
 
 package Rewrite;
@@ -254,7 +254,7 @@ my( @logfiles, $outfile, $plain );
 
 {
   my $tmp;
-  TextSubs::getopts
+  Mpp::Text::getopts
     ['b', qr/because|build[-_]?reasons?/, \$because],
     ['D', qr/dependenc(?:ies|y)/, \$dependencies],
     ['d', qr/down(?:wards?)?/, \$down],
@@ -271,7 +271,7 @@ my( @logfiles, $outfile, $plain );
     ['s', qr/separate[-_]?directions?/, \$bidirectional, 0, 0],
     ['t', qr/te?xt/, \$type, 0, 'txt'],
     ['u', qr/up(?:wards?)?/, \$up],
-    [undef, 'version', undef, undef, \&FileInfo::version],
+    [undef, 'version', undef, undef, \&Mpp::File::version],
 
     [qr/[h?]/, 'help', undef, 0, \&usage];
 }
@@ -440,7 +440,7 @@ for( @logfiles ) {
 
 # Selection from command line.
 if( @ARGV ) {			# Start with the args and follow them up and/or downwards.
-  my $cwd = absolute_filename( FileInfo::dereference $FileInfo::CWD_INFO ) . '/';
+  my $cwd = absolute_filename( Mpp::File::dereference $Mpp::File::CWD_INFO ) . '/';
   @ARGV =
     grep { substr $_, 0, 0, $cwd unless /^\//; &$rename; $_ ne '' } map glob, @ARGV;
   my %tmp;

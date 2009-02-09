@@ -1,14 +1,14 @@
-# $Id: Rule.pm,v 1.97 2009/01/08 22:16:06 pfeiffer Exp $
+# $Id: Rule.pm,v 1.98 2009/02/09 22:07:39 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
 
 use Mpp::Event qw(when_done wait_for);
-use FileInfo qw(file_info chdir absolute_filename relative_filename file_exists touched_filesystem);
-use FileInfo_makepp;
-use TextSubs;
-use BuildCheck::exact_match;
-use ActionParser;
+use Mpp::File qw(file_info chdir absolute_filename relative_filename file_exists touched_filesystem);
+use Mpp::FileOpt;
+use Mpp::Text;
+use Mpp::BuildCheck::exact_match;
+use Mpp::ActionParser;
 use Mpp::Cmds;
 
 our $unsafe;			# Perl code was performed, that might leave files open or chdir.
@@ -30,7 +30,7 @@ $makefile is a pointer to the structure returned by load_makefile.
 $makefile_line is an ASCII string that is used if an error message occurs
 while expanding variables in this rule.
 
-This does not actually place the rule into the FileInfo hierarchy.
+This does not actually place the rule into the Mpp::File hierarchy.
 
 =cut
 
@@ -196,7 +196,7 @@ sub find_all_targets_dependencies {
     }
     elsif (@explicit_targets && $explicit_targets[0]{PRIVATE_VARS})
     {
-      local $Makefile::private = $explicit_targets[0];
+      local $Mpp::Makefile::private = $explicit_targets[0];
 				# Temporarily set up target-specific variables,
 				# if there actually are any.
       $makefile->expand_text($_, $self->{RULE_SOURCE});
@@ -238,7 +238,7 @@ sub find_all_targets_dependencies {
   }
 
   for my $dep ( @explicit_dependencies, values %all_dependencies ) {
-    FileInfo::mark_build_info_for_update $dep
+    Mpp::File::mark_build_info_for_update $dep
 	if $dep->{BUILD_INFO} && delete $dep->{BUILD_INFO}{RESCAN};
 				# From mppr -- we're done with this now.
   }
@@ -397,7 +397,7 @@ sub add_any_dependency_if_exists_ {
   # dependency, because we might need to build Makeppfile's while searching,
   # and we might fail to build one that we'll wind up not actually needing.
   local $::keep_going = 1;
-  if($finfo && !FileInfo::exists_or_can_be_built_or_remove( $finfo )) {
+  if($finfo && !Mpp::File::exists_or_can_be_built_or_remove( $finfo )) {
     return undef;
   }
   ::log CACHED_DEP => $finfo, $tinfo
@@ -470,10 +470,9 @@ scanner.
 
 sub set_signature_method_scanner {
   my ($self, $name) = @_;
-  eval "require Signature::$name" or
-    die "failed to load class Signature::$name\n";
-  my $signature = ${"Signature::${name}::$name"} or
-    die "invalid signature class $name\n";
+  my $signature = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
+    eval "use Signature::$name; \$Signature::${name}::$name" # TODO: provisional
+    or die "invalid signature class $name\n";
   $self->{SIG_METHOD_NAME} ||= $name;
   $self->set_signature_method_default($signature);
   $signature;
@@ -547,7 +546,7 @@ sub cache_scaninfo {
 	sub { join1_([sort keys %{$_[0] || {}}]) }
       ) for @implicits;
     }
-    &FileInfo::update_build_infos;
+    &Mpp::File::update_build_infos;
   }
   &clear_scaninfo_;
 }
@@ -570,7 +569,7 @@ sub join_dir_ {
 sub save_build_info_ {
   my ($self, $tinfo, $key, $sub) = @_;
   my $value = $self->{$key} if exists $self->{$key};
-  FileInfo::set_build_info_string($tinfo,$key, &$sub($value));
+  Mpp::File::set_build_info_string($tinfo,$key, &$sub($value));
 }
 sub save_build_info_tag_ {
   my ($self, $tinfo, $key, $sub) = @_;
@@ -601,7 +600,7 @@ Otherwise, 0 is returned.
 
 =cut
 
-require Scanner;
+require Mpp::Scanner;
 sub load_scaninfo_single {
   my (
     $self, $tinfo_version, $tinfo, $command_string, $explicit_dependencies
@@ -610,7 +609,7 @@ sub load_scaninfo_single {
   # Fetch the info, or give up
   my( $build_cwd_name, $sig_method, $include_paths, $include_sfxs, $meta_deps,
       $implicit_deps, $implicit_targets, $implicit_env_deps, $command, $rescan ) =
-    FileInfo::build_info_string $tinfo_version,
+    Mpp::File::build_info_string $tinfo_version,
       qw(CWD SIG_METHOD_NAME INCLUDE_PATHS INCLUDE_SFXS META_DEPS IMPLICIT_DEPS
 	 IMPLICIT_TARGETS IMPLICIT_ENV_DEPS COMMAND RESCAN);
   return $rescan == 1 ? 'signed by makeppreplay' : 'built by makeppreplay' if $rescan;
@@ -637,16 +636,16 @@ sub load_scaninfo_single {
     if $sig_method;
 
   # Trump up a dummy scanner object to help us look for files.
-  my $scanner = Scanner->new($self, '.');
+  my $scanner = Mpp::Scanner->new($self, '.');
 
   for( split /\02/, $include_paths ) {
     my( $tag, @path ) = split /\01/, $_, -1;
-    Scanner::add_include_dir( $scanner, $tag, $_ eq '' ? undef : $_)
+    Mpp::Scanner::add_include_dir( $scanner, $tag, $_ eq '' ? undef : $_)
       for @path;
   }
   for( split /\02/, $include_sfxs ) {
     my( $tag, @sfxs ) = split /\01/, $_, -1;
-    Scanner::add_include_suffix_list( $scanner, $tag, \@sfxs );
+    Mpp::Scanner::add_include_suffix_list( $scanner, $tag, \@sfxs );
   }
 
   # Replay the implicit environmental dependencies.
@@ -670,13 +669,13 @@ sub load_scaninfo_single {
       }
       my( $tag, @incs ) = split /\01/, $_, -1;
       die unless defined $tag;
-      Scanner::get_tagname( $scanner, $tag) if $tag ne ''; # make it a valid tag
+      Mpp::Scanner::get_tagname( $scanner, $tag) if $tag ne ''; # make it a valid tag
 
       # TBD: Ideally, we should remember which tags are marked should_find
       # instead of assuming that 'sys' & 'lib' aren't and all others are, but
       # this will generate the correct warnings most of the time, and it's not
       # the end of the world if it doesn't:
-      Scanner::should_find( $scanner, $tag ) if $tag ne 'sys' && $tag ne 'lib';
+      Mpp::Scanner::should_find( $scanner, $tag ) if $tag ne 'sys' && $tag ne 'lib';
 
       my $dir = $build_cwd;
       for my $item (@incs) {
@@ -686,7 +685,7 @@ sub load_scaninfo_single {
 	else {
 	  my $finfo;
 	  if($tag ne '') {
-	    $finfo = Scanner::find( $scanner, undef, $tag, $item, $dir);
+	    $finfo = Mpp::Scanner::find( $scanner, undef, $tag, $item, $dir);
 	    add_any_dependency_if_exists_( $self, $key,
 	      $tag, relative_filename($dir,$build_cwd), $item, $finfo, $tinfo
 	    ) or $cant_build_deps=1;
@@ -838,14 +837,14 @@ sub execute {
     delete $all_targets->[0]{TEMP_BUILD_INFO}; # Save some memory
 
     last unless $actions eq $cmd and # Rule or link no longer matches, this is the effective build check for symlinks.
-      $symlink eq (readlink( FileInfo::absolute_filename_nolink $all_targets->[0] ) || '') and
+      $symlink eq (readlink( Mpp::File::absolute_filename_nolink $all_targets->[0] ) || '') and
       file_exists file_info $symlink, $all_targets->[0]{'..'};
 
-    my $linkee = FileInfo::dereference $all_targets->[0];
+    my $linkee = Mpp::File::dereference $all_targets->[0];
     if( exists $linkee->{BUILD_INFO} ) { # Replicate content-based signatures -- build_target_done will mark it for update.
       while( my( $key, $value ) = each %{$linkee->{BUILD_INFO}} ) {
 	$all_targets->[0]{BUILD_INFO}{$key} = $value
-	  if $key ne 'DEP_SIGS' && Signature::is_content_based $value;
+	  if $key ne 'DEP_SIGS' && Mpp::Signature::is_content_based $value;
       }
     }
     $::n_files_changed--;	# Undo count, since we're not really rebuilding it.
@@ -1264,7 +1263,7 @@ sub set_build_check_method_default {
 
 Returns the signature method to use to calculate signatures for files.
 
-The default method is the file time + file size (see Signature.pm for
+The default method is the file time + file size (see Mpp/Signature.pm for
 details).
 
 =cut
@@ -1324,7 +1323,7 @@ sub parser {
     my $scanner = $self->{ACTION_SCANNER}; # Was one explicitly set?
     $parser_obj = $scanner ?
       &$scanner() : # Yes: generate it
-      new ActionParser; # No: Use the default
+      new Mpp::ActionParser; # No: Use the default
     $self->{PARSER_OBJ}=$parser_obj;
   }
   $parser_obj;
@@ -1374,7 +1373,7 @@ sub add_env_dependency {
     for( split /:/, $rule->{MAKEFILE}->get_env( $val ) || '' ) {
       next unless $_;
       return $rule->{ENV_DEPENDENCIES}{$var_name} = $_
-	if FileInfo::exists_or_can_be_built
+	if Mpp::File::exists_or_can_be_built
 	  file_info $name, file_info $_, $rule->{MAKEFILE}{CWD};
     }
     return $rule->{ENV_DEPENDENCIES}{$var_name} = '';
@@ -1454,9 +1453,9 @@ package Mpp::DefaultRule;
 sub new { bless { TARGET => $_[1] }, $_[0] }
 				# Make the rule object.	 Declare it local
 				# so it's accessible to any subroutines that
-				# Makefile::expand_text calls. (TODO: What is local here?)
+				# Mpp::Makefile::expand_text calls. (TODO: What is local here?)
 
-sub build_cwd { $FileInfo::CWD_INFO }
+sub build_cwd { $Mpp::File::CWD_INFO }
 
 *expand_additional_deps = \&Mpp::Rule::expand_additional_deps;
 
@@ -1526,7 +1525,7 @@ sub print_command {
 # The signature method that we use causes the file to be remade if it doesn't
 # exist, and leaves it alone if it does.
 #
-sub signature_method { $Signature::signature }
+sub signature_method { $Mpp::Signature::signature }
 
 sub build_check_method { $Mpp::DefaultRule::BuildCheck::build_check_method_object }
 
@@ -1541,13 +1540,13 @@ sub source { 'default rule' }
 
 # If there is no action, then there is nothing to scan, so presumably nothing
 # was affected by scanning.  Reuse any nop function.
-*cache_scaninfo = \&TextSubs::CONST0;
+*cache_scaninfo = \&Mpp::Text::CONST0;
 
 
 
 package Mpp::DefaultRule::BuildCheck;
 
-our @ISA = 'BuildCheck';
+our @ISA = 'Mpp::BuildCheck';
 
 #
 # This package implements signature checking for files for which there is no
@@ -1564,29 +1563,29 @@ sub build_check {
 
   return 'stale symbolic link' if exists $tinfo->{TEMP_BUILD_INFO};
 
-  warn '`' . FileInfo::absolute_filename( $tinfo ) . "' is a stale file generated by makepp,\n" .
+  warn '`' . Mpp::File::absolute_filename( $tinfo ) . "' is a stale file generated by makepp,\n" .
     "  but there is no rule to build it any more.  Makepp assumes that it\n" .
     "  is now a source file.  If this is correct, then you should add it\n" .
     "  to your source control system (if any), and touch the file to make\n" .
     "  this warning go away.  Otherwise, you should remove the file,\n" .
     "  because the targets that depend on it will not be reproducible.\n" .
     "  makepp --rm-stale would automatically do this for you.\n"
-      if FileInfo::is_stale $tinfo;
+      if Mpp::File::is_stale $tinfo;
 
   # It would be faster to check for existence first, but that doesn't work,
   # because then if the file were from a repository but the repository version
   # changed, then the file would originally exist, and then it gets deleted
   # by build_info_string(), which returns undef, making it look as though the
   # file is up-to-date, when in fact it doesn't even exist!
-  defined( FileInfo::build_info_string( $tinfo, 'FROM_REPOSITORY' )) ||
-    !FileInfo::file_exists( $tinfo ) ||
+  defined( Mpp::File::build_info_string( $tinfo, 'FROM_REPOSITORY' )) ||
+    !Mpp::File::file_exists( $tinfo ) ||
     (
      # If it used to be a generated file, but now we need to get it from a
      # repository, then it needs to be linked in, unless we're treating old
      # generated files as source.
      $::rm_stale_files &&
      !$tinfo->{ADDITIONAL_DEPENDENCIES} &&
-     defined( FileInfo::build_info_string( $tinfo, 'BUILD_SIGNATURE' ))
+     defined( Mpp::File::build_info_string( $tinfo, 'BUILD_SIGNATURE' ))
     );
 }
 

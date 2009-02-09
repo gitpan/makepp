@@ -2,14 +2,14 @@
 
   use Dump;
 
-This will Dump makepp's $FileInfo::CWD_INFO in makepp's end handler.
+This will Dump makepp's $Mpp::File::CWD_INFO in makepp's end handler.
 
   use Dump ();
   Dump::Dump;
-  Dump::Dump $FileInfo::root;
+  Dump::Dump $Mpp::File::root;
   Dump::Dump @makefiles;
 
-This will Dump makepp's $FileInfo::CWD_INFO and then @makefiles to the file
+This will Dump makepp's $Mpp::File::CWD_INFO and then @makefiles to the file
 .makepp_dump.pl.  Hashes are sorted sensibly, so they can be compared
 before/after.
 
@@ -28,7 +28,7 @@ Replace file timestamps with word time.
 
 =cut
 
-package Dump;
+package Mpp:Dump;
 
 our $compress_siglist = 1;
 our $eliminate = qr/^ENVIRONMENT$|^\.makepp/;
@@ -36,7 +36,7 @@ our $slash_dircontents = 1;
 our $time;
 
 use Data::Dumper;
-use FileInfo;
+use Mpp::File;
 
 open DUMP, '> makepp_dump.spec';
 my $oldfh = select DUMP; $| = 1; select $oldfh;
@@ -57,7 +57,7 @@ sub sorter($) {
     }
   }
   unshift @others, @names, @dirs;
-  unshift @others, 'iSaFiLeInFo' if ref( $_[0] ) eq 'FileInfo';
+  unshift @others, 'iSaFiLeInFo' if ref( $_[0] ) eq 'Mpp::File';
   \@others;
 }
 
@@ -69,10 +69,10 @@ sub Dump(@) {
   print DUMP $sep, scalar localtime, ": @{[caller]}\n";
   $sep = "\f\n# ";
 
-  @_ = $FileInfo::CWD_INFO unless @_;
+  @_ = $Mpp::File::CWD_INFO unless @_;
   for( &Dumper ) {
-    s/bless\( \{\n +iSaFiLeInFo => undef,/FileInfo {/g;
-    s/\}, 'FileInfo' \)/}/g;
+    s/bless\( \{\n +iSaFiLeInFo => undef,/Mpp::File {/g;
+    s/\}, 'Mpp::File' \)/}/g;
     s/([[{])\n +(.+)\n +([]}])/$1 $2 $3/g;
     while( / LSTAT => \[$/gm ) {
       1 while s/\G(.*)\s+(?=[\d'\]])/$1 /gm;
@@ -95,7 +95,7 @@ sub Dump(@) {
 
 sub import(@) {
   # Call Dump without ::perform's arguments
-  my $cwd = $FileInfo::CWD_INFO;
+  my $cwd = $Mpp::File::CWD_INFO;
   eval 'END { Dump $cwd }';
 }
 

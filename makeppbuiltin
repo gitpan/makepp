@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #use strict;			# TODO: explore why this breaks the builtins.
 
-# $Id: makeppbuiltin,v 1.14 2008/11/23 21:02:55 pfeiffer Exp $
+# $Id: makeppbuiltin,v 1.15 2009/02/09 22:07:39 pfeiffer Exp $
 
 our $VERSION = '@VERSION@';
 
@@ -38,8 +38,8 @@ BEGIN {
 $Mpp::Subs::rule->{MAKEFILE}{PACKAGE} = '';
 
 use Mpp::Utils;
-use FileInfo ();
-use TextSubs ();
+use Mpp::File ();
+use Mpp::Text ();
 use Mpp::Cmds;
 
 sub eval_or_die($) {
@@ -84,7 +84,7 @@ sub getopts_help(@) {
   shift @opts if 'HASH' eq ref $opts[0];
   my %short;
   for( @opts ) {
-    my $long = TextSubs::_getopts_long( $_ );
+    my $long = Mpp::Text::_getopts_long( $_ );
     my $short = $_->[0];	# Show only the 1st short opt (e.g. --fields & --force)
     $_ = (($short && !$short{$short}) ? "$_->[0], --$long" : $long) .
       ($_->[3] ? '=arg' : '');
@@ -113,11 +113,11 @@ sub doit {
     $cmd = "Mpp::Cmds::c_$0";
   } else {
     my $tmp;
-    TextSubs::getopts 1,
+    Mpp::Text::getopts 1,
       ['I', qr/include(?:[-_]?dir)?/, \$tmp, 1, sub { unshift @INC, $tmp }],
       [qw(M module), \$tmp, 1, sub { $tmp =~ s/=(.*)/ qw($1)/ and $tmp =~ tr/,/ /; eval_or_die "use $tmp" }],
       [qr/[h?]/, 'help', undef, 0, sub { &metahelp; &helpfoot }],
-      [0, 'version', undef, 0, \&FileInfo::version];
+      [0, 'version', undef, 0, \&Mpp::File::version];
     &metahelp, &helpfoot if !@ARGV;
 
     $tmp = $0;			# 1st argument must be the command name.
@@ -130,15 +130,15 @@ sub doit {
 
   if( @ARGV and $ARGV[0] eq '-?' || $ARGV[0] eq '--help' ) {
     no warnings;
-    *TextSubs::getopts = \&getopts_help; # Let the seemingly normal call handle this.
+    *Mpp::Text::getopts = \&getopts_help; # Let the seemingly normal call handle this.
   }
 
   if( !$ENV{INSTALL_LOG} && $cmd =~ /install$/ ) {
-    require Makefile;
-    Makefile::find_root_makefile_upwards( $FileInfo::CWD_INFO );
+    require Mpp::Makefile;
+    Mpp::Makefile::find_root_makefile_upwards( $Mpp::File::CWD_INFO );
 				# Fill ->{ROOT} if RootMakeppfile found.
   } elsif( $cmd =~ /preprocess$/ ) {
-    require Makefile;
+    require Mpp::Makefile;
   }
   &$cmd( @ARGV );
 }

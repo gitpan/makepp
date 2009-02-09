@@ -11,9 +11,9 @@ $(phony main.o): main.c
 	-$(CC) $(CFLAGS) $(CPPFLAGS) -c $(input) -o $(output) && echo "NOK" > x
 
 perl_begin
-  use Scanner::Verilog;
-  my $s = new Scanner::Verilog(
-    FileInfo::file_info('main.o')->get_rule, '.'
+  use Mpp::Scanner::Verilog;
+  my $s = new Mpp::Scanner::Verilog(
+    Mpp::File::file_info('main.o')->get_rule, '.'
   );
   $s->continue_scanning;
   $s->get_context;

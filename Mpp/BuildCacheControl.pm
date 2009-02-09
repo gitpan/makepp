@@ -1,4 +1,10 @@
-# $Id: Mpp::BuildCacheControl.pm,v 1.23 2008/05/17 14:21:36 pfeiffer Exp $
+# $Id: BuildCacheControl.pm,v 1.24 2009/02/09 22:07:39 pfeiffer Exp $
+
+=head1 NAME
+
+Mpp::BuildCacheControl - Extenally usable management commands
+
+=cut
 
 package Mpp::BuildCacheControl;
 use strict;
@@ -7,25 +13,25 @@ require Exporter;
 our @ISA = 'Exporter';
 our @EXPORT = qw(c_clean c_create c_show c_stats);
 
-use FileInfo qw(file_info absolute_filename);
+use Mpp::File qw(file_info absolute_filename);
 use Mpp::BuildCache;
-use FileInfo_makepp;
+use Mpp::FileOpt;
 use Mpp::Cmds;
 use POSIX ':errno_h';
 
 BEGIN {
-  *DEV = \&TextSubs::CONST0;
-  *MODE = \&TextSubs::CONST2;
-  *EXTLINK = \&TextSubs::CONST3;
-  *UID = \&TextSubs::CONST4;
-  *GID = \&TextSubs::CONST5;
-  *BIUID = \&TextSubs::CONST6;
+  *DEV = \&Mpp::Text::CONST0;
+  *MODE = \&Mpp::Text::CONST2;
+  *EXTLINK = \&Mpp::Text::CONST3;
+  *UID = \&Mpp::Text::CONST4;
+  *GID = \&Mpp::Text::CONST5;
+  *BIUID = \&Mpp::Text::CONST6;
   *SIZE = sub() { 7 };
   *ATIME = sub() { 8 };
   *MTIME = sub() { 9 };
   *CTIME = sub() { 10 };
 
-  *::propagate_pending_signals = \&TextSubs::CONST0 unless defined &::propagate_pending_signals;
+  *::propagate_pending_signals = \&Mpp::Text::CONST0 unless defined &::propagate_pending_signals;
 
   no warnings;
   *ESTALE = \&Mpp::BuildCache::ESTALE; # Overridden on Win ActiveState.
@@ -45,7 +51,7 @@ are set:
 This is set to a list of one or more Mpp::BuildCache objects.  These have more
 attributes than the same objects in makepp:
 
-    ..		The FileInfo of the build cache directory.
+    ..		The Mpp::File of the build cache directory.
     PREFERRED	This is a preferred build cache if this key exists.
 
 =head3 $preferred
@@ -179,7 +185,7 @@ sub groupfind(&;$) {
     if( opendir my( $dh ), $_ ) {
       my %contents;
       @contents{(readdir $dh)} = (); # Parens needed for list context to readdir.
-      delete @contents{qw(. ..), $FileInfo::build_info_subdir};
+      delete @contents{qw(. ..), $Mpp::File::build_info_subdir};
       delete @contents{$Mpp::BuildCache::options_file, $Mpp::BuildCache::incoming_subdir}
 	if $top;
       push @contents, \%contents;
@@ -222,7 +228,7 @@ sub groupfind(&;$) {
 	  and $combined_lstat[$_] = $lstats[-1][$_]
 	  for ATIME, MTIME, CTIME;	# Max.
 	defined( $lstats[-1][BIUID] =	# Redefine field from what lstat put there.
-		 (lstat "$dirs[$i]/$FileInfo::build_info_subdir/$_.mk")[UID] )
+		 (lstat "$dirs[$i]/$Mpp::File::build_info_subdir/$_.mk")[UID] )
 	  and !-l _		# Real build_info file?
 	  and $combined_lstat[BIUID] = $lstats[-1][BIUID];
       }
@@ -232,7 +238,7 @@ sub groupfind(&;$) {
 
   # This is only used by clean.  Have to do it here, as callback is only for files:
   if( $clean_empty ) {
-    DIR: for( map( "$_/$FileInfo::build_info_subdir", @dirs ), @dirs ) {
+    DIR: for( map( "$_/$Mpp::File::build_info_subdir", @dirs ), @dirs ) {
       opendir my( $dh ), $_ or next;
       my $entry;
       $entry =~ /^\.\.?$/ or next DIR while $entry = readdir $dh;
@@ -347,10 +353,10 @@ sub c_clean {
 	  my( $found_idx, $found, $found_build_info, $found_extlink );
 	  for( my $i = 0; $i < @group; $i++ ) {
 	    next unless ref $lstats[$i]; # Look at all real group members.
-	    my $build_info = "$_[0][$i]/$FileInfo::build_info_subdir/$_.mk";
+	    my $build_info = "$_[0][$i]/$Mpp::File::build_info_subdir/$_.mk";
 	    undef $build_info unless -f $build_info;
 	    my $file = "$_[0][$i]/$_";
-	    if( $build_info and $bi_check ? defined FileInfo::load_build_info_file file_info $file : 1 ) {
+	    if( $build_info and $bi_check ? defined Mpp::File::load_build_info_file file_info $file : 1 ) {
 	      if( defined $user && $user != $lstats[$i][UID] ) {
 		$lstats[$i][UID] = $user;
 		Mpp::Cmds::perform { chown $user, $lstats[$i][GID], $file } "set owner $user for `$file'";
@@ -371,7 +377,7 @@ sub c_clean {
 	    for my $i ( $round_robin+1..$preferred-1, 0..$round_robin, undef ) {
 	      return unless defined $i;	# No free slot in any preferred BC.
 	      unless( $lstats[$i] ) { # No file or symlink without ext links.
-		&$delete( "$_[0][$i]/$_", "$_[0][$i]/$FileInfo::build_info_subdir/$_.mk" )
+		&$delete( "$_[0][$i]/$_", "$_[0][$i]/$Mpp::File::build_info_subdir/$_.mk" )
 		  if defined $lstats[$i]; # Symlink is in the way.
 		$round_robin = $i;
 		last;
@@ -380,7 +386,7 @@ sub c_clean {
 	    if( $group[$round_robin]->cache_file( file_info( $found ), "$_[0][$round_robin]/$_", \(my $reason), $lstats[$found_idx][ATIME] )) {
 				# Succeeded in copying it, pretend it's the one we found.
 	      $found = "$_[0][$round_robin]/$_";
-	      $found_build_info = "$_[0][$round_robin]/$FileInfo::build_info_subdir/$_.mk";
+	      $found_build_info = "$_[0][$round_robin]/$Mpp::File::build_info_subdir/$_.mk";
 				# Copy file attrs too:
 	      chown @{$lstats[$found_idx]}[UID, GID], $found;
 	      chown @{$lstats[$found_idx]}[BIUID, GID], $found_build_info;
@@ -392,7 +398,7 @@ sub c_clean {
 	  my $copied;
 	  for( my $i = 0; $i < @group; $i++ ) {
 	    next if $i == $found_idx;
-	    my $build_info = "$_[0][$i]/$FileInfo::build_info_subdir/$_.mk";
+	    my $build_info = "$_[0][$i]/$Mpp::File::build_info_subdir/$_.mk";
 	    if( $lstats[$i] ) {
 	      next unless ref $lstats[$i] && !$lstats[$i][EXTLINK] && exists $group[$i]{SYMLINK};
 	      &$delete( "$_[0][$i]/$_", $build_info );
@@ -407,8 +413,8 @@ sub c_clean {
 		++$build_info_files_deleted;
 	    }
 	    if( exists $group[$i]{SYMLINK} ) {
-	      -d "$_[0][$i]/$FileInfo::build_info_subdir"
-		|| eval { Mpp::Cmds::c_mkdir( $group[$i]{MKDIR_OPT}, "$_[0][$i]/$FileInfo::build_info_subdir" ) }
+	      -d "$_[0][$i]/$Mpp::File::build_info_subdir"
+		|| eval { Mpp::Cmds::c_mkdir( $group[$i]{MKDIR_OPT}, "$_[0][$i]/$Mpp::File::build_info_subdir" ) }
 		and symlink $found_build_info, $build_info
 		and symlink $found, "$_[0][$i]/$_";
 	    } elsif( $group[$i]->cache_file( file_info( $found ), "$_[0][$i]/$_", \(my $reason), $lstats[$found_idx][ATIME] )) {
@@ -439,7 +445,7 @@ sub c_clean {
 	    if defined $combined_lstat[UID]; # Do we have a real file at all?
 	UNLINK:
 	  for( my $i = 0; $i < @group; $i++ ) {
-	    &$delete( "$_[0][$i]/$_", "$_[0][$i]/$FileInfo::build_info_subdir/$_.mk" )
+	    &$delete( "$_[0][$i]/$_", "$_[0][$i]/$Mpp::File::build_info_subdir/$_.mk" )
 	      if defined $lstats[$i]; # Look at all group members.
 	  }
 	}

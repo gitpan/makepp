@@ -10,7 +10,7 @@
 
 perl_begin
   # Make sure that '/' gets parsed properly (not as ''!)
-  die unless FileInfo::file_info('/') == FileInfo::file_info('/.');
+  die unless Mpp::File::file_info('/') == Mpp::File::file_info('/.');
 perl_end
 
 all: a b c

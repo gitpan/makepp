@@ -2,7 +2,7 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.56 2008/11/23 21:20:40 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.57 2009/02/09 22:07:39 pfeiffer Exp $
 
 =head1 DESCRIPTION
 

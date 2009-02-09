@@ -1,6 +1,6 @@
-# $Id: Mpp::BuildCache.pm,v 1.41 2008/08/09 09:24:52 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.42 2009/02/09 22:07:39 pfeiffer Exp $
 #
-# Key things to do before this is production-ready:
+# Possible improvements:
 #
 # o We need to handle .o files properly, doing a string substitution on the
 #   path.  Maybe .a files too?	I don't know.  Do we really?  This would
@@ -82,24 +82,24 @@ same key.  Mpp::BuildCache cannot store multiple files with the same key, but by
 storing the build information it is at least possible to determine that the
 given file is the wrong file.
 
-=head2 Use of FileInfo
+=head2 Use of Mpp::File
 
-We do not use the FileInfo class to store information about the files in the
+We do not use the Mpp::File class to store information about the files in the
 build cache.  The reason is that we don't want to waste the memory storing all
 the results.  Typically things are looked up once in the build cache and never
-examined again, so it's a waste of memory to build up the FileInfo structures
+examined again, so it's a waste of memory to build up the Mpp::File structures
 for them.  For this reason, for any files in the build cache directories, we
-do the stat and other operations directly instead of calling the FileInfo
+do the stat and other operations directly instead of calling the Mpp::File
 subroutines.
 
-We do use the FileInfo subroutines for files stored elsewhere, however.
+We do use the Mpp::File subroutines for files stored elsewhere, however.
 
 =cut
 
 package Mpp::BuildCache;
 use strict;
-use FileInfo;
-use FileInfo_makepp;
+use Mpp::File;
+use Mpp::FileOpt;
 use Mpp::Cmds;
 use Sys::Hostname;
 use POSIX qw(:errno_h S_ISREG);
@@ -108,7 +108,7 @@ BEGIN {
   eval { $_ = ESTALE };		# Not defined on Win ActiveState.
   if( $@ ) {
     no warnings;
-    require TextSubs;
+    require Mpp::Text;
     *ESTALE = sub() { -1 };
   }
 }
@@ -133,13 +133,13 @@ sub new {
   $build_cache_dir = file_info $build_cache_dir;
 
   @$self{qw(DEV ACCESS_PERMISSIONS)} =
-    @{FileInfo::stat_array $build_cache_dir}[FileInfo::STAT_DEV, FileInfo::STAT_MODE];
+    @{Mpp::File::stat_array $build_cache_dir}[Mpp::File::STAT_DEV, Mpp::File::STAT_MODE];
   $self->{ACCESS_PERMISSIONS} &= 0777;
 				# Use the current directory protections as the
 				# proper mask.
   $self->{MKDIR_OPT} = sprintf '-pm%o', $self->{ACCESS_PERMISSIONS};
 
-  $self->{DIRNAME} = FileInfo::absolute_filename $build_cache_dir;
+  $self->{DIRNAME} = Mpp::File::absolute_filename $build_cache_dir;
 
   bless $self, $class;
 }
@@ -195,8 +195,8 @@ sub cache_file {
 				# 4th arg atime, only for mppbcc, accessed below.
   $reason or die;
 
-  my $input_filename = FileInfo::absolute_filename_nolink( $input_finfo );
-  my $orig_prot = (FileInfo::lstat_array( $input_finfo ))->[FileInfo::STAT_MODE];
+  my $input_filename = Mpp::File::absolute_filename_nolink( $input_finfo );
+  my $orig_prot = (Mpp::File::lstat_array( $input_finfo ))->[Mpp::File::STAT_MODE];
   return 1			# Succeed without doing anything
     unless S_ISREG $orig_prot;	# if not a regular file?
 
@@ -218,7 +218,7 @@ sub cache_file {
 # stored in 01/234/.makepp/56789abcdef.mk.
 
   my $build_info_fname = $cache_fname;
-  $build_info_fname =~ s@/([^/]+)$@/$FileInfo::build_info_subdir@;
+  $build_info_fname =~ s@/([^/]+)$@/$Mpp::File::build_info_subdir@;
   -d $build_info_fname or
     eval { Mpp::Cmds::c_mkdir( $self->{MKDIR_OPT}, $build_info_fname ) } or do {
       $$reason = ($! == ENOENT || $! == ESTALE) ? "$@ -- possibly due to aging (OK)" : $@;
@@ -241,9 +241,9 @@ sub cache_file {
   my $temp_build_info_fname = $temp_cache_fname . '.mk';
 
   my $build_info = $input_finfo->{BUILD_INFO}; # Get the build info hash.
-  $build_info ||= FileInfo::load_build_info_file($input_finfo);
+  $build_info ||= Mpp::File::load_build_info_file($input_finfo);
 				# Load it from disk if we didn't have it.
-  $build_info or die "internal error: file in build cache (" . FileInfo::absolute_filename( $input_finfo ) .
+  $build_info or die "internal error: file in build cache (" . Mpp::File::absolute_filename( $input_finfo ) .
     ") is missing build info\n";
 
   local $build_info->{SIGNATURE};
@@ -264,9 +264,9 @@ sub cache_file {
 # copy the file.  If it is on the same file system, then make a hard link,
 # since that is faster and uses almost no disk space.
 #
-  my $dev = (FileInfo::stat_array $input_finfo->{'..'})->[FileInfo::STAT_DEV];
+  my $dev = (Mpp::File::stat_array $input_finfo->{'..'})->[Mpp::File::STAT_DEV];
   my( $size, $mtime ) =
-    @{FileInfo::lstat_array $input_finfo}[FileInfo::STAT_SIZE, FileInfo::STAT_MTIME];
+    @{Mpp::File::lstat_array $input_finfo}[Mpp::File::STAT_SIZE, Mpp::File::STAT_MTIME];
   # If it's on the same filesystem, then link; otherwise, copy.
   my $target_src;
   my @files_to_unlink;
@@ -278,14 +278,14 @@ sub cache_file {
       $target_src = $input_filename;
       $target_prot &= ~0222;	# Make it read only, so that no one can
 				# accidently corrupt the build cache copy.
-      FileInfo::set_build_info_string( $input_finfo, 'LINKED_TO_CACHE', 1 );
+      Mpp::File::set_build_info_string( $input_finfo, 'LINKED_TO_CACHE', 1 );
 				# Remember that it's linked to the build
 				# cache, so we need to delete it before
 				# allowing it to be changed.
       if($::md5check_bc) {
 	# Make sure that $build_info->{MD5_SUM} is set.
-	require Signature::md5;
-	Signature::md5::signature($Signature::md5::md5, $input_finfo);
+	require Mpp::Signature::md5;
+	Mpp::Signature::md5::signature($Mpp::Signature::md5::md5, $input_finfo);
       }
     } else {			# Hard link not possible on different dev
       my $md5;
@@ -324,7 +324,7 @@ sub cache_file {
       $$reason = "unlink $temp_build_info_fname: $!";
       return undef;
     };
-    FileInfo::write_build_info_file($temp_build_info_fname, $build_info) or do {
+    Mpp::File::write_build_info_file($temp_build_info_fname, $build_info) or do {
       $$reason = ($! == ESTALE) ? $build_info_aged : "write $temp_build_info_fname: $!";
       return undef;
     };
@@ -555,7 +555,7 @@ sub absolute_filename { $_[0]->{FILENAME} }
   $bc_entry->copy_from_cache($output_finfo, $rule, \$reason);
 
 Replaces the file in $output_finfo with the file from the cache, and updates
-all the FileInfo data structures to reflect this change.
+all the Mpp::File data structures to reflect this change.
 The build info signature is checked against the target file in the cache,
 and if $::md5check_bc is set, then the MD5 checksum is also verified.
 
@@ -587,8 +587,8 @@ sub copy_from_cache {
   my ($self, $output_finfo, $rule, $reason) = @_;
   $reason || die;
 
-  FileInfo::unlink( $output_finfo );	    # Get rid of anything that's there currently.
-  my $output_fname = FileInfo::absolute_filename_nolink( $output_finfo );
+  Mpp::File::unlink( $output_finfo );	    # Get rid of anything that's there currently.
+  my $output_fname = Mpp::File::absolute_filename_nolink( $output_finfo );
   my $link_to_build_cache = 0;
 
 #
@@ -596,7 +596,7 @@ sub copy_from_cache {
 #
   my $cache_fname = $self->{FILENAME};
   my $build_info_fname = $cache_fname;
-  $build_info_fname =~ s@/([^/]+)$@/$FileInfo::build_info_subdir/$1.mk@;
+  $build_info_fname =~ s@/([^/]+)$@/$Mpp::File::build_info_subdir/$1.mk@;
   open my( $fh ), $build_info_fname or do {
     if($! == POSIX::ENOENT || $! == Mpp::BuildCache::ESTALE) {
       $$reason = 'the build info file is missing (OK)';
@@ -607,7 +607,7 @@ sub copy_from_cache {
     return undef;
   };
   my $line;
-  my $build_info=FileInfo::parse_build_info_file($fh);
+  my $build_info=Mpp::File::parse_build_info_file($fh);
   close $fh;
 
   $build_info or do {
@@ -618,7 +618,7 @@ sub copy_from_cache {
 
   # If the target directory doesn't already exist, then we assume that the
   # rule would have created it.
-  Mpp::Cmds::c_mkdir( '-p', FileInfo::absolute_filename_nolink( $output_finfo->{'..'} ));
+  Mpp::Cmds::c_mkdir( '-p', Mpp::File::absolute_filename_nolink( $output_finfo->{'..'} ));
 
 # It's a real file.  If it's on the same file system, make it an extra hard
 # link since that's faster and takes up almost no disk space.  Otherwise, copy the
@@ -635,7 +635,7 @@ sub copy_from_cache {
     my ($size, $mtime);
     # TBD: Maybe we shouldn't fall back to copying if link fails.  There
     # should be a warning at least.
-    if( $self->{DEV} == ((FileInfo::stat_array $output_finfo->{'..'})->[FileInfo::STAT_DEV] || 0)
+    if( $self->{DEV} == ((Mpp::File::stat_array $output_finfo->{'..'})->[Mpp::File::STAT_DEV] || 0)
 	&& !$::force_bc_copy &&
 				  # Same file system?
 	link($self->{FILENAME}, $output_fname)) {
@@ -671,7 +671,7 @@ sub copy_from_cache {
       return undef;
     }
     if($md5) {
-      # Digest key and format needs to match Signature::md5
+      # Digest key and format needs to match Mpp::Signature::md5
       my $md5sum = $build_info->{MD5_SUM} or do {
         $$reason = 'no stored MD5 in cached build info file (OK)';
         return undef;
@@ -687,27 +687,27 @@ sub copy_from_cache {
 #
 # Now restore the build info:
 #
-    FileInfo::may_have_changed( $output_finfo );
+    Mpp::File::may_have_changed( $output_finfo );
     $output_finfo->{BUILD_INFO} = $build_info;
-    FileInfo::set_build_info_string( $output_finfo, 'LINKED_TO_CACHE', $link_to_build_cache);
+    Mpp::File::set_build_info_string( $output_finfo, 'LINKED_TO_CACHE', $link_to_build_cache);
 				  # Remember if it's a link to something in
 				  # the build cache.
 
     # Need to match build info signature to file signature, or else build info
     # will be ignored.  This has the drawback that targets that don't use an MD5
     # signature for this file as a dependency will think it has changed.
-    FileInfo::set_build_info_string( $output_finfo, 'SIGNATURE', FileInfo::signature( $output_finfo ));
+    Mpp::File::set_build_info_string( $output_finfo, 'SIGNATURE', Mpp::File::signature( $output_finfo ));
 
     # Update the DEP_SIGS that aren't MD5-based, so that the target will still
     # look up-to-date the next time we run makepp.
     $rule->build_check_method->update_dep_sigs($output_finfo, $rule);
 
-    FileInfo::mark_build_info_for_update( $output_finfo );
-    &FileInfo::update_build_infos; # Write out the build cache right now.
+    Mpp::File::mark_build_info_for_update( $output_finfo );
+    &Mpp::File::update_build_infos; # Write out the build cache right now.
     1				# No error.
   };
   my $error = $@;
-  $result or eval { FileInfo::unlink( $output_finfo ) }; # Clean up on error
+  $result or eval { Mpp::File::unlink( $output_finfo ) }; # Clean up on error
   $::critical_sections--;
   ::propagate_pending_signals();
   die $error if $error;

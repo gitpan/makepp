@@ -1,14 +1,15 @@
+# $Id: Glob.pm,v 1.32 2009/02/09 22:07:39 pfeiffer Exp $
+
 package Mpp::Glob;
 
-# $Id: Mpp::Glob.pm,v 1.31 2008/09/28 22:05:52 pfeiffer Exp $
 use strict;
 
-use FileInfo qw(file_info chdir absolute_filename relative_filename $CWD_INFO);
+use Mpp::File qw(file_info chdir absolute_filename relative_filename $CWD_INFO);
 
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(chdir);	# Force our caller to use our chdir sub that
-				# we inherit from FileInfo.
+				# we inherit from Mpp::File.
 our @EXPORT_OK = qw(zglob zglob_fileinfo $allow_dot_files wildcard_action needed_wildcard_action);
 
 use strict;
@@ -56,7 +57,7 @@ matches.
 The second argument to C<zglob> is the default directory, which is used if you
 specify a relative file name.  If not specified, uses the current default
 directory.  C<zglob> doesn't repeatedly call Cwd::cwd to get the directory;
-instead, it uses the FileInfo package to track the current directory.  (This
+instead, it uses the Mpp::File package to track the current directory.  (This
 means that it overrides C<chdir> in your module to be something that stores
 the current directory.)
 
@@ -68,8 +69,8 @@ or (as with the shell) by specifing a leading . in the wildcard pattern (e.g.,
 C<zglob> only returns files that exists and are readable, or can be built.
 
 C<zglob> returns a list of file names.	It uses an internal subroutine,
-C<zglob_fileinfo>, which returns a list of FileInfo structures.	 See the
-FileInfo package for more details.
+C<zglob_fileinfo>, which returns a list of Mpp::File structures.	 See the
+Mpp::File package for more details.
 
 =cut
 
@@ -110,11 +111,11 @@ sub zglob_fileinfo {
   ::is_windows and
     s@^(?=[A-Za-z]:)@/@;	# If on windows, transform C: into /C: so it
 				# looks like it's in the root directory.
-  FileInfo::case_sensitive_filenames or
+  Mpp::File::case_sensitive_filenames or
     tr/A-Z/a-z/ unless		# Switch to lower case to avoid problems with
                                 # mixed case.
 
-    s@^/@@ and $startdir = $FileInfo::root; # If this is a rooted wildcard,
+    s@^/@@ and $startdir = $Mpp::File::root; # If this is a rooted wildcard,
 				# change to the top of the path.  Also,
 				# strip out the leading /.
   my @pieces = split /\/+/;	# Get the pieces of the filename, and
@@ -126,10 +127,10 @@ sub zglob_fileinfo {
 
   while ($_ = shift @pieces) {
     @candidate_dirs = $dont_follow_soft ?
-      grep($_->{DIRCONTENTS} && !FileInfo::is_symbolic_link( $_ ) ||
-	   FileInfo::is_or_will_be_dir( $_ ),
+      grep($_->{DIRCONTENTS} && !Mpp::File::is_symbolic_link( $_ ) ||
+	   Mpp::File::is_or_will_be_dir( $_ ),
 	   @new_candidates) :
-      grep($_->{DIRCONTENTS} || FileInfo::is_or_will_be_dir( $_ ), @new_candidates);
+      grep($_->{DIRCONTENTS} || Mpp::File::is_or_will_be_dir( $_ ), @new_candidates);
 				# Discard everything that isn't a directory,
 				# since we have to look for files in it.
 				# (Note that we will return files that are
@@ -139,7 +140,7 @@ sub zglob_fileinfo {
 				# We have to do this before scanning the
 				# directory, since loading the makefile
 				# may make extra files appear.
-      Makefile::implicitly_load($_) for @candidate_dirs;
+      Mpp::Makefile::implicitly_load($_) for @candidate_dirs;
     }
 
 
@@ -174,7 +175,7 @@ sub zglob_fileinfo {
 				# accepting them, or if they are explicitly
 				# specified.
       for( @candidate_dirs ) { # Look for the file in each of the possible directories.
-	$_->{READDIR} or FileInfo::read_directory( $_ ); # Load the list of filenames.
+	$_->{READDIR} or Mpp::File::read_directory( $_ ); # Load the list of filenames.
 				# This also correctly sets the EXISTS flag
 	# Sometimes DIRCONTENTS changes inside this loop, which messes up
 	# the 'each' operator.  The fix is to make a static copy:
@@ -187,7 +188,7 @@ sub zglob_fileinfo {
 	    warn 'Wildcard not matching `', absolute_filename( $finfo ), "' because it contains a comma\n";
 	    next;
 	  }
-	  FileInfo::exists_or_can_be_built( $finfo, @phony_expr ) and # File must exist, or
+	  Mpp::File::exists_or_can_be_built( $finfo, @phony_expr ) and # File must exist, or
 	    push @new_candidates, $finfo;
 	}
       }
@@ -205,9 +206,9 @@ sub zglob_fileinfo {
 	push @new_candidates, $dir;
       }
       else {
-	$dir->{READDIR} or FileInfo::read_directory( $dir ); # Load the list of filenames.
+	$dir->{READDIR} or Mpp::File::read_directory( $dir ); # Load the list of filenames.
 	my $finfo = $dir->{DIRCONTENTS}{$file_regex_or_name}; # See if this entry exists.
-	$finfo && FileInfo::exists_or_can_be_built( $finfo, @phony_expr ) &&
+	$finfo && Mpp::File::exists_or_can_be_built( $finfo, @phony_expr ) &&
 	  push(@new_candidates, $finfo);
       }
     }
@@ -223,10 +224,10 @@ sub zglob_fileinfo {
 
   my @subdirs = Mpp::Glob::find_all_subdirs($dirinfo)
 
-Returns FileInfo structures for all the subdirectories immediately under
+Returns Mpp::File structures for all the subdirectories immediately under
 the given directory.  These subdirectories might not exist yet; we return
-FileInfo structures for any FileInfo for which has been treated as a
-directory in calls to FileInfo::file_info.
+Mpp::File structures for any Mpp::File for which has been treated as a
+directory in calls to Mpp::File::file_info.
 
 We do not follow symbolic links.  This is necessary to avoid infinite
 recursion and a lot of other bad things.
@@ -246,20 +247,20 @@ sub find_all_subdirs {
     undef $dirinfo->{SCANNED_FOR_SUBDIRS};
 				# Don't do this again, because we may have
 				# to stat a lot of files.
-    if( &FileInfo::is_dir ) {	# Don't even try to do this if this directory
+    if( &Mpp::File::is_dir ) {	# Don't even try to do this if this directory
 				# itself doesn't exist yet.
 
-      FileInfo::mark_as_directory $_ # Make sure that it's tagged as a directory.
+      Mpp::File::mark_as_directory $_ # Make sure that it's tagged as a directory.
 	for find_real_subdirs( $dirinfo );
     }
   }
 
 #
-# Now return a list of FileInfo structures that have a DIRCONTENTS field.
+# Now return a list of Mpp::File structures that have a DIRCONTENTS field.
 #
   grep {
     $_->{DIRCONTENTS} and
-      !FileInfo::is_symbolic_link $_; # Don't return symbolic links, or else
+      !Mpp::File::is_symbolic_link $_; # Don't return symbolic links, or else
 				# we can get in trouble with infinite recursion.
   } values %{$dirinfo->{DIRCONTENTS}};
 }
@@ -268,7 +269,7 @@ sub find_all_subdirs {
 # This is an internal subroutine which finds all the subdirectories of a given
 # directory as fast as possible.  Unlike find_all_subdirs, this will only
 # return the subdirectories that currently exist; it will not return
-# subdirectories which don't yet exist but have valid FileInfo structures.
+# subdirectories which don't yet exist but have valid Mpp::File structures.
 #
 sub find_real_subdirs {
   my $dirinfo = $_[0];	# Get the directory to search.
@@ -279,23 +280,23 @@ sub find_real_subdirs {
 # means that we can know without statting any files whether there are any
 # subdirectories.
 #
-  my $dirstat = &FileInfo::dir_stat_array;
+  my $dirstat = &Mpp::File::dir_stat_array;
   my $expected_subdirs = 0;
-  defined($dirstat->[FileInfo::STAT_NLINK]) and	# If this directory doesn't exist, then it
+  defined($dirstat->[Mpp::File::STAT_NLINK]) and	# If this directory doesn't exist, then it
 				# doesn't have subdirectories.
-    $expected_subdirs = $dirstat->[FileInfo::STAT_NLINK]-2;
+    $expected_subdirs = $dirstat->[Mpp::File::STAT_NLINK]-2;
 				# Note that if we're on a samba-mounted
 				# file system, $expected_subdirs will be -1
 				# since it doesn't keep a link count.
 
   $expected_subdirs or return (); # Don't even bother looking if this is a
 				# leaf directory.
-  $dirinfo->{READDIR} or &FileInfo::read_directory;
+  $dirinfo->{READDIR} or &Mpp::File::read_directory;
 				# Load all the files known in the directory.
 
   my @subdirs;			# Where we build up the list of subdirectories.
   for( values %{$dirinfo->{DIRCONTENTS}} ) {
-    if( $_->{LSTAT} && FileInfo::is_dir( $_ )) {
+    if( $_->{LSTAT} && Mpp::File::is_dir( $_ )) {
       push @subdirs, $_		# Note this directory.
 	unless /^\./ && !$Mpp::Glob::allow_dot_files;
 				# Skip dot directories.
@@ -354,7 +355,7 @@ sub find_real_subdirs {
   for( @l1, @l2, @l3, @l4 ) {
     my $finfo = $dirinfo->{DIRCONTENTS}{$_};
 				# Look at each file in the directory.
-    if( FileInfo::is_dir $finfo ) {
+    if( Mpp::File::is_dir $finfo ) {
       push @subdirs, $finfo	# Note this directory.
 	unless /^\./ && !$Mpp::Glob::allow_dot_files;
 				# Skip dot directories.
@@ -370,7 +371,7 @@ sub find_real_subdirs {
 
   my @subdirs = Mpp::Glob::find_all_subdirs_recursively($dirinfo);
 
-Returns FileInfo structures for all the subdirectories of the given
+Returns Mpp::File structures for all the subdirectories of the given
 directory, or subdirectories of subdirectories of that directory,
 or....
 
@@ -473,14 +474,14 @@ sub wild_to_regex {
 	substr $file_regex, 0, 0, '^' if $anchor & 1;
 	$file_regex .= '$' if $anchor > 1; # Cheaper than: & 2
       }
-      return $regexp_cache[$anchor]{$_} = FileInfo::case_sensitive_filenames ?
+      return $regexp_cache[$anchor]{$_} = Mpp::File::case_sensitive_filenames ?
 	qr/$file_regex/ :
 	qr/$file_regex/i;	# Make it case insensitive.
     }
   }
 
   s/\\(.)/$1/g;			# Unquote any backslashed characters.
-  FileInfo::case_sensitive_filenames ?
+  Mpp::File::case_sensitive_filenames ?
     $_ :
     lc;				# Not case sensitive--switch to lc.
 }
@@ -501,7 +502,7 @@ dependencies.  Usage:
 The subroutine is called once for each file that matches the wildcards.	 If at
 some later time, files which match the wildcard are created (or we find rules
 to build them), then the subroutine is called again.  (Internally, this is done
-by FileInfo::publish, which is called automatically whenever a file which
+by Mpp::File::publish, which is called automatically whenever a file which
 didn't used to exist now exists, or whenever a build rule is specified for a
 file which does not currently exist.)
 
@@ -512,7 +513,7 @@ argument to the subroutine to determine whether there was actually a wildcard
 or not, if you need to know.
 
 As with Mpp::Glob::zglob, wildcard_action will match files in directories which
-don't yet exist, as long as the appropriate FileInfo structures have been put
+don't yet exist, as long as the appropriate Mpp::File structures have been put
 in by calls to file_info().
 
 Of course, there are ways of creating new files which will not be detected by
@@ -569,13 +570,13 @@ sub wildcard_action {
     my @file_pieces = split(/\/+/, $filename);
 				# Break up into directories.
     if ($file_pieces[0] eq '') { # Was there a leading slash?
-      $initial_finfo = $FileInfo::root; # Start at the root.
+      $initial_finfo = $Mpp::File::root; # Start at the root.
       shift @file_pieces;	# Discard the leading slash.
     }
 
     while( @file_pieces ) {	# Loop through leading non-wildcarded dirs:
       if( $file_pieces[0] eq '..' ) { # Common trivial case
-	$initial_finfo = $initial_finfo->{'..'} || $FileInfo::root;
+	$initial_finfo = $initial_finfo->{'..'} || $Mpp::File::root;
       } else {
 	my $name_or_regex = $file_pieces[0] =~ /[[?*]/ ? wild_to_regex( $file_pieces[0] ) : $file_pieces[0];
 	last if ref $name_or_regex; # Quit if we hit the first wildcard.
@@ -586,7 +587,7 @@ sub wildcard_action {
     }
 
 #
-# At this point, $initial_finfo is the FileInfo entry for the file that
+# At this point, $initial_finfo is the Mpp::File entry for the file that
 # matches the leading non-wildcard directories.
 #
     if (@file_pieces == 0) {	# Is there anything left?
