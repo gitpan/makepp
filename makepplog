@@ -1,8 +1,9 @@
 #!/usr/bin/perl -w
+# $Id: makepplog,v 1.30 2009/02/10 22:55:49 pfeiffer Exp $
+
+package Mpp;
 
 use strict;
-
-# $Id: makepplog,v 1.29 2009/02/09 22:07:39 pfeiffer Exp $
 
 # Shall we put a period after each message?  Or once for all before the \n when printing?
 my %log_msg =
@@ -101,7 +102,7 @@ my %log_msg =
  );
 
 # This list contains a hashref for every logging version, which is the list
-# index.  Logging versions must be incremented in makepp's ::log function
+# index.  Logging versions must be incremented in makepp's Mpp::log function
 # every time one or more symbol's meaning changes incompatibly.  Removing a
 # symbol, e.g. when renaming it, only requires moving the element from
 # %log_msg to $obsolete_msg[<current log version>].  But if a change to the

@@ -1,4 +1,4 @@
-# $Id: Verilog.pm,v 1.18 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Verilog.pm,v 1.19 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -69,7 +69,7 @@ sub resolve_module {
   $visited ||= {};
   return 1 if $self->{RESOLVED}{$module};
   my $map=$self->{MODULE_MAP}{$module};
-  #::print_log("RESOLVING: $module");
+  #Mpp::print_log("RESOLVING: $module");
   if($map) {
     my ($nfinfo, @map)=@$map;
     for(@map) {
@@ -88,7 +88,7 @@ sub resolve_module {
     $self->include($cp, "vlog", $module, $finfo) or return undef;
   }
   $self->{RESOLVED}{$module}=1;
-  #::print_log("RESOLVED: $module");
+  #Mpp::print_log("RESOLVED: $module");
   return 1;
 }
 
@@ -280,7 +280,7 @@ sub xscan_file {
 				# Do nothing
 	}
 	elsif($module) {
-				#::print_log("INSTANCE: $imodule IN $module");
+				#Mpp::print_log("INSTANCE: $imodule IN $module");
 	  push(@{$self->{MODULE_MAP}{$module}},
 	    $imodule
 	  );

@@ -2,6 +2,9 @@
 #
 # See bottom of file for documentation.
 #
+
+package Mpp;
+
 use Config;
 use Cwd;
 use File::Path;
@@ -522,7 +525,7 @@ foreach $archive (@ARGV) {
       chop( my $loc = $@ );
       dot $1 || '-', "$loc $testname\n";
       if( !$dirtest ) {
-	$@ = '' if ::is_perl_5_6;
+	$@ = '' if Mpp::is_perl_5_6;
 	execute 'cleanup_script', ">$log";
 	chdir $old_cwd;		# Get back to the old directory.
 	slow_rmtree $tdir;	# Get rid of the test directory.

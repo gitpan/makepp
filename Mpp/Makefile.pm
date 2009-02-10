@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.129 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.130 2009/02/10 22:55:49 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_action needed_wildcard_action);
@@ -260,7 +260,7 @@ sub expand_expression {
   } elsif( $expr =~ /^([-.\w]+)\s+(.*)/s ) {
 				# Does it begin with a leading word,
 				# so it must be a function?
-    local $::makefile = $self;	# Pass the function a reference to the
+    local $Mpp::makefile = $self;	# Pass the function a reference to the
 				# makefile.
     my( $rtn, $rest_of_line ) = ($1, $2);
     my $orig = $rtn;
@@ -417,7 +417,7 @@ sub expand_variable {
 # 5th attempt, no varref beyond here, because these things are not ;= assigned:
     defined( $result = $self->{COMMAND_LINE_VARS}{$var} ) ||
 				# Try to get it from the command line.
-      $::environment_override && defined( $result = $self->{ENVIRONMENT}{$var} )
+      $Mpp::environment_override && defined( $result = $self->{ENVIRONMENT}{$var} )
 				# Or from the environment·
       and last;
 
@@ -428,11 +428,11 @@ sub expand_variable {
     $fn = $fn =~ tr/-/_/ && *{$fn}{CODE} || # Convert - to _ so it's more perl friendly.
       *{$orig}{CODE};
     if( defined $fn ) {	# Defined in the makefile?
-      my $tmp = !$::environment_override && $self->{ENVIRONMENT}{$var};
+      my $tmp = !$Mpp::environment_override && $self->{ENVIRONMENT}{$var};
       if( $tmp && $fn == *{"Mpp::Subs::f_$var"}{CODE} ) {
 	$result = $tmp;
       } else {
-	local $::makefile = $self; # Pass the function a reference to the makefile.
+	local $Mpp::makefile = $self; # Pass the function a reference to the makefile.
 	$result = &$fn( '', $self, $makefile_line ) and
 	  $reexpand = 0;	# It was a := variable.
       }
@@ -440,7 +440,7 @@ sub expand_variable {
     last if defined $result;	# Did we find it?
 
 # 7th attempt if env not handled above:
-    !$::environment_override && defined( $result = $self->{ENVIRONMENT}{$var} )
+    !$Mpp::environment_override && defined( $result = $self->{ENVIRONMENT}{$var} )
 				# Or from the environment·
       and last;
 
@@ -482,7 +482,7 @@ sub find_makefile_in {
 				# This can be important if this is the first time
 				# we've seen this directory.
 
-  local $::implicitly_load_makefiles = 0;
+  local $Mpp::implicitly_load_makefiles = 0;
 				# Don't let this trigger a makefile load.
 
   for( @root_makefiles, qw(Makeppfile Makeppfile.mk), $_[1] ? () : qw(makefile Makefile) ) {
@@ -499,7 +499,7 @@ sub find_makefile_in {
 # Argument: the Mpp::File structure for the relevant directory.
 #
 sub implicitly_load {
-  $::implicitly_load_makefiles or return;
+  $Mpp::implicitly_load_makefiles or return;
 				# Don't do anything if we don't implicitly
 				# load makefiles from directories.
 
@@ -526,9 +526,9 @@ sub implicitly_load {
   eval { load($dirinfo, $dirinfo,
 	      $global_command_line_vars,
 	      '',
-	      \@::makepp_include_path,
-	      \%::global_ENV,
-	      $::implicit_load_makeppfile_only) };
+	      \@Mpp::makepp_include_path,
+	      \%Mpp::global_ENV,
+	      $Mpp::implicit_load_makeppfile_only) };
 				# Try to load the makefile.
   $dirinfo->{MAKEINFO} ||= undef;
 				# Remember that we tried to load something,
@@ -721,13 +721,13 @@ sub load {
 				# makefile from this directory.
 				# This prevents recursion with implicitly
 				# loading a makefile.
-  $minfo = ::MAKEPP && find_makefile_in( $minfo, $makeppfile_only ) ||
+  $minfo = Mpp::MAKEPP && find_makefile_in( $minfo, $makeppfile_only ) ||
 				# Find a makefile.
 #
 # If there's no makefile, then load the default makefile as if it existed in
 # that directory.
 #
-    ($makepp_default_makefile ||= Mpp::File::path_file_info "$::datadir/makepp_default_makefile.mk")
+    ($makepp_default_makefile ||= Mpp::File::path_file_info "$Mpp::datadir/makepp_default_makefile.mk")
     if $is_dir;
   if( grep { $_ eq $minfo->{NAME} } @root_makefiles ) {
     find_root_makefile_upwards $mdinfo->{'..'};
@@ -740,7 +740,7 @@ sub load {
   } else {			# Look upwards for root makefile.
     my $rootmf = find_root_makefile_upwards $mdinfo->{'..'};
     $mdinfo->{ROOT} = $mdinfo->{'..'}{ROOT};
-    load( $rootmf, 0, @_[2..6] ) if ::MAKEPP && $rootmf; # Load this one first.
+    load( $rootmf, 0, @_[2..6] ) if Mpp::MAKEPP && $rootmf; # Load this one first.
   }
 
   my $mpackage;
@@ -791,28 +791,28 @@ sub load {
 
     $mpackage = $self->{PACKAGE};
     if($autoload) {
-      print "$::progname: Autoloading makefile `" . absolute_filename( $minfo ) . "'\n" unless $::quiet_flag;
-      ::log LOAD => $minfo, $mdinfo
-	if $::log_level;
+      print "$Mpp::progname: Autoloading makefile `" . absolute_filename( $minfo ) . "'\n" unless $Mpp::quiet_flag;
+      Mpp::log LOAD => $minfo, $mdinfo
+	if $Mpp::log_level;
     }
     else {
-      delete $::{$mpackage . '::'}; # Wipe the whole package.
+      delete $Mpp::{$mpackage . '::'}; # Wipe the whole package.
 
-      if( $::log_level || !$::quiet_flag ) {
-	print "$::progname: Reloading makefile `" . absolute_filename( $minfo ) . "'\n" unless $::quiet_flag;
-	::log LOAD_AGAIN => $minfo, $var_changed, $mdinfo
-	  if $::log_level;
+      if( $Mpp::log_level || !$Mpp::quiet_flag ) {
+	print "$Mpp::progname: Reloading makefile `" . absolute_filename( $minfo ) . "'\n" unless $Mpp::quiet_flag;
+	Mpp::log LOAD_AGAIN => $minfo, $var_changed, $mdinfo
+	  if $Mpp::log_level;
       }
     }
   }
   else {			# Loading a new makefile:
     if ($minfo->{NAME} eq 'makepp_default_makefile.mk') {
-      ::log LOAD_DEFAULT => $mdinfo
-	if $::log_level;
+      Mpp::log LOAD_DEFAULT => $mdinfo
+	if $Mpp::log_level;
     } else {
-      print "$::progname: Loading makefile `" . absolute_filename( $minfo ) . "'\n" unless $::quiet_flag;
-      ::log LOAD => $minfo, $mdinfo
-	if $::log_level;
+      print "$Mpp::progname: Loading makefile `" . absolute_filename( $minfo ) . "'\n" unless $Mpp::quiet_flag;
+      Mpp::log LOAD => $minfo, $mdinfo
+	if $Mpp::log_level;
     }
 
     $mpackage = 'makefile_' . $package_seed++;
@@ -855,7 +855,7 @@ sub load {
 # it to do it the old way.
 #
   if ($minfo->{NAME} ne 'makepp_default_makefile.mk') {
-    wait_for ::build($minfo) and die "Failed to build ". absolute_filename( $minfo );
+    wait_for Mpp::build($minfo) and die "Failed to build ". absolute_filename( $minfo );
 				# Build the makefile, using what rules we
 				# know from outside the makefile.  This may
 				# also load it from a repository.
@@ -867,7 +867,7 @@ sub load {
   chdir( $mdinfo );		# Get in the correct directory for wildcard
 				# action routines.
 
-  if( ::MAKEPP ) {
+  if( Mpp::MAKEPP ) {
 #
 # Read in the makefile, except in makeppreplay:
 #
@@ -881,10 +881,10 @@ sub load {
     }
     read_makefile($self, $minfo); # Read this makefile (possibly again).
     unless( expand_variable $self, 'makepp_no_builtin' ) {
-      $makepp_builtin_rules ||= Mpp::File::path_file_info "$::datadir/makepp_builtin_rules.mk";
+      $makepp_builtin_rules ||= Mpp::File::path_file_info "$Mpp::datadir/makepp_builtin_rules.mk";
       read_makefile( $self, $makepp_builtin_rules );
-      ::log LOAD_INCL => $makepp_builtin_rules, $minfo
-	if $::log_level;
+      Mpp::log LOAD_INCL => $makepp_builtin_rules, $minfo
+	if $Mpp::log_level;
     }
   }
 
@@ -894,17 +894,17 @@ sub load {
   if( defined $Mpp::Recursive::traditional ) {
     my @words =			# Pass commnd line variables down.
       map { "$_=" . requote($command_line_vars->{$_}) } keys %$command_line_vars;
-    $::keep_going and
+    $Mpp::keep_going and
       push @words, '-k';
-    $::sigmethod_name and
-      push @words, "-m $::sigmethod_name";
-    $::build_check_method_name ne 'exact_match' and
-      push @words, "--build_check $::build_check_method_name";
-    $::implicitly_load_makefiles or
+    $Mpp::sigmethod_name and
+      push @words, "-m $Mpp::sigmethod_name";
+    $Mpp::build_check_method_name ne 'exact_match' and
+      push @words, "--build_check $Mpp::build_check_method_name";
+    $Mpp::implicitly_load_makefiles or
       push @words, '--noimplicit-load';
-    $::log_level < 2 and
-      push @words, $::log_level ? '-v' : '--nolog';
-    $::quiet_flag and
+    $Mpp::log_level < 2 and
+      push @words, $Mpp::log_level ? '-v' : '--nolog';
+    $Mpp::quiet_flag and
       push @words, '-q';
     defined $Mpp::Recursive::traditional and
       push @words, '--traditional-recursive-make';
@@ -934,29 +934,29 @@ sub load {
 # This must be done after setting up the EXPORTS variables above, because
 # makefile rebuilding might depend on that.
 #
-  if( ::MAKEPP && $::remake_makefiles && # This often causes problems, so we provide
+  if( Mpp::MAKEPP && $Mpp::remake_makefiles && # This often causes problems, so we provide
 				# a way of turning it off.
       $minfo->{NAME} ne 'makepp_default_makefile.mk' ) {
-    my $old_n_files = $::n_files_changed;
+    my $old_n_files = $Mpp::n_files_changed;
     # If there isn't a rule for the Makefile at this point, then it has already
     # been re-generated, or there isn't a rule to be found.  In the first case
     # we might fail to re-rebuild it, and either way we don't need to.
     if($minfo->{RULE}) {
       require Mpp::BuildCheck::target_newer; # Make sure the method is loaded.
-      local $::default_build_check_method = $Mpp::BuildCheck::target_newer::target_newer;
+      local $Mpp::default_build_check_method = $Mpp::BuildCheck::target_newer::target_newer;
 				# Use the target_newer technique for rebuilding
 				# makefiles, since makefiles are often modified
 				# by programs like configure which aren't
 				# under the control of make.
-      wait_for ::build($minfo) and # Try to rebuild the makefile.
+      wait_for Mpp::build($minfo) and # Try to rebuild the makefile.
 	die "can't find or build " . absolute_filename( $minfo ) . "\n";
     }
-    if ($old_n_files != $::n_files_changed) {
+    if ($old_n_files != $Mpp::n_files_changed) {
 				# Did we change anything?
       $self->{ENVIRONMENT} = { I_rebuilt_it => 'FORCE RELOAD'};
 				# Wipe out the environment, so we force a
 				# reload.
-      local $::remake_makefiles = 0; # Don't try to keep on remaking the
+      local $Mpp::remake_makefiles = 0; # Don't try to keep on remaking the
 				# makefile.
       return &load;		# Call ourselves with the same arguments to
 				# force rereading the makefile.
@@ -975,8 +975,8 @@ sub load {
     }
     print $fh "#####\n";
   }
-  ::log LOAD_END => $minfo
-    if $::log_level;
+  Mpp::log LOAD_END => $minfo
+    if $Mpp::log_level;
 
   $minfo->{BUILD_HANDLE} ||= undef; # Remember not to rebuild it.
   $self;
@@ -1029,13 +1029,13 @@ sub assign {
   my( $self, $name, $type, $value, $override, $makefile_line, $sep, $private ) = @_;
   return $self if !$override and
     exists $self->{COMMAND_LINE_VARS}{$name} ||
-    $::environment_override && exists $self->{ENVIRONMENT}{$name};
+    $Mpp::environment_override && exists $self->{ENVIRONMENT}{$name};
                                 # Don't even evaluate variables whose
                                 # definition is overridden on the command line.
                                 # This allows a user to override buggy
                                 # read-only makefiles.
 
-  $::warn_level && $name eq 'MAKE' and
+  $Mpp::warn_level && $name eq 'MAKE' and
     warn "MAKE redefined at `$makefile_line', recursive make won't work as expected\n";
 
   if( $type == ord '?' ) {
@@ -1229,7 +1229,7 @@ sub parse_rule {
   my ($self, $makefile_line, $makefile_line_dir, $is_double_colon, $target_string, @after_colon) = @_;
 				# Name the arguments.
 
-  local $::implicitly_load_makefiles = 0 if $self->{RECURSIVE_MAKE};
+  local $Mpp::implicitly_load_makefiles = 0 if $self->{RECURSIVE_MAKE};
 				# Turn off implicit makefile loading if there
 				# is an invocation of recursive make in this
 				# file.	 (This is not passed to the wildcard
@@ -1591,8 +1591,8 @@ sub parse_rule {
       # currently be done because then we'd have the same rule twice, giving a
       # warning.
 
-      local $::implicitly_load_makefiles = ($self->{RECURSIVE_MAKE} ? 0 :
-						$::implicitly_load_makefiles);
+      local $Mpp::implicitly_load_makefiles = ($self->{RECURSIVE_MAKE} ? 0 :
+						$Mpp::implicitly_load_makefiles);
 				# Turn off implicit makefile loading if there
 				# is an invocation of recursive make in this
 				# file.	 (This is not passed to the wildcard.)
@@ -1857,8 +1857,8 @@ sub read_makefile {
   if( !$c_preprocess ) {
     if ($makefile_contents =~ /^\# Makefile\.in generated by automake/) {
       require Mpp::AutomakeFixer;	# Load the automake fixing stuff.
-      ::log LOAD_AUTOMAKE => $minfo
-	if $::log_level;
+      Mpp::log LOAD_AUTOMAKE => $minfo
+	if $Mpp::log_level;
       $makefile_contents =
 	Mpp::AutomakeFixer::remove_automake_junk($makefile_contents);
                                 # Clean out the crap that automake puts in for
@@ -1867,8 +1867,8 @@ sub read_makefile {
 
     # TBD: Shouldn't we at least exclude *comments* from the grep?
     if( $makefile_contents =~ /\$[({]MAKE[})]/ ) {
-      ::log LOAD_REC => $minfo
-	if $::log_level;
+      Mpp::log LOAD_REC => $minfo
+	if $Mpp::log_level;
       $self->{RECURSIVE_MAKE} = 1;
 				# If there's a recursive invocation of make,
 				# remember this so we can turn off implicit
@@ -2138,10 +2138,10 @@ sub _truthval($$) {
 				# the quotes.
     }
 				# Remove the quotes and compare.
-    if( $::log_level ) {
+    if( $Mpp::log_level ) {
       $a = unquote $a;
       $b = unquote $b;
-      ::log IFEQ => $a, $b, $file;
+      Mpp::log IFEQ => $a, $b, $file;
       $truthval = $a eq $b;
     } else {
       $truthval = unquote( $a ) eq unquote $b;
@@ -2151,7 +2151,7 @@ sub _truthval($$) {
     unless( %sys ) {		# First such, initialize.
       @sys{$^O, @Config::Config{qw(archname myarchname)}} = ();
       @sys{split " ", `uname -mps` || ''} = ()
-	if ::is_windows < 2;
+	if Mpp::is_windows < 2;
     }
   REGEX:
     for( split_on_whitespace $line ) {

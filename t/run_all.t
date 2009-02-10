@@ -1,5 +1,7 @@
 #! /usr/bin/perl -w
 
+package Mpp;
+
 chdir 't';			# failure ignored, when called from here
 
 my %c;				# CC=gehtnich CXX=gehtnich ./run_all.pl

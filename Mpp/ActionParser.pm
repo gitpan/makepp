@@ -1,4 +1,4 @@
-# $Id: ActionParser.pm,v 1.38 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: ActionParser.pm,v 1.39 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -151,10 +151,10 @@ sub parse_rule {
       my $cmd = unquote +(split_on_whitespace $action)[0];
       my $makefile_cmd = $rule->{MAKEFILE}{PACKAGE} . "::c_$cmd";
       if( defined &$makefile_cmd ) { # Function directly or indirectly from makefile?
-	require B if !::is_perl_5_6;
+	require B if !Mpp::is_perl_5_6;
 	my $cwd = $rule->build_cwd;
 	add_simple_dependency( '.', $cwd, $rule,
-			       relative_filename ::is_perl_5_6 ?
+			       relative_filename Mpp::is_perl_5_6 ?
 				 $rule->makefile->{MAKEFILE} :
 				 # For '.' this returns a relative name to where use was performed, but we might be somewhere else now :-(
 				 Mpp::File::path_file_info( B::svref_2object( \&$makefile_cmd )->FILE, $cwd ),
@@ -167,7 +167,7 @@ sub parse_rule {
 	my $finfo = file_info $cmd, $rule->makefile->{CWD}; # Relative path.
 	$finfo = file_info Mpp::Subs::f_find_program( $cmd, $rule->makefile, $rule->{RULE_SOURCE} ),
 	  $rule->makefile->{CWD}	# Find in $PATH.
-	  if ($cmd !~ /\// || ::is_windows > 1 && $cmd !~ /\\/) && !Mpp::File::exists_or_can_be_built $finfo;
+	  if ($cmd !~ /\// || Mpp::is_windows > 1 && $cmd !~ /\\/) && !Mpp::File::exists_or_can_be_built $finfo;
 	$rule->add_dependency( $finfo );
       }
       next;
@@ -260,7 +260,7 @@ sub parse_rule {
           ref($deps->[0]) eq 'Mpp::File' && # It's a file?
           $deps->[0]{NAME} =~ /\.c(?:|xx|\+\+|c|pp)$/i) {
                                 # Looks like C source code?
-        if ($main::warn_level) {
+        if( $Mpp::warn_level ) {
           warn 'action scanner not found for rule at `',
 	    $rule->source,
 	    "'\nalthough it seems to be a compilation command.
@@ -341,9 +341,9 @@ sub find_command_parser {
   my( undef, $command, $rule, $dir, $found ) = @_;
   my $firstword;
   if( ($firstword) = $command =~ /^\s*(\S+)/ ) {
-    if( ::is_windows < 2 && $firstword =~ /['"\\]/ ) {	# Cheap way was not good enough.
+    if( Mpp::is_windows < 2 && $firstword =~ /['"\\]/ ) {	# Cheap way was not good enough.
       ($firstword) = unquote +(split_on_whitespace $command)[0];
-    } elsif( ::is_windows > 1 && $firstword =~ /"/ ) {
+    } elsif( Mpp::is_windows > 1 && $firstword =~ /"/ ) {
       ($firstword) = split_on_whitespace $command;
       $firstword =~ tr/"//d;	# Don't unquote \, which is Win dir separator
     }
@@ -356,7 +356,7 @@ sub find_command_parser {
 				# First try it unmodified.
     unless( $parser ) {		# If that fails, strip out the
 				# directory path and try again.
-      $firstword =~ s@^.*/@@ || ::is_windows > 1 && $firstword =~ s@^.*\\@@ and  # Is there a directory path?
+      $firstword =~ s@^.*/@@ || Mpp::is_windows > 1 && $firstword =~ s@^.*\\@@ and  # Is there a directory path?
         $parser = $scanner_hash->{$firstword};
       $parser ||= $Mpp::Subs::scanners{$firstword} ||
 	$firstword =~ /gcc|g\+\+/ && \&Mpp::Subs::scanner_gcc_compilation;
@@ -370,8 +370,8 @@ sub find_command_parser {
       # This is assumed to mean that calling the %scanners value already
       # did the scanning.
       $parser=0;
-      ::log SCAN_UNCACHEABLE => $rule, $firstword
-	if $::log_level;
+      Mpp::log SCAN_UNCACHEABLE => $rule, $firstword
+	if $Mpp::log_level;
       $rule->mark_scaninfo_uncacheable;
     }
   } else {   # No parser:

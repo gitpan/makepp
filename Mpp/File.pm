@@ -1,4 +1,4 @@
-# $Id: File.pm,v 1.88 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: File.pm,v 1.89 2009/02/10 22:55:49 pfeiffer Exp $
 
 package Mpp::File;
 require Exporter;
@@ -166,19 +166,19 @@ BEGIN {
   my $done;
   if( exists $ENV{MAKEPP_CASE_SENSITIVE_FILENAMES} ) {
     *case_sensitive_filenames = $ENV{MAKEPP_CASE_SENSITIVE_FILENAMES} ? \&Mpp::Text::CONST1 : \&Mpp::Text::CONST0;
-    return if !::is_windows;
+    return if !Mpp::is_windows;
     $done = 1;
   }
   my $test_fname = '.makepp_test';
   substr $test_fname, 12, -1, substr rand, 1 while
     -e $test_fname || -e uc $test_fname or
-    ::is_windows and -e "$test_fname.exe" || -e uc "$test_fname.exe";
-  $test_fname .= '.exe' if ::is_windows;
+    Mpp::is_windows and -e "$test_fname.exe" || -e uc "$test_fname.exe";
+  $test_fname .= '.exe' if Mpp::is_windows;
   if( open my $fh, '>', $test_fname ) { # Create the file.
     close $fh;			# For unlinking on Windows.
   } else {
-    $stat_exe_separate = ::is_windows > 0;
-    *case_sensitive_filenames = ::is_windows ? \&Mpp::Text::CONST0 : \&Mpp::Text::CONST1
+    $stat_exe_separate = Mpp::is_windows > 0;
+    *case_sensitive_filenames = Mpp::is_windows ? \&Mpp::Text::CONST0 : \&Mpp::Text::CONST1
       unless $done;
     return;
 				# If that doesn't work for some reason, assume
@@ -189,7 +189,7 @@ BEGIN {
   *case_sensitive_filenames = -e uc $test_fname ? \&Mpp::Text::CONST0 : \&Mpp::Text::CONST1
     unless $done;
 				# Look for it with different case.
-  $stat_exe_separate = !-e substr $test_fname, 0, -4 if ::is_windows;
+  $stat_exe_separate = !-e substr $test_fname, 0, -4 if Mpp::is_windows;
   unlink $test_fname;
 }
 
@@ -284,7 +284,7 @@ sub absolute_filename {
     $_[0]{'..'}{FULLNAME} . '/' . $_[0]{NAME};
 				# All directories already have a cached name.
 
-  if( ::is_windows ) {
+  if( Mpp::is_windows ) {
     $fstr =~ s@^/(?=[A-Za-z]:)@@s;
 				# Convert /C: to C:.  We converted the other
 				# way so we could use unix file name syntax
@@ -315,7 +315,7 @@ sub absolute_filename_nolink {
   }
 
   return $ret_str
-    if ::is_windows and
+    if Mpp::is_windows and
     $ret_str =~ /^[A-Za-z]:/s;	# Leave initial C: without /.
 
   "/$ret_str";
@@ -428,7 +428,7 @@ before using the above code snippet.
 =cut
 
 sub file_info {
-  goto &path_file_info if ::is_windows ? $_[0] =~ /[\/\\]/ : $_[0] =~ /\//;
+  goto &path_file_info if Mpp::is_windows ? $_[0] =~ /[\/\\]/ : $_[0] =~ /\//;
   my $dinfo = $_[1] || $CWD_INFO;
   unless( exists $dinfo->{DIRCONTENTS} ) {
 				# If the DIRCONTENTS field doesn't exist, then
@@ -473,10 +473,10 @@ sub path_file_info {
 				# confounds with mix case.
   my $dinfo;			# The fileinfo we start from.
 
-  $file =~ tr|\\|/| if ::is_windows; # 'C:\temp/foo' is a valid file name
+  $file =~ tr|\\|/| if Mpp::is_windows; # 'C:\temp/foo' is a valid file name
 
   if( $file =~ s@^/+@@s ) {
-    if( ::is_windows && length( $file ) + 2 == length( $_[0] ) && $file =~ s@^([^/]+/[^/]+)/?@@s ) {
+    if( Mpp::is_windows && length( $file ) + 2 == length( $_[0] ) && $file =~ s@^([^/]+/[^/]+)/?@@s ) {
 				# If we get a //server/share syntax, treat the
 				# "/server/share" piece as one directory, since
 				# it is never legal to try to access //server
@@ -500,7 +500,7 @@ sub path_file_info {
     } else {
       $dinfo = $root;
     }
-  } elsif( ::is_windows && $file =~ /^[A-Z]:/is ) {
+  } elsif( Mpp::is_windows && $file =~ /^[A-Z]:/is ) {
     $dinfo = $root;		# Treat "C:" as if it's in the root directory.
   } else {
     $dinfo = $_[1] || $CWD_INFO;
@@ -866,7 +866,7 @@ destruction of build info, which is expensive to compute in some cases.
 
 =cut
 sub check_for_change {
-  return if $::gullible;
+  return if $Mpp::gullible;
   my $finfo = $_[0];
 
   my $sig_date_size;
@@ -1177,7 +1177,7 @@ sub publish {
       # my( $re, $wild_rtn, $deep ) = @$_;
       next unless $leaf || $_->[2];
       next if $fname !~ $_->[0];
-      if( $::rm_stale_files ) {
+      if( $Mpp::rm_stale_files ) {
 	$stale = &is_stale unless defined $stale;
 	next if $stale;
 	$finfo->{PUBLISHED} = 2;
@@ -1209,7 +1209,7 @@ $CWD_INFO = file_info cwd;
 				# Use the IDs of whoever owns the current directory,
   unless $>;			# if we running as root?
 
-$ENV{HOME} ||= (::is_windows > 0 ? $ENV{USERPROFILE} : eval { (getpwuid $<)[7] }) || '.';
+$ENV{HOME} ||= (Mpp::is_windows > 0 ? $ENV{USERPROFILE} : eval { (getpwuid $<)[7] }) || '.';
 dereference file_info $ENV{HOME};
 				# Make sure we get a symbolic name for the home directory.
 

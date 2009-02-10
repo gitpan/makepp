@@ -1,4 +1,4 @@
-# $Id: makepp_builtin_rules.mk,v 1.26 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: makepp_builtin_rules.mk,v 1.27 2009/02/10 22:55:49 pfeiffer Exp $
 # Please do NOT use this as an example of how to write a makefile.  This is
 # NOT A typical makefile.
 #
@@ -33,7 +33,7 @@ ifperl Mpp::File::case_sensitive_filenames
   #
   _CPP_SUFFIXES += C
 endif
-ifperl ::is_windows
+ifperl Mpp::is_windows
 
   iftrue $(filter %cl %cl.exe %bcc32 %bcc32.exe %fl %fl.exe, $(CC) $(CXX) $(FC))
     _OBJ_SUFFIX = .obj

@@ -1,4 +1,4 @@
-# $Id: BuildCacheControl.pm,v 1.24 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: BuildCacheControl.pm,v 1.25 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -31,7 +31,7 @@ BEGIN {
   *MTIME = sub() { 9 };
   *CTIME = sub() { 10 };
 
-  *::propagate_pending_signals = \&Mpp::Text::CONST0 unless defined &::propagate_pending_signals;
+  *Mpp::propagate_pending_signals = \&Mpp::Text::CONST0 unless defined &Mpp::propagate_pending_signals;
 
   no warnings;
   *ESTALE = \&Mpp::BuildCache::ESTALE; # Overridden on Win ActiveState.
@@ -322,7 +322,7 @@ sub c_clean {
 
     # Traverse desired filesystems
     local $clean_empty = 1;
-    local $::force_bc_copy = 1;
+    local $Mpp::force_bc_copy = 1;
     ARGVgroups {		# Might specify more than one group.
       # Special rule for incoming subdir:
       for( @group ) {
@@ -335,13 +335,13 @@ sub c_clean {
       my $delete = sub {
 	my $file = $_[0];	# Copy, because perform { } has own @_.
 	eval { Mpp::Cmds::perform { unlink $file } "delete `$file'" };
-	if( $::verbose ) {
+	if( $Mpp::verbose ) {
 	  if( $@ ) { warn $@ }
 	  else { ++$target_files_deleted }
 	}
 	if( @_ == 1 || unlink $_[1] ) {
 	  ++$build_info_files_deleted;
-	} elsif( $::verbose ) {
+	} elsif( $Mpp::verbose ) {
 	  warn "unlink $_[1]--$!\n";
 	}
       };
@@ -453,7 +453,7 @@ sub c_clean {
     };
 
     print "Deleted $target_files_deleted target files and $build_info_files_deleted build info files.\n"
-      if $::verbose;
+      if $Mpp::verbose;
   } ['a', qr/a(?:ccess[-_]?)?time/, \$atime, 1],
     $blendopt,
     ['c', qr/c(?:hange[-_]?)?time/, \$ctime, 1],
@@ -619,7 +619,7 @@ sub c_show {
   my $sort;
 
   Mpp::Cmds::frame {
-    warn "$0: ignoring --sort with --verbose\n" if defined $sort && $::verbose;
+    warn "$0: ignoring --sort with --verbose\n" if defined $sort && $Mpp::verbose;
     for( $pattern ) {
       last unless defined;
       s/([?*])/.$1/g;
@@ -653,7 +653,7 @@ sub c_show {
 	  [MEMBER => -57 - $offset, -1];
       }
       $sep = "MODE EL ${grtitle}UID      BI-UID        SIZE ${timetype}D ${timetype}DATE    ${timetype}TIME    MEMBER\n"
-	unless $::verbose;
+	unless $Mpp::verbose;
       groupfind {
 	return if $deletable && ($combined_lstat[EXTLINK] && defined $combined_lstat[BIUID])
 	  or defined $pattern && !/$pattern/;
@@ -670,9 +670,9 @@ sub c_show {
 	    $grinfo[ref() ? 0 : 1]++ if defined;
 	  }
 	}
-	if( $::verbose ) {
+	if( $Mpp::verbose ) {
 	  showfull \@combined_lstat, $_[1], $time, @grinfo;
-	  if( $::verbose > 1 ) { # Show each individual member.
+	  if( $Mpp::verbose > 1 ) { # Show each individual member.
 	    for( my $i = 0; $i < @lstats; $i++ ) {
 	      next unless defined $lstats[$i];
 	      my $file = "$_[0][$i]/$_";
@@ -721,7 +721,7 @@ sub c_show {
       if( @sort ) {
 	print $sort{$_} for sort keys %sort;
       }
-      $sep = "\f\n" if $::verbose;
+      $sep = "\f\n" if $Mpp::verbose;
     };
   } 'f', qw(o O),		# fails in 5.6: qw(f o O);
     ['a', qr/a(?:ccess[-_]?)?time/, \$atime],
@@ -867,7 +867,7 @@ sub c_stats {
 
 
 no warnings 'redefine';
-sub ::metahelp { print STDERR <<EOF }
+sub Mpp::metahelp { print STDERR <<EOF }
 usage:	makepp_build_cache_control command [option ...] directory ...
 	mppbcc command [option ...] directory ...
 	makeppbuiltin -MMpp::BuildCacheControl command [option ...] directory ...
@@ -876,7 +876,7 @@ usage:	makepp_build_cache_control command [option ...] directory ...
   to see options do:	makepp_build_cache_control command --help
 EOF
 
-sub ::helpfoot { die <<'EOF' }
+sub Mpp::helpfoot { die <<'EOF' }
 
 Look at @htmldir@/makepp_build_cache.html for more details,
 or at http://makepp.sourceforge.net/@BASEVERSION@/makepp_build_cache.html

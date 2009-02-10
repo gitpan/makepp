@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.32 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.33 2009/02/10 22:55:49 pfeiffer Exp $
 use strict;
 package Mpp::BuildCheck::exact_match;
 
@@ -109,9 +109,9 @@ sub _check_env {
       }
     }
     if( $log_level ) {
-      ::log BUILD_ENV_DEL => $tinfo, $old
+      Mpp::log BUILD_ENV_DEL => $tinfo, $old
 	if !$new;
-      ::log BUILD_ENV_ADD => $tinfo, $new
+      Mpp::log BUILD_ENV_ADD => $tinfo, $new
 	if !$old;
     }
     return 1 if !$new || !$old;
@@ -121,7 +121,7 @@ sub _check_env {
     my $name = shift(@save_env_list);
     my ($old, $new) = (shift(@old_env_vals), shift(@new_env_vals));
     if( $old ne $new ) {
-      ::log BUILD_ENV => $tinfo, $name, $new, $old
+      Mpp::log BUILD_ENV => $tinfo, $name, $new, $old
 	if $log_level;
       return 1;
     }
@@ -141,19 +141,19 @@ sub build_check {
   my( $last_cmd, $arch, $sorted_deps, $dep_sigs ) =
     Mpp::File::build_info_string $tinfo, qw(COMMAND ARCH SORTED_DEPS DEP_SIGS);
   unless( defined $tinfo->{BUILD_INFO} ) {
-    ::log BUILD_NONE => $tinfo
-      if $::log_level;
+    Mpp::log BUILD_NONE => $tinfo
+      if $Mpp::log_level;
     return 1;
   }
   unless( %{$tinfo->{BUILD_INFO}} || $only_action ) {
-    ::log BUILD_INVALID => $tinfo
-      if $::log_level;
+    Mpp::log BUILD_INVALID => $tinfo
+      if $Mpp::log_level;
     return 1;
   }
 
   unless( $ignore_action || $last_cmd && $command_string eq $last_cmd ) {
-    ::log BUILD_CMD => $tinfo, $last_cmd || '', $command_string
-      if $::log_level;
+    Mpp::log BUILD_CMD => $tinfo, $last_cmd || '', $command_string
+      if $Mpp::log_level;
     return 1;
   }
 
@@ -164,30 +164,30 @@ sub build_check {
 #
 
   $arch ||= '';
-  unless( ::ARCHITECTURE eq $arch || $ignore_architecture ) { # This bool is rarely true, so test it last.
+  unless( Mpp::ARCHITECTURE eq $arch || $ignore_architecture ) { # This bool is rarely true, so test it last.
 #
 # The pentium architectures are all more or less equivalent, but have different
 # architecture flags.  Give a warning (so at least the user is not surprised
 # about recompilation).
 #
     warn "last compilation was on the $arch architecture,
-  and this is on " . ::ARCHITECTURE . ".
+  and this is on " . Mpp::ARCHITECTURE . ".
   These are technically different and force a recompilation of everything,
   but this may not be what you want.  The difference is most likely caused
   by running a different copy of perl.\n"
-      if $::warn_level &&
-      (::ARCHITECTURE =~ /^i[34567]86-linux/ && $arch =~ // || ::ARCHITECTURE =~ /^(\w+-\w+)/ && $arch =~ /^$1/) &&
+      if $Mpp::warn_level &&
+      (Mpp::ARCHITECTURE =~ /^i[34567]86-linux/ && $arch =~ // || Mpp::ARCHITECTURE =~ /^(\w+-\w+)/ && $arch =~ /^$1/) &&
       !$arch_warning++;
 
-    ::log BUILD_ARCH => $tinfo, $arch, ::ARCHITECTURE
-      if $::log_level;
+    Mpp::log BUILD_ARCH => $tinfo, $arch, Mpp::ARCHITECTURE
+      if $Mpp::log_level;
     return 1;
   }
 
   return undef if $only_action;
 
 # Check the environmental dependencies
-  return 1 if _check_env $tinfo, $env, $::log_level;
+  return 1 if _check_env $tinfo, $env, $Mpp::log_level;
 
 #
 # If we get here, we have to scan through all of the dependencies
@@ -212,8 +212,8 @@ sub build_check {
     next if Mpp::File::assume_unchanged( $dep ); # Skip if this file is one of the ones we
 				# don't want to check at all.
     if ($dep->{ASSUME_CHANGED}) {   # Marked by --assume-new option?
-      ::log BUILD_MARK_NEW => $tinfo, $dep
-	if $::log_level;
+      Mpp::log BUILD_MARK_NEW => $tinfo, $dep
+	if $Mpp::log_level;
       return 1;
     }
     if ($old_dep_list[$depidx] != $dep) {
@@ -226,8 +226,8 @@ sub build_check {
 
     my $sig = $sig_method->signature($dep);
     if (!defined($sig) || $sig ne ($old_dep_sigs[$depidx] || '')) {
-      ::log BUILD_CHANGED => $tinfo, $dep
-	if $::log_level;
+      Mpp::log BUILD_CHANGED => $tinfo, $dep
+	if $Mpp::log_level;
       $changed_dependencies = 1;
     }
   }
@@ -241,7 +241,7 @@ sub build_check {
 # two lists of files and figures out exactly what's different between them.
 #
 sub report_changed_dependencies {
-  $::log_level or return;	# Don't do anything if not logging.
+  $Mpp::log_level or return;	# Don't do anything if not logging.
 
   my( $old_deps, $new_deps, $tinfo ) = @_;
 
@@ -252,9 +252,9 @@ sub report_changed_dependencies {
       if !delete $old_deps{int()}; # Forget common files.
   }
 
-  ::log BUILD_DEP_DEL => $tinfo, [values %old_deps]
+  Mpp::log BUILD_DEP_DEL => $tinfo, [values %old_deps]
     if %old_deps;		# Anything left in old list?
-  ::log BUILD_DEP_ADD => $tinfo, \@not_in_old_deps
+  Mpp::log BUILD_DEP_ADD => $tinfo, \@not_in_old_deps
     if @not_in_old_deps;
 }
 
@@ -276,7 +276,7 @@ sub build_check_from_build_info {
 
   return undef if $only_action;
 
-  !$ignore_architecture and ::ARCHITECTURE ne ($arch || '')
+  !$ignore_architecture and Mpp::ARCHITECTURE ne ($arch || '')
     and return 1;
 
   return 1 if _check_env $bc_entry, $env;
@@ -304,7 +304,7 @@ sub build_check_from_build_info {
 # only by derived classes.
 #
 sub build_cache_key {
-  $::has_md5_signatures or return undef; # Disable the build cache if
+  $Mpp::has_md5_signatures or return undef; # Disable the build cache if
                                 # the MD5 method is not available.
 
   my( undef, $tinfo, $sorted_dependencies, $key, $build_cwd, $sig_method, $env ) = @_;
@@ -312,7 +312,7 @@ sub build_cache_key {
   my( $ignore_action, $ignore_architecture, $only_action ) = @{$_[0]};
 
   $key = '' if $ignore_action;	# Remove the build command.
-  $key .= $ignore_architecture ? "\01" : "\01" . ::ARCHITECTURE;
+  $key .= $ignore_architecture ? "\01" : "\01" . Mpp::ARCHITECTURE;
 				# Architecture is also important.
 
   if( !$only_action ) {

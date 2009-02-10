@@ -76,7 +76,7 @@ $(phony run): my_true
 	.$/$<
 
 my_true:
-    ifperl ::is_windows < 2
+    ifperl Mpp::is_windows < 2
 	&echo -o $@ "#!/bin/sh"
 	&chmod 755 $@
     else

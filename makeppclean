@@ -1,7 +1,9 @@
 #!/usr/bin/perl -w
-use strict;
+# $Id: makeppclean,v 1.14 2009/02/10 22:55:49 pfeiffer Exp $
 
-# $Id: makeppclean,v 1.13 2009/02/09 22:07:39 pfeiffer Exp $
+package Mpp;
+
+use strict;
 
 our $VERSION = '@VERSION@';
 use POSIX ();
@@ -67,12 +69,12 @@ sub print_msg {
   }
 }
 sub print_error {
-  print STDERR "$::progname: error: ";
+  print STDERR "$Mpp::progname: error: ";
   &print_msg;
 }
 
 sub print_warning {
-  print STDERR "$::progname: warning: ";
+  print STDERR "$Mpp::progname: warning: ";
   &print_msg;
 }
 sub print_log {
@@ -93,7 +95,7 @@ sub perform(&) {
   }
 
   print_log "$n_files_removed files removed";
-  $n_files_removed or print "$::progname: no files removed\n";
+  $n_files_removed or print "$Mpp::progname: no files removed\n";
 
   exit 0;
 }

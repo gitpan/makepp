@@ -1,4 +1,4 @@
-# $Id: Gcc.pm,v 1.29 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Gcc.pm,v 1.30 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -38,7 +38,7 @@ sub set_default_signature_method {
   my( $self, $leave_comments ) = @_;
 
   # Use the MD5 signature checking when we can.
-  $main::has_md5_signatures and
+  $Mpp::has_md5_signatures and
     $self->rule->set_signature_method_scanner( $leave_comments ? 'md5' : 'c_compilation_md5' );
 }
 
@@ -90,7 +90,7 @@ sub xparse_command {
 
   $stop_at_obj = $leave_comments = $nostdinc =  0;
   my( $cmd, @words ) = @$command;
-  $cmd =~ s@.*/@@ || ::is_windows > 1 && $cmd =~ s/.*\\//;
+  $cmd =~ s@.*/@@ || Mpp::is_windows > 1 && $cmd =~ s/.*\\//;
   push (@cpp_cmd, $cmd);
   local $_;
   while( defined( $_ = shift @words )) {

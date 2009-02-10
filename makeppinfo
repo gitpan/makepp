@@ -1,7 +1,9 @@
 #!/usr/bin/perl -w
-use strict;
+# $Id: makeppinfo,v 1.6 2009/02/10 22:55:49 pfeiffer Exp $
 
-# $Id: makeppinfo,v 1.5 2009/02/09 22:07:39 pfeiffer Exp $
+package Mpp;
+
+use strict;
 
 our $VERSION = '@VERSION@';
 use Config;

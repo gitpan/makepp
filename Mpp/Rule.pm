@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.98 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Rule.pm,v 1.99 2009/02/10 22:55:49 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -61,7 +61,7 @@ sub build_cwd { $_[0]{MAKEFILE}{CWD} }
 sub build_cache {
   exists $_[0]{BUILD_CACHE} ? $_[0]{BUILD_CACHE} :
   exists $_[0]{MAKEFILE}{BUILD_CACHE} ? $_[0]{MAKEFILE}{BUILD_CACHE} :
-  $::global_build_cache;
+  $Mpp::global_build_cache;
 }
 
 #
@@ -224,8 +224,8 @@ sub find_all_targets_dependencies {
   # scan from scratch. (Well, not completely from scratch, because the cached
   # lists of include directives can still be used if they're up-to-date.)
   if( my $msg = $self->load_scaninfo( $oinfo, $command_string, \@explicit_dependencies )) {
-    ::log SCAN_RULE => $oinfo, $msg
-      if $::log_level;
+    Mpp::log SCAN_RULE => $oinfo, $msg
+      if $Mpp::log_level;
     unless(eval { $self->parser->parse_rule($command_string, $self) }) {
       die $@ if $@ && $@ ne "SCAN_FAILED\n";
       $self->{SCAN_FAILED} ||= 1;
@@ -233,8 +233,8 @@ sub find_all_targets_dependencies {
 				# Look for any additional dependencies (or
 				# targets) that we didn't know about.
   } else {
-    ::log SCAN_CACHED => $oinfo
-      if $::log_level;
+    Mpp::log SCAN_CACHED => $oinfo
+      if $Mpp::log_level;
   }
 
   for my $dep ( @explicit_dependencies, values %all_dependencies ) {
@@ -382,7 +382,7 @@ sub add_any_dependency_ {
   $self->{$key}{$tag}{$src}{fix_file_($name)} = 1;
   if($finfo) {
     $self->add_dependency($finfo);
-    return wait_for ::build $finfo if $key eq 'META_DEPS';
+    return wait_for Mpp::build $finfo if $key eq 'META_DEPS';
   }
   0; # success
 }
@@ -396,12 +396,12 @@ sub add_any_dependency_if_exists_ {
   # We need to recover from errors while figuring out where to build the
   # dependency, because we might need to build Makeppfile's while searching,
   # and we might fail to build one that we'll wind up not actually needing.
-  local $::keep_going = 1;
+  local $Mpp::keep_going = 1;
   if($finfo && !Mpp::File::exists_or_can_be_built_or_remove( $finfo )) {
     return undef;
   }
-  ::log CACHED_DEP => $finfo, $tinfo
-    if $::log_level && $finfo;
+  Mpp::log CACHED_DEP => $finfo, $tinfo
+    if $Mpp::log_level && $finfo;
   !&add_any_dependency_;
 }
 sub add_meta_dependency {
@@ -513,7 +513,7 @@ sub cache_scaninfo {
   my ($self, $targets) = @_;
 
   die if exists $self->{SCAN_FAILED};
-  unless($::nocache_scaninfo || $self->{SCANINFO_UNCACHEABLE}) {
+  unless($Mpp::nocache_scaninfo || $self->{SCANINFO_UNCACHEABLE}) {
     # Wipe out unnecessary info from IMPLICIT_DEPS:
     while(my ($tag, $th) = each %{$self->{IMPLICIT_DEPS}}) {
       $tag = $self->{META_DEPS}{$tag};
@@ -761,20 +761,20 @@ sub load_scaninfo {
   my $self = shift;		# Modify stack to pass on below
   my ($tinfo) = @_;
 
-  return '--force_rescan option specified' if $::force_rescan;
+  return '--force_rescan option specified' if $Mpp::force_rescan;
 
-  ::log SCAN_INFO => $tinfo
-    if $::log_level;
+  Mpp::log SCAN_INFO => $tinfo
+    if $Mpp::log_level;
   my $first_msg = $self->load_scaninfo_single( $tinfo, @_ );
   return 0 unless $first_msg;
   if( exists $tinfo->{ALTERNATE_VERSIONS} ) {
     for( @{$tinfo->{ALTERNATE_VERSIONS}} ) {
       if( my $msg = $self->load_scaninfo_single( $_, @_ )) {
-	::log SCAN_INFO_NOT => $_, $msg
-	  if $::log_level;
+	Mpp::log SCAN_INFO_NOT => $_, $msg
+	  if $Mpp::log_level;
       } else {
-	::log SCAN_INFO_FROM => $_
-	  if $::log_level;
+	Mpp::log SCAN_INFO_FROM => $_
+	  if $Mpp::log_level;
 	return 0;
       }
     }
@@ -847,9 +847,9 @@ sub execute {
 	  if $key ne 'DEP_SIGS' && Mpp::Signature::is_content_based $value;
       }
     }
-    $::n_files_changed--;	# Undo count, since we're not really rebuilding it.
-    ::log SYMLINK_KEEP => $all_targets->[0], $self->source
-      if $::log_level;
+    $Mpp::n_files_changed--;	# Undo count, since we're not really rebuilding it.
+    Mpp::log SYMLINK_KEEP => $all_targets->[0], $self->source
+      if $Mpp::log_level;
     return;			# Success, pretend we did rebuild it.
   }}
 
@@ -864,7 +864,7 @@ sub execute {
 # it out before executing the commands.
 #
   &touched_filesystem;		# In case there are side-effects
-  if( $::parallel_make ) {
+  if( $Mpp::parallel_make ) {
 
 #
 # We're executing in parallel.	We can't print the directory name initially,
@@ -887,11 +887,11 @@ sub execute {
 # the build.
 #
       open STDOUT, '>', $tmpfile or
-	die "$::progname: can't redirect standard output to $tmpfile--$!\n";
+	die "$Mpp::progname: can't redirect standard output to $tmpfile--$!\n";
       open STDERR, '>&STDOUT' or die "can't dup STDOUT\n";
 				# Make stderr go to the same place.
       open STDIN, '< /dev/null' or
-	die "$::progname: can't redirect standard input to /dev/null--$!\n";
+	die "$Mpp::progname: can't redirect standard input to /dev/null--$!\n";
       # Turns out we don't want to close STDIN, because then duping STDOUT
       # causes fd 0 to be opened, rather than 2, so STDERR is actually file
       # handle 0.  This caused a weird bug where error messages were not
@@ -995,7 +995,7 @@ use POSIX ();
 sub exec_or_die {
   my( $action, $silent ) = @_;
   my $result = 254 << 8;
-  if( $silent || !$::profile ) {
+  if( $silent || !$Mpp::profile ) {
     { exec format_exec_args $action }
 				# Then execute it and don't return.
 				# This discards the extra make process (and
@@ -1005,10 +1005,10 @@ sub exec_or_die {
     $result = system format_exec_args $action;
     print STDERR "system $action failed--$!\n"
       if $result == -1;
-    ::print_profile_end( $action ) if $::profile;
+    Mpp::print_profile_end( $action ) if $Mpp::profile;
   }
-  close $_ for @::close_fhs;
-  ::suicide ::signame $result & 0x7F
+  close $_ for @Mpp::close_fhs;
+  Mpp::suicide Mpp::signame $result & 0x7F
     if $result & 0x7F;
   POSIX::_exit $result ? ($result>>8 || 1) : 0;
 }
@@ -1035,14 +1035,14 @@ sub execute_command {
   # action will be stoppable, and we'll still be able to mark them because
   # while the system is running they are blocked by the makepp process
   # automatically.
-  &::reset_signal_handlers if !::is_windows; # unless constant gives a warning in some variants of 5.6
+  &Mpp::reset_signal_handlers if !Mpp::is_windows; # unless constant gives a warning in some variants of 5.6
   chdir( $build_cwd );		# Move to the correct directory.
   $self->{MAKEFILE}->setup_environment;
 
   $Mpp::Recursive::socket_name and	# Pass info about recursive make.
     $ENV{MAKEPP_SOCKET} = $Mpp::Recursive::socket_name;
 
-  $::preexecute_rule_hook and &$::preexecute_rule_hook($self);
+  $Mpp::preexecute_rule_hook and &$Mpp::preexecute_rule_hook($self);
 
 #
 # Now execute each action.  We exec the action if it is the last in the series
@@ -1068,12 +1068,12 @@ sub execute_command {
 #
 # Parse the @ and - in front of the command.
 #
-    my $silent_flag = $::silent_execution || $flags =~ /\@|noecho/;
+    my $silent_flag = $Mpp::silent_execution || $flags =~ /\@|noecho/;
     my $error_abort = $flags !~ /-|ignore_error/;
 
     if( defined $perl or defined $command ) {
       $File::chdir = 1;		# External command might change our dir.
-      ::print_profile( defined $perl ? "perl $perl" : "&$action" ) unless $silent_flag;
+      Mpp::print_profile( defined $perl ? "perl $perl" : "&$action" ) unless $silent_flag;
 				# This prints out makeperl as perl.  That is correct,
 				# because it has already been expanded to plain perl code.
       local $Mpp::Subs::rule = $self;
@@ -1089,7 +1089,7 @@ sub execute_command {
 	# very close.  It's hard to fix.
 	eval { Mpp::Subs::eval_or_die $perl, $self->{MAKEFILE}, $self->{RULE_SOURCE} };
 	if( $@ ) {
-	  ::print_error( 'perl action: '.$@ );
+	  Mpp::print_error( 'perl action: '.$@ );
 	  return 1 if $error_abort;
 	}
       } else {
@@ -1115,11 +1115,11 @@ sub execute_command {
 	    s/^$cmd: //;
 	    print STDERR "makepp: &$cmd: $_";
 	  }
-	  &::flush_log;
+	  &Mpp::flush_log;
 	  return 1 if $error_abort;
 	}
       }
-      ::print_profile_end( defined $perl ? "perl $perl" : "&$action" ) if $::profile && !$silent_flag;
+      Mpp::print_profile_end( defined $perl ? "perl $perl" : "&$action" ) if $Mpp::profile && !$silent_flag;
       next;			# Process the next action.
     }
 
@@ -1127,8 +1127,8 @@ sub execute_command {
       $action =~ s/\'/\'\\\'\'/g;
       $action = $self->{DISPATCH} . " sh -c '$action'";
     }
-    ::print_profile( $action ) unless $silent_flag;
-    if( ::is_windows ) {	# Can't fork / exec on windows.
+    Mpp::print_profile( $action ) unless $silent_flag;
+    if( Mpp::is_windows ) {	# Can't fork / exec on windows.
       {
 	# NOTE: In Cygwin, TERM and HUP are automatically unblocked in the
 	# system process, but INT and QUIT are not -- they are just ignored
@@ -1138,13 +1138,13 @@ sub execute_command {
 	system format_exec_args $action;
       }
       $error_abort and $? and return ($?/256) || 1; # Quit if an error.
-      ::print_profile_end( $action ) if $::profile && !$silent_flag;
+      Mpp::print_profile_end( $action ) if $Mpp::profile && !$silent_flag;
       next;			# Process the next action.
     }
 
     undef $unsafe;		# Because exec() closes and fork() flushes
                                 # filehandles, and external cmd can't chdir.
-    my $nop = \&::is_windows;	# Reuse any old function that does nothing, to
+    my $nop = \&Mpp::is_windows;	# Reuse any old function that does nothing, to
 				# save allocating a new sub.
     if ($error_abort && !@actions) { # Is this the last action?
       $SIG{__WARN__} = $nop;	# Suppress annoying warning message here if the
@@ -1164,7 +1164,7 @@ sub execute_command {
 # 2) On linux, system() blocks signals, which means that makepp wouldn't
 #    respond to ^C or other things like that.  (See the man page.)
 #
-      &::flush_log if ::is_perl_5_6;
+      &Mpp::flush_log if Mpp::is_perl_5_6;
       my $pid = fork;
       unless ($pid) {		# Executed in child process:
 	$SIG{__WARN__} = $nop;	# Suppress annoying warning message here if
@@ -1184,12 +1184,12 @@ sub execute_command {
     ($flags, $perl, $command, $action) = splice @actions, 0, 4;
   }
 
-  ::is_windows > 0 and return 0; # If we didn't fork, we'll always get here.
+  Mpp::is_windows > 0 and return 0; # If we didn't fork, we'll always get here.
 
   # Close filehandles that may have been left opened by a perl command.
   if( $maybe_open || $unsafe ) {
-    if( ::is_perl_5_6 ) {
-      close $_ for @::close_fhs, ::MAKEPP ? values %{$self->{MAKEFILE}{PACKAGE}.'::'} : ();
+    if( Mpp::is_perl_5_6 ) {
+      close $_ for @Mpp::close_fhs, Mpp::MAKEPP ? values %{$self->{MAKEFILE}{PACKAGE}.'::'} : ();
     }
     exec $true;			# Close open filehandles w/o doing garbage collection
     warn "failed to exec `$true'--$!";
@@ -1199,7 +1199,7 @@ sub execute_command {
     close $_ for values %{$self->{MAKEFILE}{PACKAGE}.'::'};
   }
 
-  close $_ for @::close_fhs;
+  close $_ for @Mpp::close_fhs;
   POSIX::_exit 0;		# If we get here, it means that the last
 				# command in the series was executed with
 				# ignore_error.
@@ -1215,9 +1215,9 @@ our $last_build_cwd = 0;	# Comparable to a ref.
 sub print_build_cwd {
   my $build_cwd = $_[0];
   if( $last_build_cwd != $build_cwd ) { # Different from previous or no previous?
-    print "$::progname: Leaving directory `$last_build_cwd->{FULLNAME}'\n"
+    print "$Mpp::progname: Leaving directory `$last_build_cwd->{FULLNAME}'\n"
       if $last_build_cwd;	# Don't let the directory stack fill up.
-    print "$::progname: Entering directory `" . &absolute_filename . "'\n";
+    print "$Mpp::progname: Entering directory `" . &absolute_filename . "'\n";
     $last_build_cwd = $build_cwd;
   }
 }
@@ -1230,7 +1230,7 @@ Gets the build check method for this particular rule.
 
 =cut
 
-sub build_check_method { $_[0]{BUILD_CHECK_METHOD} || $::default_build_check_method }
+sub build_check_method { $_[0]{BUILD_CHECK_METHOD} || $Mpp::default_build_check_method }
 
 =head2 set_build_check_method
 
@@ -1270,7 +1270,7 @@ details).
 
 sub signature_method {
   $_[0]{SIGNATURE_METHOD} ||
-    $::default_signature; # Use the default method.
+    $Mpp::default_signature; # Use the default method.
 }
 
 =head2 set_signature_method
@@ -1339,7 +1339,7 @@ messages.
 =cut
 
 sub source { $_[0]{RULE_SOURCE} }
-*name = \&source;		# Alias for ::log
+*name = \&source;		# Alias for Mpp::log
 
 #
 # This subroutine is called to add a possibly new dependency to the list of
@@ -1482,7 +1482,7 @@ sub execute {
   Mpp::Event::when_done sub {
     my $target = $_[0];
     if( $target->{TEMP_BUILD_INFO} ) {
-      ::print_error( 'Attempting to retain stale ', $target );
+      Mpp::print_error( 'Attempting to retain stale ', $target );
       -1;			# Return nonzero to indicate error.
     } elsif( $target->{ADDITIONAL_DEPENDENCIES} ) {
 				# If it has additional dependencies, then
@@ -1491,7 +1491,7 @@ sub execute {
       #file_exists( $target ) and return 0;
 				# If the file doesn't exist yet, we may
 				# have to link it from a repository.
-      # ::build handles linking targets in from a repository after the rule
+      # Mpp::build handles linking targets in from a repository after the rule
       # runs, so we don't have to do it here even if there are
       # ALTERNATE_VERSIONS.
       0;			# Return success even if the file doesn't exist.
@@ -1499,7 +1499,7 @@ sub execute {
 				# FORCE:
 				# which are really just dummy phony targets.
     } else {
-      ::print_error( 'No rule to make ', $target );
+      Mpp::print_error( 'No rule to make ', $target );
       -1;			# Return nonzero to indicate error.
     }
   }, [$_[0]{TARGET}];
@@ -1516,7 +1516,7 @@ sub print_command {
 				# all: xyz
 				# where there is no rule for all.
   }
-  ::print_error( 'No rule to make ', $target );
+  Mpp::print_error( 'No rule to make ', $target );
 
   -1;				# Return nonzero to indicate error.
 }
@@ -1534,7 +1534,7 @@ sub build_cache { undef }	# Build cache disabled for objects with
 				# that returns undef.
 
 sub source { 'default rule' }
-*name = \&source;		# Alias for ::log
+*name = \&source;		# Alias for Mpp::log
 
 *sorted_dependencies = \&Mpp::Rule::sorted_dependencies;
 
@@ -1583,7 +1583,7 @@ sub build_check {
      # If it used to be a generated file, but now we need to get it from a
      # repository, then it needs to be linked in, unless we're treating old
      # generated files as source.
-     $::rm_stale_files &&
+     $Mpp::rm_stale_files &&
      !$tinfo->{ADDITIONAL_DEPENDENCIES} &&
      defined( Mpp::File::build_info_string( $tinfo, 'BUILD_SIGNATURE' ))
     );

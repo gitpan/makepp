@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.30 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.31 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -67,10 +67,10 @@ my %is_builtin;
 sub parse_command {
   my( $self, $command, $setenv_hash ) = @_;
 
-  ::log PARSE => $command, $self->dirinfo, $self->rule
-    if $::log_level;
+  Mpp::log PARSE => $command, $self->dirinfo, $self->rule
+    if $Mpp::log_level;
 
-  my @cmd_words = ::is_windows < 2 ?
+  my @cmd_words = Mpp::is_windows < 2 ?
     Mpp::Text::unquote_split_on_whitespace $command :
     map { tr/"//d; $_ } Mpp::Text::split_on_whitespace $command; # Don't unquote \, which is Win dir separator, TODO: \" -> "
   unless( $ignore_exe || UNIVERSAL::isa($self->rule->build_check_method, 'Mpp::BuildCheck::ignore_action') ) {
@@ -100,12 +100,12 @@ sub add_executable_dependency {
   my( $self, $exe ) = @_;
   # Ignore the executable if it has shell metacharacters, because we
   # won't easily be able to figure out what it is.
-  if( $exe !~ m|[^-+=@%^\w:,./]| || ::is_windows > 1 && $exe !~ /[^-+=@%^\w:,.\\]/ ) {
+  if( $exe !~ m|[^-+=@%^\w:,./]| || Mpp::is_windows > 1 && $exe !~ /[^-+=@%^\w:,.\\]/ ) {
     # TODO: This is not the best spot to do this, because the path doesn't get
     # rechecked if the command doesn't change.  It would be better to do this
     # like searching for includes.
-    if( $exe !~ m@/@ || ::is_windows > 1 && $exe !~ /\\/ ) {
-      return if $::no_path_executable_dependencies;
+    if( $exe !~ m@/@ || Mpp::is_windows > 1 && $exe !~ /\\/ ) {
+      return if $Mpp::no_path_executable_dependencies;
       my $CWD_INFO = $Mpp::File::CWD_INFO; # Might load a makefile and chdir there:
       $exe = Mpp::Subs::f_find_program( $exe, $self->{RULE}{MAKEFILE}, $self->{RULE}{RULE_SOURCE}, 1 );
       Mpp::File::chdir( $CWD_INFO );
@@ -123,7 +123,7 @@ sub add_executable_dependency {
 	for values %{$runtime_dep->{RUNTIME_DEPS} || {}};
     }
     $self->add_more_executable_dependencies($1)
-      if $exe =~ m@^(.+)/[^/]+$@ || ::is_windows > 1 && $exe =~ /^(.+)\\[^\\]+$/;
+      if $exe =~ m@^(.+)/[^/]+$@ || Mpp::is_windows > 1 && $exe =~ /^(.+)\\[^\\]+$/;
   }
 }
 

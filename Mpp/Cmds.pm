@@ -1,11 +1,16 @@
-# $Id: Cmds.pm,v 1.62 2009/02/09 22:07:39 pfeiffer Exp $
-###############################################################################
-#
-# This package contains builtin commands which can be called from a rule.
-#
-# It may be copied only under the terms of either the Artistic License or the
-# GNU General Public License, which may be found in the Perl 5 source kit.
-#
+# $Id: Cmds.pm,v 1.63 2009/02/10 22:55:49 pfeiffer Exp $
+
+=head1 NAME
+
+Mpp::Cmds - Builtin commands for makefiles
+
+=head1 DESCRIPTION
+
+This package contains builtin commands similar to common utilities, which can
+be called from a rule, as well as in a functional way or as top level
+statements.
+
+=cut
 
 
 # TODO: autoload these commands only when needed
@@ -31,7 +36,7 @@ sub eval_or_die($) {
 our( $install_date, $install_log );
 sub perform(&$;$) {
   if( eval { &{$_[0]} } && !$@ ) {
-    print STDERR "$0: $_[1]\n" if $::verbose;
+    print STDERR "$0: $_[1]\n" if $Mpp::verbose;
     if( $install_log ) {
       my $msg = $_[1];
       my $cwd = Mpp::File::absolute_filename( $Mpp::File::CWD_INFO );
@@ -112,7 +117,7 @@ sub print {
 # Frame which handles options, I/O and adds omnipresent --verbose.
 sub frame(&@) {
   my( $code, @opts, @stdopts ) = @_;
-  local $::verbose = $::verbose;
+  local $Mpp::verbose = $Mpp::verbose;
 
   my( $infail, $inout, $output, $pipe, $select, $outfail, $separator );
   # Standard options shared by several commands.
@@ -131,7 +136,7 @@ sub frame(&@) {
     ref or !push @stdopts, $opt{$_};
   } @opts;
   Mpp::Text::getopts @opts, @stdopts,
-    [qw(v verbose), \$::verbose];
+    [qw(v verbose), \$Mpp::verbose];
 
   # Setup input context.
   local $/ = $separator if defined $separator;
@@ -278,7 +283,7 @@ sub c_cut {
   frame {
     my $split = eval
       'sub { @::F = ' . (!$characters ? "split /\Q$delimiter\E/, \$_, -1 }" :
-			 ::is_perl_5_6 ? 'split //, $_, -1 }' :
+			 Mpp::is_perl_5_6 ? 'split //, $_, -1 }' :
 			 'unpack "(a1)*", $_ }');
     my( @idxs, $eol );
     local @::F;	     # Use Perl's autosplit variable into Makeppfile's package

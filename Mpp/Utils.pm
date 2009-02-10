@@ -2,12 +2,12 @@
 require 5.006;
 use strict;
 
-# $Id: Utils.pm,v 1.10 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Utils.pm,v 1.11 2009/02/10 22:55:49 pfeiffer Exp $
 
 # This is syntactically needed by many modules but not called in utils, except mppr.
 sub log($@);
 
-($::progname = $0) =~ s@.*/@@; # Get the program name w/o directories.
+($Mpp::progname = $0) =~ s@.*/@@; # Get the program name w/o directories.
 my %progname =
  (b => 'builtin',
   bcc => '_build_cache_control',
@@ -16,7 +16,7 @@ my %progname =
   i => 'info',
   l => 'log',
   r => 'replay');
-$::progname =~ s/^mpp([bcgilr]|bcc)$/makepp$progname{$1}/;
+$Mpp::progname =~ s/^mpp([bcgilr]|bcc)$/makepp$progname{$1}/;
 
 use Mpp::Text ();
 BEGIN { *MAKEPP = \&Mpp::Text::CONST0 } # Differentiate from makepp
@@ -39,7 +39,7 @@ sub find_logfiles(\@) {
     next if $_ eq '-' || -f;
     $_ .= '/.makepp/log';
     s!/.makepp/!/! if !-r;
-    die "$::progname: can't read `$_'--$!\n" if !-r;
+    die "$Mpp::progname: can't read `$_'--$!\n" if !-r;
   }
 }
 
@@ -73,7 +73,7 @@ sub Rewrite::cwd(;$$$) {
   }
 }
 
-my $flags = "\U$::progname\EFLAGS";
+my $flags = "\U$Mpp::progname\EFLAGS";
 unshift @ARGV, Mpp::Text::unquote_split_on_whitespace $ENV{$flags}
   if exists $ENV{$flags};
 

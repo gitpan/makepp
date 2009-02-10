@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.167 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Subs.pm,v 1.168 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -222,7 +222,7 @@ our %scanners =
 );
 
 @scanners{ map "$_.exe", keys %scanners } = values %scanners
-  if ::is_windows;
+  if Mpp::is_windows;
 
 # True while we are within a define statement.
 our $s_define;
@@ -269,7 +269,7 @@ our %perl_unfriendly_symbols =
    '*' => \&f_stem,
    '&' => '',			# Perl makefiles use this for some reason, but
 				# $& is a perl pattern match variable.
-   '/' => ::is_windows > 1 ? '\\' : '/',
+   '/' => Mpp::is_windows > 1 ? '\\' : '/',
 
    '@D' => \&f_target,		# Special handling in expand_variable for /^.[DF]$/.
    '@F' => \&f_target,
@@ -478,10 +478,10 @@ sub f_find_program {
   my @pathdirs;			# Remember the list of directories to search.
   my $first_round = 1;
   foreach my $name ( split ' ', $_[0]) {
-    if( $name =~ /\// || ::is_windows > 1 && $name =~ /\\/ ) { # Either relative or absolute?
+    if( $name =~ /\// || Mpp::is_windows > 1 && $name =~ /\\/ ) { # Either relative or absolute?
       my $finfo = Mpp::File::path_file_info $name, $mkfile->{CWD};
       my $exists = Mpp::File::exists_or_can_be_built $finfo;
-      if( ::is_windows && $name !~ /\.exe$/ ) {
+      if( Mpp::is_windows && $name !~ /\.exe$/ ) {
 	my( $exists_exe, $finfo_exe );
 	$exists_exe = Mpp::File::exists_or_can_be_built $finfo_exe = Mpp::File::path_file_info "$name.exe", $mkfile->{CWD}
 	  if !$exists ||
@@ -505,7 +505,7 @@ sub f_find_program {
       next unless $dir;
       my $finfo = file_info $name, $dir;
       my $exists = Mpp::File::exists_or_can_be_built $finfo, undef, undef, 1;
-      if( ::is_windows && $name !~ /\.exe$/ ) {
+      if( Mpp::is_windows && $name !~ /\.exe$/ ) {
 	my( $exists_exe, $finfo_exe );
 	$exists_exe = Mpp::File::exists_or_can_be_built $finfo_exe = file_info( "$name.exe", $dir ), undef, undef, 1
 	  if !$exists ||
@@ -518,7 +518,7 @@ sub f_find_program {
     $first_round = 0;
   }
 
-  ::log NOT_FOUND => $_[0], $_[2];
+  Mpp::log NOT_FOUND => $_[0], $_[2];
   'not-found';			# None of the programs were executable.
 }
 
@@ -696,7 +696,7 @@ sub f_infer_linker {
 # make sure.
 #
   my @build_handles;
-  &::maybe_stop;
+  &Mpp::maybe_stop;
   foreach my $obj (@objs) {
     $obj = file_info($obj, $mkfile->{CWD}); # Replace the name with the
 				# fileinfo.
@@ -771,8 +771,8 @@ sub f_infer_objects {
   my @deps = map zglob_fileinfo($_, $build_cwd), split ' ', $seed_objs;
 				# Start with the seed files themselves.
   @deps == 0 and die "infer_objects called with no seed objects that exist or can be built\n";
-  ::log INFER_SEED => \@deps
-    if $::log_level;
+  Mpp::log INFER_SEED => \@deps
+    if $Mpp::log_level;
 
   foreach (@deps) {
     my $name = $_->{NAME};
@@ -784,7 +784,7 @@ sub f_infer_objects {
 
   my $dep_idx = 0;
 
-  &::maybe_stop;
+  &Mpp::maybe_stop;
 #
 # Build everything, so we know what everything's dependencies are.  Initially,
 # we'll only have a few objects to start from, so we build all of those, in
@@ -810,12 +810,12 @@ sub f_infer_objects {
 	  $name =~ s/\.[^\.]+$//; # Strip off the extension.
 	  unless ($source_names{$name}++) { # Did we already know about that source?
 	    if (ref($candidate_objs{$name}) eq 'Mpp::File') { # Found a file?
-	      ::log INFER_DEP => $candidate_objs{$name}, $_
-		if $::log_level;
+	      Mpp::log INFER_DEP => $candidate_objs{$name}, $_
+		if $Mpp::log_level;
 	      push @deps, $candidate_objs{$name}; # Scan for its dependencies.
 	    }
 	    elsif (ref($candidate_objs{$name}) eq 'ARRAY') { # More than 1 match?
-	      ::print_error('`', $mkfile_line, "' in infer_objects: more than one possible object for include file $_:\n  ",
+	      Mpp::print_error('`', $mkfile_line, "' in infer_objects: more than one possible object for include file $_:\n  ",
 			    join("\n  ", map absolute_filename( $_ ), @{$candidate_objs{$name}}),
 			    "\n");
 	    }
@@ -824,7 +824,7 @@ sub f_infer_objects {
       };
 
       if (defined($handle)) {   # Something we need to wait for?
-        $handle->{STATUS} && !$::keep_going and
+        $handle->{STATUS} && !$Mpp::keep_going and
           die "$mkfile_line: infer_objects failed because dependencies could not be built\n";
         push @build_handles, $handle;
       }
@@ -920,7 +920,7 @@ sub f_prebuild {
   my( $names, $mkfile, $mkfile_line ) = @_;
 
   my @build_handles;
-  &::maybe_stop;
+  &Mpp::maybe_stop;
   for( split_on_whitespace $names ) {
     push @build_handles, prebuild( file_info( unquote(), $mkfile->{CWD} ),
 				   $mkfile, $mkfile_line  );
@@ -1118,8 +1118,8 @@ sub f_shell {
 
   $mkfile->cd;	# Make sure we're in the correct directory.
   my $shell_output = '';
-  if( ::is_windows ) {		# Doesn't support forking well?
-    if( ::is_windows != 1 ) {
+  if( Mpp::is_windows ) {		# Doesn't support forking well?
+    if( Mpp::is_windows != 1 ) {
       $shell_output = `$str`;	# Run the shell command.
     } else {			# ActiveState not using command.com, but `` still does
       my @cmd = format_exec_args $str;
@@ -1473,7 +1473,7 @@ sub f_xargs {
 	  $rule->{MAKEFILE},
 	  $rule->{RULE_SOURCE} );
   '';
-} if ::is_windows;
+} if Mpp::is_windows;
 
 #
 # $(MAKE) needs to expand to the name of the program we use to replace a
@@ -1548,7 +1548,7 @@ sub s_no_implicit_load {
   my $cwd = $rule ? $rule->build_cwd : $mkfile->{CWD};
 				# Get the default directory.
 
-  local $::implicitly_load_makefiles = 0;
+  local $Mpp::implicitly_load_makefiles = 0;
 				# Temporarily turn off makefile loading for
 				# the expansion of this wildcard.
 
@@ -1681,8 +1681,8 @@ sub s_include {
 	die "makepp: can't find include file `$file'\n";
     }
 
-    ::log LOAD_INCL => $finfo, $mkfile_line
-      if $::log_level;
+    Mpp::log LOAD_INCL => $finfo, $mkfile_line
+      if $Mpp::log_level;
     $mkfile->read_makefile($finfo); # Read the file.
   }
   '';
@@ -1848,7 +1848,7 @@ sub s_prebuild {
   my ($text_line, $mkfile, $mkfile_line) = @_;
   my (@words) = split_on_whitespace($mkfile->expand_text($text_line, $mkfile_line));
 
-  &::maybe_stop;
+  &Mpp::maybe_stop;
   for my $target (@words) {
     my $finfo = file_info($target, $mkfile->{CWD});
     # TBD: If prebuild returns undef, then that could mean that the file
@@ -1861,8 +1861,8 @@ sub s_prebuild {
 sub prebuild {
   my ($finfo, $mkfile, $mkfile_line ) = @_;
   my $myrule = Mpp::File::get_rule( $finfo );
-  ::log PREBUILD => $finfo, $mkfile_line
-    if $::log_level;
+  Mpp::log PREBUILD => $finfo, $mkfile_line
+    if $Mpp::log_level;
   if($myrule && !UNIVERSAL::isa($myrule, 'Mpp::DefaultRule') &&
     !exists($finfo->{BUILD_HANDLE})
   ) {
@@ -1875,13 +1875,13 @@ sub prebuild {
     # a warning, because then you could get weird dependencies on the order in
     # which Makefiles were loaded. Note that this warning isn't guaranteed to
     # show up when it's called for, because targets that are built via direct
-    # calls to ::build() don't undergo this check.
+    # calls to Mpp::build() don't undergo this check.
     unless($myrule->makefile == $mkfile || $myrule->makefile->{INITIALIZED}) {
       warn 'Attempting to build ' . absolute_filename( $finfo ) .
 	" before its makefile is completely loaded\n";
     }
   }
-  ::build($finfo);
+  Mpp::build($finfo);
 }
 
 #
@@ -2073,12 +2073,12 @@ sub f_ARFLAGS()	{ 'rv' }
 sub f_AS()	{ 'as' }
 my $CC;
 sub f_CC	{ $CC ||=
-		    $_[1]->expand_expression('find_program gcc egcc pgcc c89 cc' . (::is_windows?' cl bcc32':''), $_[2]) }
-sub f_CFLAGS	{ $_[1]->expand_expression('if $(filter %gcc, $(CC)), -g -Wall, ' . (::is_windows?' $(if $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC)), , -g)':'-g'), $_[2]) }
+		    $_[1]->expand_expression('find_program gcc egcc pgcc c89 cc' . (Mpp::is_windows?' cl bcc32':''), $_[2]) }
+sub f_CFLAGS	{ $_[1]->expand_expression('if $(filter %gcc, $(CC)), -g -Wall, ' . (Mpp::is_windows?' $(if $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC)), , -g)':'-g'), $_[2]) }
 sub f_CURDIR	{ absolute_filename( $_[1]{CWD} ) }
 my $CXX;
-sub f_CXX	{ $CXX ||= $_[1]->expand_expression('find_program g++ c++ pg++ cxx ' . (::is_windows?'cl bcc32':'CC aCC'), $_[2]) }
-sub f_CXXFLAGS	{ $_[1]->expand_expression('if $(filter %g++ %c++, $(CXX)), -g -Wall, ' . (::is_windows?' $(if $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CXX)), , -g)':'-g'), $_[2]) }
+sub f_CXX	{ $CXX ||= $_[1]->expand_expression('find_program g++ c++ pg++ cxx ' . (Mpp::is_windows?'cl bcc32':'CC aCC'), $_[2]) }
+sub f_CXXFLAGS	{ $_[1]->expand_expression('if $(filter %g++ %c++, $(CXX)), -g -Wall, ' . (Mpp::is_windows?' $(if $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CXX)), , -g)':'-g'), $_[2]) }
 my $F77;
 sub f_F77	{ $F77 ||= $_[1]->expand_expression('find_program f77 g77 fort77', $_[2]) }
 sub f_FC	{ $_[1]->expand_variable('F77', $_[2]) }

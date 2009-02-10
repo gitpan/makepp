@@ -1,4 +1,4 @@
-# $Id: target_newer.pm,v 1.9 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: target_newer.pm,v 1.10 2009/02/10 22:55:49 pfeiffer Exp $
 use strict;
 package Mpp::BuildCheck::target_newer;
 
@@ -56,21 +56,21 @@ sub build_check {
 
   if( !Mpp::File::file_exists $tinfo ) {	# If there's no target, then we need to
 				# rebuild.
-    ::log BUILD_NONE => $tinfo
-      if $::log_level;
+    Mpp::log BUILD_NONE => $tinfo
+      if $Mpp::log_level;
     return 1;
   }
 
   my @changed_deps = $self->changed_dependencies($tinfo, $sig_method, $build_cwd, @$sorted_dependencies);
 
   if (@changed_deps) {
-    ::log BUILD_OLD => $tinfo, \@changed_deps
-      if $::log_level;
+    Mpp::log BUILD_OLD => $tinfo, \@changed_deps
+      if $Mpp::log_level;
     return "DEPENDENCIES";
   }
 
-  ::log UP_TO_DATE => $tinfo
-    if $::log_level;
+  Mpp::log UP_TO_DATE => $tinfo
+    if $Mpp::log_level;
   return undef;			# No rebuild necessary.
 }
 

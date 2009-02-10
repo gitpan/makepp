@@ -3,8 +3,10 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.83 2009/02/09 22:31:43 pfeiffer Exp $
+# $Id: install.pl,v 1.84 2009/02/10 22:55:49 pfeiffer Exp $
 #
+
+package Mpp;
 
 use Config;
 use File::Copy;
@@ -35,7 +37,7 @@ print 'Using perl in ' . PERL . ".\n";
 # files.
 #
 our $eliminate = '';		# So you can say #@@eliminate
-$eliminate = $eliminate if ::is_perl_5_6;
+$eliminate = $eliminate if Mpp::is_perl_5_6;
 open(VERSION, "VERSION") || die "You are missing the file VERSION.  This should be part of the standard distribution.\n";
 our $VERSION = <VERSION>;
 our $BASEVERSION = $VERSION;
@@ -193,7 +195,7 @@ substitute_file( $_, $bindir, 0755, 1 ) for
 substitute_file( $_, $datadir, 0644 ) for
   qw(recursive_makepp Mpp/FileOpt.pm Mpp/BuildCacheControl.pm);
 
-foreach $module (qw(Mpp/Frame
+foreach $module (qw(Mpp
 
 		    Mpp/AutomakeFixer Mpp/BuildCache Mpp/File Mpp/Glob Mpp/Event
 		    Mpp/Cmds Mpp/Makefile Mpp/Subs Mpp/RecursiveMake Mpp/Repository

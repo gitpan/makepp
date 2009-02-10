@@ -1,4 +1,4 @@
-# $Id: Recursive.pm,v 1.2 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Recursive.pm,v 1.3 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -103,7 +103,7 @@ sub connection {
       my $status;
       eval {
 	local @ARGV = @words;
-        $status = wait_for ::parse_command_line %this_ENV;
+        $status = wait_for Mpp::parse_command_line %this_ENV;
 				# Build all the targets.
       };
       Mpp::Event::Process::adjust_max_processes(-1); # Undo our increment above.
@@ -144,7 +144,7 @@ sub Mpp::Subs::f_MAKE {
 # We have to search the path to figure out where we came from.
 #
 	foreach( Mpp::Text::split_path(), '.' ) {
-	  my $finfo = file_info "$_/$0", $::original_cwd;
+	  my $finfo = file_info "$_/$0", $Mpp::original_cwd;
 	  if( file_exists $finfo ) { # Is this our file?
 	    $command = Mpp::File::absolute_filename $finfo;
 	    last;
@@ -152,7 +152,7 @@ sub Mpp::Subs::f_MAKE {
 	}
       }
     }
-    ::PERL . ' ' . $command . ' --recursive_makepp';
+    Mpp::PERL . ' ' . $command . ' --recursive_makepp';
 				# All the rest of the info is passed in the
 				# MAKEFLAGS environment variable.
 				# The --recursive option is just a flag that
@@ -161,12 +161,12 @@ sub Mpp::Subs::f_MAKE {
 				# actually do anything.
   } else {
     die "makepp: recursive make without --traditional-recursive-make only supported on Cygwin Perl\n"
-      if ::is_windows < -1 || ::is_windows > 0;
+      if Mpp::is_windows < -1 || Mpp::is_windows > 0;
 
     my $makefile = $_[1];	# Get the makefile we're run from.
 
-    $command ||= ::PERL . ' ' .
-      Mpp::File::absolute_filename( file_info $::datadir, $::original_cwd ) .
+    $command ||= Mpp::PERL . ' ' .
+      Mpp::File::absolute_filename( file_info $Mpp::datadir, $Mpp::original_cwd ) .
 	'/recursive_makepp';
 				# Sometimes we can be run as ../makepp, and
 				# if we didn't hard code the paths into

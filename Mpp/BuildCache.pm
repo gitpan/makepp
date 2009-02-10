@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.42 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.43 2009/02/10 22:55:49 pfeiffer Exp $
 #
 # Possible improvements:
 #
@@ -273,7 +273,7 @@ sub cache_file {
   my $result = eval {
     my $linking;
     my $target_prot = $file_prot;
-    if( $dev == $self->{DEV} && !$::force_bc_copy ) {
+    if( $dev == $self->{DEV} && !$Mpp::force_bc_copy ) {
       $linking = 1;
       $target_src = $input_filename;
       $target_prot &= ~0222;	# Make it read only, so that no one can
@@ -282,14 +282,14 @@ sub cache_file {
 				# Remember that it's linked to the build
 				# cache, so we need to delete it before
 				# allowing it to be changed.
-      if($::md5check_bc) {
+      if($Mpp::md5check_bc) {
 	# Make sure that $build_info->{MD5_SUM} is set.
 	require Mpp::Signature::md5;
 	Mpp::Signature::md5::signature($Mpp::Signature::md5::md5, $input_finfo);
       }
     } else {			# Hard link not possible on different dev
       my $md5;
-      if($::md5check_bc && !$build_info->{MD5_SUM}) {
+      if($Mpp::md5check_bc && !$build_info->{MD5_SUM}) {
 	require Digest::MD5;
 	$md5 = Digest::MD5->new;
       }
@@ -337,7 +337,7 @@ sub cache_file {
     # need to make sure that we don't corrupt to the cache entries if we can
     # possibly help it.
     my @files_to_unlink;
-    $::critical_sections++;
+    $Mpp::critical_sections++;
     my $result = eval {
       # NOTE: We try to make the build info file live longer than the target
       # file, because we don't like to fail to import just because the build
@@ -382,14 +382,14 @@ sub cache_file {
       #push @files_to_unlink, $cache_fname; # Currently redundant
 
       @files_to_unlink = ();	# Commit to leave the entry in the cache
-      ::log $linking ? 'BC_LINK' : 'BC_EXPORT' => $input_finfo, $cache_fname
-	if $::log_level;
+      Mpp::log $linking ? 'BC_LINK' : 'BC_EXPORT' => $input_finfo, $cache_fname
+	if $Mpp::log_level;
       1
     };
     my $error = $@;
     eval { unlink @files_to_unlink }; # Ignore failure here
-    $::critical_sections--;
-    ::propagate_pending_signals();
+    $Mpp::critical_sections--;
+    Mpp::propagate_pending_signals();
     die $error if $error;
     $result
   };
@@ -557,7 +557,7 @@ sub absolute_filename { $_[0]->{FILENAME} }
 Replaces the file in $output_finfo with the file from the cache, and updates
 all the Mpp::File data structures to reflect this change.
 The build info signature is checked against the target file in the cache,
-and if $::md5check_bc is set, then the MD5 checksum is also verified.
+and if $Mpp::md5check_bc is set, then the MD5 checksum is also verified.
 
 Returns true if the file was successfully restored from the cache, false if
 not.  (I B<think> the only reason it wouldn't be successfully restored is that
@@ -627,16 +627,16 @@ sub copy_from_cache {
 # file, even if an interrupt arrives, because then it will look like a source
 # file, and then --rm-stale might not work.
 #
-  $::critical_sections++;
+  $Mpp::critical_sections++;
   my $result = eval {
     my $md5;
     require Digest::MD5;
-    $md5 = Digest::MD5->new if $::md5check_bc;
+    $md5 = Digest::MD5->new if $Mpp::md5check_bc;
     my ($size, $mtime);
     # TBD: Maybe we shouldn't fall back to copying if link fails.  There
     # should be a warning at least.
     if( $self->{DEV} == ((Mpp::File::stat_array $output_finfo->{'..'})->[Mpp::File::STAT_DEV] || 0)
-	&& !$::force_bc_copy &&
+	&& !$Mpp::force_bc_copy &&
 				  # Same file system?
 	link($self->{FILENAME}, $output_fname)) {
       # Re-stat in case it changed since we looked it up.
@@ -708,8 +708,8 @@ sub copy_from_cache {
   };
   my $error = $@;
   $result or eval { Mpp::File::unlink( $output_finfo ) }; # Clean up on error
-  $::critical_sections--;
-  ::propagate_pending_signals();
+  $Mpp::critical_sections--;
+  Mpp::propagate_pending_signals();
   die $error if $error;
 
   # TBD: Some filesystems don't update atime on file access, for performance

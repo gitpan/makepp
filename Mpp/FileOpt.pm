@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.99 2009/02/09 22:31:43 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.100 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -107,7 +107,7 @@ sub get_rule {
     $finfo->{RULE} or do {
       if( my $minfo = $mdir->{MAKEINFO} ) {
 	AUTOLOAD: while( my $auto = shift @{$minfo->{AUTOLOAD} || []} ) {
-	  ::log AUTOLOAD => $finfo;
+	  Mpp::log AUTOLOAD => $finfo;
 	  Mpp::Makefile::load( $auto, $mdir, {}, '', [],
 			  $minfo->{ENVIRONMENT}, undef, 'AUTOLOAD' );
 	  last AUTOLOAD if exists $finfo->{RULE};
@@ -135,7 +135,7 @@ archive) then this function will return true.
 If this is not what you want, then consider the function file_exists(), which
 looks in the file system to see whether the file exists or not.
 
-The ..._or_remove variant removes the file if $::rm_stale_files is set
+The ..._or_remove variant removes the file if $Mpp::rm_stale_files is set
 and the file is stale.
 You shouldn't call this unless you're confident that the file's rule will not
 be learned later, but it's exactly what you need for scanners, because if
@@ -177,9 +177,9 @@ sub exists_or_can_be_built_norecurse {
     # If we think it's a stale file when this is called, then just pretend
     # it isn't there, but don't remove it because we might find out later
     # that there is a rule for it.
-    if(!$stale && $::rm_stale_files && &is_stale) {
-      ::log MAYBE_STALE => $finfo
-	if $::log_level && !$warned_stale{int $finfo} and $warned_stale{int $finfo} = $finfo;
+    if(!$stale && $Mpp::rm_stale_files && &is_stale) {
+      Mpp::log MAYBE_STALE => $finfo
+	if $Mpp::log_level && !$warned_stale{int $finfo} and $warned_stale{int $finfo} = $finfo;
       return undef;
     }
     $finfo->{EXISTS_OR_CAN_BE_BUILT} = 1;
@@ -190,7 +190,7 @@ sub exists_or_can_be_built_norecurse {
 sub exists_or_can_be_built {
   # If $phony is set, then return only phony targets, which are otherwise ignored.
   # If $stale is set, then return stale generated files too, even if
-  # $::rm_stale_files is set.
+  # $Mpp::rm_stale_files is set.
   # If $no_last_chance is set, then don't return generated files if the only
   # rule to build them is a last-chance rule that we haven't already instanced.
   my ($finfo, $phony, $stale, $no_last_chance) = @_;
@@ -240,17 +240,17 @@ sub exists_or_can_be_built_or_remove {
     &lstat_array;
     return unless exists $finfo->{EXISTS};
   }
-  $warned_stale{int $finfo} = $finfo if $::rm_stale_files; # Avoid redundant warning
+  $warned_stale{int $finfo} = $finfo if $Mpp::rm_stale_files; # Avoid redundant warning
   my $result = &exists_or_can_be_built;
-  return $result if $result || !$::rm_stale_files;
+  return $result if $result || !$Mpp::rm_stale_files;
   if( exists $finfo->{EXISTS} || &signature ) {
     unless( &was_built_by_makepp ) {
       die '`' . &absolute_filename . "' is both a source file and a phony target\n" if exists $finfo->{IS_PHONY};
       return unless &have_read_permission; # Hidden from mpp.
       require Carp; Carp::confess( &absolute_filename );
     }
-    ::log DEL_STALE => $finfo
-      if $::log_level;
+    Mpp::log DEL_STALE => $finfo
+      if $Mpp::log_level;
     # TBD: What if the unlink fails?
     &Mpp::File::unlink;
     # Remove the build info file as well, so that it won't be treated as
@@ -347,7 +347,7 @@ sub set_additional_dependencies {
   push(@{$finfo->{ADDITIONAL_DEPENDENCIES}},
        [ $dependency_string, $makefile, $makefile_line ]);
 				# Store a copy of this information.
-  publish( $finfo, $::rm_stale_files );
+  publish( $finfo, $Mpp::rm_stale_files );
 				# For legacy makefiles, sometimes an idiom like
 				# this is used:
 				#   y.tab.c: y.tab.h
@@ -529,8 +529,8 @@ sub set_rule {
     } else {
       return if $rule_is_default; # Never let a builtin rule override a rule in the makefile.
       if( $oldrule->source !~ /\bmakepp_builtin_rules\.mk:/ ) { # The old rule isn't a default rule.
-	::log RULE_ALT => $rule, $oldrule, $finfo
-	  if $::log_level;
+	Mpp::log RULE_ALT => $rule, $oldrule, $finfo
+	  if $Mpp::log_level;
 
 	my $new_rule_recursive = ($rule->{COMMAND_STRING} || '') =~ /\$[({]MAKE[)}]/;
 	my $old_rule_recursive = ($oldrule->{COMMAND_STRING} || '') =~ /\$[({]MAKE[)}]/;
@@ -539,14 +539,14 @@ sub set_rule {
 	if( $new_rule_recursive && !$old_rule_recursive ) {
 				# This rule does not override anything if
 				# it invokes a recursive make.
-	  ::log RULE_IGN_MAKE => $rule
-	    if $::log_level;
+	  Mpp::log RULE_IGN_MAKE => $rule
+	    if $Mpp::log_level;
 	  return;
 	}
 
 	if( $old_rule_recursive && !$new_rule_recursive ) {
-	  ::log RULE_DISCARD_MAKE => $oldrule
-	    if $::log_level;
+	  Mpp::log RULE_DISCARD_MAKE => $oldrule
+	    if $Mpp::log_level;
 
 	  delete $finfo->{BUILD_HANDLE};
 				# Don't give a warning message about a rule
@@ -560,21 +560,21 @@ sub set_rule {
 				# if they are from different makefiles.
 	    if( relative_filename( $rule->build_cwd, $finfo->{'..'}, 1 ) <
 		relative_filename( $oldrule->build_cwd, $finfo->{'..'}, 1 )) {
-	      ::log RULE_NEARER => $rule
-		if $::log_level;
+	      Mpp::log RULE_NEARER => $rule
+		if $Mpp::log_level;
 	    } else {
-	      ::log RULE_NEARER_KEPT => $oldrule
-		if $::log_level;
+	      Mpp::log RULE_NEARER_KEPT => $oldrule
+		if $Mpp::log_level;
 	      return;
 	    }
 	  } elsif( !exists $rule->{PATTERN_RULES} || @{$rule->{PATTERN_RULES}} < @{$oldrule->{PATTERN_RULES}} ) {
 				# If they're from the same makefile, use the
 				# one that has a shorter chain of inference.
-	    ::log RULE_SHORTER => $rule
-	      if $::log_level;
+	    Mpp::log RULE_SHORTER => $rule
+	      if $Mpp::log_level;
 	  } elsif( @{$rule->{PATTERN_RULES}} > @{$oldrule->{PATTERN_RULES}} ) {
-	    ::log RULE_SHORTER => $oldrule
-	      if $::log_level;
+	    Mpp::log RULE_SHORTER => $oldrule
+	      if $Mpp::log_level;
 	    return;
 	  } else {
 	    warn 'rule `', $rule->source, "' produces ", &absolute_filename,
@@ -582,8 +582,8 @@ sub set_rule {
 		if $rule->source eq $oldrule->source;
 	  }
 	} elsif( exists $rule->{PATTERN_RULES} ) { # New rule is?
-	  ::log RULE_IGN_PATTERN => $rule
-	    if $::log_level;
+	  Mpp::log RULE_IGN_PATTERN => $rule
+	    if $Mpp::log_level;
 	  return;
 	} else {
 	  warn 'conflicting rules `', $rule->source, "' and `", $oldrule->source, "' for target ",
@@ -604,8 +604,8 @@ sub set_rule {
 # If we get here, we have decided that the new rule (in $rule) should override
 # the old one (if there is one).
 #
-#  $::log_level and
-#    ::print_log(0, $rule, ' applies to target ', $finfo);
+#  $Mpp::log_level and
+#    Mpp::print_log(0, $rule, ' applies to target ', $finfo);
 
   $finfo->{RULE} = $rule;	# Store the new rule.
   $finfo->{PATTERN_RULES} = $rule->{PATTERN_RULES} if $rule->{PATTERN_RULES};
@@ -624,7 +624,7 @@ sub set_rule {
       "' for target ", &absolute_filename, " after I had already tried to build it\n"
       unless exists($rule->{MULTIPLE_RULES_OK});
   }
-  publish($finfo, $::rm_stale_files);
+  publish($finfo, $Mpp::rm_stale_files);
 				# Now we can build this file; we might not have
 				# been able to before.
 }
@@ -709,13 +709,13 @@ sub update_build_infos {
 				# build info strings for the same file are
 				# changed, it can get on the list twice.
     delete $finfo->{NEEDS_BUILD_UPDATE}; # Do not update it again.
-    if( !in_sandbox( $finfo ) || ($::virtual_sandbox_flag && !$finfo->{BUILDING}) ) {
+    if( !in_sandbox( $finfo ) || ($Mpp::virtual_sandbox_flag && !$finfo->{BUILDING}) ) {
       # If we cached some info about a file outside of our sandbox, then
       # don't flush the info, but don't write it either, because then we could
       # have a race with another makepp process. (That's what sandboxing is
       # all about.)
-      ::log NOT_IN_SANDBOX => $finfo
-	if $::log_level;
+      Mpp::log NOT_IN_SANDBOX => $finfo
+	if $Mpp::log_level;
       next;
     }
 
@@ -750,8 +750,8 @@ END {
   &update_build_infos;
   for my $finfo ( values %warned_stale ) {
     if( is_stale $finfo and file_exists $finfo ) { # After all, it is still stale.
-      ::log DEL_STALE => $finfo
-	if $::log_level;
+      Mpp::log DEL_STALE => $finfo
+	if $Mpp::log_level;
       Mpp::File::unlink $finfo;
       CORE::unlink Mpp::File::build_info_fname $finfo;
     }
@@ -826,14 +826,14 @@ the youngest ancestor that is marked for do read.
 =cut
 
 BEGIN {
-  for( qw(assume_unchanged dont_build in_sandbox~!$::sandbox_enabled_flag dont_read) ) {
+  for( qw(assume_unchanged dont_build in_sandbox~!$Mpp::sandbox_enabled_flag dont_read) ) {
     my( $fn, $fail ) = split '~';
     $fail ||= 'undef';
     my $key = uc $fn;
     eval "sub $fn {
       exists( \$_[0]{$key} ) ?
 	\$_[0]{$key} :
-      (\$::${fn}_dir_flag && \$_[0] != \$Mpp::File::root) ?
+      (\$Mpp::${fn}_dir_flag && \$_[0] != \$Mpp::File::root) ?
 	(\$_[0]{$key} = $fn( \$_[0]{'..'} )) :
 	$fail;
     }";
@@ -885,7 +885,7 @@ sub load_build_info_file {
       # the repository, then we need to remove the link to the repository now,
       # because otherwise we won't remove the link before the target gets built.
       # Note that this code may need to track changes to is_stale.
-      unless( $sig_match && (::MAKEPP ? exists $finfo->{ALTERNATE_VERSIONS} : 1) || &dont_build ) {
+      unless( $sig_match && (Mpp::MAKEPP ? exists $finfo->{ALTERNATE_VERSIONS} : 1) || &dont_build ) {
 	if( &dereference != file_info $build_info->{FROM_REPOSITORY}, $finfo->{'..'} ) {
 	  undef $sig_match;	# The symlink was modified outside of makepp
 	} elsif( &in_sandbox || !-e &absolute_filename ) {
@@ -897,37 +897,37 @@ sub load_build_info_file {
 	  # its build info file have been removed.  That's probably still
 	  # better than getting permanently stuck when a repository file is
 	  # deleted.
-	  ::log REP_OUTDATED => $finfo
-	    if $::log_level;
+	  Mpp::log REP_OUTDATED => $finfo
+	    if $Mpp::log_level;
 	  &unlink;
 	} else {
-	  warn $::sandbox_warn_flag ? '' : 'error: ',
+	  warn $Mpp::sandbox_warn_flag ? '' : 'error: ',
 	    "Can't remove outdated repository link " . &absolute_filename . " because it's out of my sandbox\n";
-	  die unless $::sandbox_warn_flag;
+	  die unless $Mpp::sandbox_warn_flag;
 	}
       }
     }
 
     unless( $sig_match ) {	# Exists but has the wrong signature?
-      if( !::MAKEPP ) {
+      if( !Mpp::MAKEPP ) {
 	delete $build_info->{SIGNATURE}; # Remember to handle this later in makeppreplay.
       } elsif( $build_info->{SYMLINK} ) {
 				# Signature is that of linked file.  The symlink
 				# is checked before possibly rebuilding it.
-	if( $sig or not $::rm_stale_files || $build_info->{FROM_REPOSITORY} ) {
+	if( $sig or not $Mpp::rm_stale_files || $build_info->{FROM_REPOSITORY} ) {
 				# Link and linkee exist or not supposed to wipe.
 	  $build_info->{SIGNATURE} = $sig;
 	  $finfo->{TEMP_BUILD_INFO} = $build_info; # Mpp::Rule::execute will pick it up.
 	} else {
-	  ::log DEL_STALE => $finfo
-	    if $::log_level;
+	  Mpp::log DEL_STALE => $finfo
+	    if $Mpp::log_level;
 	  &unlink;
 	  CORE::unlink $build_info_fname;
 	}
 	return undef;
       } else {
-	::log OUT_OF_DATE => $finfo
-	  if $::log_level;
+	Mpp::log OUT_OF_DATE => $finfo
+	  if $Mpp::log_level;
 	CORE::unlink $build_info_fname; # Get rid of bogus file.
 	# NOTE: We assume that if we failed to unlink $finfo, then we'll fail to
 	# unlink $build_info_fname as well, so that the FROM_REPOSITORY turd will
@@ -952,13 +952,13 @@ sub version {
 # day.  This assumes that no two years have three same check in dates and
 # amounts.
 #
-  open my $fh, '<', "$::datadir/VERSION";
-  chomp( $::VERSION		# Hide assignment from CPAN scanner.
+  open my $fh, '<', "$Mpp::datadir/VERSION";
+  chomp( $Mpp::VERSION		# Hide assignment from CPAN scanner.
 	 = <$fh> );
-  if( $::VERSION		# -"-
+  if( $Mpp::VERSION		# -"-
       =~ s/beta// ) {
     my %VERSION = qw(0/00/00 0 00/00/00 0); # Default in case all modules change on same day.
-    for( "$0", <$::datadir/*.pm $::datadir/Mpp/*.pm $::datadir/Mpp/*/*.pm $::datadir/makepp_builtin_rules.mk> ) {
+    for( "$0", <$Mpp::datadir/*.pm $Mpp::datadir/Mpp/*.pm $Mpp::datadir/Mpp/*/*.pm $Mpp::datadir/makepp_builtin_rules.mk> ) {
       open my( $fh ), $_;
       while( <$fh> ) {
 	if( /\$Id: .+,v [.0-9]+ ([\/0-9]+)/ ) {
@@ -967,13 +967,13 @@ sub version {
 	}
       }
     }
-    $::VERSION .= join '-', '',
+    $Mpp::VERSION .= join '-', '',
       grep { my $key = $_; s!\d+/(\d+)/(\d+)!$1$2$VERSION{$_}! } (reverse sort keys %VERSION)[0..2];
   }
 #@@
 
   $0 =~ s!.*/!!;
-  print "$0 version $::VERSION
+  print "$0 version $Mpp::VERSION
 Makepp may be copied only under the terms of either the Artistic License or
 the GNU General Public License, either version 2, or (at your option) any
 later version.

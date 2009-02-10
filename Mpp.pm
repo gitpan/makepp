@@ -1,4 +1,19 @@
-# $Id: Frame.pm,v 1.2 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Mpp.pm,v 1.3 2009/02/10 22:55:49 pfeiffer Exp $
+
+=head1 NAME
+
+Mpp - Common subs for makepp and makeppreplay
+
+=head1 DESCRIPTION
+
+This package contains builtin commands similar to common utilities, which can
+be called from a rule, as well as in a functional way or as top level
+statements.
+
+=cut
+
+package Mpp;
+
 use strict;
 
 use Mpp::Text;
@@ -104,11 +119,11 @@ my @signals_to_handle = is_windows > 0 && is_perl_5_6 ?
   @pending_signals{@signals_to_handle} = ( 0 ) x @signals_to_handle;
 
   END {
-    ::log N_REP_HITS => $rep_hits
+    Mpp::log N_REP_HITS => $rep_hits
       if $log_level && $rep_hits;
-    ::log N_CACHE_HITS => $build_cache_hits
+    Mpp::log N_CACHE_HITS => $build_cache_hits
       if $log_level && $build_cache_hits;
-    ::log N_FILES => $n_files_changed, $n_phony_targets_built, $failed_count
+    Mpp::log N_FILES => $n_files_changed, $n_phony_targets_built, $failed_count
       if defined $logfh;		    # Don't create log for --help or --version.
     if( exists $Devel::DProf::{VERSION} ) { # Running with profiler?
       warn "Doing slow exit, needed for profiler.\n";
@@ -147,23 +162,23 @@ $SIG{__WARN__} = sub {
 				# TODO: should we return if !$warn_level && $1 ne 'error'?
   print STDERR "$progname: $level$_[0]";
   if( $log_level == 2 ) {
-    &::log() unless defined $logfh; # Only open the file.
+    &Mpp::log() unless defined $logfh; # Only open the file.
     print $logfh "*** $level$_[0]";
   }
 };
 
 
 
-=head2 ::log
+=head2 Mpp::log
 
-  ::log KEY => {object | array of objects | string} ...
+  Mpp::log KEY => {object | array of objects | string} ...
     if $log_level;
 
 The list of available KEYs is present in makepplog.  If you pass an non-key
 str if will later be output verbatim.  The objects must have a method `name'.
 
 This log overrides logarithm (which is not needed by makepp).  Because of
-this, and because it is not exported, it must always be invoked as ::log.
+this, and because it is not exported, it must always be invoked as Mpp::log.
 
 The log format contains a few control chars, denoted here as ^A, ^B ...
 
@@ -205,7 +220,7 @@ sub log($@) {
     if( $log_level == 1 ) {
       (my $mppl = $0) =~ s/\w+$/makepplog/;
       -f $mppl or
-	substr $mppl, 0, 0, Mpp::File::absolute_filename( $::original_cwd ) . '/';
+	substr $mppl, 0, 0, Mpp::File::absolute_filename( $Mpp::original_cwd ) . '/';
       open $logfh, '|' . PERL . " $mppl -pl-" or # Pass the mesages to makepplog for formatting.
 	die "$progname: can't pipe to `makepplog' for verbose option--$!\n";
     } else {
@@ -327,7 +342,7 @@ sub print_error {
   $str .= "\n" if $str !~ /\n\z/;
   print STDERR $stderr ? $stderr . $str : $str;
   if( $log_level == 2 ) {
-    &::log() unless defined $logfh; # Only open the file.
+    &Mpp::log() unless defined $logfh; # Only open the file.
     print $logfh $log . $str;
   }
   &flush_log;
@@ -399,7 +414,7 @@ our @common_options =
   (
     [qr/[h?]/, 'help', undef, undef, sub { local $/; print <DATA>; exit 0 }],
 
-    ['n', qr/(?:just[-_]?print|dry[-_]?run|recon)/, \$::dry_run],
+    ['n', qr/(?:just[-_]?print|dry[-_]?run|recon)/, \$Mpp::dry_run],
 
     ['k', qr/keep[-_]?going/, \$keep_going],
 

@@ -1,4 +1,4 @@
-# $Id: Repository.pm,v 1.4 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Repository.pm,v 1.5 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -55,7 +55,7 @@ sub load_single {
     push @{$_[1]{ALTERNATE_VERSIONS}}, $_[0];
 				# Mark this as a possible source.
   }
-  publish $_[1], $::rm_stale_files;
+  publish $_[1], $Mpp::rm_stale_files;
 				# This thing exists now, so wildcards can match it.
 }
 
@@ -100,7 +100,7 @@ sub load_recurse {
     if( is_dir $_ ) {
       load_recurse( $_, $dest_finfo, $top, $prune_code );
       push @{$dest_finfo->{ALTERNATE_VERSIONS}}, $_;
-      publish $dest_finfo, $::rm_stale_files;
+      publish $dest_finfo, $Mpp::rm_stale_files;
 				# This thing exists now, so wildcards can match it.
     } elsif( file_exists $_ ) {
       load_single $_, $dest_finfo;
@@ -123,7 +123,7 @@ sub load_recurse {
 #
 sub Mpp::Repository::load {
   my( $dirinfo, $destdirinfo, $prune_code ) = @_; # Name the arguments.
-  ::log REP_LOAD => $dirinfo, $destdirinfo
+  Mpp::log REP_LOAD => $dirinfo, $destdirinfo
     if $log_level;
 
   # TBD: Using a repository manifest (in addition to the possibility that
@@ -135,8 +135,8 @@ sub Mpp::Repository::load {
     if( is_readable $finfo ) {
       my $fname = absolute_filename $finfo;
       open MANIFEST, '<', $fname or die "Failed to read $fname--$!";
-      ::log REP_MANIFEST => $finfo
-	if $::log_level;
+      Mpp::log REP_MANIFEST => $finfo
+	if $Mpp::log_level;
       # NOTE: In the manifest file, each "Makefile.in" file must be the first
       # listed entry of the directory that contains it, or else this won't
       # handle automake stuff properly.
@@ -160,7 +160,7 @@ sub Mpp::Repository::load {
 
 sub Mpp::Repository::no_valid_alt_versions {
   return 1 unless exists $_[0]{ALTERNATE_VERSIONS};
-  return unless $::rm_stale_files;
+  return unless $Mpp::rm_stale_files;
   was_built_by_makepp $_
     or return
     for @{$_[0]{ALTERNATE_VERSIONS}};
@@ -193,8 +193,8 @@ sub Mpp::Repository::get {
 
   &mkdir( $dest_finfo->{'..'} ); # Make the directory (and its parents) if it doesn't exist.
 
-  ::log REP_LINK => @_
-    if $::log_level;
+  Mpp::log REP_LINK => @_
+    if $Mpp::log_level;
 
   &check_for_change;		# Flush $dest_finfo->{LINK_DEREF} to be safe
 				# (in particular, to make sure that it wasn't
@@ -215,12 +215,12 @@ sub Mpp::Repository::get {
 				# Update it soon.
 
   if( dont_read $src_finfo ) {
-    ::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
+    Mpp::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
       ' because the former is marked for dont-read';
     return 1;			# Indicate failure.
   }
   if( &dont_read ) {
-    ::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
+    Mpp::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
       ' because the latter is marked for dont-read';
     return 1;			# Indicate failure.
   }
@@ -236,14 +236,14 @@ sub Mpp::Repository::get {
 
   if( $changed ) {
     unless( &in_sandbox ) {
-      warn $::sandbox_warn_flag ? '' : 'error: ',
+      warn $Mpp::sandbox_warn_flag ? '' : 'error: ',
 	'Cannot link ', absolute_filename( $src_finfo ), ' to ', &absolute_filename,
 	" because the latter is marked for out-of-sandbox\n";
-      return 1 unless $::sandbox_warn_flag;	# Indicate failure.
+      return 1 unless $Mpp::sandbox_warn_flag;	# Indicate failure.
     }
     &unlink;			# Get rid of anything that might already
 				# be there.
-    if( !defined $::symlink_in_rep_as_file && is_symbolic_link $src_finfo ) {
+    if( !defined $Mpp::symlink_in_rep_as_file && is_symbolic_link $src_finfo ) {
 				# Must not fetch symlinks from repository, because
 				# they can point to another file in the repository
 				# of which we have a different version locally.
@@ -257,13 +257,13 @@ sub Mpp::Repository::get {
       eval { &symlink };	# Make the link.
     }
     if ($@) {			# Did something go wrong?
-      ::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo, ":\n$@";
+      Mpp::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo, ":\n$@";
       return 1;			# Indicate failure.
     }
-    ++$::rep_hits;
+    ++$Mpp::rep_hits;
   } else {
-    ::log 'REP_EXISTING'
-      if $::log_level;
+    Mpp::log 'REP_EXISTING'
+      if $Mpp::log_level;
   }
 
   # NOTE: This has to happen *after* the file exists (or else the build info

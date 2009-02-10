@@ -10,7 +10,7 @@
 #
 
 # Slurp this test into our directory.
-open DATA, "$::source_path/builtins.test" or
+open DATA, "$Mpp::source_path/builtins.test" or
   die "can't find builtins.test near here--$!\n";
 eval { un_spar() };
 
@@ -59,7 +59,7 @@ sub c_clonetest {
     $0 = 'makeppbuiltin';
     @ARGV = Mpp::Text::unquote_split_on_whitespace( $_ );
     substr( $ARGV[0], 0, 1 ) = ''; # Remove &
-    eval { ::doit }; warn $@ if $@;
+    eval { Mpp::doit }; warn $@ if $@;
   }
 
   # We don't know how many files we created, but just to satisfy the test harness:
@@ -69,7 +69,7 @@ sub c_clonetest {
   @ARGV = '--help';
   open STDERR, '>help';
   for $0 ( sort grep { /^c_/ and defined &{"Mpp::Cmds::$_"} } keys %Mpp::Cmds:: ) {
-    eval { ::doit };
+    eval { Mpp::doit };
     warn "\n";
   }
   close STDERR;

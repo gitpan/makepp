@@ -1,4 +1,4 @@
-# $Id: md5.pm,v 1.10 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: md5.pm,v 1.11 2009/02/10 22:55:50 pfeiffer Exp $
 use strict;
 package Mpp::Signature::md5;
 
@@ -41,7 +41,7 @@ sub signature {
 
     my $fname = Mpp::File::absolute_filename( $finfo );
     if(-f $fname && open my $infile, $fname) {
-#      $main::warn_level and
+#      $Mpp::warn_level and
 #	print "Computing MD5 sum of $fname\n";
       my $ctx = Digest::MD5->new;	# Make a context for computing.
       $ctx->addfile( $infile );	# Read in the whole file.

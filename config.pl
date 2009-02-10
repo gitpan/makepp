@@ -1,8 +1,10 @@
 #!/usr/bin/perl -w
-# $Id: config.pl,v 1.23 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: config.pl,v 1.24 2009/02/10 22:55:49 pfeiffer Exp $
 #
 # Configure this package.
 #
+
+package Mpp;
 
 use strict;
 use Mpp::Text ();

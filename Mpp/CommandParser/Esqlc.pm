@@ -1,4 +1,4 @@
-# $Id: Esqlc.pm,v 1.14 2009/02/09 22:45:23 pfeiffer Exp $
+# $Id: Esqlc.pm,v 1.15 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -45,7 +45,7 @@ sub parse_arg {
 	Mpp::File::exists_or_can_be_built( file_info $_ ) ? $1 : "$1.pc";
     } elsif( s/^define=//i ) { # Oracle Pro*C
       unshift @$words, "-D$_";
-    } elsif( ::is_windows ? s/^config=(?=(\/|[a-z]:)?)//i : s/^config=(?=(\/)?)//i ) { # Oracle Pro*C
+    } elsif( Mpp::is_windows ? s/^config=(?=(\/|[a-z]:)?)//i : s/^config=(?=(\/)?)//i ) { # Oracle Pro*C
       $_[0]->add_simple_dependency( $_ );
       substr $_, 0, 0, &Mpp::CommandParser::dirinfo->{FULLNAME} . '/' unless defined $1;
       Mpp::Subs::prebuild file_info( $_ ), $_[0]{RULE}{MAKEFILE}, $_[0]{RULE}{RULE_SOURCE};

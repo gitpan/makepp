@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.40 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Text.pm,v 1.41 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -22,8 +22,8 @@ use Config;
 # perl implements them as subs, and each sub takes about 1.5kb RAM.
 BEGIN {
   eval "sub CONST$_() { $_ }" for 0..6; # More are defined in Mpp/BuildCacheControl.pm
-  *::is_perl_5_6 = $] < 5.008 ? \&CONST1 : \&CONST0;
-  *::is_windows =
+  *Mpp::is_perl_5_6 = $] < 5.008 ? \&CONST1 : \&CONST0;
+  *Mpp::is_windows =
     $^O eq 'cygwin' ? sub() { -1 } : # Negative for Unix like
     $^O eq 'msys' ? sub() { -2 } :   # MinGW with sh & coreutils
     $^O =~ /^MSWin/ ? (exists $ENV{SHELL} && $ENV{SHELL} =~ /sh(?:\.exe)?$/i ? \&CONST1 : \&CONST2) :
@@ -32,8 +32,8 @@ BEGIN {
   my $perl = $ENV{PERL};
   if( $perl && -x $perl ) {	# Overridden successfully.
   } elsif( -x $^X ) {		# Use same as ourself.
-    $^X =~ tr/\\/\// if ::is_windows() > 0;
-    $perl = (::is_windows() ? $^X =~ /^(?:\w:)?\// : $^X =~ /^\//) ?
+    $^X =~ tr/\\/\// if Mpp::is_windows() > 0;
+    $perl = (Mpp::is_windows() ? $^X =~ /^(?:\w:)?\// : $^X =~ /^\//) ?
       $^X :
       eval "use Cwd; cwd . '/$^X'";
   } else {			# Emergency fallback.
@@ -41,7 +41,7 @@ BEGIN {
     my $version = sprintf '%vd', $^V;
     $perl .= $version if -x "$perl$version";
   }
-  eval "sub ::PERL() { '$perl' }";
+  eval "sub Mpp::PERL() { '$perl' }";
 }
 
 #
@@ -314,9 +314,9 @@ sub split_on_colon {
 sub split_path {
   my $var = $_[1] || 'PATH';
   my $path = $_[2] || ($_[0] && $_[0]{$var} || $ENV{$var});
-  if( ::is_windows ) {
+  if( Mpp::is_windows ) {
     map { tr!\\"!/!d; $_ eq '' ? '.' : $_ }
-      ::is_windows > 0 ?
+      Mpp::is_windows > 0 ?
 	split( /;/, "$path;" ) :	# "C:/a b";C:\WINNT;C:\WINNT\system32
 	split_on_colon( "$path:" );	# "C:/a b":"C:/WINNT":/cygdrive/c/bin
   } else {
@@ -522,8 +522,8 @@ sub requote {
 sub format_exec_args {
   my( $cmd ) = @_;
   return $cmd			# No Shell available.
-    if ::is_windows > 1;
-  if( ::is_windows == 1 && $cmd =~ /[%"\\]/ ) { # Despite multi-arg system(), these chars mess up command.com
+    if Mpp::is_windows > 1;
+  if( Mpp::is_windows == 1 && $cmd =~ /[%"\\]/ ) { # Despite multi-arg system(), these chars mess up command.com
     require Mpp::Subs;
     my $tmp = Mpp::Subs::f_mktemp( '' );
     open my $fh, '>', $tmp;
@@ -531,7 +531,7 @@ sub format_exec_args {
     return ($ENV{SHELL}, $tmp);
   }
   return ($ENV{SHELL}, '-c', $cmd)
-    if ::is_windows == -2 || ::is_windows == 1 ||
+    if Mpp::is_windows == -2 || Mpp::is_windows == 1 ||
       $cmd =~ /[()<>\\"'`;&|*?[\]]/ || # Any shell metachars?
       $cmd =~ /\{.*,.*\}/ || # Pattern in Bash (blocks were caught by ';' above).
       $cmd =~ /^\s*(?:\w+=|[.:!]\s|e(?:val|xec|xit)\b|source\b|test\b)/;
@@ -695,7 +695,7 @@ sub getopts(@) {
 	    ${$$spec[2]}++;
 	  }
 	  print STDERR "$0: -$$spec[0] is short for --"._getopts_long($spec)."\n"
-	    if $::verbose && !$short{$$spec[0]};
+	    if $Mpp::verbose && !$short{$$spec[0]};
 	  $short{$$spec[0]} = 1;
 	}
 	ref $$spec[4] ? &{$$spec[4]} : (${$$spec[2]} = $$spec[4]) if exists $$spec[4];

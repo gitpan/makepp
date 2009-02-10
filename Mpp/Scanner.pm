@@ -1,4 +1,4 @@
-# $Id: Scanner.pm,v 1.49 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Scanner.pm,v 1.50 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -152,7 +152,7 @@ sub add_include_dir {
       }
     }
     else {
-      $::warn_level and warn
+      $Mpp::warn_level and warn
 	'invalid directory ' . absolute_filename( $dirinfo ) .
 	' mentioned in command `' . $self->{RULE}->source . "'\n"
         unless $dir_warnings{absolute_filename( $dirinfo )}++;
@@ -263,8 +263,8 @@ makepp.
 sub dont_scan {
   my ($self, $finfo, $absname) = @_;
   unless( Mpp::File::is_writable( $finfo->{'..'} )) {
-    ::log SCAN_NOT_UNWRITABLE => $finfo
-      if $::log_level;
+    Mpp::log SCAN_NOT_UNWRITABLE => $finfo
+      if $Mpp::log_level;
     return 1;
   }
   $absname ||= absolute_filename( $finfo->{'..'} );
@@ -274,8 +274,8 @@ sub dont_scan {
 				# a user and then install as root.  This won't
 				# completely solve the problem, but it will
 				# make it much less common.
-    ::log SCAN_NOT_SYS => $finfo
-      if $::log_level;
+    Mpp::log SCAN_NOT_SYS => $finfo
+      if $Mpp::log_level;
     return 1;
   }
   0;
@@ -338,9 +338,9 @@ sub scan_file1 {
     my $absname = absolute_filename( $finfo );
     return 1 if $self->dont_scan($finfo, $absname);
     if( open my $fh, $absname ) {
-      print "$::progname: Scanning `$absname'\n" unless $::quiet_flag;
-      ::log SCAN => $finfo
-	if $::log_level;
+      print "$Mpp::progname: Scanning `$absname'\n" unless $Mpp::quiet_flag;
+      Mpp::log SCAN => $finfo
+	if $Mpp::log_level;
       # NOTE: We get away with having a single INC for the
       # Mpp::Scanner object because when we scan unconditionally,
       # there is only one file being scanned at a time.
@@ -547,11 +547,11 @@ sub include {
   my ($self, $command_parser, $tag, $name, $src)=@_;
   return 1 unless $self->{ACTIVE} && $name ne '';	# This is an error, so don't add a dep
   my $finfo = &find;
-  if( $finfo && $::log_level ) {
+  if( $finfo && $Mpp::log_level ) {
     if( $src ) {
-      ::log INCL => $src, $finfo;
+      Mpp::log INCL => $src, $finfo;
     } else {
-      ::log INCL_WHO => $finfo;
+      Mpp::log INCL_WHO => $finfo;
     }
   }
   $command_parser->add_dependency(

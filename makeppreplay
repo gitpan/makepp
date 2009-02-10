@@ -1,7 +1,9 @@
 #!/usr/bin/perl -w
-use strict;
+# $Id: makeppreplay,v 1.7 2009/02/10 22:55:49 pfeiffer Exp $
 
-# $Id: makeppreplay,v 1.6 2009/02/09 22:07:39 pfeiffer Exp $
+package Mpp;
+
+use strict;
 
 our $VERSION = '@VERSION@';
 use Config;
@@ -41,7 +43,7 @@ BEGIN {
 use Mpp::Utils;
 use Mpp::Text ();
 use POSIX ();
-use Mpp::Frame;
+use Mpp;
 
 use Mpp::Event qw(wait_for);
 
@@ -115,13 +117,13 @@ perform eval {
       ['I', qr/include(?:[-_]?dir)?/, \$tmp, 1, sub { unshift @INC, absolute_filename file_info $tmp }],
       [qw(M module), \$tmp, 1, sub { $tmp =~ s/=(.*)/ qw($1)/ and $tmp =~ tr/,/ /; $modules .= "use $tmp;" }],
       [qw(t temporary), \$temporary],
-      @::common_options;
+      @Mpp::common_options;
 
     @ARGV = '.' unless @ARGV || @targets;
     my $finfo = file_info shift, $target_cwd;
     if( is_dir $finfo ) {
-      ::log RULE_ALL => $finfo
-	if $::log_level;
+      Mpp::log RULE_ALL => $finfo
+	if $Mpp::log_level;
       my $build_info_subdir = file_info relative_filename( $finfo ) . "/$Mpp::File::build_info_subdir";
       $nothing_in_dir = absolute_filename $finfo;
       unshift @ARGV, grep {
@@ -164,13 +166,13 @@ perform eval {
     my $target = relative_filename $finfo, $dinfo;
     my $rule_cache = "$deps\01$cmd"; # Try to group targets that came from same rule.
     if( $dinfo->{$rule_cache} ) {
-      ::log RULE_EXTEND => $finfo, $dinfo->{$rule_cache}{TARGETS}
-	if $::log_level;
+      Mpp::log RULE_EXTEND => $finfo, $dinfo->{$rule_cache}{TARGETS}
+	if $Mpp::log_level;
       $dinfo->{$rule_cache}{TARGET_STRING} .= " $target";
       push @{$dinfo->{$rule_cache}{TARGETS}}, $finfo;
     } else {
-      ::log RULE_NEW => $finfo
-	if $::log_level;
+      Mpp::log RULE_NEW => $finfo
+	if $Mpp::log_level;
       $dinfo->{$rule_cache} = new Mpp::Rule $target, $deps, $cmd, $makefile, Mpp::File::build_info_fname( $finfo ) . ':0';
       push @targets, $finfo;
       $dinfo->{$rule_cache}{TARGETS} = [$finfo];
@@ -179,24 +181,24 @@ perform eval {
     }
     $finfo->{RULE} = $dinfo->{$rule_cache};
   }
-  @::common_options = ();
+  @Mpp::common_options = ();
   close DATA;
   die "$progname: No files built by makepp in `$nothing_in_dir'.\n"
     if $nothing_in_dir;
 
-  for my $target ( @targets ) {	# Should use ::build et al. here!
+  for my $target ( @targets ) {	# Should use Mpp::build et al. here!
     my $build_info = $target->{BUILD_INFO};
     if( delete $build_info->{FROM_REPOSITORY} || delete $build_info->{LINKED_TO_CACHE} ) {
 				# If these survived load_build_info_file, the file is linked.
-      ::log REMOVE => $target
-	if $::log_level;
+      Mpp::log REMOVE => $target
+	if $Mpp::log_level;
       Mpp::File::unlink $target;
     }
     my $rule = $target->{RULE};
     my $n_files = @{$rule->{TARGETS}};
     local $rule->{MAKEFILE}{EXPORTS} = $rule->{ENV_DEPS}
       if exists $rule->{ENV_DEPS};
-    if( $::dry_run ) {
+    if( $Mpp::dry_run ) {
       $rule->print_command( $rule->{COMMAND_STRING} );
     } elsif( my $status = wait_for $rule->execute(
 	$rule->{COMMAND_STRING},
@@ -204,15 +206,15 @@ perform eval {
 	[map file_info( $_, $target->{'..'} ), split ' ', $rule->{DEPENDENCY_STRING}] ) ) {
       print_error "Failed to build target", (@{$rule->{TARGETS}}>1 ? 's' : ''),
 	map( ' `'.absolute_filename( $_ )."'", @{$rule->{TARGETS}} ), " [$status]";
-      ::log RULE_FAILED => $rule
-	if $::log_level;
-      $::error_found = $status
-	if $status =~ /^signal (?:$::int_signo|$::quit_signo)$/os;
-      $::error_found ||= $status # Remember the error status.  This will
-	unless $::keep_going;	# cause us to stop compilation as soon as
+      Mpp::log RULE_FAILED => $rule
+	if $Mpp::log_level;
+      $Mpp::error_found = $status
+	if $status =~ /^signal (?:$Mpp::int_signo|$Mpp::quit_signo)$/os;
+      $Mpp::error_found ||= $status # Remember the error status.  This will
+	unless $Mpp::keep_going;	# cause us to stop compilation as soon as
 				# possible.
       $rule->{TARGET_STRING} =~ s/ /' `/g;
-      $::failed_count += $n_files;
+      $Mpp::failed_count += $n_files;
       unless( $temporary || $build_info->{COMMAND} =~ /\A\|FAILED\|/ ) {
 	for my $tinfo ( @{$rule->{TARGETS}} ) {
 	  substr $tinfo->{BUILD_INFO}{COMMAND}, 0, 0, '|FAILED|';
@@ -220,11 +222,11 @@ perform eval {
 	}
 	&Mpp::File::update_build_infos;
       }
-      last unless $::keep_going;
+      last unless $Mpp::keep_going;
     } else {
-      ::log SUCCESS => $rule, $rule->{TARGETS}
-	if $::log_level;
-      $::n_files_changed += $n_files;
+      Mpp::log SUCCESS => $rule, $rule->{TARGETS}
+	if $Mpp::log_level;
+      $Mpp::n_files_changed += $n_files;
       next if $temporary;
       my $sig = $build_info->{SIG_METHOD_NAME}; # All targets have the same.
       $sig &&= $rule->set_signature_method_scanner( $sig );

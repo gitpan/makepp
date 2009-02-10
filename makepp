@@ -1,9 +1,12 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.178 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: makepp,v 1.179 2009/02/10 22:55:49 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
+
+package Mpp;
+
 require 5.006;
 use strict;
 
@@ -69,7 +72,7 @@ BEGIN {
 	}ge;
       },
       qw(Mpp/BuildCheck/exact_match.pm Mpp/BuildCacheControl.pm Mpp/CommandParser.pm Mpp/File.pm Mpp/FileOpt.pm Mpp/Makefile.pm Mpp/Scanner.pm
-	 Mpp/Frame.pm Mpp/Rule.pm makepp makeppinfo) );
+	 Mpp.pm Mpp/Rule.pm makepp makeppinfo) );
     exec $^X, $0, @ARGV unless $makeppok;
   } elsif( $^O =~ /^MSWin/ && $] < 5.008007 ) {
     # This is a very bad hack!  On earlier Win Active State "lstat 'file'; lstat _ or -l _" is broken.
@@ -88,7 +91,7 @@ our $progname = 'makepp';	# Use a constant string, even for mpp, to make IDE par
 use Mpp::Text;
 BEGIN { *MAKEPP = \&Mpp::Text::CONST1 } # Differentiate from makeppreplay
 use POSIX ();
-use Mpp::Frame;
+use Mpp;
 
 
 our $error_found;
@@ -179,7 +182,7 @@ may not have been built yet; build() returns a handle (see Mpp/Event.pm for
 details) which you can wait on if you want to wait until the build is
 actually done.	The usual idiom is
 
-  wait_for main::build($objinfo);
+  wait_for build($objinfo);
 
 If you do this, of course, you make it harder for makepp to build targets in
 parallel because the makepp process will not spawn any other build requests
@@ -208,7 +211,7 @@ sub build {
   }
   if( &Mpp::File::dont_build ) {
     if( exists $_[0]{IS_PHONY} || &Mpp::File::file_exists ) {
-      ::log BUILD_NOT => $oinfo
+      Mpp::log BUILD_NOT => $oinfo
 	if $log_level;
     } elsif( &Mpp::File::dont_build == 2 ) { # Outside of ROOT
       print_error( "Not building inexistent `" . &absolute_filename . "' because it's marked for dont-build" );
@@ -218,7 +221,7 @@ sub build {
     }
     return undef $_[0]{BUILD_HANDLE};
   }
-  ::log TRY => $oinfo
+  Mpp::log TRY => $oinfo
     if $log_level;
 
   # NOTE: We can't unlink the target just yet (even if it's from a repository),
@@ -270,7 +273,7 @@ sub build {
       'Not building ', $oinfo, " because it's a stale generated file"
     );
     &Mpp::File::unlink;
-    $::failed_count++;		# Wouldn't get counted, since there's no rule
+    $Mpp::failed_count++;		# Wouldn't get counted, since there's no rule
     return 1;
   }
 
@@ -306,7 +309,7 @@ sub build {
   local $rule->{SCANNING} = 1;	# Ditto for other targets of this rule that
 				# we might not know about yet.
 
-  ::log USE => $rule
+  Mpp::log USE => $rule
     if $log_level;
 
   # In --final-rule-only mode, ignore the dependencies and implicit targets
@@ -326,7 +329,7 @@ sub build {
   $all_dependencies = $rule->sorted_dependencies($all_dependencies);
 				# Use sorted list from now on.
 
-  ::log DEPEND => $all_targets, $all_dependencies
+  Mpp::log DEPEND => $all_targets, $all_dependencies
     if $log_level;
 
 #
@@ -358,8 +361,8 @@ sub build {
     );
   }
   my $handle;
-  if( @$all_dependencies and $main::keep_going || ! exists $rule->{SCAN_FAILED} ) {
-    local $::indent_level = $::indent_level + 2;
+  if( @$all_dependencies and $Mpp::keep_going || ! exists $rule->{SCAN_FAILED} ) {
+    local $Mpp::indent_level = $Mpp::indent_level + 2;
 				# Temporarily change the indentation level
 				# when building dependencies.
     foreach my $dep (@$all_dependencies) {
@@ -370,7 +373,7 @@ sub build {
 	  sub {
 	    if( grep !(exists $_->{IS_PHONY} || file_exists $_), @$all_dependencies ) {
 	      for my $finfo ( @$all_targets ) { # Not all deps exist: target is now stale.
-		::log DEL_STALE => $finfo
+		Mpp::log DEL_STALE => $finfo
 		  if $log_level;
 		Mpp::File::unlink $finfo;
 		CORE::unlink Mpp::File::build_info_fname $finfo;
@@ -396,7 +399,7 @@ sub build {
 # If we're not doing a parallel make, wait for the above to finish, because
 # it's very confusing if makepp gets ahead of the shell commands.
 #
-  $::parallel_make or
+  $Mpp::parallel_make or
     wait_for $oinfo->{BUILD_HANDLE};
 
   $oinfo->{BUILD_HANDLE};
@@ -470,11 +473,11 @@ sub build_dependencies_done {
 
   if( $is_recursive_make ) {
     $rebuild_needed = 1;	# Always reexecute this command.
-    ::log BUILD_RECURSIVE => $all_targets
+    Mpp::log BUILD_RECURSIVE => $all_targets
       if $log_level;
   } elsif( $dont_scan ) {
     $rebuild_needed = 1;      # Always reexecute this command.
-    ::log BUILD_FINAL => $all_targets
+    Mpp::log BUILD_FINAL => $all_targets
       if $log_level;
   } else {
   target_loop:
@@ -495,7 +498,7 @@ sub build_dependencies_done {
       if( exists $target->{IS_PHONY} ) { # If this is a phony target, then we always
                                 # rebuild.
 	$rebuild_needed = 1;
-	::log BUILD_PHONY => $target
+	Mpp::log BUILD_PHONY => $target
 	  if $log_level;
 	next target_loop;	# Keep checking for dont_build.
       }
@@ -522,11 +525,11 @@ sub build_dependencies_done {
 	if( exists $target->{ALTERNATE_VERSIONS} ) { # Possibly copy from repository?
 	  for( @{$target->{ALTERNATE_VERSIONS}} ) {
 	    if( $rm_stale_files && $is_src_file && Mpp::File::was_built_by_makepp $_  ) {
-	      ::log REP_SKIP => $_
+	      Mpp::log REP_SKIP => $_
 		if $log_level;
 	      next;
 	    }
-	    ::log REP_CHECK => $_
+	    Mpp::log REP_CHECK => $_
 	      if $log_level;
 	    if( $is_src_file ||
                !$build_check_method->build_check_from_build_info( $_, $all_dependencies, $command_string, $build_cwd, $sig_method, $env )) {
@@ -544,16 +547,16 @@ sub build_dependencies_done {
 	  if( $bc_key ) {      # Got a valid key?
 	    my $bc_entry = $build_cache->lookup_file($bc_key);
 	    if( $bc_entry ) { # Got a candidate entry in cache?
-	      ::log BC_FOUND => $target, $bc_key
+	      Mpp::log BC_FOUND => $target, $bc_key
 		if $log_level;
 	      push @targets_to_get_from_build_cache, $bc_entry, $target;
 	      next target_loop; # Move on to next target.
 	    } else {
-	      ::log BC_NONE => $target, $bc_key
+	      Mpp::log BC_NONE => $target, $bc_key
 		if $log_level;
 	    }
 	  } else {
-	    ::log BC_NO_KEY => $target
+	    Mpp::log BC_NO_KEY => $target
 	      if $log_level;
 	  }
 	}
@@ -577,7 +580,7 @@ sub build_dependencies_done {
       $target_src->copy_from_cache($target_dst, $rule, \$reason) or do {
 	my $msg = 'Copy of ' . Mpp::BuildCache::Entry::absolute_filename( $target_src ) . ' into ' .
 	  absolute_filename( $target_dst ) . " failed because $reason\n";
-	&$::build_cache_error_hook($msg) if $::build_cache_error_hook;
+	&$Mpp::build_cache_error_hook($msg) if $Mpp::build_cache_error_hook;
 	if($reason =~ /\(OK\)$/ && !$stop_on_race) {
 	  warn $msg."This might just mean that the build cache file was in an inconsistent state due to concurrent access, so we'll rebuild instead.\n";
 	  $rebuild_needed = 1;
@@ -591,9 +594,9 @@ sub build_dependencies_done {
 	}
       };
 
-      ::log BC_COPY => $target_dst, $target_src
+      Mpp::log BC_COPY => $target_dst, $target_src
 	if $log_level;
-      ++$::build_cache_hits;
+      ++$Mpp::build_cache_hits;
       print "$progname: Imported `", absolute_filename( $target_dst ), "' from build cache\n";
     }
   }
@@ -626,11 +629,11 @@ sub build_dependencies_done {
       # For the targets that are about to be built, flush out any potentially
       # stale stuff (repository links and build info) from the filesystem.
       foreach my $tinfo (@$all_targets) {
-        ++$tinfo->{BUILDING} if $::virtual_sandbox_flag;
+        ++$tinfo->{BUILDING} if $Mpp::virtual_sandbox_flag;
 	if( grep $_, Mpp::File::build_info_string $tinfo, qw'FROM_REPOSITORY LINKED_TO_CACHE' or
 	    !(exists $tinfo->{IS_PHONY} || Mpp::File::is_writable_owner $tinfo )) {
 				# Marked read only?
-	  ::log REMOVE => $tinfo
+	  Mpp::log REMOVE => $tinfo
 	    if $log_level;
 	  Mpp::File::unlink $tinfo; # If it's from a repository, get rid of it.
 				# It might be a bogus file from the past.
@@ -646,7 +649,7 @@ sub build_dependencies_done {
 	Mpp::File::clear_build_info $tinfo;
       }
     }
-    $::critical_sections++;
+    $Mpp::critical_sections++;
     # TBD: It would be better to mark all the targets as invalid first,
     # and then restore them when the command succeeded (and ideally restore
     # the ones that weren't touched if it fails).  That way, we won't get
@@ -662,14 +665,14 @@ sub build_dependencies_done {
     my $handle = when_done $execute_handle, \&build_target_done, \@_,
       ERROR => sub {
 	$error_found = $_[0]
-	  if $_[0] =~ /^signal (?:$::int_signo|$::quit_signo)$/os;
+	  if $_[0] =~ /^signal (?:$Mpp::int_signo|$Mpp::quit_signo)$/os;
 	$error_found ||= $_[0]	# Remember the error status.  This will
-	  unless $::keep_going;	# cause us to stop compilation as soon as
+	  unless $Mpp::keep_going;	# cause us to stop compilation as soon as
 				# possible.
-	$::failed_count += @$all_targets;
+	$Mpp::failed_count += @$all_targets;
 	print_error "Failed to build target", (@$all_targets>1 ? 's' : ''),
 	  map( ' `'.absolute_filename( $_ )."'", @$all_targets ), " [$_[0]]";
-	::log RULE_FAILED => $rule
+	Mpp::log RULE_FAILED => $rule
 	  if $log_level;
 				# Sometimes it's hard to tell where the problem
 				# was if -k was specified unless we mark it
@@ -699,7 +702,7 @@ sub build_dependencies_done {
 	}
 	&Mpp::File::update_build_infos # Flush the build info to disk.
 	  unless $dry_run;
-	$::critical_sections--;
+	$Mpp::critical_sections--;
 	propagate_pending_signals;
 	return $_[0];		# Propagate the status.
       };
@@ -719,7 +722,7 @@ sub build_dependencies_done {
 				# Move or link the target.
     $status == 0 or return $status;
   }
-  ::log UP_TO_DATE => $all_targets
+  Mpp::log UP_TO_DATE => $all_targets
     if $log_level;
 
   # We need to cache the scanner info even if the action wasn't executed,
@@ -773,7 +776,7 @@ sub build_target_done {
     my $build_cache = $rule->build_cache;
     my $build_check_method = $rule->build_check_method;
 
-    ::log SUCCESS => $rule, $all_targets
+    Mpp::log SUCCESS => $rule, $all_targets
       if $log_level;
 #
 # Update the stored build information for each target:
@@ -812,7 +815,7 @@ sub build_target_done {
 	  if( $tinfo->{LINK_DEREF} && $tinfo->{LSTAT}[Mpp::File::STAT_NLINK] == 1 ) {
 				# Assume nlink > 1 to mean action only created
 				# a link to an already existing symlink.
-	    ::log SYMLINK => $tinfo
+	    Mpp::log SYMLINK => $tinfo
 	      if $log_level;
 	    my $link = readlink absolute_filename $tinfo;
 	    my $linkee = file_info $link, $tinfo->{'..'};
@@ -849,7 +852,7 @@ sub build_target_done {
 	      # Store the file in cache.
               $build_cache->cache_file($tinfo, $bc_key, \$reason) or do {
 		my $msg = 'Exporting of ' . absolute_filename( $tinfo ) . " to the build cache failed because $reason\n";
-		&$::build_cache_error_hook($msg) if $::build_cache_error_hook;
+		&$Mpp::build_cache_error_hook($msg) if $Mpp::build_cache_error_hook;
                 if($reason =~ /\(OK\)$/ && !$stop_on_race) {
 		    $msg .= "This might be due to concurrent access, so we'll just skip exporting this target.\n";
                     warn $msg;
@@ -895,8 +898,8 @@ sub build_target_done {
     my $real = ref($rule) ne 'Mpp::DefaultRule';
 				# Don't count targets for which there was no rule.
     for( @$all_targets ) {
-      if( exists $_->{IS_PHONY} ) { ++$::n_phony_targets_built }
-      elsif( $real ) { ++$::n_files_changed }
+      if( exists $_->{IS_PHONY} ) { ++$Mpp::n_phony_targets_built }
+      elsif( $real ) { ++$Mpp::n_files_changed }
     }
   };
   my $error = $@;
@@ -907,7 +910,7 @@ sub build_target_done {
     warn $error if $error;
     return -2;
   }
-  $::critical_sections --;
+  $Mpp::critical_sections --;
   propagate_pending_signals;
 
   die $error if $error;
@@ -1038,7 +1041,7 @@ sub parse_command_line(\%@) {
       [undef, qr/dump[-_]?makep*file/, \$tmp, 1,
        sub {
 	 open my $fh, '>', $tmp or die "Failed to write $tmp--$!";
-	 push @::close_fhs, $fh;
+	 push @Mpp::close_fhs, $fh;
 	 $CWD_INFO->{DUMP_MAKEFILE} = $fh;
        }],
 
@@ -1091,7 +1094,7 @@ sub parse_command_line(\%@) {
 				# Load it into the current directory.
 	 }
        }],
-      @::common_options;
+      @Mpp::common_options;
     delete $command_line_vars{makepp_no_builtin} if !defined $command_line_vars{makepp_no_builtin};
 				# Ref above brought this into existence.
 
@@ -1104,7 +1107,7 @@ sub parse_command_line(\%@) {
 				# at the beginning of @ARGV.  Just one extra
 				# call per target...
   }
-  @::common_options = ();
+  @Mpp::common_options = ();
   close DATA;			# Only needed for --help.
   @_ = ();			# Free lots of memory.
 
@@ -1312,7 +1315,7 @@ perform eval {
 	 return;
        }
        if( $Mpp::Event::max_proc != 1 ) { # More than one process?
-	 $::parallel_make = 1;
+	 $Mpp::parallel_make = 1;
 				# Remember if we're doing a parallel make.
 				# It's not sufficient to test $max_proc,
 				# because if we are doing a recursive make,

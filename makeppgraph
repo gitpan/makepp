@@ -1,8 +1,11 @@
 #!/usr/bin/perl -w
-#TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
-use strict;
+# $Id: makeppgraph,v 1.18 2009/02/10 22:55:49 pfeiffer Exp $
 
-# $Id: makeppgraph,v 1.17 2009/02/09 22:07:39 pfeiffer Exp $
+#TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
+
+package Mpp;
+
+use strict;
 
 our $VERSION = '@VERSION@';
 use POSIX ();
@@ -72,7 +75,7 @@ sub dir() { defined and $_ ne '' and -d || s!/[^/]+$!! || s!^(\|\w+\|).*!$1! }
 sub home() { defined and s/^$home/~/ }
 
 # Replace makepp dir with abbreviation |m|.
-sub makepp() { defined and s!^$::datadir(?:/|$|(?=:))!|m|! }
+sub makepp() { defined and s!^$Mpp::datadir(?:/|$|(?=:))!|m|! }
 
 # Replace basename including dir or optionally only part of dir with '*'
 sub suf(;$) {
@@ -120,7 +123,7 @@ sub x2($) { merge $_[0], '*2', '', '' }
 
 
 
-package main;
+package Mpp;
 
 
 
@@ -350,7 +353,7 @@ for( $outfile ) {
 # Digest the contents of the log file.
 my %graph;
 for( @logfiles ) {
-  open my $log, $_ or die "$::progname: can't open `$_'--$!\n";
+  open my $log, $_ or die "$Mpp::progname: can't open `$_'--$!\n";
 
   <$log>;			# 1st line irrelevant here
 
@@ -445,7 +448,7 @@ if( @ARGV ) {			# Start with the args and follow them up and/or downwards.
     grep { substr $_, 0, 0, $cwd unless /^\//; &$rename; $_ ne '' } map glob, @ARGV;
   my %tmp;
 
-  &$::both_up_down( \$outfile, \$up, \$down ) if $::both_up_down; # Hack to speed up the regression
+  &$Mpp::both_up_down( \$outfile, \$up, \$down ) if $Mpp::both_up_down; # Hack to speed up the regression
 				# test, by doing all before here only once for selection.
 
   $up = $down = 1
@@ -548,7 +551,7 @@ if( $merge ) {
 # Here starts the output formatting backend.
 
 
-&$::all_types( $outfile, \$type ) if $::all_types; # Hack to speed up the
+&$Mpp::all_types( $outfile, \$type ) if $Mpp::all_types; # Hack to speed up the
 				# regression test, by doing all before
 				# here only once for both file types.
 

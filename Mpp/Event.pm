@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: Event.pm,v 1.24 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Event.pm,v 1.25 2009/02/10 22:55:49 pfeiffer Exp $
 
 package Mpp::Event;
 
@@ -469,7 +469,7 @@ use POSIX qw(:signal_h :errno_h :sys_wait_h);
 sub start {
   my $self = $_[0];
   Mpp::Event::process_finished( $self ), return if $self->{STATUS};
-  if( ::is_windows > 0 ) {	# On Win Strawberry or ActiveState, we don't fork because the
+  if( Mpp::is_windows > 0 ) {	# On Win Strawberry or ActiveState, we don't fork because the
 				# perl port doesn't support a following exec well.
     if (@{$self->{PARAMS}}) {
       die "makepp: internal error: parameters to Mpp::Event::Process not supported on windows\n";
@@ -496,7 +496,7 @@ sub start {
   $SIG{CHLD} = sub { $child_exited = 1 }; # Call the reaper subroutine in the
 				# mainline code.
 
-  &::flush_log if ::is_perl_5_6;
+  &Mpp::flush_log if Mpp::is_perl_5_6;
   if( $pid = fork ) {		# In the parent process?
     $running_processes{$pid} = $self; # Store this for later.
     ++$Mpp::Event::n_external_processes; # Keep track of how many things are running.
@@ -536,7 +536,7 @@ sub start {
     local @Mpp::Subs::temp_files; # Might call f_mktemp, but _exit bypasses END
     $result = &$cmd();		# Call the subroutine.
     unlink $_ for @Mpp::Subs::temp_files;
-  } elsif( ::is_windows ) {	# Fork is only emulated, hence we can't exec
+  } elsif( Mpp::is_windows ) {	# Fork is only emulated, hence we can't exec
     system format_exec_args $cmd;
     $result = int( $? / 256 ) || 255 if $?;
   } else {
@@ -544,7 +544,7 @@ sub start {
     die "exec $cmd failed--$!\n";
   }
 
-  close $_ for @::close_fhs;
+  close $_ for @Mpp::close_fhs;
   POSIX::_exit $result;
 }
 
@@ -620,7 +620,7 @@ sub new {
 
   bless { CODE => $_[1],
 	  ARGS => $_[2],
-	  INDENT => $::indent_level,
+	  INDENT => $Mpp::indent_level,
 	 }, $_[0];
 				# Make the structure for the process.
 }
@@ -647,7 +647,7 @@ sub start {
   my $status;
 
   if( $this_subr->{CODE} != \&Mpp::Text::CONST0 ) {
-    local $::indent_level = $this_subr->{INDENT};
+    local $Mpp::indent_level = $this_subr->{INDENT};
 				# Set the indentation level properly.
     for( $this_subr->{CODE}( @{$this_subr->{ARGS}} )) {
       if( $_ ) {		# Not 0 or undef?

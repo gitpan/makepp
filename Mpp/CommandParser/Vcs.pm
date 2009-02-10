@@ -1,4 +1,4 @@
-# $Id: Vcs.pm,v 1.25 2009/02/09 22:45:23 pfeiffer Exp $
+# $Id: Vcs.pm,v 1.26 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -44,11 +44,8 @@ sub xparse_command {
   my( $self, $command, $setenv ) = @_;
 
   # Use the MD5 signature checking when we can.
-  if($main::has_md5_signatures) {
-    $self->rule->set_signature_method_scanner(
-      "verilog_simulation_md5"
-    );
-  }
+  $self->rule->set_signature_method_scanner( 'verilog_simulation_md5' )
+    if $Mpp::has_md5_signatures;
 
   my @words=@$command;
   my $dir=$self->dir;

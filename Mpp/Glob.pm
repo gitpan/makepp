@@ -1,4 +1,4 @@
-# $Id: Glob.pm,v 1.32 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Glob.pm,v 1.33 2009/02/10 22:55:49 pfeiffer Exp $
 
 package Mpp::Glob;
 
@@ -108,7 +108,7 @@ sub zglob_fileinfo {
 
   my $is_wildcard = 0;		# We haven't seen a wildcard yet.
 
-  ::is_windows and
+  Mpp::is_windows and
     s@^(?=[A-Za-z]:)@/@;	# If on windows, transform C: into /C: so it
 				# looks like it's in the root directory.
   Mpp::File::case_sensitive_filenames or
@@ -136,7 +136,7 @@ sub zglob_fileinfo {
 				# (Note that we will return files that are
 				# in directories that don't exist yet.)
 
-    if ($::implicitly_load_makefiles) { # Should wildcards trigger loading?
+    if ($Mpp::implicitly_load_makefiles) { # Should wildcards trigger loading?
 				# We have to do this before scanning the
 				# directory, since loading the makefile
 				# may make extra files appear.
@@ -489,7 +489,7 @@ sub wild_to_regex {
 =head2 Mpp::Glob::wildcard_action
 
 You generally should not call this subroutine directly; it's intended to be
-called from the chain of responsibility handled by ::wildcard_action.
+called from the chain of responsibility handled by Mpp::wildcard_action.
 
 This subroutine is the key to handling wildcards in pattern rules and
 dependencies.  Usage:
@@ -620,7 +620,7 @@ sub wildcard_action {
 	my $anchor = 0;
 	unless( $needed ) {
 	  foreach( zglob_fileinfo $_, $initial_finfo, 1 ) {
-	    $_->{PUBLISHED}=2 if $::rm_stale_files;
+	    $_->{PUBLISHED}=2 if $Mpp::rm_stale_files;
 				# Don't also call $subr later if it looks like
 				# a source file now, but we find a rule for it.
 	    &$subr($_, 1);	# Call the subroutine on each file that matches

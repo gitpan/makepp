@@ -1,7 +1,9 @@
 #!/usr/bin/perl -w
 #use strict;			# TODO: explore why this breaks the builtins.
 
-# $Id: makeppbuiltin,v 1.15 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: makeppbuiltin,v 1.16 2009/02/10 22:55:49 pfeiffer Exp $
+
+package Mpp;
 
 our $VERSION = '@VERSION@';
 
@@ -35,7 +37,7 @@ BEGIN {
   unshift @INC, $datadir;
 }
 
-$Mpp::Subs::rule->{MAKEFILE}{PACKAGE} = '';
+$Mpp::Subs::rule->{MAKEFILE}{PACKAGE} = 'Mpp'; # Make it same as ours in eval_or_die
 
 use Mpp::Utils;
 use Mpp::File ();

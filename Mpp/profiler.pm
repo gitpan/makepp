@@ -200,7 +200,7 @@ sub DESTROY {
     if( !(++$check % 1000) && $interval < tv_interval \@last ) {
       @last = gettimeofday;
       my $header = '>>> ' . localtime;
-      print ::LOG_FILE $header, ": Flushing profiler\n";
+      print Mpp::LOG_FILE $header, ": Flushing profiler\n";
       print "makepp: Flushing profiler\n";
       my @curtimes = times;
       printf $log "%s\n%.2fs user  %.2fs system   children: %.2fs user  %.2fs system\nTop 20 relevant functions:\n",

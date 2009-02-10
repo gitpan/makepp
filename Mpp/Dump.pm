@@ -94,7 +94,7 @@ sub Dump(@) {
 }
 
 sub import(@) {
-  # Call Dump without ::perform's arguments
+  # Call Dump without Mpp::perform's arguments
   my $cwd = $Mpp::File::CWD_INFO;
   eval 'END { Dump $cwd }';
 }

@@ -1,4 +1,4 @@
-# $Id: Legacy.pm,v 1.8 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Legacy.pm,v 1.9 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
@@ -55,8 +55,8 @@ sub find_command_parser {
   unless(UNIVERSAL::isa($parser, 'Mpp::CommandParser')) {
     # This is assumed to mean that calling the $scanner already
     # did the scanning.
-    ::log SCAN_UNCACHEABLE => $rule, UNIVERSAL::can( $parser, 'name' ) ? $parser : 'anonymous'
-      if $::log_level;
+    Mpp::log SCAN_UNCACHEABLE => $rule, UNIVERSAL::can( $parser, 'name' ) ? $parser : 'anonymous'
+      if $Mpp::log_level;
     $parser=0;
     $rule->mark_scaninfo_uncacheable;
   }

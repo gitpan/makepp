@@ -1,8 +1,8 @@
-# $Id: C.pm,v 1.23 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: C.pm,v 1.24 2009/02/10 22:55:49 pfeiffer Exp $
 
 =head1 NAME
 
-Mpp::Scanner::C - makepp scanner for C files
+Mpp::Scanner::C - makepp scanner for C-like files
 
 =head1 DESCRIPTION
 
@@ -56,8 +56,8 @@ sub dont_scan {
     return 1;
   }
   if( $dont_scan_hook && &$dont_scan_hook( $_[2] )) {
-    ::log SCAN_C_NOT => $_[1]
-      if $::log_level;
+    Mpp::log SCAN_C_NOT => $_[1]
+      if $Mpp::log_level;
     return 1;
   }
   &Mpp::Scanner::dont_scan;
