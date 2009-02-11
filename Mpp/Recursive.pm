@@ -1,4 +1,4 @@
-# $Id: Recursive.pm,v 1.3 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Recursive.pm,v 1.4 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -146,7 +146,7 @@ sub Mpp::Subs::f_MAKE {
 	foreach( Mpp::Text::split_path(), '.' ) {
 	  my $finfo = file_info "$_/$0", $Mpp::original_cwd;
 	  if( file_exists $finfo ) { # Is this our file?
-	    $command = Mpp::File::absolute_filename $finfo;
+	    $command = absolute_filename $finfo;
 	    last;
 	  }
 	}
@@ -166,7 +166,7 @@ sub Mpp::Subs::f_MAKE {
     my $makefile = $_[1];	# Get the makefile we're run from.
 
     $command ||= Mpp::PERL . ' ' .
-      Mpp::File::absolute_filename( file_info $Mpp::datadir, $Mpp::original_cwd ) .
+      absolute_filename( file_info $Mpp::datadir, $Mpp::original_cwd ) .
 	'/recursive_makepp';
 				# Sometimes we can be run as ../makepp, and
 				# if we didn't hard code the paths into

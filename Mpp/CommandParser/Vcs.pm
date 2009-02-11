@@ -1,4 +1,4 @@
-# $Id: Vcs.pm,v 1.26 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Vcs.pm,v 1.27 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -130,12 +130,10 @@ sub xparse_command {
       my $file=shift @words;
       my $finfo=$self->add_dependency($file);
       next WORD unless $finfo;
-      my $absname=Mpp::File::absolute_filename( $finfo );
+      my $absname = absolute_filename $finfo;
       if($visited{$finfo}++) {
 	warn "vcs argument file `$absname' already visited\n";
-      }
-      else {
-				# Remember that we're in a -f
+      } else {			# Remember that we're in a -f
 	unshift(@words, $finfo);
 	if(open(IN, "<", $absname)) {
 	  my @read_args;
@@ -145,8 +143,7 @@ sub xparse_command {
 	    push(@read_args, split);
 	  }
 	  unshift(@words, @read_args);
-	}
-	else {
+	} else {
 	  warn "couldn't read vcs arguments from $absname--$!\n";
 	}
       }
@@ -250,7 +247,7 @@ sub xparse_command {
     # that by having the scanner think that it's in that dir,
     # but munge the @c_args that *aren't* relative to csrc before
     # we get here.
-    Mpp::File::mark_as_directory( file_info( "csrc", $self->dirinfo ));
+    Mpp::File::mark_as_directory file_info "csrc", $self->dirinfo;
     require Mpp::CommandParser::Gcc;
     my $c_parser=new_no_gcc Mpp::CommandParser::Gcc(
       $self->rule, $self->dir."/csrc"

@@ -1,10 +1,11 @@
-# $Id: c_compilation_md5.pm,v 1.20 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: c_compilation_md5.pm,v 1.21 2009/02/11 23:22:37 pfeiffer Exp $
 use strict;
 package Mpp::Signature::c_compilation_md5;
 
 use Mpp::Signature;
 use Digest::MD5;
 use Mpp::Text;
+use Mpp::File;
 our @ISA = qw(Mpp::Signature);
 
 =head1 NAME
@@ -64,7 +65,7 @@ sub signature {
   my $self = shift;		# Trade stack modification for &calls below
   my $finfo = $_[0];
 
-  if( &Mpp::File::file_exists ) {		    # Does file exist yet?
+  if( &file_exists ) {		    # Does file exist yet?
     if( !Mpp::File::is_writable( $finfo->{'..'} ) || # Not a writable directory--don't bother
 				# scanning.
 	$self->excludes_file( $finfo )) { # Looks like some kind of a binary file?
@@ -74,14 +75,14 @@ sub signature {
       my $stored_cksum = Mpp::File::build_info_string( $finfo, $build_info_key );
       if( !$stored_cksum ) {	# Do not bother rescanning if
 				# we have already scanned the file.
-	$stored_cksum = md5sum_c_tokens( $self, &Mpp::File::absolute_filename );
+	$stored_cksum = md5sum_c_tokens( $self, &absolute_filename );
 				# Scan the file.
 	Mpp::File::set_build_info_string( $finfo, $build_info_key, $stored_cksum );
 				# Store the checksum so we don't have to do
 				# that again.
       }
       $stored_cksum;
-    } elsif( -B &Mpp::File::absolute_filename ) { # Binary file?
+    } elsif( -B &absolute_filename ) { # Binary file?
       &Mpp::File::signature; # Don't use MD5 scanning.
     } else {
       # Use regular MD5 scanning if it exists, but we can't tell what it is

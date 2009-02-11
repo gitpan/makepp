@@ -1,4 +1,4 @@
-# $Id: Gcc.pm,v 1.30 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Gcc.pm,v 1.31 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -20,6 +20,7 @@ use Mpp::CommandParser;
 our @ISA = 'Mpp::CommandParser';
 
 use Mpp::Text;
+use Mpp::File;
 
 sub new {
   my $self = &Mpp::CommandParser::new;
@@ -182,7 +183,7 @@ sub xparse_command {
     }
   }
   for my $dir ( @idirafter ) {
-    $scanner->add_include_dir( $_, Mpp::File::absolute_filename Mpp::File::file_info $dir, $self->{RULE}{MAKEFILE}{CWD} )
+    $scanner->add_include_dir( $_, absolute_filename file_info $dir, $self->{RULE}{MAKEFILE}{CWD} )
       for qw(user sys);
   }
   my $context = $scanner->get_context;
@@ -216,7 +217,7 @@ my %var_cache;
 sub xset_preproc_vars {
   my( $self, $command ) = @_;
   my $file_end = substr $_[2], -4;
-  Mpp::File::case_sensitive_filenames or $file_end =~ tr/A-Z/a-z/;
+  case_sensitive_filenames or $file_end =~ tr/A-Z/a-z/;
 
 #figure out file type
   my $cplusplus = $file_end =~ /\.(?:c(?:c|xx|pp|\+\+)|C)$/;

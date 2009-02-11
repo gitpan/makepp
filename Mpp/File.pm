@@ -1,4 +1,4 @@
-# $Id: File.pm,v 1.89 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: File.pm,v 1.90 2009/02/11 23:22:37 pfeiffer Exp $
 
 package Mpp::File;
 require Exporter;
@@ -11,8 +11,8 @@ use POSIX qw(S_ISDIR);
 # of magnitude!
 
 @ISA = 'Exporter';
-@EXPORT = qw(file_info chdir);
-@EXPORT_OK = qw(absolute_filename relative_filename may_have_changed file_exists touched_filesystem $CWD_INFO);
+@EXPORT = qw(file_info path_file_info chdir absolute_filename absolute_filename_nolink relative_filename file_exists
+	     touched_filesystem may_have_changed stat_array is_dir is_or_will_be_dir dereference case_sensitive_filenames $CWD_INFO);
 
 use strict;
 use Mpp::Text ();
@@ -104,7 +104,7 @@ the functional syntax is to be preferred.
   my $stat_array = $finfo->stat_array; # Return the array returned by stat().
   my $lstat_array = lstat_array( $finfo ); # Return the array returned by lstat().
   my $lstat_array = $finfo->lstat_array; # Return the array returned by lstat().
-  Mpp::File::relative_filename('file', 'dir'); # Returns relative name of file
+  relative_filename('file', 'dir'); # Returns relative name of file
 				# with respect to the directory.
 
 =head1 DESCRIPTION
@@ -200,6 +200,12 @@ our( $read_dir_before_lstat, $root, $CWD_INFO );
 my $epoch = 2; # Counter that determines whether dir listings are up-to-date.
 our $empty_array = [];		# Only have one, instead of a new one each time
 my @ids_for_check;
+
+our $directory_first_reference_hook; # This coderef is called on the first call to
+				# exists_or_can_be_built with any file within
+				# a given directory, with that directory's
+				# Mpp::File object as an arg. It should restore
+				# the cwd if it changes it.
 
 #
 # All of the information is stored in the structure below.  $root is an
@@ -346,7 +352,7 @@ sub chdir {
 
   unless ($status) {
     if( exists $newdir->{ALTERNATE_VERSIONS} ) { # Was it from a repository?
-      Mpp::File::mkdir( $newdir );	 # Make it.
+      &mkdir( $newdir );	 # Make it.
       $status = CORE::chdir absolute_filename_nolink( $newdir );
     }
     $status or
@@ -599,13 +605,13 @@ sub is_or_will_be_dir {
     (($dinfo->{LSTAT} || &lstat_array),
      S_ISDIR( (exists $dinfo->{LINK_DEREF} ? &dereference : $dinfo)->{LSTAT}[STAT_MODE] || 0 )) ?
       $dinfo : undef;
-  if($Mpp::File::directory_first_reference_hook) {
+  if( $directory_first_reference_hook ) {
     $dinfo=$dinfo->{'..'} unless $result;
     my $changed;
     while( $dinfo && !$dinfo->{REFERENCED} ) {
       $dinfo->{REFERENCED} = 1;
       # TBD: Maybe we ought to call these in reverse order?
-      &$Mpp::File::directory_first_reference_hook($dinfo);
+      &$directory_first_reference_hook( $dinfo );
       $changed = 1;
       $dinfo = $dinfo->{'..'};
     }
@@ -906,7 +912,7 @@ sub mkdir {
 
   return if &is_dir;		# If it's already a directory, don't do
 				# anything.
-  Mpp::File::mkdir( $dirinfo->{'..'} );	# Make sure the parent exists.
+  &mkdir( $dirinfo->{'..'} );	# Make sure the parent exists.
   CORE::mkdir &absolute_filename_nolink, 0777;
 				# Make the directory.
   &may_have_changed;		# Restat it.

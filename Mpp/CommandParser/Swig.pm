@@ -1,4 +1,4 @@
-# $Id: Swig.pm,v 1.12 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Swig.pm,v 1.13 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -143,7 +143,7 @@ sub xparse_command {
     $scanner->add_include_dir("user", $include);
     $scanner->add_include_dir("sys", $include);
     my $inc_swig_language = "$include/$swig_language";
-    if (Mpp::File::is_or_will_be_dir( file_info( $inc_swig_language ))) {
+    if( is_or_will_be_dir file_info $inc_swig_language ) {
                                 # If the subdirectory given by the language
                                 # exists, it is a valid place to look for
                                 # include files too.

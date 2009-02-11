@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.33 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.34 2009/02/11 23:22:37 pfeiffer Exp $
 use strict;
 package Mpp::BuildCheck::exact_match;
 
@@ -194,7 +194,7 @@ sub build_check {
 # to see if any of them has changed.
 #
   my @old_dep_list = map
-    exists $build_cwd->{DIRCONTENTS} && $build_cwd->{DIRCONTENTS}{$_} || Mpp::File::path_file_info( $_, $build_cwd ),
+    exists $build_cwd->{DIRCONTENTS} && $build_cwd->{DIRCONTENTS}{$_} || path_file_info( $_, $build_cwd ),
     split /\01/, $sorted_deps;
 
   if (@old_dep_list != @$sorted_dependencies) { # Different # of dependencies?
@@ -333,10 +333,10 @@ sub build_cache_key {
 
   # Add relative path of the file's dir to distinguish it from
   # copies in different locations in the tree, unless it's in cwd.
-  $key .= "\01" . Mpp::File::relative_filename $tinfo->{'..'}, $build_cwd
+  $key .= "\01" . relative_filename $tinfo->{'..'}, $build_cwd
     if $tinfo->{'..'} != $build_cwd;
 
-  if( Mpp::File::case_sensitive_filenames ) {
+  if( case_sensitive_filenames ) {
     $key = Digest::MD5::md5_base64( $key );
     $key =~ tr|/|%|;		# Make it file system compatible.
   } else {

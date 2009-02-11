@@ -1,4 +1,4 @@
-# $Id: Scanner.pm,v 1.50 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Scanner.pm,v 1.51 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -122,7 +122,7 @@ the file containing the include directive resides.
 
 =cut
 
-use Mpp::File qw(file_info absolute_filename);
+use Mpp::File;
 use Mpp::FileOpt;
 use Mpp::CommandParser;
 
@@ -138,7 +138,7 @@ sub add_include_dir {
   my $dirinfo;
   if(defined $path) {
     $dirinfo=$self->get_file_info($path);
-    if( Mpp::File::is_or_will_be_dir( $dirinfo )) {
+    if( is_or_will_be_dir $dirinfo ) {
       # NOTE: INCLUDE_DIRS can hold dirinfo's instead of
       # directory names because if the directory from which
       # an include file is picked up changes due to a
@@ -334,7 +334,7 @@ sub scan_file1 {
   } else {
     $need_to_scan=1;
   }
-  if( $need_to_scan && !Mpp::File::is_dir $finfo ) {
+  if( $need_to_scan && !is_dir $finfo ) {
     my $absname = absolute_filename( $finfo );
     return 1 if $self->dont_scan($finfo, $absname);
     if( open my $fh, $absname ) {
@@ -452,7 +452,7 @@ sub find {
     local $Mpp::File::read_dir_before_lstat = 1;
     for my $dir (@{$self->{$tag}[INCLUDE_DIRS]}) {
       my $base = $dir ||
-	($src_dir ||= defined( $src ) && (Mpp::File::is_or_will_be_dir( $src ) ? $src : $src->{'..'}))
+	($src_dir ||= defined( $src ) && (is_or_will_be_dir( $src ) ? $src : $src->{'..'}))
 	or next;
       if( $self->{$tag}[INCLUDE_SFXS] ) {
 	$key ||= '/' . $self->{$tag}[INCLUDE_SFXS] . '/' . $name;
@@ -462,7 +462,7 @@ sub find {
 	}
 	for my $sfx ( @{$self->{$tag}[INCLUDE_SFXS]} ) {
 	  my $finfo = file_info($name.$sfx, $base);
-	  return $base->{SCANNER_CACHE}{$key} = $finfo if Mpp::File::exists_or_can_be_built_or_remove( $finfo );
+	  return $base->{SCANNER_CACHE}{$key} = $finfo if Mpp::File::exists_or_can_be_built_or_remove $finfo;
 	  undef $base->{SCANNER_CACHE}{$key};
 	}
       } else {
@@ -470,8 +470,8 @@ sub find {
 	  return $base->{SCANNER_CACHE}{$name} if $base->{SCANNER_CACHE}{$name};
 	  next;
 	}
-	my $finfo = exists $base->{DIRCONTENTS} && $base->{DIRCONTENTS}{$name} || Mpp::File::path_file_info $name, $base;
-	return $base->{SCANNER_CACHE}{$name} = $finfo if Mpp::File::exists_or_can_be_built_or_remove( $finfo );
+	my $finfo = exists $base->{DIRCONTENTS} && $base->{DIRCONTENTS}{$name} || path_file_info $name, $base;
+	return $base->{SCANNER_CACHE}{$name} = $finfo if Mpp::File::exists_or_can_be_built_or_remove $finfo;
 	undef $base->{SCANNER_CACHE}{$name};
       }
     }
@@ -479,8 +479,7 @@ sub find {
     local $Mpp::File::read_dir_before_lstat = 1;
     for my $sfx (@{$self->{$tag}[INCLUDE_SFXS]}) {
       my $finfo=file_info($name.$sfx);
-      return $finfo
-	if Mpp::File::exists_or_can_be_built_or_remove( $finfo );
+      return $finfo if Mpp::File::exists_or_can_be_built_or_remove $finfo;
     }
   } else {
     return file_info($name);

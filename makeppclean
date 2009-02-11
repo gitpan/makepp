@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppclean,v 1.14 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: makeppclean,v 1.15 2009/02/11 23:22:37 pfeiffer Exp $
 
 package Mpp;
 
@@ -54,7 +54,7 @@ BEGIN {
 
 use Mpp::Utils;
 use File::Path qw(rmtree);
-use Mpp::File qw(file_info relative_filename);
+use Mpp::File;
 use Mpp::FileOpt;
 use Mpp::Text ();
 
@@ -64,7 +64,7 @@ my $verbose;
 sub print_msg {
   foreach my $str (@_, ($_[-1] =~ /\n\z/) ? () : "\n") {
     my $str_to_print = $str;
-    ref($str_to_print) and $str_to_print = Mpp::File::absolute_filename $str;
+    ref($str_to_print) and $str_to_print = absolute_filename $str;
     print STDERR $str_to_print;
   }
 }
@@ -120,7 +120,7 @@ sub deletable {
 
 sub remove_if_built_file {
   if( &deletable ) {
-    if( &Mpp::File::is_dir ) {
+    if( &is_dir ) {
       unshift @deletable_dirs, $_[0];
     } else {
       print_log "Removing ", $_[0];
@@ -130,7 +130,7 @@ sub remove_if_built_file {
     if( !$_[0]{'..'}{MAKEPP_DELETABLE} ) { # Remember to check .makepp later.
       $_[0]{'..'}{MAKEPP_DELETABLE} = 1;
       my $makepp = file_info $Mpp::File::build_info_subdir, $_[0]{'..'};
-      unshift @deletable_dirs, $makepp if Mpp::File::is_dir $makepp;
+      unshift @deletable_dirs, $makepp if is_dir $makepp;
     }
   }
 }
@@ -143,11 +143,11 @@ sub remove_contents_if_built {
     next if $name eq $Mpp::File::build_info_subdir;
     my $file = $finfo->{DIRCONTENTS}{$name};
     remove_if_built_file $file;
-    remove_contents_if_built( $file ) if $recurse and Mpp::File::is_dir $file;
+    remove_contents_if_built( $file ) if $recurse and is_dir $file;
   }
   if( !$leave_src_info ) { # Remember to check .makepp later.
     my $makepp = file_info $Mpp::File::build_info_subdir, $finfo;
-    if( Mpp::File::is_dir $makepp ) {
+    if( is_dir $makepp ) {
       if( !$finfo->{MAKEPP_DELETABLE} ) {
 	$finfo->{MAKEPP_DELETABLE} = 1;
 	unshift @deletable_dirs, $makepp;
@@ -178,7 +178,7 @@ perform {
   for my $arg (@ARGV) {
     my $finfo = file_info($arg);
     remove_if_built_file $finfo;
-    remove_contents_if_built $finfo if Mpp::File::is_dir $finfo;
+    remove_contents_if_built $finfo if is_dir $finfo;
   }
   unlink @deletable;		# Perform the bulk of the work.
   for( @deletable_dirs ) {

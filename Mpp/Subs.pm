@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.168 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Subs.pm,v 1.169 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -38,7 +38,7 @@ use strict qw(vars subs);
 
 use Mpp::Text qw(index_ignoring_quotes split_on_whitespace requote
 		unquote unquote_split_on_whitespace format_exec_args);
-use Mpp::File qw(file_info absolute_filename relative_filename file_exists touched_filesystem);
+use Mpp::File;
 use Mpp::FileOpt;
 use Mpp::Event qw(wait_for when_done read_wait);
 use Mpp::Glob qw(zglob zglob_fileinfo);
@@ -294,7 +294,7 @@ sub f_absolute_filename {
 sub f_absolute_filename_nolink {
   my $cwd = $_[1]{CWD};
   join ' ',
-    map Mpp::File::absolute_filename_nolink( file_info unquote(), $cwd ),
+    map absolute_filename_nolink( file_info unquote(), $cwd ),
        split_on_whitespace $_[0];
 }
 
@@ -384,7 +384,7 @@ sub f_filesubst {
 
   while ($src =~ s@([^%/]+)/+@@) { # Strip off a leading directory that
 				# doesn't contain the % sign.
-    $startdir = Mpp::File::dereference( file_info( $1, $startdir ));
+    $startdir = dereference file_info $1, $startdir;
 				# Move to that directory.
   }
 
@@ -397,14 +397,14 @@ sub f_filesubst {
     my $thisdir = (s@^/+@@) ? $Mpp::File::root : $cwd;
     while ($thisdir != $startdir &&
 	   s@([^/]+)/+@@) {	# Another directory?
-      $thisdir = Mpp::File::dereference file_info $1, $thisdir;
+      $thisdir = dereference file_info $1, $thisdir;
     }
-    push @words, Mpp::File::case_sensitive_filenames ? $_ : lc;
+    push @words, case_sensitive_filenames ? $_ : lc;
 				# What's left is the filename relative to that
 				# directory.
   }
 
-  join ' ', Mpp::Text::pattern_substitution( Mpp::File::case_sensitive_filenames ? $src : lc $src,
+  join ' ', Mpp::Text::pattern_substitution( case_sensitive_filenames ? $src : lc $src,
 					    $dest,
 					    @words );
 }
@@ -459,7 +459,7 @@ sub f_filter_out {
 
 sub f_filter_out_dirs {
   #my ($text, $mkfile) = @_; # Name the arguments.
-  join ' ', grep { !Mpp::File::is_or_will_be_dir( file_info( $_, $_[1]{CWD} )) } split ' ', $_[0];
+  join ' ', grep { !is_or_will_be_dir file_info $_, $_[1]{CWD} } split ' ', $_[0];
 }
 
 #
@@ -479,7 +479,7 @@ sub f_find_program {
   my $first_round = 1;
   foreach my $name ( split ' ', $_[0]) {
     if( $name =~ /\// || Mpp::is_windows > 1 && $name =~ /\\/ ) { # Either relative or absolute?
-      my $finfo = Mpp::File::path_file_info $name, $mkfile->{CWD};
+      my $finfo = path_file_info $name, $mkfile->{CWD};
       my $exists = Mpp::File::exists_or_can_be_built $finfo;
       if( Mpp::is_windows && $name !~ /\.exe$/ ) {
 	my( $exists_exe, $finfo_exe );
@@ -499,8 +499,8 @@ sub f_find_program {
       # having unquoted drive letters in the path looking like relative
       # directories.
       if( $first_round ) {
-	$dir = Mpp::File::path_file_info $dir, $mkfile->{CWD};
-	undef $dir unless Mpp::File::is_or_will_be_dir $dir;
+	$dir = path_file_info $dir, $mkfile->{CWD};
+	undef $dir unless is_or_will_be_dir $dir;
       }
       next unless $dir;
       my $finfo = file_info $name, $dir;
@@ -574,8 +574,8 @@ sub f_find_upwards {
     my( $found, $finfo );
     for( my $dirinfo = $cwd;
 	 $dirinfo &&
-	 (Mpp::File::stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
-	   ($cwd_devid ||= (Mpp::File::stat_array $cwd)->[Mpp::File::STAT_DEV]);
+	 (stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
+	   ($cwd_devid ||= (stat_array $cwd)->[Mpp::File::STAT_DEV]);
 				# Don't cross device boundaries.  This is
 				# intended to avoid trouble with automounters
 				# or dead network file systems.
@@ -602,8 +602,8 @@ sub f_find_first_upwards {
 
   for( my $dirinfo = $cwd;
        $dirinfo &&
-       (Mpp::File::stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
-	 ($cwd_devid ||= (Mpp::File::stat_array $cwd)->[Mpp::File::STAT_DEV]);
+       (stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
+	 ($cwd_devid ||= (stat_array $cwd)->[Mpp::File::STAT_DEV]);
 				# Don't cross device boundaries.  This is
 				# intended to avoid trouble with automounters
 				# or dead network file systems.
@@ -634,7 +634,7 @@ sub f_firstword {
 #
 sub f_first_available {
   foreach my $fname (split(' ', $_[0])) {
-    Mpp::File::exists_or_can_be_built( file_info( $fname, $_[1]->{CWD} )) and return $fname;
+    Mpp::File::exists_or_can_be_built( file_info $fname, $_[1]->{CWD} ) and return $fname;
   }
   '';
 }
@@ -905,7 +905,7 @@ sub f_mktemp {
     $mkfile->{LAST_TEMP_FILE} = $template . $X;
     $finfo = file_info $mkfile->{LAST_TEMP_FILE}, $mkfile->{CWD};
 				# Default to global CWD, to make this easier to use without makefile.
-    if( !$finfo->{MKTEMP}++ and !Mpp::File::file_exists $finfo ) {
+    unless( $finfo->{MKTEMP}++ || file_exists $finfo ) {
       push @temp_files, $finfo;
       return $mkfile->{LAST_TEMP_FILE};
     }
@@ -1556,7 +1556,7 @@ sub s_no_implicit_load {
     split(' ', $mkfile->expand_text($text_line, $mkfile_line));
 				# Get a list of things matching the wildcard.
   foreach my $dir (@dirs) {
-    Mpp::File::is_or_will_be_dir( $dir ) and $dir->{NO_IMPLICIT_LOAD} = 1;
+    is_or_will_be_dir $dir and $dir->{NO_IMPLICIT_LOAD} = 1;
 				# Tag them so they don't load later.
   }
 }
@@ -1651,8 +1651,8 @@ sub s_include {
     my $finfo;
     for( my $dirinfo = $mkfile->{CWD};
 	 $dirinfo &&
-	 (Mpp::File::stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
-	   ($cwd_devid ||= (Mpp::File::stat_array $mkfile->{CWD})->[Mpp::File::STAT_DEV]);
+	 (stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
+	   ($cwd_devid ||= (stat_array $mkfile->{CWD})->[Mpp::File::STAT_DEV]);
 	 $dirinfo = $dirinfo->{'..'} ) { # Look in all directories above us.
       $finfo = file_info $file_makepp, $dirinfo;
       unless( Mpp::File::exists_or_can_be_built $finfo ) {
@@ -1749,10 +1749,10 @@ sub s_load_makefile {
   foreach (@makefiles) {
     s/^-F//;			# Support the archaic syntax that put -F
 				# before the filename.
-    my $mfile = file_info($_, $mkfile->{CWD});
+    my $mfile = file_info $_, $mkfile->{CWD};
 				# Get info on the file.
     my $mdir = $mfile;		# Assume it is actually a directory.
-    Mpp::File::is_or_will_be_dir( $mfile ) or $mdir = $mfile->{'..'};
+    is_or_will_be_dir $mfile or $mdir = $mfile->{'..'};
 				# Default directory is the directory the
 				# makefile is in.
     if( $set_do_build && Mpp::File::dont_build( $mdir ) && $mdir->{DONT_BUILD} == 2 ) {

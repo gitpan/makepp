@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.130 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.131 2009/02/11 23:22:37 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_action needed_wildcard_action);
@@ -7,7 +7,7 @@ use Mpp::Text qw(max_index_ignoring_quotes index_ignoring_quotes split_on_whites
 		unquote unquote_split_on_whitespace requote hash_neq);
 use Mpp::Subs;
 use Mpp::Cmds ();
-use Mpp::File qw(file_info file_exists absolute_filename chdir);
+use Mpp::File;
 use Mpp::FileOpt;
 
 use strict qw(vars subs);
@@ -478,7 +478,7 @@ my @root_makefiles = qw(RootMakeppfile RootMakeppfile.mk);
 # Argument: the Mpp::File structure for the directory.
 #
 sub find_makefile_in {
-  my $dir = Mpp::File::dereference( $_[0] ); # Resolve a soft link on the directory.
+  my $dir = dereference $_[0];	# Resolve a soft link on the directory.
 				# This can be important if this is the first time
 				# we've seen this directory.
 
@@ -488,7 +488,7 @@ sub find_makefile_in {
   for( @root_makefiles, qw(Makeppfile Makeppfile.mk), $_[1] ? () : qw(makefile Makefile) ) {
     my $trial_makefileinfo = file_info $_, $dir;
     return $trial_makefileinfo
-      if Mpp::File::exists_or_can_be_built( $trial_makefileinfo );
+      if Mpp::File::exists_or_can_be_built $trial_makefileinfo;
   }
 }
 
@@ -508,7 +508,7 @@ sub implicitly_load {
   exists($dirinfo->{MAKEINFO}) and return;
 				# Already tried to load something.
   Mpp::File::is_writable( $dirinfo ) ||	# Directory already exists?
-    !exists $dirinfo->{EXISTS} && Mpp::File::is_or_will_be_dir( $dirinfo ) &&
+    !exists $dirinfo->{EXISTS} && is_or_will_be_dir( $dirinfo ) &&
     exists $dirinfo->{ALTERNATE_VERSIONS}
     or return;			# If the directory isn't writable, don't
 				# try to load from it.	(Directories from
@@ -608,7 +608,7 @@ sub find_root_makefile_upwards {
   my( @path, $found ) = $cwd;
   push @path, $cwd = $cwd->{'..'} until file_exists $cwd;
 				# Go up, as directory may not already exist.
-  my $cwd_devid = (Mpp::File::stat_array $cwd)->[Mpp::File::STAT_DEV];
+  my $cwd_devid = (stat_array $cwd)->[Mpp::File::STAT_DEV];
 				# Remember what device this is mounted on
 				# so we can avoid crossing file system boundaries.
   until( exists $cwd->{ROOT} ) {
@@ -638,7 +638,7 @@ sub find_root_makefile_upwards {
     push @path, $cwd = $cwd->{'..'}; # Look in all directories above us.
 
     undef( $cwd ), last unless
-      $cwd && $cwd_devid && ((Mpp::File::stat_array $cwd)->[Mpp::File::STAT_DEV] || 0) == $cwd_devid;
+      $cwd && $cwd_devid && ((stat_array $cwd)->[Mpp::File::STAT_DEV] || 0) == $cwd_devid;
 				# Remember what device this is mounted on.;
 				# Don't cross device boundaries.  This is
 				# intended to avoid trouble with automounters
@@ -710,12 +710,12 @@ sub load {
 				# remember them in case we have to load
 				# other makefiles implicitly.
 
-  my $is_dir = Mpp::File::is_or_will_be_dir( $minfo );
+  my $is_dir = is_or_will_be_dir $minfo;
 				# Is this a directory rather than a file?
   $mdinfo ||= $is_dir ?
     $minfo :			# Save pointer to the directory.
     $minfo->{'..'};		# Default directory is what contains the makefile.
-  $mdinfo = Mpp::File::dereference( $mdinfo ); # Resolve a soft link on the directory.
+  $mdinfo = dereference $mdinfo; # Resolve a soft link on the directory.
 
   $mdinfo->{MAKEINFO} ||= undef; # Indicate that we're trying to load a
 				# makefile from this directory.
@@ -727,7 +727,7 @@ sub load {
 # If there's no makefile, then load the default makefile as if it existed in
 # that directory.
 #
-    ($makepp_default_makefile ||= Mpp::File::path_file_info "$Mpp::datadir/makepp_default_makefile.mk")
+    ($makepp_default_makefile ||= path_file_info "$Mpp::datadir/makepp_default_makefile.mk")
     if $is_dir;
   if( grep { $_ eq $minfo->{NAME} } @root_makefiles ) {
     find_root_makefile_upwards $mdinfo->{'..'};
@@ -881,7 +881,7 @@ sub load {
     }
     read_makefile($self, $minfo); # Read this makefile (possibly again).
     unless( expand_variable $self, 'makepp_no_builtin' ) {
-      $makepp_builtin_rules ||= Mpp::File::path_file_info "$Mpp::datadir/makepp_builtin_rules.mk";
+      $makepp_builtin_rules ||= path_file_info "$Mpp::datadir/makepp_builtin_rules.mk";
       read_makefile( $self, $makepp_builtin_rules );
       Mpp::log LOAD_INCL => $makepp_builtin_rules, $minfo
 	if $Mpp::log_level;
@@ -1656,7 +1656,7 @@ sub parse_rule {
 				# Get the list of targets.
 
     if( length $action ) {	# Is this actually a rule?
-      unless( Mpp::File::case_sensitive_filenames ) {
+      unless( case_sensitive_filenames ) {
 	tr/A-Z/a-z/ for @targets;
       }
 #
@@ -1841,7 +1841,7 @@ sub read_makefile {
       # when rules from the same include file are picked up in different
       # directories.
       # TODO:
-      '(' . Mpp::File::relative_filename($self->{CWD},$minfo->{'..'}) . ')';
+      '(' . relative_filename($self->{CWD},$minfo->{'..'}) . ')';
 
   local $makefile_contents;
   {
@@ -2156,7 +2156,7 @@ sub _truthval($$) {
   REGEX:
     for( split_on_whitespace $line ) {
       my $regex = Mpp::Glob::wild_to_regex unquote;
-      Mpp::File::case_sensitive_filenames or $regex =~ s/\(\?i-/(?-i/; # Want this to be case_sensitive
+      case_sensitive_filenames or $regex =~ s/\(\?i-/(?-i/; # Want this to be case_sensitive
       $truthval = /$regex/ and last REGEX
 	for keys %sys;
     }

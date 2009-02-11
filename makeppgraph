@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppgraph,v 1.18 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: makeppgraph,v 1.19 2009/02/11 23:22:37 pfeiffer Exp $
 
 #TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
 
@@ -42,7 +42,7 @@ BEGIN {
 
 use Mpp::Utils;
 use Mpp::Glob ();
-use Mpp::File qw(absolute_filename file_info $CWD_INFO);
+use Mpp::File;
 use Mpp::FileOpt;
 use Mpp::Text ();
 
@@ -62,8 +62,8 @@ BEGIN {
 }
 sub SELF() { '' }		# Impossible node name used for own attributes.
 
-my $home = absolute_filename Mpp::File::dereference file_info $ENV{HOME};
-$datadir = absolute_filename Mpp::File::dereference file_info $datadir;
+my $home = absolute_filename dereference file_info $ENV{HOME};
+$datadir = absolute_filename dereference file_info $datadir;
 
 
 package Rewrite;
@@ -443,7 +443,7 @@ for( @logfiles ) {
 
 # Selection from command line.
 if( @ARGV ) {			# Start with the args and follow them up and/or downwards.
-  my $cwd = absolute_filename( Mpp::File::dereference $Mpp::File::CWD_INFO ) . '/';
+  my $cwd = absolute_filename( dereference $CWD_INFO ) . '/';
   @ARGV =
     grep { substr $_, 0, 0, $cwd unless /^\//; &$rename; $_ ne '' } map glob, @ARGV;
   my %tmp;

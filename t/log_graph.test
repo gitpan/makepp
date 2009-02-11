@@ -99,10 +99,11 @@ a: $( a b/b c/c)$(_OBJ_SUFFIX)
 ###	1	644	1170452082	1166207798	makepp.mk
 include makepp1.mk
 ###	0	644	1170452082	1166207809	makepp1.mk
-###	77	644	1170452082	1211310818	both_up_down.pm
+###	78	644	1170452082	1234386321	both_up_down.pm
+use Mpp::File;
 sub rewrite_test {
+  my $pref = absolute_filename $CWD_INFO;
   package Rewrite;
-  my $pref = Mpp::File::absolute_filename $Mpp::File::CWD_INFO;
   my $result = "cwd:\n";
   for my $arg ( 0, 1, 2, 4 ) {
     for my $file ( '', qw(/ /a /a/b) ) {

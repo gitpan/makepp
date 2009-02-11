@@ -1,4 +1,4 @@
-# $Id: ActionParser.pm,v 1.39 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: ActionParser.pm,v 1.40 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -50,7 +50,7 @@ package Mpp::ActionParser;
 use Mpp::Text;
 use Mpp::Rule;
 use Mpp::CommandParser;
-use Mpp::File qw(file_info relative_filename);
+use Mpp::File;
 use Mpp::FileOpt;
 
 =head1 METHODS
@@ -157,7 +157,7 @@ sub parse_rule {
 			       relative_filename Mpp::is_perl_5_6 ?
 				 $rule->makefile->{MAKEFILE} :
 				 # For '.' this returns a relative name to where use was performed, but we might be somewhere else now :-(
-				 Mpp::File::path_file_info( B::svref_2object( \&$makefile_cmd )->FILE, $cwd ),
+				 path_file_info( B::svref_2object( \&$makefile_cmd )->FILE, $cwd ),
 				 $cwd );
       } elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
 	# TODO: Should we use our knowledge of the builtins to find out exactly what files
@@ -430,7 +430,7 @@ sub add_any_dependency_ {
   $rule->$method(
     $tag,
     (defined $src and
-     relative_filename Mpp::File::is_or_will_be_dir( $src ) || $src->{'..'}, $rule->build_cwd),
+     relative_filename is_or_will_be_dir( $src ) || $src->{'..'}, $rule->build_cwd),
     $incname,
     $finfo
   ) and $meta and do {

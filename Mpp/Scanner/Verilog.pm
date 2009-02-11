@@ -1,4 +1,4 @@
-# $Id: Verilog.pm,v 1.19 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Verilog.pm,v 1.20 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -32,6 +32,7 @@ use strict;
 package Mpp::Scanner::Verilog;
 
 use Mpp::Scanner;
+use Mpp::File;
 our @ISA = 'Mpp::Scanner';
 
 sub new {
@@ -203,7 +204,7 @@ sub xscan_line
 sub xscan_file {
   my ($self, @scan_Ctx) = @_;
   my ($cp, $tag, $finfo, $conditional, $fh) = @scan_Ctx;
-  my $absname=Mpp::File::absolute_filename( $finfo );
+  my $absname = absolute_filename $finfo;
   my $module = $self->{MODULE};
   my $pend_module;
   my $pend_imodule;
@@ -263,7 +264,7 @@ sub xscan_file {
 	$self->{MODULE} = $module if $conditional;
 	my $map=$self->{MODULE_MAP};
 	if($map->{$module}) {
-	  my $n2 = Mpp::File::absolute_filename( $map->{$module}[0] );
+	  my $n2 = absolute_filename $map->{$module}[0];
 	  warn "module $module multiply defined in `$absname' and `$n2'\n";
 	}
 	$map->{$module}=[$finfo];

@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.43 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.44 2009/02/11 23:22:37 pfeiffer Exp $
 #
 # Possible improvements:
 #
@@ -100,7 +100,7 @@ package Mpp::BuildCache;
 use strict;
 use Mpp::File;
 use Mpp::FileOpt;
-use Mpp::Cmds;
+use Mpp::Cmds ();
 use Sys::Hostname;
 use POSIX qw(:errno_h S_ISREG);
 
@@ -133,13 +133,13 @@ sub new {
   $build_cache_dir = file_info $build_cache_dir;
 
   @$self{qw(DEV ACCESS_PERMISSIONS)} =
-    @{Mpp::File::stat_array $build_cache_dir}[Mpp::File::STAT_DEV, Mpp::File::STAT_MODE];
+    @{stat_array $build_cache_dir}[Mpp::File::STAT_DEV, Mpp::File::STAT_MODE];
   $self->{ACCESS_PERMISSIONS} &= 0777;
 				# Use the current directory protections as the
 				# proper mask.
   $self->{MKDIR_OPT} = sprintf '-pm%o', $self->{ACCESS_PERMISSIONS};
 
-  $self->{DIRNAME} = Mpp::File::absolute_filename $build_cache_dir;
+  $self->{DIRNAME} = absolute_filename $build_cache_dir;
 
   bless $self, $class;
 }
@@ -195,8 +195,8 @@ sub cache_file {
 				# 4th arg atime, only for mppbcc, accessed below.
   $reason or die;
 
-  my $input_filename = Mpp::File::absolute_filename_nolink( $input_finfo );
-  my $orig_prot = (Mpp::File::lstat_array( $input_finfo ))->[Mpp::File::STAT_MODE];
+  my $input_filename = absolute_filename_nolink $input_finfo;
+  my $orig_prot = (lstat_array $input_finfo)->[Mpp::File::STAT_MODE];
   return 1			# Succeed without doing anything
     unless S_ISREG $orig_prot;	# if not a regular file?
 
@@ -220,7 +220,7 @@ sub cache_file {
   my $build_info_fname = $cache_fname;
   $build_info_fname =~ s@/([^/]+)$@/$Mpp::File::build_info_subdir@;
   -d $build_info_fname or
-    eval { Mpp::Cmds::c_mkdir( $self->{MKDIR_OPT}, $build_info_fname ) } or do {
+    eval { Mpp::Cmds::c_mkdir $self->{MKDIR_OPT}, $build_info_fname } or do {
       $$reason = ($! == ENOENT || $! == ESTALE) ? "$@ -- possibly due to aging (OK)" : $@;
       return undef;
     };
@@ -243,7 +243,7 @@ sub cache_file {
   my $build_info = $input_finfo->{BUILD_INFO}; # Get the build info hash.
   $build_info ||= Mpp::File::load_build_info_file($input_finfo);
 				# Load it from disk if we didn't have it.
-  $build_info or die "internal error: file in build cache (" . Mpp::File::absolute_filename( $input_finfo ) .
+  $build_info or die "internal error: file in build cache (" . absolute_filename( $input_finfo ) .
     ") is missing build info\n";
 
   local $build_info->{SIGNATURE};
@@ -264,7 +264,7 @@ sub cache_file {
 # copy the file.  If it is on the same file system, then make a hard link,
 # since that is faster and uses almost no disk space.
 #
-  my $dev = (Mpp::File::stat_array $input_finfo->{'..'})->[Mpp::File::STAT_DEV];
+  my $dev = (stat_array $input_finfo->{'..'})->[Mpp::File::STAT_DEV];
   my( $size, $mtime ) =
     @{Mpp::File::lstat_array $input_finfo}[Mpp::File::STAT_SIZE, Mpp::File::STAT_MTIME];
   # If it's on the same filesystem, then link; otherwise, copy.
@@ -588,7 +588,7 @@ sub copy_from_cache {
   $reason || die;
 
   Mpp::File::unlink( $output_finfo );	    # Get rid of anything that's there currently.
-  my $output_fname = Mpp::File::absolute_filename_nolink( $output_finfo );
+  my $output_fname = Mpp::File::absolute_filename_nolink $output_finfo;
   my $link_to_build_cache = 0;
 
 #
@@ -618,7 +618,7 @@ sub copy_from_cache {
 
   # If the target directory doesn't already exist, then we assume that the
   # rule would have created it.
-  Mpp::Cmds::c_mkdir( '-p', Mpp::File::absolute_filename_nolink( $output_finfo->{'..'} ));
+  Mpp::Cmds::c_mkdir '-p', Mpp::File::absolute_filename_nolink $output_finfo->{'..'};
 
 # It's a real file.  If it's on the same file system, make it an extra hard
 # link since that's faster and takes up almost no disk space.  Otherwise, copy the

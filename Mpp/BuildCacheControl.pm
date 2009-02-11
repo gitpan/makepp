@@ -1,4 +1,4 @@
-# $Id: BuildCacheControl.pm,v 1.25 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: BuildCacheControl.pm,v 1.26 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -13,7 +13,7 @@ require Exporter;
 our @ISA = 'Exporter';
 our @EXPORT = qw(c_clean c_create c_show c_stats);
 
-use Mpp::File qw(file_info absolute_filename);
+use Mpp::File;
 use Mpp::BuildCache;
 use Mpp::FileOpt;
 use Mpp::Cmds;

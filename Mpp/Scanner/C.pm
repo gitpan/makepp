@@ -1,4 +1,4 @@
-# $Id: C.pm,v 1.24 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: C.pm,v 1.25 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -30,7 +30,7 @@ package Mpp::Scanner::C;
 use Mpp::Scanner;
 our @ISA = qw/Mpp::Scanner/;
 
-use Mpp::File 'absolute_filename';
+use Mpp::File;
 use Mpp::Text ();
 
 # The base class uses a scalar to describe a scope; we use arrayrefs.

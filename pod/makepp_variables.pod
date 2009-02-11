@@ -2,7 +2,7 @@
 
 makepp_variables -- How to use variables in makepp
 
-=for vc $Id: makepp_variables.pod,v 1.31 2009/02/09 22:07:39 pfeiffer Exp $
+=for vc $Id: makepp_variables.pod,v 1.32 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -851,7 +851,7 @@ directly from perl code if you need to do any complicated manipulations with
 them; see L<makepp_extending> for details.
 
 Accessing global variables from Perl is achieved by prefixing them with the
-C<global::> package.  In fact any variable, not yet present in the current
+C<Mpp::global> package.  In fact any variable, not yet present in the current
 makefile, and which you assign to in this package will from then on be global,
 as though you had just issued the C<global> statement for it.
 

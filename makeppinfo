@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppinfo,v 1.6 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: makeppinfo,v 1.7 2009/02/11 23:22:37 pfeiffer Exp $
 
 package Mpp;
 
@@ -54,7 +54,7 @@ BEGIN {
 }
 
 use Mpp::Utils;
-use Mpp::File qw(file_info file_exists relative_filename);
+use Mpp::File;
 use Mpp::FileOpt;
 
 my( $keylist, $quiet, $traverse, @keys_not, @keys );

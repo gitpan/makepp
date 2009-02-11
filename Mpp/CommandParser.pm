@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.31 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.32 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -24,6 +24,7 @@ use strict;
 package Mpp::CommandParser;
 use Mpp::Text ();
 use Mpp::Subs ();
+use Mpp::File;
 
 =head1 METHODS
 
@@ -106,9 +107,9 @@ sub add_executable_dependency {
     # like searching for includes.
     if( $exe !~ m@/@ || Mpp::is_windows > 1 && $exe !~ /\\/ ) {
       return if $Mpp::no_path_executable_dependencies;
-      my $CWD_INFO = $Mpp::File::CWD_INFO; # Might load a makefile and chdir there:
+      my $CWD_INFO = $CWD_INFO; # Might load a makefile and chdir there:
       $exe = Mpp::Subs::f_find_program( $exe, $self->{RULE}{MAKEFILE}, $self->{RULE}{RULE_SOURCE}, 1 );
-      Mpp::File::chdir( $CWD_INFO );
+      chdir $CWD_INFO;
       return if $exe eq 'not-found';
     }
     $self->add_simple_dependency($exe);
@@ -118,7 +119,7 @@ sub add_executable_dependency {
     my %visited = map { int, 1 } @runtime_deps;
     while(@runtime_deps) {
       my $runtime_dep = shift @runtime_deps;
-      $self->add_simple_dependency(Mpp::File::relative_filename($runtime_dep, $dirinfo));
+      $self->add_simple_dependency( relative_filename $runtime_dep, $dirinfo );
       $visited{int()}++ or push @runtime_deps, $_
 	for values %{$runtime_dep->{RUNTIME_DEPS} || {}};
     }
@@ -266,9 +267,6 @@ file is found or can be built.
 affecting where files are found along the search path.)
 
 =cut
-
-use Mpp::File;
-use Mpp::FileOpt;
 
 sub dirinfo {
   $_[0]{DIRINFO} ||=

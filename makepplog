@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.30 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: makepplog,v 1.31 2009/02/11 23:22:37 pfeiffer Exp $
 
 package Mpp;
 
@@ -155,6 +155,7 @@ BEGIN {
 }
 
 use Mpp::Utils;
+use Mpp::File;
 use Mpp::FileOpt;
 use Mpp::Text ();
 
@@ -229,9 +230,9 @@ sub instdir {
     s<(:\d+\()((/?)[^\)]*)> {
       my $ret = $1;
       for( $3 ? "$2" : "$instdir/$2" ) {
-	my $finfo = Mpp::File::file_info $_;
-	Mpp::File::dereference $finfo;
-	$_ = Mpp::File::absolute_filename $finfo;
+	my $finfo = file_info $_;
+	dereference $finfo;
+	$_ = absolute_filename $finfo;
 	Rewrite::cwd $cwd if defined $cwd;
 	$ret .= $_;
       }

@@ -2,7 +2,7 @@
 require 5.006;
 use strict;
 
-# $Id: Utils.pm,v 1.11 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Utils.pm,v 1.12 2009/02/11 23:22:37 pfeiffer Exp $
 
 # This is syntactically needed by many modules but not called in utils, except mppr.
 sub log($@);
@@ -20,6 +20,8 @@ $Mpp::progname =~ s/^mpp([bcgilr]|bcc)$/makepp$progname{$1}/;
 
 use Mpp::Text ();
 BEGIN { *MAKEPP = \&Mpp::Text::CONST0 } # Differentiate from makepp
+
+use Mpp::File;
 
 # Replace a function which depends on Makefile context to rewrite messages in
 # a way we don't need here.  Hope that didn't get inlined.  Maybe we should
@@ -49,7 +51,7 @@ sub Rewrite::cwd(;$$$) {
   if( defined and $_ ne '' ) {
     my( $up, $name, $sep ) = @_;
     if( !$cwd_re ) {
-      my @path = split /(?=\/)/, Mpp::File::absolute_filename( Mpp::File::dereference( $Mpp::File::CWD_INFO ));
+      my @path = split /(?=\/)/, absolute_filename dereference $CWD_INFO;
       if( @path > 1 && $path[0] eq '/' ) { # //server/share
 	shift @path;
 	substr $path[0], 0, 0, '/';

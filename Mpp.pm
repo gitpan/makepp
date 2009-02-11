@@ -1,4 +1,4 @@
-# $Id: Mpp.pm,v 1.3 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Mpp.pm,v 1.4 2009/02/11 23:22:36 pfeiffer Exp $
 
 =head1 NAME
 
@@ -6,9 +6,7 @@ Mpp - Common subs for makepp and makeppreplay
 
 =head1 DESCRIPTION
 
-This package contains builtin commands similar to common utilities, which can
-be called from a rule, as well as in a functional way or as top level
-statements.
+This package contains basic stuff for makepp.
 
 =cut
 
@@ -24,7 +22,7 @@ use Mpp::Text;
 # Do this early, because the END block defined below shall be the first seen
 # by perl, such that it is the last executed.  Unless we need to propagate a
 # signal, it leaves the process via POSIX::_exit, so that no expensive garbage
-# collection of Mpp::Files occurs.  All other places can use die or normal
+# collection of Mpp::File objects occurs.  All other places can use die or normal
 # exit.  If you define additional END blocks in any module, you must take care
 # to not reset $?.
 #
@@ -211,6 +209,8 @@ numbers, even if they happen to coincide with a I<ref>.
 
 =cut
 
+use Mpp::File;
+
 my $last_indent_level = 0;
 sub log($@) {
 
@@ -220,7 +220,7 @@ sub log($@) {
     if( $log_level == 1 ) {
       (my $mppl = $0) =~ s/\w+$/makepplog/;
       -f $mppl or
-	substr $mppl, 0, 0, Mpp::File::absolute_filename( $Mpp::original_cwd ) . '/';
+	substr $mppl, 0, 0, absolute_filename( $Mpp::original_cwd ) . '/';
       open $logfh, '|' . PERL . " $mppl -pl-" or # Pass the mesages to makepplog for formatting.
 	die "$progname: can't pipe to `makepplog' for verbose option--$!\n";
     } else {
@@ -238,7 +238,7 @@ sub log($@) {
     # when we're entering and exiting the program, because we may be running as
     # a make subprocess.
 
-    Mpp::Rule::print_build_cwd( $Mpp::File::CWD_INFO )
+    Mpp::Rule::print_build_cwd( $CWD_INFO )
       if defined $Mpp::Recursive::traditional;
 
     return unless @_;		# From __WARN__
@@ -267,7 +267,7 @@ sub log($@) {
 	      undef $_->{LOGGED};
 	      undef $_->{'..'}{LOGGED};
 	      int() . "\03$_->{NAME}\03" .
-		int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || Mpp::File::absolute_filename( $_->{'..'} ));
+		int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || absolute_filename $_->{'..'});
 	    }
 	  } @$_;
 # The rest is a verbatim copy of the map block above.  This function is heavy
@@ -287,7 +287,7 @@ sub log($@) {
 	  undef $_->{LOGGED};
 	  undef $_->{'..'}{LOGGED};
 	  int() . "\03$_->{NAME}\03" .
-	    int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || Mpp::File::absolute_filename( $_->{'..'} ));
+	    int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || absolute_filename $_->{'..'});
 	}
       } @_ ),
       "\n";

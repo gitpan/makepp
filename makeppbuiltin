@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #use strict;			# TODO: explore why this breaks the builtins.
 
-# $Id: makeppbuiltin,v 1.16 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: makeppbuiltin,v 1.17 2009/02/11 23:22:37 pfeiffer Exp $
 
 package Mpp;
 
@@ -40,7 +40,7 @@ BEGIN {
 $Mpp::Subs::rule->{MAKEFILE}{PACKAGE} = 'Mpp'; # Make it same as ours in eval_or_die
 
 use Mpp::Utils;
-use Mpp::File ();
+use Mpp::File;
 use Mpp::Text ();
 use Mpp::Cmds;
 
@@ -137,7 +137,7 @@ sub doit {
 
   if( !$ENV{INSTALL_LOG} && $cmd =~ /install$/ ) {
     require Mpp::Makefile;
-    Mpp::Makefile::find_root_makefile_upwards( $Mpp::File::CWD_INFO );
+    Mpp::Makefile::find_root_makefile_upwards( $CWD_INFO );
 				# Fill ->{ROOT} if RootMakeppfile found.
   } elsif( $cmd =~ /preprocess$/ ) {
     require Mpp::Makefile;

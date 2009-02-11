@@ -2,7 +2,7 @@
 
 makepp_extending -- How to extend makepp using perl
 
-=for vc $Id: makepp_extending.pod,v 1.14 2009/02/09 22:07:39 pfeiffer Exp $
+=for vc $Id: makepp_extending.pod,v 1.15 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -22,7 +22,7 @@ exceptions to this: automatic variables and the default value of variables
 like CC are actually implemented as functions with no arguments.  Target
 specific vars, command line vars and environment vars are not seen this way.)
 Thus any perl code you write has access to all makefile variables.  Global
-variables are stored in the C<global::> package.  See L<Makefile
+variables are stored in the C<Mpp::global> package.  See L<Makefile
 variables|makepp_statements/"Variables and perl"> for the deails.
 
 Each of the statements (L<ifperl / ifmakeperl|makepp_statements/ifperl>,

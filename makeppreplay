@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppreplay,v 1.7 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: makeppreplay,v 1.8 2009/02/11 23:22:37 pfeiffer Exp $
 
 package Mpp;
 
@@ -54,7 +54,7 @@ our $progname;
 
 my $temporary;
 
-use Mpp::File qw(file_info chdir absolute_filename file_exists relative_filename $CWD_INFO);
+use Mpp::File;
 use Mpp::FileOpt;
 use Mpp::Cmds;
 use Mpp::Makefile;
@@ -82,7 +82,7 @@ sub load_build_info_file($) {
 	if $key ne 'DEP_SIGS' && Mpp::Signature::is_content_based $value or
 	  $key eq 'LINKED_TO_CACHE' && $_[0]{LSTAT}[Mpp::File::STAT_NLINK] == 1 or
 				# Could have more than one link, but none to cache -- how can we know?
-	  $key eq 'FROM_REPOSITORY' && (readlink( &Mpp::File::absolute_filename_nolink ) || '') ne $value;
+	  $key eq 'FROM_REPOSITORY' && (readlink( &absolute_filename_nolink ) || '') ne $value;
     }
     if( $sig ) { # But file exists.
       &Mpp::File::mark_build_info_for_update
@@ -233,7 +233,7 @@ perform eval {
       my $dep_sigs = '';	# Precalculate this for the targets loop
       my $sep = '';
       for my $dep ( split /\cA/, $build_info->{SORTED_DEPS} ) {
-	$dep = Mpp::File::path_file_info $dep, $rule->{MAKEFILE}{CWD};
+	$dep = path_file_info $dep, $rule->{MAKEFILE}{CWD};
 	$dep->{BUILD_INFO} ||= load_build_info_file $dep;
 	$dep_sigs .= $sep .
 	  (($sig ? $sig->signature( $dep ) : Mpp::File::signature $dep) || '');
@@ -247,7 +247,7 @@ perform eval {
 	if( $tinfo->{LINK_DEREF} && $tinfo->{LSTAT}[Mpp::File::STAT_NLINK] == 1 ) {
 				# Assume nlink > 1 to mean action only created
 				# a link to an already existing symlink.
-	  $build_info->{SYMLINK} = readlink Mpp::File::absolute_filename $tinfo;
+	  $build_info->{SYMLINK} = readlink absolute_filename $tinfo;
 	} else {
 	  delete $build_info->{SYMLINK}; # Unlikely to have changed, but just in case.
 	}

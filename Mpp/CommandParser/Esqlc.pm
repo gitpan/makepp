@@ -1,4 +1,4 @@
-# $Id: Esqlc.pm,v 1.15 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Esqlc.pm,v 1.16 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -21,7 +21,7 @@ use Mpp::CommandParser::Gcc;
 our @ISA = 'Mpp::CommandParser::Gcc';
 
 use Mpp::Text;
-use Mpp::File qw(file_info absolute_filename);
+use Mpp::File;
 
 sub new {
   my $self = &Mpp::CommandParser::Gcc::new_no_gcc;

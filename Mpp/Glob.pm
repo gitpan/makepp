@@ -1,10 +1,10 @@
-# $Id: Glob.pm,v 1.33 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Glob.pm,v 1.34 2009/02/11 23:22:37 pfeiffer Exp $
 
 package Mpp::Glob;
 
 use strict;
 
-use Mpp::File qw(file_info chdir absolute_filename relative_filename $CWD_INFO);
+use Mpp::File;
 
 require Exporter;
 our @ISA = qw(Exporter);
@@ -69,7 +69,7 @@ or (as with the shell) by specifing a leading . in the wildcard pattern (e.g.,
 C<zglob> only returns files that exists and are readable, or can be built.
 
 C<zglob> returns a list of file names.	It uses an internal subroutine,
-C<zglob_fileinfo>, which returns a list of Mpp::File structures.	 See the
+C<zglob_fileinfo>, which returns a list of Mpp::File structures.  See the
 Mpp::File package for more details.
 
 =cut
@@ -111,7 +111,7 @@ sub zglob_fileinfo {
   Mpp::is_windows and
     s@^(?=[A-Za-z]:)@/@;	# If on windows, transform C: into /C: so it
 				# looks like it's in the root directory.
-  Mpp::File::case_sensitive_filenames or
+  case_sensitive_filenames or
     tr/A-Z/a-z/ unless		# Switch to lower case to avoid problems with
                                 # mixed case.
 
@@ -128,9 +128,9 @@ sub zglob_fileinfo {
   while ($_ = shift @pieces) {
     @candidate_dirs = $dont_follow_soft ?
       grep($_->{DIRCONTENTS} && !Mpp::File::is_symbolic_link( $_ ) ||
-	   Mpp::File::is_or_will_be_dir( $_ ),
+	   is_or_will_be_dir( $_ ),
 	   @new_candidates) :
-      grep($_->{DIRCONTENTS} || Mpp::File::is_or_will_be_dir( $_ ), @new_candidates);
+      grep($_->{DIRCONTENTS} || is_or_will_be_dir( $_ ), @new_candidates);
 				# Discard everything that isn't a directory,
 				# since we have to look for files in it.
 				# (Note that we will return files that are
@@ -227,7 +227,7 @@ sub zglob_fileinfo {
 Returns Mpp::File structures for all the subdirectories immediately under
 the given directory.  These subdirectories might not exist yet; we return
 Mpp::File structures for any Mpp::File for which has been treated as a
-directory in calls to Mpp::File::file_info.
+directory in calls to file_info.
 
 We do not follow symbolic links.  This is necessary to avoid infinite
 recursion and a lot of other bad things.
@@ -247,7 +247,7 @@ sub find_all_subdirs {
     undef $dirinfo->{SCANNED_FOR_SUBDIRS};
 				# Don't do this again, because we may have
 				# to stat a lot of files.
-    if( &Mpp::File::is_dir ) {	# Don't even try to do this if this directory
+    if( &is_dir ) {		# Don't even try to do this if this directory
 				# itself doesn't exist yet.
 
       Mpp::File::mark_as_directory $_ # Make sure that it's tagged as a directory.
@@ -296,7 +296,7 @@ sub find_real_subdirs {
 
   my @subdirs;			# Where we build up the list of subdirectories.
   for( values %{$dirinfo->{DIRCONTENTS}} ) {
-    if( $_->{LSTAT} && Mpp::File::is_dir( $_ )) {
+    if( $_->{LSTAT} && is_dir $_ ) {
       push @subdirs, $_		# Note this directory.
 	unless /^\./ && !$Mpp::Glob::allow_dot_files;
 				# Skip dot directories.
@@ -355,7 +355,7 @@ sub find_real_subdirs {
   for( @l1, @l2, @l3, @l4 ) {
     my $finfo = $dirinfo->{DIRCONTENTS}{$_};
 				# Look at each file in the directory.
-    if( Mpp::File::is_dir $finfo ) {
+    if( is_dir $finfo ) {
       push @subdirs, $finfo	# Note this directory.
 	unless /^\./ && !$Mpp::Glob::allow_dot_files;
 				# Skip dot directories.
@@ -474,14 +474,14 @@ sub wild_to_regex {
 	substr $file_regex, 0, 0, '^' if $anchor & 1;
 	$file_regex .= '$' if $anchor > 1; # Cheaper than: & 2
       }
-      return $regexp_cache[$anchor]{$_} = Mpp::File::case_sensitive_filenames ?
+      return $regexp_cache[$anchor]{$_} = case_sensitive_filenames ?
 	qr/$file_regex/ :
 	qr/$file_regex/i;	# Make it case insensitive.
     }
   }
 
   s/\\(.)/$1/g;			# Unquote any backslashed characters.
-  Mpp::File::case_sensitive_filenames ?
+  case_sensitive_filenames ?
     $_ :
     lc;				# Not case sensitive--switch to lc.
 }

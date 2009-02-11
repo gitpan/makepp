@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.179 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: makepp,v 1.180 2009/02/11 23:22:36 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -97,7 +97,7 @@ use Mpp;
 our $error_found;
 our $log_level;
 
-use Mpp::File qw(file_info chdir absolute_filename file_exists relative_filename may_have_changed $CWD_INFO);
+use Mpp::File;
 use Mpp::FileOpt;
 use Mpp::Makefile;
 use Mpp::Rule;
@@ -210,7 +210,7 @@ sub build {
     return 1;
   }
   if( &Mpp::File::dont_build ) {
-    if( exists $_[0]{IS_PHONY} || &Mpp::File::file_exists ) {
+    if( exists $_[0]{IS_PHONY} || &file_exists ) {
       Mpp::log BUILD_NOT => $oinfo
 	if $log_level;
     } elsif( &Mpp::File::dont_build == 2 ) { # Outside of ROOT
@@ -686,7 +686,7 @@ sub build_dependencies_done {
     				# We don't really need to blow away BUILD_INFO,
 				# because we called clear_build_info earlier,
 				# but that doesn't slow things down too much.
-	  may_have_changed( Mpp::File::dereference $tinfo );
+	  may_have_changed( dereference $tinfo );
     				# Since we don't know whether the command
 				# modified the link or its referent or both,
 				# need to invalidate both.
@@ -788,7 +788,7 @@ sub build_target_done {
     				# We don't really need to blow away BUILD_INFO,
 				# because we called clear_build_info earlier,
 				# but that doesn't slow things down too much.
-      my $deref = Mpp::File::dereference( $tinfo );
+      my $deref = dereference( $tinfo );
       may_have_changed( $deref ) unless $tinfo == $deref;
     				# Since we don't know whether the command
 				# modified the link or its referent or both,
@@ -824,7 +824,7 @@ sub build_target_done {
 	      # Don't use dereference, as that follows a link to a link.
 	      push @extra, 'SYMLINK', $link;
 	    } else {
-	      warn '`' . Mpp::File::absolute_filename_nolink( $tinfo ) . "' is a symbolic link to `$link',
+	      warn '`' . absolute_filename_nolink( $tinfo ) . "' is a symbolic link to `$link',
   which is neither a dependency of rule `" . $rule->source . "',
   nor a target.  That means makepp can't guarantee a correct build of that file.
   Your rule should in essence follow one of these two schemes:
@@ -939,8 +939,8 @@ sub makepprc {
 
   for( my $dirinfo = $CWD_INFO;
        $dirinfo &&
-       (Mpp::File::stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
-	 ($cwd_devid ||= (Mpp::File::stat_array $CWD_INFO)->[Mpp::File::STAT_DEV]);
+       (stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
+	 ($cwd_devid ||= (stat_array $CWD_INFO)->[Mpp::File::STAT_DEV]);
 				# Don't cross device boundaries.  This is
 				# intended to avoid trouble with automounters
 				# or dead network file systems.
@@ -1279,13 +1279,13 @@ perform eval {
     [undef, qr/dont[-_]?build/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
        $tmp->{DONT_BUILD} = 1;
-       $dont_build_dir_flag = 1 if Mpp::File::is_or_will_be_dir( $tmp );
+       $dont_build_dir_flag = 1 if is_or_will_be_dir $tmp;
 				# Remember that we have to check parent dirs
      }],
     [undef, qr/dont[-_]?read/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
        $tmp->{DONT_READ} = 1;
-       $dont_read_dir_flag = 1 if Mpp::File::is_or_will_be_dir( $tmp );
+       $dont_read_dir_flag = 1 if is_or_will_be_dir $tmp;
 				# Remember that we have to check parent dirs
      }],
 
@@ -1303,7 +1303,7 @@ perform eval {
        $tmp = file_info $tmp;
        $tmp->{IN_SANDBOX} = 1;
        $sandbox_enabled_flag = 1; # default is now out-of-sandbox
-       $in_sandbox_dir_flag = 1 if Mpp::File::is_or_will_be_dir( $tmp );
+       $in_sandbox_dir_flag = 1 if is_or_will_be_dir $tmp;
 				# Remember that we have to check parent dirs
      }],
 
@@ -1360,13 +1360,13 @@ perform eval {
     ['o', qr/(?:assume[-_]?old|old[-_]?file)/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
        $tmp->{ASSUME_UNCHANGED} = 1; # Don't pay any attention to this file.
-       $assume_unchanged_dir_flag = 1 if Mpp::File::is_or_will_be_dir( $tmp );
+       $assume_unchanged_dir_flag = 1 if is_or_will_be_dir $tmp;
 				# Remember that we have to check parent dirs
      }],
     [undef, qr/out[-_]?of[-_]?sand[-_]?box/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
        undef $tmp->{IN_SANDBOX};
-       $in_sandbox_dir_flag = 1 if Mpp::File::is_or_will_be_dir( $tmp );
+       $in_sandbox_dir_flag = 1 if is_or_will_be_dir $tmp;
 				# Remember that we have to check parent dirs
      }],
 

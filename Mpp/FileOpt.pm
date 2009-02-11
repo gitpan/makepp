@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.100 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.101 2009/02/11 23:22:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -26,13 +26,6 @@ our $build_info_subdir = '.makepp';
 our @build_infos_to_update = ();
 				# References to all the build info files that
 				# have to be flushed to disk.
-
-our $directory_first_reference_hook = 0;
-				# This coderef is called on the first call to
-				# exists_or_can_be_built with any file within
-				# a given directory, with that directory's
-				# Mpp::File object as an arg. It should restore
-				# the cwd if it changes it.
 
 our $n_last_chance_rules;       # Number of last-chance rules seen this run.
 
@@ -199,9 +192,7 @@ sub exists_or_can_be_built {
     &lstat_array;
     return unless exists $finfo->{EXISTS};
   }
-  if($directory_first_reference_hook) {
-    &is_or_will_be_dir;
-  }
+  &is_or_will_be_dir if $Mpp::File::directory_first_reference_hook;
   my $result = ($phony || !exists $finfo->{EXISTS_OR_CAN_BE_BUILT}) ?
     &exists_or_can_be_built_norecurse :
     $finfo->{EXISTS_OR_CAN_BE_BUILT} ? $finfo : 0;
@@ -252,7 +243,7 @@ sub exists_or_can_be_built_or_remove {
     Mpp::log DEL_STALE => $finfo
       if $Mpp::log_level;
     # TBD: What if the unlink fails?
-    &Mpp::File::unlink;
+    &unlink;
     # Remove the build info file as well, so that it won't be treated as
     # a generated file if something other than makepp puts it back with the
     # same signature.
@@ -719,7 +710,7 @@ sub update_build_infos {
       next;
     }
 
-    Mpp::File::mkdir		 # Make sure the build info subdir exists.
+    &mkdir			# Make sure the build info subdir exists.
       ($finfo->{'..'}{DIRCONTENTS}{$build_info_subdir} ||=
        bless { NAME => $build_info_subdir, '..' => $finfo->{'..'} });
 
@@ -752,8 +743,8 @@ END {
     if( is_stale $finfo and file_exists $finfo ) { # After all, it is still stale.
       Mpp::log DEL_STALE => $finfo
 	if $Mpp::log_level;
-      Mpp::File::unlink $finfo;
-      CORE::unlink Mpp::File::build_info_fname $finfo;
+      &unlink( $finfo );
+      CORE::unlink build_info_fname( $finfo );
     }
   }
 }
