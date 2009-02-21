@@ -103,7 +103,7 @@ include makepp1.mk
 use Mpp::File;
 sub rewrite_test {
   my $pref = absolute_filename $CWD_INFO;
-  package Rewrite;
+  package Mpp::Rewrite;
   my $result = "cwd:\n";
   for my $arg ( 0, 1, 2, 4 ) {
     for my $file ( '', qw(/ /a /a/b) ) {
@@ -201,7 +201,7 @@ $Mpp::all_types = sub {
 
 # Replace makepp dir with abbreviation <m> (instead of std |m|, due to Ebcdic sorting).
 no warnings 'redefine';
-sub Rewrite::makepp() { defined and s!^$Mpp::datadir(?:/|$|(?=:))!<m>! }
+sub Mpp::Rewrite::makepp() { defined and s!^$Mpp::datadir(?:/|$|(?=:))!<m>! }
 ###	6	644	1170452082	1166207697	a.c
 #include "a.h"
 #include "b/b.h"

@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.169 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: Subs.pm,v 1.170 2009/02/21 11:23:59 pfeiffer Exp $
 
 =head1 NAME
 
@@ -1621,12 +1621,12 @@ sub s_global {
   for( split ' ', $_[1]->expand_text( $_[0], $_[2] )) {
 				# Mark these variables for export.  We'll
 				# fill out their values later.
-    (my $reexpand, ${"global::$_"} ) = $_[1]->expand_variable( $_, $_[2], 1 );
-    if( defined ${"global::$_"} ) { # Maybe turning a local to global.
+    (my $reexpand, ${"Mpp::global::$_"} ) = $_[1]->expand_variable( $_, $_[2], 1 );
+    if( defined ${"Mpp::global::$_"} ) { # Maybe turning a local to global.
       undef ${"$_[1]{PACKAGE}::$_"};
       delete $reexpandref->{$_} if $reexpandref;
     } else {
-      ${"global::$_"} = '';	# Make it at least exist globally.
+      ${"Mpp::global::$_"} = '';	# Make it at least exist globally.
     }
     $Mpp::Makefile::global->{VAR_REEXPAND}{$_} = 1 if $reexpand;
   }

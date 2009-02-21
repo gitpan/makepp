@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.41 2009/02/09 22:07:39 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.42 2009/02/21 11:25:31 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -69,7 +69,7 @@ to several builtins, though the short form is sometimes not available:
 
 =item --arguments-file=filename
 
-Read the file and parse it as possibly quoted options on one or several lines.
+Read the file and parse it as possibly quoted whitespace- and/or newline-separated options.
 
 =item -f
 

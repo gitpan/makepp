@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.31 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: makepplog,v 1.32 2009/02/21 11:28:49 pfeiffer Exp $
 
 package Mpp;
 
@@ -233,7 +233,7 @@ sub instdir {
 	my $finfo = file_info $_;
 	dereference $finfo;
 	$_ = absolute_filename $finfo;
-	Rewrite::cwd $cwd if defined $cwd;
+	Mpp::Rewrite::cwd $cwd if defined $cwd;
 	$ret .= $_;
       }
       $ret;
@@ -242,9 +242,9 @@ sub instdir {
 }
 
 if( $instdir && defined $cwd ) {
-  $rename = sub { Rewrite::cwd $cwd || &instdir };
+  $rename = sub { Mpp::Rewrite::cwd $cwd || &instdir };
 } elsif( defined $cwd ) {
-  $rename = sub { Rewrite::cwd $cwd };
+  $rename = sub { Mpp::Rewrite::cwd $cwd };
 } elsif( $instdir ) {
   $rename = \&instdir;
 }

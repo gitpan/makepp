@@ -2,7 +2,7 @@
 
 makeppbuiltin -- Stand-alone access to builtin commands in makepp
 
-=for vc $Id: makeppbuiltin.pod,v 1.7 2008/11/23 21:02:55 pfeiffer Exp $
+=for vc $Id: makeppbuiltin.pod,v 1.8 2009/02/21 11:25:29 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -45,7 +45,7 @@ if it comes from a module:
 
 =item --arguments-file=filename
 
-Read the file and parse it as possibly quoted options on one or several lines.
+Read the file and parse it as possibly quoted whitespace- and/or newline-separated options.
 
 =item -I dir
 
@@ -60,6 +60,10 @@ Add I<dir> to Perl load path C<@INC>.
 =item --module=module[=arg,...]
 
 Load module and import any functions it exports.
+
+=item --version
+
+Print out the version number.
 
 =back
 

@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppgraph,v 1.19 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: makeppgraph,v 1.20 2009/02/21 11:28:49 pfeiffer Exp $
 
 #TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
 
@@ -66,7 +66,7 @@ my $home = absolute_filename dereference file_info $ENV{HOME};
 $datadir = absolute_filename dereference file_info $datadir;
 
 
-package Rewrite;
+package Mpp::Rewrite;
 
 # Reduce any file (execept dirs) to the containing directory.
 sub dir() { defined and $_ ne '' and -d || s!/[^/]+$!! || s!^(\|\w+\|).*!$1! }
@@ -335,9 +335,9 @@ my $build_re = $because ?
 
 for( $rename, $merge ) {
   $_ or next;
-  $_ = eval_or_die "package Rewrite; sub { $_ }";
+  $_ = eval_or_die "package Mpp::Rewrite; sub { $_ }";
 }
-$rename ||= \&Rewrite::cwd;
+$rename ||= \&Mpp::Rewrite::cwd;
 
 find_logfiles @logfiles;
 for( $outfile ) {

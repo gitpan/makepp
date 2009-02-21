@@ -1,3 +1,23 @@
+2009-02-21  Daniel Pfeiffer  <occitan@esperanto.org>
+
+Snapshot makepp-1.50.090221.tgz, version 1.50-02212-021122-02107 on CPAN.
+
+	* Mpp/Makefile.pm (expand_variable):
+	* Mpp/Subs.pm (s_global): Rename package global to Mpp::global.
+
+	* makeppgraph:
+	* makepplog:
+	* Mpp/Utils.pm:
+	* t/log_graph.test: Rename package Rewrite to Mpp::Rewrite.
+
+	* Mpp/FileOpt.pm (version):
+	* install.pl: Don't put DOS newline into $VERSION if unpacked wrongly.
+
+2009-02-12  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/File.pm: Export generously, saving a lot of qualifying all
+	over.
+
 2009-02-10  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	Huge change: all symbols in package main moved to package Mpp.

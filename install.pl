@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.84 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: install.pl,v 1.85 2009/02/21 11:28:57 pfeiffer Exp $
 #
 
 package Mpp;
@@ -40,9 +40,11 @@ our $eliminate = '';		# So you can say #@@eliminate
 $eliminate = $eliminate if Mpp::is_perl_5_6;
 open(VERSION, "VERSION") || die "You are missing the file VERSION.  This should be part of the standard distribution.\n";
 our $VERSION = <VERSION>;
+close VERSION;
 our $BASEVERSION = $VERSION;
 chomp $VERSION;
-close VERSION;
+warn "Makepp will be installed with DOS newlines, as you unpacked it.\n" if $VERSION =~ tr/\r//d;
+				# Native Windows chomps \r.
 
 if( $VERSION =~ s/beta// ) {
   $BASEVERSION = $VERSION;
@@ -53,7 +55,7 @@ if( $VERSION =~ s/beta// ) {
 # assumes that we have at least three check ins a year.
 #
   my %VERSION = qw(0/00/00 0 00/00/00 0); # Default in case all modules change on same day.
-  for( <makepp *.pm */*.pm Mpp/*/*.pm makepp_builtin_rules.mk> ) {
+  for( <makepp Mpp{,/*,/*/*}.pm makepp_builtin_rules.mk> ) {
     open my( $fh ), $_;
     while( <$fh> ) {
       if( /\$Id: .+,v [.0-9]+ ([\/0-9]+)/ ) {

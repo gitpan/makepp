@@ -47,7 +47,7 @@ sub find_logfiles(\@) {
 
 my( $max_up, $cwd_re );
 # Strip cwd from front, and optionally any level of parent directories.
-sub Rewrite::cwd(;$$$) {
+sub Mpp::Rewrite::cwd(;$$$) {
   if( defined and $_ ne '' ) {
     my( $up, $name, $sep ) = @_;
     if( !$cwd_re ) {

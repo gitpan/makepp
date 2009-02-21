@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.131 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.132 2009/02/21 11:23:58 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_action needed_wildcard_action);
@@ -409,8 +409,8 @@ sub expand_variable {
       last;
 
 # 4th attempt:
-    defined( $result = ${"global::$var"} ) and
-      $varref = \${"global::$var"},
+    defined( $result = ${"Mpp::global::$var"} ) and
+      $varref = \${"Mpp::global::$var"},
       $reexpand = $global,
       last;
 
@@ -1054,13 +1054,13 @@ sub assign {
 
   } else {
 
-    my $var = "global::$name";
+    my $var = "Mpp::global::$name";
     if( defined $$var ) {	# Newly or already global?
       $varref = \$$var;
       $reexpandref = $global;
     }
 
-    substr $var, 0, 6, $self->{PACKAGE};
+    substr $var, 0, 11, $self->{PACKAGE};
     if( !$varref || defined $$var ) { # Even if global, we might have a local.
       $varref = \$$var;
       $reexpandref = $self;

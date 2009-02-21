@@ -2,7 +2,7 @@
 
 makepp_command -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.41 2008/11/23 21:14:58 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.42 2009/02/21 11:25:31 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -115,7 +115,7 @@ Options include most of the standard make options, plus a few new ones.
 
 =item --arguments-file=filename
 
-Read the file and parse it as possibly quoted options on one or several lines.
+Read the file and parse it as possibly quoted whitespace- and/or newline-separated options.
 
 =item -W filename X<-W> X<--assume-new>
 

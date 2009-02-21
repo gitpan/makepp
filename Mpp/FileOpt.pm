@@ -947,9 +947,9 @@ sub version {
   chomp( $Mpp::VERSION		# Hide assignment from CPAN scanner.
 	 = <$fh> );
   if( $Mpp::VERSION		# -"-
-      =~ s/beta// ) {
+      =~ s/beta\r?// ) {
     my %VERSION = qw(0/00/00 0 00/00/00 0); # Default in case all modules change on same day.
-    for( "$0", <$Mpp::datadir/*.pm $Mpp::datadir/Mpp/*.pm $Mpp::datadir/Mpp/*/*.pm $Mpp::datadir/makepp_builtin_rules.mk> ) {
+    for( "$0", <$Mpp::datadir/Mpp{,/*,/*/*}.pm $Mpp::datadir/makepp_builtin_rules.mk> ) {
       open my( $fh ), $_;
       while( <$fh> ) {
 	if( /\$Id: .+,v [.0-9]+ ([\/0-9]+)/ ) {

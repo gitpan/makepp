@@ -2,7 +2,7 @@
 
 makepp_faq -- Frequently asked questions about makepp
 
-=for vc $Id: makepp_faq.pod,v 1.5 2007/10/22 19:19:22 pfeiffer Exp $
+=for vc $Id: makepp_faq.pod,v 1.6 2009/02/21 11:25:31 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -64,7 +64,8 @@ L<makepplog, mppl|makepplog> or L<makeppgraph, mppg|makeppgraph>.
 
 Makepp records all it knows about a file, for reuse on the next run.  Though
 it takes some understanding of makepp's internals, dumping it with
-C<makeppinfo, mppi> for one or more files, usually gives a clue what is wrong.
+L<makeppinfo, mppi|makeppinfo> for one or more files, usually gives a clue
+what is wrong.
 
 =head2 External tools
 

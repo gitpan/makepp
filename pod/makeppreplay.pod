@@ -2,7 +2,7 @@
 
 makeppreplay -- Fast repeater of selected makepp actions
 
-=for vc $Id: makeppreplay.pod,v 1.3 2008/12/14 17:10:03 pfeiffer Exp $
+=for vc $Id: makeppreplay.pod,v 1.4 2009/02/21 11:25:31 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -98,7 +98,7 @@ modules that would normally be loaded from a makefile.
 
 =item --arguments-file=filename
 
-Read the file and parse it as possibly quoted options on one or several lines.
+Read the file and parse it as possibly quoted whitespace- and/or newline-separated options.
 
 =item -c
 
