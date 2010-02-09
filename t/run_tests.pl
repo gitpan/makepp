@@ -39,6 +39,7 @@ my $archive = $Config{perlpath}; # Temp assignment is work-around for a nasty pe
 our $source_path;
 my $old_cwd;
 my $dot;
+my $hint;
 my $verbose;
 my $test;
 my $keep;
@@ -106,6 +107,7 @@ BEGIN {
   Mpp::Text::getopts(
     [qw(b basedir), \$basedir, 1],
     [qw(d dots), \$dot],
+    [qw(h hint), \$hint],
     [qw(k keep), \$keep],
     [qw(m makepp), \$makepp_path, 1],
     [qw(n name), \$name, 1],
@@ -118,6 +120,8 @@ run_tests.pl[ options][ tests]
 	Put tdirs into subdir of given dir, to perform tests elsewhere.
     -d, --dots
 	Output only a dot for every successful test.
+    -h, --hint
+	For some tests explain what might be wrong, and give a general hint.
     -k, --keep
 	Keep the tdir even if the test was successful.
     -m, --makepp=PATH_TO_MAKEPP
@@ -241,7 +245,8 @@ sub makepp(@) {
 @ARGV or @ARGV = <*.test *.tar *.tar.gz>;
 				# Get a list of arguments.
 
-$n_failures = 0;
+my $n_failures = 0;
+my $n_successes = 0;
 
 (my $wts = $0) =~ s/run_tests/wait_timestamp/;
 do $wts;			# Preload the function.
@@ -542,11 +547,13 @@ foreach $archive (@ARGV) {
     }
     ++$n_failures;
     close TFILE; close MTFILE;	# or cygwin will hang
+    cp 'hint', \*STDOUT if $hint && -f 'hint';
     chdir $old_cwd;		# Get back to the old directory.
     rename $tdir => $tdir_failed unless $dirtest;
     last if $testname eq 'aaasimple'; # If this one fails something is very wrong
   } else {
     dot '.', "passed $testname\n";
+    $n_successes++;
     if( !$dirtest ) {
       execute 'cleanup_script', ">$log";
       chdir $old_cwd;		# Get back to the old directory.
@@ -558,7 +565,22 @@ foreach $archive (@ARGV) {
   }
 }
 print "\n" if defined $dotted;
-
+if( $n_failures && $hint ) {
+  print "\n";
+  my $common = "\nIn the $basedir directory you will find details\nin the <testname>.log files and <testname>.failed directories.\n";
+  if( $n_failures > $n_successes ) {
+    print $n_successes ? 'Fairly bad failure!' : 'Total failure!',
+      $common;
+  } else {
+    print $n_failures > $n_successes / 2 ? 'Partial failure, but many things work, so makepp might be ok for you...' :
+      'Some failures, which possibly all have the same cause -- you are probably ok.',
+      $common, <<EOF;
+If you are trying to install from a makefile you configured, you need to
+touch .test_done
+in case you want to ignore the above failures.
+EOF
+  }
+}
 printf "%ds real  %.2fs user  %.2fs system  children: %.2fs user  %.2fs system\n", time - $^T, times
   if $verbose;
 close OSTDOUT;			# shutup warnings.
@@ -675,6 +697,10 @@ example of output redirection.
 =item F<Makefile> or F<Makeppfile>
 
 Obviously this is kind of important.
+
+=item F<hint>
+
+Suggestions about what might be wrong if this test fails.
 
 =item answers
 

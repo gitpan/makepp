@@ -3,23 +3,16 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.85 2009/02/21 11:28:57 pfeiffer Exp $
+# $Id: install.pl,v 1.88 2010/02/09 23:09:10 pfeiffer Exp $
 #
 
 package Mpp;
 
-use Config;
-use File::Copy;
-use Mpp::Text ();
-use Mpp::File ();		# ensure HOME is set
-
-system $^X, 'makepp', '--version'; # make sure it got a chance to apply workarounds.
-
 #
 # First make sure this version of perl is recent enough:
 #
-eval { require 5.006 };
-if ($@) {			# Not recent enough?
+BEGIN {
+  eval { require 5.006 };
   die "I need perl version 5.6 or newer.  If you have it installed somewhere
 already, run this installation procedure with that perl binary, e.g.,
 
@@ -27,8 +20,15 @@ already, run this installation procedure with that perl binary, e.g.,
 
 If you don't have a recent version of perl installed (what kind of system are
 you on?), get the latest from www.perl.com and install it.
-";
+" if $@;			# Not recent enough?
 }
+
+use Config;
+use File::Copy;
+use Mpp::Text ();
+use Mpp::File ();		# ensure HOME is set
+
+system $^X, 'makepp', '--version'; # make sure it got a chance to apply workarounds.
 
 print 'Using perl in ' . PERL . ".\n";
 
@@ -106,11 +106,11 @@ if ($datadir !~ /^\//) {	# Make a relative path absolute.
 }
 
 # prior installation may not have supported .makepp/*.mk files
--r "$datadir/Mpp/FileOpt.pm" and
-  (stat "$datadir/Mpp/FileOpt.pm")[9] < 1102710870 || # check-in time
+-r "$datadir/FileInfo_makepp.pm" and
+  (stat "$datadir/FileInfo_makepp.pm")[9] < 1102710870 || # check-in time
   do {
     my $found;
-    open F, "$datadir/Mpp/FileOpt.pm";
+    open F, "$datadir/FileInfo_makepp.pm";
     while( <F> ) {
       $found = 1, last if /build_info_subdir.+\.mk/;
     }
@@ -140,8 +140,7 @@ HTML documentation directory [$prefix/share/makepp/html]: ") ||
   "$prefix/share/makepp/html";
 $htmldir_val = $htmldir;
 
-use vars qw/$findbin/;
-$findbin = shift @ARGV;
+my $findbin = shift @ARGV;
 defined($findbin) or $findbin = read_with_prompt("
 Where should the library files be sought relative to the executable?
 Enter \"none\" to seek in $datadir [none]: ") || "none";
@@ -153,8 +152,16 @@ if($findbin) {
     if $htmldir eq $datadir . "/html";
 }
 
+my $destdir = shift @ARGV;
+
 @sig_num{split ' ', $Config{sig_name}} = split ' ', $Config{sig_num};
 $USR1 = $sig_num{USR1}; $USR1 = $USR1; 	# suppress used-only-once warning
+
+if( $destdir ) {
+  for( $bindir, $datadir, $mandir, $htmldir_val ) {
+    s/$prefix/$destdir/o if defined;
+  }
+}
 
 make_dir("$datadir/$_") for
   qw(Mpp Mpp/ActionParser Mpp/BuildCheck Mpp/CommandParser Mpp/Scanner Mpp/Signature);
@@ -197,29 +204,28 @@ substitute_file( $_, $bindir, 0755, 1 ) for
 substitute_file( $_, $datadir, 0644 ) for
   qw(recursive_makepp Mpp/FileOpt.pm Mpp/BuildCacheControl.pm);
 
-foreach $module (qw(Mpp
+copy("Mpp.pm", "$datadir/Mpp.pm");
+chmod 0644, "$datadir/Mpp.pm";
+foreach $module (qw(AutomakeFixer BuildCache File Glob Event Cmds Makefile
+		    Subs Recursive Repository Rule Text Utils
 
-		    Mpp/AutomakeFixer Mpp/BuildCache Mpp/File Mpp/Glob Mpp/Event
-		    Mpp/Cmds Mpp/Makefile Mpp/Subs Mpp/RecursiveMake Mpp/Repository
-		    Mpp/Rule Mpp/Text Mpp/Utils
+		    ActionParser ActionParser/Legacy ActionParser/Specific
 
-		    Mpp/ActionParser Mpp/ActionParser/Legacy Mpp/ActionParser/Specific
+		    BuildCheck BuildCheck/architecture_independent
+		    BuildCheck/exact_match BuildCheck/ignore_action
+		    BuildCheck/only_action BuildCheck/target_newer
 
-		    Mpp/BuildCheck Mpp/BuildCheck/architecture_independent
-		    Mpp/BuildCheck/exact_match Mpp/BuildCheck/ignore_action
-		    Mpp/BuildCheck/only_action Mpp/BuildCheck/target_newer
+		    CommandParser CommandParser/Esqlc CommandParser/Gcc
+		    CommandParser/Swig CommandParser/Vcs
 
-		    Mpp/CommandParser Mpp/CommandParser/Esqlc Mpp/CommandParser/Gcc
-		    Mpp/CommandParser/Swig Mpp/CommandParser/Vcs
+		    Scanner Scanner/C Scanner/Esqlc Scanner/Swig Scanner/Vera
+		    Scanner/Verilog
 
-		    Mpp/Scanner Mpp/Scanner/C Mpp/Scanner/Esqlc Mpp/Scanner/Swig Mpp/Scanner/Vera
-		    Mpp/Scanner/Verilog
-
-		    Mpp/Signature Mpp/Signature/c_compilation_md5 Mpp/Signature/md5
-		    Mpp/Signature/shared_object Mpp/Signature/verilog_simulation_md5
-		    Mpp/Signature/verilog_synthesis_md5)) {
-  copy("$module.pm", "$datadir/$module.pm");
-  chmod 0644, "$datadir/$module.pm";
+		    Signature Signature/c_compilation_md5 Signature/md5
+		    Signature/shared_object Signature/verilog_simulation_md5
+		    Signature/verilog_synthesis_md5)) {
+  copy("Mpp/$module.pm", "$datadir/Mpp/$module.pm");
+  chmod 0644, "$datadir/Mpp/$module.pm";
 }
 
 foreach $include (qw(makepp_builtin_rules makepp_default_makefile)) {
@@ -273,9 +279,9 @@ sub highlight_keywords() {
     $pre && !/define|export|global|override/ && s!\G(\s*)([^&\s].*?)(?=\s*:(?:$|.*?[^;{]\n))!$1<u>$2</u>!m;
 
   # highlight rule options
-  s!(: *)(build_c(?:ache|heck)|quickscan|scanner|signature|smartscan)(&nbsp;| +)([-/\w]+)!$1<b>$2</b>$3<u>$4</u>! or
+  s!(: *)(build_c(?:ache|heck)|foreach|include|scanner|signature)(&nbsp;| +)([-_/\w%.]+)!$1<b>$2</b>$3<u>$4</u>!g or
   # repeat the above, because they may appear in C<> without argument
-  s!(: *)(foreach|quickscan|scanner|signature|smartscan)\b!$1<b>$2</b>!;
+  s!(: *)(build_c(?:ache|heck)|foreach|include|last_chance|quickscan|scanner|signature|smartscan)\b!$1<b>$2</b>!g;
 }
 
 sub highlight_variables() {

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.180 2009/02/11 23:22:36 pfeiffer Exp $
+# $Id: makepp,v 1.184 2010/02/09 22:36:54 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -114,6 +114,7 @@ our $original_cwd = $CWD_INFO;	# Remember the directory we started from.
 
 our %global_ENV = %ENV;		# Make a copy of the environment, because
 				# we're going to change the environment a lot.
+%ENV = %global_ENV;		# Some (only Solaris?) versions hang when changing $0 before %ENV
 our( $assume_unchanged_dir_flag, $dont_build_dir_flag, $dont_read_dir_flag,
   $sandbox_enabled_flag, $in_sandbox_dir_flag, $sandbox_warn_flag, $virtual_sandbox_flag );
 				# This is set if we set ASSUME_UNCHANGED /
@@ -782,8 +783,30 @@ sub build_target_done {
 # Update the stored build information for each target:
 #
     my @built_targets;
+    my $include = $rule->{INCLUDE};
+    my %uniq;
+    if( $include ) {
+      if( $rule->{INCLUDE_MD5} ? $rule->{INCLUDE_MD5} ne Mpp::Signature::md5::signature( undef, $include ) : 1 ) {
+				# If we have a sig, only reread if it changed.
+	$uniq{int()} = $_ for @$all_dependencies;
+	for my $tinfo (@$all_targets) {
+	  delete $uniq{int()} for $rule->expand_additional_deps( $tinfo );
+				# These may now be outdated.
+	}
+	Mpp::log LOAD_INCL => $include, $rule
+	  if $Mpp::log_level;
+	local $Mpp::Makefile::rule_include = 2;
+	$rule->{MAKEFILE}->read_makefile( $include );
+      } else {
+	undef $include;		# No change, forget about it for this time.
+      }
+    }
+
     foreach my $tinfo (@$all_targets) {
       next if exists $tinfo->{IS_PHONY}; # Skip phony targets.
+      if( $include ) {			 # Do this for all targets, as we don't know which one was in the :include .d
+	$uniq{int()} = $_ for $rule->expand_additional_deps( $tinfo );
+      }
       may_have_changed( $tinfo ); # Invalidate cached info.
     				# We don't really need to blow away BUILD_INFO,
 				# because we called clear_build_info earlier,
@@ -795,6 +818,8 @@ sub build_target_done {
 				# need to invalidate both.
       push(@built_targets, $tinfo);
     }
+    $all_dependencies = $rule->sorted_dependencies( [values %uniq] )
+      if keys %uniq;
     $rule->cache_scaninfo(\@built_targets);
     my $sorted_dep_names = join "\cA", map relative_filename( $_, $build_cwd ), @$all_dependencies;
     my $sorted_dep_sigs = join "\cA", map { $sig_method->signature($_) || '' } @$all_dependencies;
@@ -1216,12 +1241,6 @@ sub parse_command_line(\%@) {
   @handles;
 }
 
-END {
-  local $?;
-  defined $Mpp::Recursive::traditional and $Mpp::Rule::last_build_cwd and
-    print "$progname: Leaving directory `" . absolute_filename( $Mpp::Rule::last_build_cwd ). "'\n";
-}
-
 ###############################################################################
 #
 # Parse the top level command.	This is at the bottom of the file to force
@@ -1398,7 +1417,7 @@ perform eval {
 };
 
 
-__END__
+__DATA__
 Usage: makepp [-options] [VAR=value] targets
 
 Valid options include:

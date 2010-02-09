@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppclean,v 1.15 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: makeppclean,v 1.16 2009/09/25 20:12:03 pfeiffer Exp $
 
 package Mpp;
 
@@ -107,15 +107,15 @@ my @deletable;			# Files must be first remembered for deletion,
 				# no longer have a checkable build info.
 my @deletable_dirs;
 sub deletable {
-  my $build_info = &Mpp::File::build_info_fname;
-  return 1 if -l $build_info && !-e _; # Stale inter-build-cache symlink?
+  return 1 if -l &Mpp::File::build_info_fname && !-e _; # Stale inter-build-cache symlink?
   defined and return 1
     for Mpp::File::build_info_string $_[0], @info_strings;
-  if( $_[0]->{TEMP_BUILD_INFO} ) { # Stale symlink?
+  if( $_[0]{TEMP_BUILD_INFO} ) { # Stale symlink?
+    return if $_[0]{TEMP_BUILD_INFO}{SYMLINK} ne (readlink &Mpp::File::absolute_filename or '');
     defined and return 1
-      for @{$_[0]->{TEMP_BUILD_INFO} }{@info_strings};
+      for @{$_[0]{TEMP_BUILD_INFO}}{@info_strings};
   }
-  $_[0]->{NAME} =~ /^\.makepp_(?:log|testfile)/; # Always clean leftovers.
+  $_[0]{NAME} =~ /^\.makepp_(?:log|testfile)/; # Always clean leftovers.
 }
 
 sub remove_if_built_file {
@@ -127,7 +127,7 @@ sub remove_if_built_file {
       push @deletable, &relative_filename, &Mpp::File::build_info_fname;
       $n_files_removed++;
     }
-    if( !$_[0]{'..'}{MAKEPP_DELETABLE} ) { # Remember to check .makepp later.
+    unless( $_[0]{'..'}{MAKEPP_DELETABLE} ) { # Remember to check .makepp later.
       $_[0]{'..'}{MAKEPP_DELETABLE} = 1;
       my $makepp = file_info $Mpp::File::build_info_subdir, $_[0]{'..'};
       unshift @deletable_dirs, $makepp if is_dir $makepp;
@@ -145,10 +145,10 @@ sub remove_contents_if_built {
     remove_if_built_file $file;
     remove_contents_if_built( $file ) if $recurse and is_dir $file;
   }
-  if( !$leave_src_info ) { # Remember to check .makepp later.
+  unless( $leave_src_info ) { # Remember to check .makepp later.
     my $makepp = file_info $Mpp::File::build_info_subdir, $finfo;
     if( is_dir $makepp ) {
-      if( !$finfo->{MAKEPP_DELETABLE} ) {
+      unless( $finfo->{MAKEPP_DELETABLE} ) {
 	$finfo->{MAKEPP_DELETABLE} = 1;
 	unshift @deletable_dirs, $makepp;
       }
@@ -169,20 +169,23 @@ perform {
     [0, 'version', undef, 0, \&Mpp::File::version],
     [qr/[h?]/, 'help', undef, 0, \&usage];
 
-  @ARGV = ('.') unless @ARGV;
   if( @info_strings ) {
     $leave_src_info = 1;	# Actually leave all other infos.
   } else {
     @info_strings = qw(BUILD_SIGNATURE FROM_REPOSITORY);
   }
-  for my $arg (@ARGV) {
-    my $finfo = file_info($arg);
-    remove_if_built_file $finfo;
-    remove_contents_if_built $finfo if is_dir $finfo;
+  if( @ARGV ) {
+    for my $arg (@ARGV) {
+      my $finfo = file_info $arg;
+      remove_if_built_file $finfo;
+      remove_contents_if_built $finfo if is_dir $finfo;
+    }
+  } else {
+    remove_contents_if_built file_info '.';
   }
   unlink @deletable;		# Perform the bulk of the work.
   for( @deletable_dirs ) {
-    if( !$_->{DELETABLE} ) {	# Must check if empty.
+    unless( $_->{DELETABLE} ) {	# Must check if empty.
       $_->{DIRCONTENTS} = {};	# Maybe lots deleted w/o telling Mpp::File.
       Mpp::File::read_directory $_; # Take note of all that is gone by now.
       delete $_->{DIRCONTENTS}{$Mpp::File::build_info_subdir};

@@ -1,3 +1,93 @@
+2010-02-09  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm (parse_rule):
+	* makepp (build_target_done):
+	* Mpp/FileOpt.pm (set_additional_dependencies): Handle :include.
+	(get_rule): Remove unneeded label colliding with a reserved word
+	in perl 5.11.
+
+	* Mpp/Subs.pm (scanner_none):
+	* Mpp/ActionParser.pm (parse_rule): Keep promise that scanner none
+	shuts up.
+
+	* Mpp/Rule.pm (sorted_dependencies): Use only NAME for same
+	dependency given multiply.
+
+	* t/rule_include.test: New test.
+
+	* install.pl (highlight_keywords): Handle :include & :last_chance.
+
+2009-12-27  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Subs.pm (scanner_skip_word): Make it work per rule.
+	(s_register_scanner): Make prefix "scanner_" optional and allow
+	"-".
+
+	* Mpp/Makefile.pm (parse_rule): Allow "-" in :scanner.
+
+	* Mpp/ActionParser.pm (parse_rule): Suppress "action scanner not
+	found" warning with skip-word.  Clearer suggestion.
+
+	* Mpp/Rule.pm (parser): Simplify.
+
+	* t/additional_tests/2009_12_27_skip_word_unix.test: New test.
+
+	* pod/makepp_command.pod: Mention primacy of RootMakeppfile.
+
+	* pod/makepp_rules.pod: Explain pitfall of :scanner.
+
+	* pod/makepp_scanning.pod: Mention all command parsers explicitly.
+
+	* pod/makepp_statements.pod (register_scanner): Mention changes.
+
+2009-09-25  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp: Some (only Solaris?) perls hang when changing $0 before
+	%ENV.
+
+	* makeppclean (deletable):
+	* Mpp/FileOpt.pm (load_build_info_file):
+	* t/additional_tests/2004_12_14_clean.test: Fix regression about
+	cleaning files modified outside of mpp.
+
+	* Mpp/Makefile.pm (skip_makefile_until_else_or_endif)
+	(_read_makefile_line_stripped_1):
+	* t/builtins.test: Have exactly 1 space for continuation \, gmake
+	compatibility issue reported by Adam McLaurin.
+
+	* recursive_makepp: Optimize reading.
+
+2009-07-16  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Text.pm (pattern_substitution): Remove gmake incompatible
+	restriction of needing % in patsubst replacement. (Thanks to Jason
+	Kankiewicz.)
+
+	* Mpp/Subs.pm (f_info): Provide missing function.
+	(f_basename, f_dir, f_dir_noslash, f_join, f_notdir, f_sort)
+	(f_subst, f_suffix): Optimize.
+
+	* Mpp/Recursive.pm: Move traditional-rec end message here.
+
+	* install.pl: Check for V5.6 before any compiler errors kick in.
+
+2009-03-19  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* makepp:
+	* makeppreplay: Use __DATA__, to fix --help.
+
+	* Mpp.pm (log): Try unwritable logfile only once.
+
+	* config.pl:
+	* install.pl: Provide $DESTDIR for Gentoo's indirect install.
+
+	* t/run_tests.pl: Give hints when tests fail.
+
+	* Mpp/Utils.pm: Rename package Rewrite to Mpp::Rewrite.
+
+	* Mpp/FileOpt.pm (version): Don't put DOS newline into $VERSION if
+	unpacked wrongly.
+
 2009-02-21  Daniel Pfeiffer  <occitan@esperanto.org>
 
 Snapshot makepp-1.50.090221.tgz, version 1.50-02212-021122-02107 on CPAN.
@@ -10,7 +100,6 @@ Snapshot makepp-1.50.090221.tgz, version 1.50-02212-021122-02107 on CPAN.
 	* Mpp/Utils.pm:
 	* t/log_graph.test: Rename package Rewrite to Mpp::Rewrite.
 
-	* Mpp/FileOpt.pm (version):
 	* install.pl: Don't put DOS newline into $VERSION if unpacked wrongly.
 
 2009-02-12  Daniel Pfeiffer  <occitan@esperanto.org>

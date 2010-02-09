@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: config.pl,v 1.24 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: config.pl,v 1.25 2009/03/19 22:39:43 pfeiffer Exp $
 #
 # Configure this package.
 #
@@ -127,14 +127,14 @@ test: .test_done
 
 .test_done: *.pm Mpp/*.pm Mpp/Signature/*.pm Mpp/Scanner/*.pm Mpp/CommandParser/*.pm Mpp/ActionParser/*.pm makepp \
 	t/*.test t/run_tests.pl
-	cd t && PERL=$(PERL) $(PERL) run_tests.pl
+	cd t && PERL=$(PERL) $(PERL) run_tests.pl --hint
 	touch $@
 
 testall: .testall_done
 
 .testall_done: *.pm Mpp/*.pm Mpp/Signature/*.pm Mpp/Scanner/*.pm Mpp/CommandParser/*.pm Mpp/ActionParser/*.pm makepp \
 	t/*.test t/*/*.test t/run_tests.pl
-	cd t && PERL=$(PERL) $(PERL) run_tests.pl *.test */*.test
+	cd t && PERL=$(PERL) $(PERL) run_tests.pl --hint *.test */*.test
 	touch $@
 
 distribution: $(VERSION).tar.gz
@@ -158,7 +158,7 @@ $(VERSION).tar.gz: README INSTALL LICENSE VERSION makepp.lsm ChangeLog \
 	rm -rf $(VERSION)
 
 install: all
-	$(PERL) install.pl $(BINDIR) $(DATADIR) $(MANDIR) $(HTMLDIR) $(FINDBIN)
+	$(PERL) install.pl $(BINDIR) $(DATADIR) $(MANDIR) $(HTMLDIR) $(FINDBIN) $(DESTDIR)
 
 .PHONY: all distribution install test testall
 ];

@@ -1,4 +1,4 @@
-# $Id: Mpp.pm,v 1.4 2009/02/11 23:22:36 pfeiffer Exp $
+# $Id: Mpp.pm,v 1.5 2009/03/19 22:40:11 pfeiffer Exp $
 
 =head1 NAME
 
@@ -228,8 +228,11 @@ sub log($@) {
 	mkdir '.makepp';	# Just in case
 	$logfile = '.makepp/log';
       }
-      open $logfh, '>', $logfile or
-	die "$progname: can't create log file ./$logfile--$!\n";
+      unless( open $logfh, '>', $logfile ) {
+	warn "$progname: can't create log file ./$logfile--$!\n";
+	$log_level = 0;
+	return;
+      }
     }
     push @close_fhs, $logfh;
     print $logfh "2\01$invocation\n";
@@ -412,8 +415,6 @@ signal propagation.$orig Stopped}
 
 our @common_options =
   (
-    [qr/[h?]/, 'help', undef, undef, sub { local $/; print <DATA>; exit 0 }],
-
     ['n', qr/(?:just[-_]?print|dry[-_]?run|recon)/, \$Mpp::dry_run],
 
     ['k', qr/keep[-_]?going/, \$keep_going],
@@ -438,7 +439,8 @@ our @common_options =
 				# this the option variable, as it must be
 				# exactly 1, not just true.
      }],
-    [undef, 'version', undef, undef, \&Mpp::File::version],
+    [qr/[h?]/, 'help', undef, undef, sub { local $/; print <DATA>; exit 0 }],
+    [undef, 'version', undef, undef, \&Mpp::File::version]
   );
 
 1;

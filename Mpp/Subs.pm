@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.170 2009/02/21 11:23:59 pfeiffer Exp $
+# $Id: Subs.pm,v 1.173 2010/02/09 22:45:23 pfeiffer Exp $
 
 =head1 NAME
 
@@ -116,8 +116,8 @@ sub scanner_vcs_compilation {
 }
 
 sub scanner_swig {
-  require Mpp::CommandParser::Swig;
   shift;
+  require Mpp::CommandParser::Swig;
   Mpp::CommandParser::Swig->new( @_ );
 }
 
@@ -126,6 +126,7 @@ sub scanner_swig {
 # the default scanner.
 #
 sub scanner_none {
+  $_[1]{SCANNER_NONE} = 1;
   shift;
   Mpp::CommandParser->new( @_ );
 }
@@ -135,19 +136,27 @@ sub scanner_none {
 # - and scans again.
 #
 sub scanner_skip_word {
-  my ($action, $myrule, $dir) = @_;	# Name the arguments.
+  #my ($action, $myrule, $dir) = @_;
+  my ($action) = @_;		# Name the arguments.
 
   $action =~ s/^\s+//;		# Leading whitespace messes up the regular
 				# expression below.
   while ($action =~ s/^\S+\s+//) { # Strip off another word.
-    $action =~ s/^[\"\'\(]//;	# Strip off leading quotes in case it's
+    $action =~ s/^([\"\'\(])//;	# Strip off leading quotes in case it's
 				# something like sh -c "cc ...".
-    if ($action !~ /^-/) {	# Word that doesn't look like an option?
-      $myrule->scan_action($action); # Scan it now.
-      last;			# Don't go any further.
+    if( defined $1 ) {
+      my $compl = ${{qw!" " ' ' ( \)!}}{$1};
+      $action =~ s/$compl//;
     }
+    next if $action =~ /^-/;	# Word that doesn't look like an option?
+    local $_[1]{ACTION_SCANNER} if $_[1]{ACTION_SCANNER}; # Don't skip next word on recursion.
+    local $_[1]{PARSER_OBJ} if $_[1]{PARSER_OBJ}; # ditto
+    my $action_parser = new Mpp::ActionParser;
+    $_[1]{SCANNER_NONE} = 1
+      if Mpp::ActionParser::parse_command( $action_parser, $action, $_[1], $_[2], $_[1]{MAKEFILE}{ENVIRONMENT} );
+    last;			# Don't go any further.
   }
-  Mpp::CommandParser->new($myrule, $dir);
+  new Mpp::ActionParser;
 }
 
 #
@@ -169,6 +178,7 @@ our %scanners =
 
    ccache	=> \&scanner_skip_word,
    condor_compile => \&scanner_skip_word,
+   cpptestscan	=> \&scanner_skip_word, # Parasoft c++test
    diet		=> \&scanner_skip_word, # dietlibc
    distcc	=> \&scanner_skip_word,
    fast_cc	=> \&scanner_skip_word,
@@ -288,14 +298,14 @@ sub f_absolute_filename {
   my $cwd = $_[1]{CWD};
   join ' ',
     map absolute_filename( file_info unquote(), $cwd ),
-       split_on_whitespace $_[0];
+      split_on_whitespace $_[0];
 }
 
 sub f_absolute_filename_nolink {
   my $cwd = $_[1]{CWD};
   join ' ',
     map absolute_filename_nolink( file_info unquote(), $cwd ),
-       split_on_whitespace $_[0];
+      split_on_whitespace $_[0];
 }
 
 sub f_addprefix {
@@ -309,17 +319,7 @@ sub f_addsuffix {
 }
 
 sub f_basename {
-  my @ret_vals;
-  foreach (split ' ', $_[0]) {
-    # Match the extension, but don't look into the directory for a period.
-    push @ret_vals, m@(\.[^./,]*)$@ ?
-      substr($_, 0, -length($1)) : # Take it off
-				# (without using $PRE or $POST or a regex
-				# that has lots and lots of backtracking).
-      $_;	# No extension.	 Return the whole filename.
-  }
-
-  join ' ', @ret_vals;
+  join ' ', map { s!\.[^./,]*$!!; $_ } split ' ', $_[0];
 }
 
 sub f_call {
@@ -338,20 +338,12 @@ sub f_call {
 }
 
 sub f_dir {
-  my @ret_vals;
-  push @ret_vals, m@^(.*/)@ ? $1 : './'
-    foreach split ' ', $_[0];
-
-  join ' ', @ret_vals;
+  join ' ', map { m@^(.*/)@ ? $1 : './' } split ' ', $_[0];
 }
 
 sub f_dir_noslash {		# An internal routine that does the same
 				# thing but doesn't return a trailing slash.
-  my @ret_vals;
-  push @ret_vals, m@^(.*)/@ ? $1 : '.'
-    foreach split ' ', $_[0];
-
-  join ' ', @ret_vals;
+  join ' ', map { m@^(.*)/@ ? $1 : '.'} split ' ', $_[0];
 }
 
 sub f_error {
@@ -845,6 +837,11 @@ sub f_infer_objects {
   join ' ', map relative_filename( $_, $build_cwd ), @deps;
 }
 
+sub f_info {
+  print "$_[0]\n";		# Print the text.
+  '';
+}
+
 sub f_join {
   my ($words1, $words2) = split(/,/, $_[0]);
 				# Get the two lists of words.
@@ -852,17 +849,12 @@ sub f_join {
   my @words1 = split(' ', $words1);
   my @words2 = split(' ', $words2);
 
-  my $maxidx = @words1;		# Get the number of words in the output.
-  $maxidx < @words2 and $maxidx = @words2;
-
-  my @outwords;
-  for (my $idx = 0; $idx < $maxidx; ++$idx) {
-    push @outwords, (defined($words1[$idx]) ? $words1[$idx] : '') .
-      (defined($words2[$idx]) ? $words2[$idx] : '');
-				# Do the concatenation.
+  for my $word ( @words1 ) {
+    last unless @words2;
+    $word .= shift @words2;
   }
-
-  join ' ', @outwords;
+  push @words1, @words2;
+  join ' ', @words1;
 }
 
 #
@@ -936,11 +928,7 @@ sub f_prebuild {
 *f_make = \&f_prebuild;
 
 sub f_notdir {
-  my @ret_vals;
-  push @ret_vals, m@^.*/([^/]+)@ ? $1 : $_
-    foreach split ' ', $_[0];
-
-  join ' ', @ret_vals;
+  join ' ', map { m@^.*/([^/]+)@ ? $1 : $_ } split ' ', $_[0];
 }
 
 #
@@ -966,7 +954,7 @@ sub f_only_targets {
 # Return only the targets in the list that are phony:
 #
 sub f_only_phony_targets {
-  #my ($text, $mkfile) = @_; # Name the arguments.
+  #my ($text, $mkfile) = @_;	# Name the arguments.
   f_only_targets $_[0], $_[1], 0, 1;
 }
 
@@ -974,7 +962,7 @@ sub f_only_phony_targets {
 # Return only the files in the list that are not targets of some rule:
 #
 sub f_only_nontargets {
-  #my ($text, $mkfile) = @_; # Name the arguments.
+  #my ($text, $mkfile) = @_;	# Name the arguments.
   my $cwd = $_[1]{CWD};
   my @ret_files;
 
@@ -993,7 +981,7 @@ sub f_only_nontargets {
 # to the build info.
 #
 sub f_only_generated {
-  #my ($text, $mkfile) = @_; # Name the arguments.
+  #my ($text, $mkfile) = @_;	# Name the arguments.
   my $cwd = $_[1]{CWD};
   my @ret_files;
 
@@ -1012,7 +1000,7 @@ sub f_only_generated {
 # to the build info, but are no longer targets.
 #
 sub f_only_stale {
-  #my ($text, $mkfile) = @_; # Name the arguments.
+  #my ($text, $mkfile) = @_;	# Name the arguments.
   my $cwd = $_[1]{CWD};
   my @ret_files;
 
@@ -1054,7 +1042,7 @@ sub f_patsubst {
 # evaluate Perl code as a function
 #
 sub f_perl {
-  $_[1]->cd;		# Make sure we're in the correct directory
+  $_[1]->cd;			# Make sure we're in the correct directory
   join ' ', grep { defined } &eval_or_die;
 }
 *f_makeperl = \&f_perl;
@@ -1072,7 +1060,7 @@ sub f_phony {
 }
 
 sub f_print {
-  print $_[0], "\n";		# Print the text.
+  print "$_[0]\n";		# Print the text.
   $_[0];			# Just return it verbatim.
 }
 
@@ -1118,7 +1106,7 @@ sub f_shell {
 
   $mkfile->cd;	# Make sure we're in the correct directory.
   my $shell_output = '';
-  if( Mpp::is_windows ) {		# Doesn't support forking well?
+  if( Mpp::is_windows ) {	# Doesn't support forking well?
     if( Mpp::is_windows != 1 ) {
       $shell_output = `$str`;	# Run the shell command.
     } else {			# ActiveState not using command.com, but `` still does
@@ -1184,18 +1172,8 @@ sub f_sort {
 #
 # Sort is documented to remove duplicates as well as to sort the string.
 #
-  my @ret_words = sort split ' ', $_[0]; # Get the words.
-
-  my $idx = 1;			# Now remove duplicates:
-  while ($idx < @ret_words) {
-    if ($ret_words[$idx] eq $ret_words[$idx-1]) {
-      splice @ret_words, $idx, 1; # Remove duplicated word.
-    } else {
-      ++$idx;			# Skip unique word.
-    }
-  }
-
-  join ' ', @ret_words;
+  my $last = '';
+  join ' ', map { $last eq $_ ? () : ($last = $_) } sort split ' ', $_[0];
 }
 
 sub f_stem {
@@ -1203,8 +1181,7 @@ sub f_stem {
   defined $rule->{PATTERN_STEM} and
     return $rule->{PATTERN_STEM};
 
-  return f_basename(&f_target);
-				# If there's no stem, just strip off the
+  f_basename &f_target;		# If there's no stem, just strip off the
 				# target's suffix.  This is what GNU make
 				# does.
 }
@@ -1216,24 +1193,11 @@ sub f_strip {
 sub f_subst {
   my ($from, $to, $text) = split(/,/, $_[0]);
   $from = quotemeta($from);
-
-  my @ret_vals;
-  foreach (split(' ', $text)) {
-    (my $newval = $_) =~ s/$from/$to/g;
-    push(@ret_vals, $newval);
-  }
-
-  join ' ', @ret_vals;
+  join ' ', map { s/$from/$to/g; $_ } split ' ', $text;
 }
 
 sub f_suffix {
-  my @ret_vals;
-
-  foreach (split ' ', $_[0]) {
-    if (m@\.([^\./]*)$@) { push @ret_vals, $1; }
-  }
-
-  join ' ', @ret_vals;
+  join ' ', map { m@\.([^\./]*)$@ ? $1 : () } split ' ', $_[0];
 }
 
 #
@@ -1531,7 +1495,7 @@ sub s_build_check {
     return;
   }
   $mkfile->{DEFAULT_BUILD_CHECK_METHOD} = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
-	  eval "use BuildCheck::$name; \$BuildCheck::${name}::$name"; # TODO: provisional
+    eval "use BuildCheck::$name; \$BuildCheck::${name}::$name"; # TODO: provisional
   die "$mkfile_line: invalid build_check method $name\n"
     unless defined $mkfile->{DEFAULT_BUILD_CHECK_METHOD};
 }
@@ -1906,12 +1870,13 @@ sub s_autoload {
 sub s_register_scanner {
   my ($text_line, $mkfile, $mkfile_line) = @_; # Name the arguments.
 
-  my (@fields) = split_on_whitespace($mkfile->expand_text($text_line, $mkfile_line));
+  my (@fields) = split_on_whitespace $mkfile->expand_text($text_line, $mkfile_line);
 				# Get the words.
-  @fields == 2 or die "$mkfile_line: invalid register_scanner line\n";
-  my $command_word = unquote($fields[0]); # Remove quotes, etc.
-  my $scanner_sub = $fields[1] eq 'scanner_none' ?
-    undef : \&{$mkfile->{PACKAGE} . "::$fields[1]"};
+  @fields == 2 or die "$mkfile_line: invalid register_scanner line, need 2 arguments\n";
+  my $command_word = unquote $fields[0]; # Remove quotes, etc.
+  $fields[1] =~ tr/-/_/;
+  my $scanner_sub = $fields[1] =~ /^(?:scanner_)?none$/ ?
+    undef : (*{"$mkfile->{PACKAGE}::$fields[1]"}{CODE} || *{"$mkfile->{PACKAGE}::scanner_$fields[1]"}{CODE});
 				# Get a reference to the subroutine.
   $mkfile->register_scanner($command_word, $scanner_sub);
 }
@@ -2098,6 +2063,7 @@ sub f_ROOT	{ $_[1]{CWD}{ROOT} ? relative_filename( $_[1]{CWD}{ROOT}, $_[1]{CWD} 
 # Don't use Exporter so we don't have to keep a huge list.
 sub import() {
   my $package = caller;
+  no warnings 'redefine';	# In case we are reimporting this
   for( keys %Mpp::Subs:: ) {
     $_[1] ? /^(?:$_[1])/ : /^[fs]_/ or # functions and statements only
       /^run/ or

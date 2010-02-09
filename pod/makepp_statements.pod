@@ -2,7 +2,7 @@
 
 makepp_statements -- Various statements in a makefile
 
-=for vc $Id: makepp_statements.pod,v 1.34 2009/02/09 22:07:39 pfeiffer Exp $
+=for vc $Id: makepp_statements.pod,v 1.35 2009/12/27 23:19:29 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -666,11 +666,12 @@ Currently, it will quietly fail to build targets if there is a dependency
 loop among the prebuilt targets and the Makefiles that must be loaded to
 build them, but that ought to be treated as an error.
 
-=item register_scanner command_word scanner_subroutine_name
+=item register_scanner command_word scanner_name
 
-Registers the C<scanner_subroutine_name> subroutine (which usually begins with
-"scanner_") as the command parser for commands whose base name is
-C<command_word>.
+Registers the C<scanner_name> (which usually begins with prefix "scanner_"
+that can be omitted here) as the command parser for commands whose base name
+is C<command_word>.  In the name you can use C<-> interchangeably with C<_>.
+The predefined scanners are documented in L<makepp_scanning>.
 
 =item register_command_parser command_word class_name
 

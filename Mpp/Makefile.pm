@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.132 2009/02/21 11:23:58 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.135 2010/02/09 22:43:14 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_action needed_wildcard_action);
@@ -341,6 +341,7 @@ our $private;
 # are however stored as normal variables in the global:: package.
 our $global;
 
+our $rule_include; # undef unless reading an :include .d file. 1 before rule execution, 2 after.
 #
 # This is a helper routine which is used for expanding a simple variable expression.
 # Arguments:
@@ -550,8 +551,8 @@ to be ignored for comparing and/or setting them.
 sub cleanup_vars {
   my $self = $_[0];
   for my $hash ( @$self{qw(ENVIRONMENT COMMAND_LINE_VARS)} ) {
-    for( keys %$hash ) {
-      delete $hash->{$_} if !defined $hash->{$_};
+    for my $key ( keys %$hash ) {
+      delete $hash->{$key} unless defined $hash->{$key};
     }
   }
 }
@@ -1357,6 +1358,7 @@ sub parse_rule {
   my $last_chance_rule;
   my $dispatch;
   my $env_dep_str;
+  my $include;
 
   while (@after_colon > 1) {	# Anything left?
     if ($after_colon[-1] =~ /^\s*foreach\s+(.*)/) {
@@ -1365,9 +1367,7 @@ sub parse_rule {
 				# so it isn't valid to pass it to
 				# expand_text.
       $foreach = expand_text($self, $foreach_val, $makefile_line);
-      pop @after_colon;
-    }
-    elsif ($after_colon[-1] =~ /^\s*build_cache\s+(\S+)/) {
+    } elsif ($after_colon[-1] =~ /^\s*build_cache\s+(\S+)/) {
                                 # Specify a local build cache for this rule?
       my $build_cache_fname = $1;
       $build_cache_fname = expand_text($self, $build_cache_fname, $makefile_line);
@@ -1378,9 +1378,7 @@ sub parse_rule {
         $build_cache = new Mpp::BuildCache( absolute_filename( file_info( $build_cache_fname, $self->{CWD} )));
       }
       $have_build_cache = 1;    # Remember that we have a build cache.
-      pop @after_colon;
-    }
-    elsif ($after_colon[-1] =~ /^\s*build_check\s+(\w+)/) { # Build check class?
+    } elsif ($after_colon[-1] =~ /^\s*build_check\s+(\w+)/) { # Build check class?
       $build_check and die "$makefile_line: multiple :build_check clauses\n";
       my $method_val = $1;
       my $name = expand_text($self, $method_val, $makefile_line);
@@ -1388,9 +1386,7 @@ sub parse_rule {
 	eval "use BuildCheck::$name; \$BuildCheck::${name}::$name"; # TODO: provisional
       defined $build_check or
         die "$makefile_line: invalid build_check method $name\n";
-      pop @after_colon;
-    }
-    elsif ($after_colon[-1] =~ /^\s*signature\s+(\w+)/) { # Specify signature class?
+    } elsif ($after_colon[-1] =~ /^\s*signature\s+(\w+)/) { # Specify signature class?
       $signature and die "$makefile_line: multiple :signature clauses\n";
       my $name = expand_text $self, "$1", $makefile_line;
       $signature = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
@@ -1406,12 +1402,10 @@ sub parse_rule {
           die "$makefile_line: invalid signature class $name\n";
         }
       }
-      pop @after_colon;
-    }
-    elsif ($after_colon[-1] =~ /^\s*scanner\s+(\w+)/) { # Specify scanner class?
+    } elsif ($after_colon[-1] =~ /^\s*scanner\s+([-\w]+)/) { # Specify scanner class?
       $scanner and die "$makefile_line: multiple :scanner clauses\n";
-      my $scanner_val = $1;
-      my $scanner_name = expand_text($self, $scanner_val, $makefile_line);
+      my $scanner_name = expand_text $self, $1, $makefile_line;
+      $scanner_name =~ tr/-/_/;
       $scanner = *{"$self->{PACKAGE}::parser_$scanner_name"}{CODE};
       unless(defined $scanner) {
         my $scanref = *{"$self->{PACKAGE}::scanner_$scanner_name"}{CODE};
@@ -1422,13 +1416,9 @@ sub parse_rule {
           return Mpp::ActionParser::Legacy->new($scanref);
         };
       }
-      pop @after_colon;
-    }
-    elsif ($after_colon[-1] =~ /\s*(?:smart()|quick)scan/) {
+    } elsif ($after_colon[-1] =~ /\s*(?:smart()|quick)scan/) {
       $conditional_scanning = defined $1;
-      pop @after_colon;
-    }
-    elsif ($after_colon[-1] =~ /^\s*multiple_rules_ok/) {
+    } elsif ($after_colon[-1] =~ /^\s*multiple_rules_ok/) {
       # This is an ugly hack to solve an unusual problem, and it shouldn't
       # be used by the general public.  The reason for it is that when you
       # have a directory with a makefile that needs to read lots of generated
@@ -1443,28 +1433,23 @@ sub parse_rule {
       # (so that buildable targets can be computed lazily), but that would
       # require a significant re-design of makepp.
       $multiple_rules_ok = 1;
-      pop @after_colon;
-    }
-    elsif ($after_colon[-1] =~ /^\s*env(?:ironment)?\s+(.*)/) {
+    } elsif ($after_colon[-1] =~ /^\s*env(?:ironment)?\s+(.*)/) {
       if($env_dep_str) {
         $env_dep_str .= " $1";
       }
       else {
         $env_dep_str = $1;
       }
-      pop @after_colon;
-    }
-    elsif ($after_colon[-1] =~ /^\s*dispatch\s*(.*)/) {
+    } elsif ($after_colon[-1] =~ /^\s*dispatch\s+(.*)/) {
       $dispatch = $1;
-      pop @after_colon;
-    }
-    elsif ($after_colon[-1] =~ /\s*last_chance/) {
+    } elsif ($after_colon[-1] =~ /^\s*last_chance/) {
       $last_chance_rule = 1;
-      pop @after_colon;
-    }
-    else {			# Something we don't recognize?
+    } elsif ($after_colon[-1] =~ /^\s*include\s+(.*)/) {
+      $include = $1;
+    } else {			# Something we don't recognize?
       last;
     }
+    pop @after_colon;
   }
 
 #
@@ -1518,9 +1503,7 @@ sub parse_rule {
 				# At this point, the only thing we haven't
 				# interpreted after the colon should be the
 				# dependency string.
-  my @deps = split_on_whitespace($after_colon[0]);
-				# Separate the dependencies.  We have to treat
-				# the first one specially.
+  my @deps = split_on_whitespace($after_colon[0]); # Separate the dependencies.
 #
 # Handle GNU make's regular pattern rules.  We convert a rule like
 #   %.o: %.c
@@ -1531,8 +1514,10 @@ sub parse_rule {
   my $target_pattern = index_ignoring_quotes( $expanded_target_string, '%' ) >= 0;
   if( $target_pattern ) { # Pattern rule?
     # find the first element of @deps that contains a pattern character, '%'
-    index_ignoring_quotes( $_, '%' ) < 0 ? ++$pattern_dep : last for @deps;
-    #for ($pattern_dep = 0; $pattern_dep < @deps && index_ignoring_quotes($deps[$pattern_dep], '%') < 0; ++$pattern_dep) { }
+    for my $dep ( @deps ) {
+      if( index_ignoring_quotes( $dep, '%' ) < 0 ) { ++$pattern_dep }
+      else { last }
+    }
     if ($pattern_dep < @deps) {  # does such an element exist?
       unless ($foreach) { # No foreach explicitly specified?
         $foreach = $deps[$pattern_dep]; # Add one, making wildcard from first pattern dep.
@@ -1565,14 +1550,16 @@ sub parse_rule {
 	index_ignoring_quotes( $_, '%' ) >= 0 and
 	  $_ = "\$(filesubst $deps[$pattern_dep], $_, \$(foreach))";
       }
+      $include = "\$(filesubst $deps[$pattern_dep], $include, \$(foreach))"
+	if $include && index_ignoring_quotes( $include, '%' ) >= 0;
       $deps[$pattern_dep] = '$(foreach)';	# This had better match the wildcard specified
 				# in the foreach clause.  I don't know of
 				# any way to check that.
       $after_colon[0] = "@deps";
     }
-
     &cd;			# Make sure we're in the correct directory,
 				# or everything will be all messed up.
+
     wildcard_action unquote_split_on_whitespace( expand_text( $self, $foreach, $makefile_line )),
     sub {
 #
@@ -1591,8 +1578,8 @@ sub parse_rule {
       # currently be done because then we'd have the same rule twice, giving a
       # warning.
 
-      local $Mpp::implicitly_load_makefiles = ($self->{RECURSIVE_MAKE} ? 0 :
-						$Mpp::implicitly_load_makefiles);
+      local $Mpp::implicitly_load_makefiles = 0
+	if $Mpp::implicitly_load_makefiles && $self->{RECURSIVE_MAKE};
 				# Turn off implicit makefile loading if there
 				# is an invocation of recursive make in this
 				# file.	 (This is not passed to the wildcard.)
@@ -1630,7 +1617,7 @@ sub parse_rule {
 
       foreach (@targets) {
 	my $tinfo = file_info unquote(), $self->{CWD}; # Access the target object.
-	Mpp::File::set_rule($tinfo, $rule); # Update its rule.  This will be ignored if
+	Mpp::File::set_rule $tinfo, $rule; # Update its rule.  This will be ignored if
 				# it is overriding something we shouldn't
 				# override.
 	$was_wildcard_flag or	# If there was no wildcard involved, this is
@@ -1639,6 +1626,23 @@ sub parse_rule {
 				# Remember what the first target is, in case
 				# no target was specified on the command
 				# line.
+      }
+      if( $include ) {
+	my $include = expand_text $self, $include, $makefile_line;
+	$rule->{TARGET_STRING} .= " $include"; # So count of built files is correct and mppc cleans it.
+	$rule->{INCLUDE} = $include = file_info $include, $self->{CWD};
+	Mpp::File::set_rule $include, $rule; # I don't expect anything else to depend on this, just in case.
+	if( Mpp::File::have_read_permission $include ) {
+	  if( Mpp::is_perl_5_6 ? $Mpp::has_md5_signatures : 1 ) {
+	    require Mpp::Signature::md5;
+	    $rule->{INCLUDE_MD5} = Mpp::Signature::md5::signature( undef, $include );
+				# remember it for checking if content changed
+	  }
+	  Mpp::log LOAD_INCL => $include, $makefile_line
+	    if $Mpp::log_level;
+	  local $rule_include = 1;
+	  read_makefile( $self, $include );
+	}
       }
     };				# End subroutine called on every file that
 				# matches the wildcard.
@@ -1719,6 +1723,7 @@ sub parse_rule {
 				# no target was specified on the command
 				# line.
 	}
+	$rule;
       };
 
       my $warned_non_wild;
@@ -1727,6 +1732,7 @@ sub parse_rule {
 	# set a trigger to generate the rules on demand.  Otherwise, it's
 	# just a single rule that we can generate now.
       	if(index_ignoring_quotes($tstring, '%') >= 0) {
+	  die "Can't use :last_chance and :include together\n" if $include; # TODO: figure out how to handle %.d
 	  my ($pct_re, $pct_glob) = expand_variable( $self, 'makepp_percent_subdirs', $makefile_line ) ? ('.*', '**/*') : ('[^/]*', '*');
 	  my @wild_targets;
 	  foreach (split_on_whitespace($tstring)) {
@@ -1769,8 +1775,24 @@ sub parse_rule {
 	    }
 	    $found or die "makepp internal error: no matching target patterns";
 	  };
-	}
-	else {
+	} elsif( $include ) {
+	  my $rule = &$generate_rule($tstring);
+	  $include = expand_text $self, $include, $makefile_line;
+	  $rule->{TARGET_STRING} .= " $include"; # So count of built files is correct and mppc cleans it.
+	  $rule->{INCLUDE} = $include = file_info $include, $self->{CWD};
+	  Mpp::File::set_rule $include, $rule; # I don't expect anything else to depend on this, just in case.
+	  if( Mpp::File::have_read_permission $include ) {
+	    if( Mpp::is_perl_5_6 ? $Mpp::has_md5_signatures : 1 ) {
+	      require Mpp::Signature::md5;
+	      $rule->{INCLUDE_MD5} = Mpp::Signature::md5::signature( undef, $include );
+				# remember it for checking if content changed
+	    }
+	    Mpp::log LOAD_INCL => $include, $makefile_line
+	      if $Mpp::log_level;
+	    local $rule_include = 1;
+	    read_makefile( $self, $include );
+	  }
+	} else {
 	  &$generate_rule($tstring);
 	}
       }
@@ -2190,7 +2212,7 @@ sub _read_makefile_line_stripped_1 {
     $line =~ s/\s+#.*/ $closedgroup ? '' : ' ' /e # Strip out comments.
       unless $closedgroup && $_[0];
 
-    last if $line !~ s/\\\s*$/ / && # Quit unless there's a trailing \.
+    last if $line !~ s/\s*\\\s*$/ / && # Quit unless there's a trailing \.
 				# Note that the trailing backslash has to be
 				# replaced by whitespace to conform with
 				# some makefiles I have seen.
@@ -2294,11 +2316,11 @@ sub skip_makefile_until_else_or_endif {
       next if $line !~ /$re/;
       $re = 0;
     }
-    while ($line =~ s/\\\s*$/ /) {
+    while( $line =~ s/\s*\\\s*$/ / ) {
       my $nextline = &_read_makefile_line_1; # Handle continuations, because
 				# we don't want to find an else inside an
 				# action.
-      last if !defined($nextline);
+      last unless defined $nextline;
       $line .= $nextline;
     }
 

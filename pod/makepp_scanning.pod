@@ -2,7 +2,7 @@
 
 makepp_scanning -- How makepp finds include files and other hidden dependencies
 
-=for vc $Id: makepp_scanning.pod,v 1.13 2009/02/09 22:07:39 pfeiffer Exp $
+=for vc $Id: makepp_scanning.pod,v 1.14 2009/12/27 23:17:28 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -25,10 +25,10 @@ commands invoking C<sh> and C<libtool>; for these commands, it skips to
 the first word in the command that's not an option and looks it up in
 the table again.
 
-If makepp thinks it's compiling a C/C++ program but can't find a
-scanner, it will give a warning message to let you know.  This usually
-means that you buried your compiler command too deeply in the action for
-makepp to find it.  For example, I have seen rules like this:
+If makepp thinks it's compiling a C/C++ source but can't find a scanner, it
+will give a warning message to let you know.  This usually means that you
+buried your compiler command too deeply in the action for makepp to find it.
+For example, I have seen rules like this:
 
     %.o: %.c
  	@echo Compiling $< now; obscure_wrapper gcc -c $< $(CFLAGS) -o $@
@@ -37,16 +37,16 @@ The first words of the actions here are C<echo> and C<obscure_wrapper>, for
 which therer are no scanners, so makepp will not scan for include files in
 this case.  You can ignore the prefixed command by:
 
-    register_scanner obscure_wrapper scanner_skip_word
+    register-scanner obscure_wrapper skip-word
 
-=head2 C/C++ compilation
+The following sections document the built in scanners.  In the name you can
+use C<-> interchangeably with C<_>.
 
-The C/C++ scanner is activated by a command beginning with a compile
-program that makepp knows about.  (I've included every compiler I've
-ever heard of, but if I missed your compiler, you can tell makepp about
-it by adding an entry to the C<%Mpp::Subs::scanners> array (see
-F<Mpp/Subs.pm> in the distribution).  Also send me email at
-holt-makepp@gholt.net so I can include it in subsequent releases.
+=head2 C/C++ compilation (c-compilation, gcc-compilation)
+
+The C/C++ scanner, which handles both languages indifferently, but with a
+special variant for gcc's many options, is activated by a command beginning
+with a compile program that makepp knows about.
 
 It looks at the command for C<-Idir> options specifying the include path
 or C<-Ldir> options specifying the link path.  It then scans any source
@@ -57,8 +57,8 @@ listed as dependencies.  It recognizes these by their extension.
 This scanner gives a warning message if files included with S<C<#include
 "file.h">> are not found, or not buildable by makepp, in the include path, or
 in the directory containing the file which is C<#includ>ing, or in
-F</usr/include>.  No warning is given if a file included with S<C<#include
-E<lt>file.hE<gt>>> is not found.  makepp assumes it is in some system include
+F</usr/include>.  No warning is given if a file included with S<C<< #include
+<file.h> >>> is not found.  Makepp assumes it is in some system include
 directory that the compiler knows about, and that files in system include
 directories won't change.
 
@@ -84,7 +84,51 @@ might cause makepp to warn that the include file was not found.  You can
 either ignore the warning messages, or put an empty file C<this.h> out
 there to shut makepp up.
 
-=head2 Libtool
+If your compiler has a funny name, you can say either of
+
+    register-scanner obscure_c_compiler c-compilation
+    register-scanner obscure_gcc_alias gcc-compilation
+
+=head2 Embedded SQL C/C++ compilation (esqlc-compilation)
+
+These commands, which come with the various databases, preprocess special
+sections in otherwise C/C++-like sources, and produce C/C++ headers and
+sources.  This finds EXEC SQL INCLUDE "filename" or $INCLUDE "filename"
+directives.
+
+If your preprocessor is not recognized, you can say
+
+    register-scanner obscure_esqlc_preprocessor esqlc-compilation
+
+=head2 Swig (swig)
+
+Swig (Simplified Wrapper and Interface Generator, http://www.swig.org)
+is a program that converts a C/C++ header file into the wrapper
+functions needed to make your code callable from a variety of other
+languages, such as perl, python, tcl, C#, ruby, ocaml, and probably some
+others that I don't know about.
+
+Makepp understands and parses the swig command line, looking for C<-I> and
+C<-l> options.  It also knows how to scan swig's interface definition files
+(F<.i> files) looking for C<%include>, C<%import>, and also C<#include>
+if C<-includeall> is in effect.
+
+If your swig has a funny name, you can say
+
+    register-scanner obscure_swig_alias swig
+
+=head2 Other special command words (skip-word)
+
+Makepp recognizes the following command words and many more and skips over them
+appropriately in in its search for the correct scanner:
+C<condor_compile>, C<distcc>, C<ignore_error>, C<libtool>, C<noecho>
+C<purify>, C<sh>.
+
+If you have more such commands, you can say
+
+    register-scanner command skip-word
+
+=head3 Libtool
 
 Libtool is a very clever compilation system that greatly simplifies
 making shared libraries by hiding all the system-dependent details away
@@ -99,25 +143,12 @@ makepp at the moment is not able to use the dependency information that
 is stored inside the C<.la> file itself.  This will hopefully change
 soon.
 
-=head2 Swig
+=head2 Suppressing the scan (none)
 
-Swig (Simplified Wrapper and Interface Generator, http://www.swig.org)
-is a program that converts a C/C++ header file into the wrapper
-functions needed to make your code callable from a variety of other
-languages, such as perl, python, tcl, C#, ruby, ocaml, and probably some
-others that I don't know about.
+Sometimes you may not want a rule or a certain command to be scanned.  You can
+turn off scanning with
 
-Makepp understands and parses the swig command line, looking for C<-I> and
-C<-l> options.  It also knows how to scan swig's interface definition files
-(F<.i> files) looking for C<%include>, C<%import>, and also C<#include>
-if C<-includeall> is in effect.
-
-=head2 Other special command words
-
-Makepp recognizes the following command words and skips over them
-appropriately in in its search for the correct scanner:
-C<condor_compile>, C<echo> C<ignore_error> C<libtool>, C<noecho>
-C<purify>, C<sh>.
+    register-scanner cc none
 
 =head2 Quickscan and smartscan
 

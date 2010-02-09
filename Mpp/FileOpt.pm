@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.101 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.104 2010/02/09 22:41:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -99,11 +99,10 @@ sub get_rule {
     }
     $finfo->{RULE} or do {
       if( my $minfo = $mdir->{MAKEINFO} ) {
-	AUTOLOAD: while( my $auto = shift @{$minfo->{AUTOLOAD} || []} ) {
+	while( my $auto = shift @{$minfo->{AUTOLOAD} || []} ) {
 	  Mpp::log AUTOLOAD => $finfo;
-	  Mpp::Makefile::load( $auto, $mdir, {}, '', [],
-			  $minfo->{ENVIRONMENT}, undef, 'AUTOLOAD' );
-	  last AUTOLOAD if exists $finfo->{RULE};
+	  Mpp::Makefile::load( $auto, $mdir, {}, '', [], $minfo->{ENVIRONMENT}, undef, 'AUTOLOAD' );
+	  last if exists $finfo->{RULE};
 	}
       }
       $finfo->{RULE}
@@ -238,7 +237,6 @@ sub exists_or_can_be_built_or_remove {
     unless( &was_built_by_makepp ) {
       die '`' . &absolute_filename . "' is both a source file and a phony target\n" if exists $finfo->{IS_PHONY};
       return unless &have_read_permission; # Hidden from mpp.
-      require Carp; Carp::confess( &absolute_filename );
     }
     Mpp::log DEL_STALE => $finfo
       if $Mpp::log_level;
@@ -335,10 +333,10 @@ wildcards or other things properly.
 sub set_additional_dependencies {
   my ($finfo, $dependency_string, $makefile, $makefile_line) = @_;
 
-  push(@{$finfo->{ADDITIONAL_DEPENDENCIES}},
-       [ $dependency_string, $makefile, $makefile_line ]);
+  push @{$finfo->{ADDITIONAL_DEPENDENCIES}},
+      [$dependency_string, $makefile, $makefile_line];
 				# Store a copy of this information.
-  publish( $finfo, $Mpp::rm_stale_files );
+  publish $finfo, $Mpp::rm_stale_files;
 				# For legacy makefiles, sometimes an idiom like
 				# this is used:
 				#   y.tab.c: y.tab.h
@@ -349,6 +347,15 @@ sub set_additional_dependencies {
 				# by indicating that files with extra
 				# dependencies are buildable, even if there
 				# isn't an actual rule for them.
+  if( $Mpp::Makefile::rule_include ) {
+    # Via :include we read the compiler generated makefile twice.  If #include statements
+    # have been removed, we must not store those from the 1st reading in build info.
+    if( $Mpp::Makefile::rule_include == 1 ) { # Initial lecture of possibly obsolete .d file
+      $finfo->{ADDITIONAL_DEPENDENCIES_TEMP} = $#{$finfo->{ADDITIONAL_DEPENDENCIES}};
+    } elsif( exists $finfo->{ADDITIONAL_DEPENDENCIES_TEMP} ) {
+      splice @{$finfo->{ADDITIONAL_DEPENDENCIES}}, delete $finfo->{ADDITIONAL_DEPENDENCIES_TEMP}, 1;
+    }
+  }
 }
 
 =head2 set_build_info_string
@@ -900,7 +907,7 @@ sub load_build_info_file {
     }
 
     unless( $sig_match ) {	# Exists but has the wrong signature?
-      if( !Mpp::MAKEPP ) {
+      if( !Mpp::MAKEPP && $Mpp::progname eq 'makeppreplay' ) {
 	delete $build_info->{SIGNATURE}; # Remember to handle this later in makeppreplay.
       } elsif( $build_info->{SYMLINK} ) {
 				# Signature is that of linked file.  The symlink

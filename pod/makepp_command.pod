@@ -2,7 +2,7 @@
 
 makepp_command -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.42 2009/02/21 11:25:31 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.43 2009/12/27 23:15:39 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -346,11 +346,12 @@ targets relative to the current directory like this:
 
 =item --load-makeppfile=Makefile
 
-Loads the specified makefile I<before> any other makefiles, but do not
-consider this option for the purposes of determining the default target.  If
-no other makefile is specified, then one is sought using the usual rules.  If
-the specified makefile is the same makefile that is found using the usual
-rules, then this option has no effect.
+Loads the specified makefile I<before> any other makefiles, except for
+C<RootMakeppfile>, or C<RootMakeppfile.mk> above it, but do not consider this
+option for the purposes of determining the default target.  If no other
+makefile is specified, then one is sought using the usual rules.  If the
+specified makefile is the same makefile that is found using the usual rules,
+then this option has no effect.
 
 =item --force-copy-from-bc
 

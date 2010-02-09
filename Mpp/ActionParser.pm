@@ -1,4 +1,4 @@
-# $Id: ActionParser.pm,v 1.40 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: ActionParser.pm,v 1.42 2010/02/09 22:39:51 pfeiffer Exp $
 
 =head1 NAME
 
@@ -120,7 +120,7 @@ Return value is TRUE on success.
 my %scanner_warnings;
 
 sub parse_rule {
-  my( $self, undef, $rule ) = @_;
+  my( $self, undef, $rule ) = @_; # $_[1] gets used via &Mpp::Rule::split_actions
   my $parsers_found = 0;
 
   # TBD: There are 3 known problems with adding dependencies here:
@@ -147,7 +147,7 @@ sub parse_rule {
     # instead of the current makefile, but how could we know?  We might keep
     # track of the package's symbol table across includes.  This still doesn't
     # catch a variable built up over different files with +=, so ignore it.
-    if( defined $command ) { # &cmd
+    if( defined $command ) {	# &cmd
       my $cmd = unquote +(split_on_whitespace $action)[0];
       my $makefile_cmd = $rule->{MAKEFILE}{PACKAGE} . "::c_$cmd";
       if( defined &$makefile_cmd ) { # Function directly or indirectly from makefile?
@@ -219,13 +219,12 @@ sub parse_rule {
       while ($command =~ s/^\s*(\w+)=//) {
         my $var=$1;
                                 # Is there an environment variable assignment?
-        my $ix = index_ignoring_quotes($command, ' ');
+        my $ix = index_ignoring_quotes $command, ' ';
                                 # Look for the next whitespace.
-        $ix >= 0 or $ix = index_ignoring_quotes($command, "\t");
+        $ix >= 0 or $ix = index_ignoring_quotes $command, "\t";
                                 # Oops, it must be a tab.
         $ix >= 0 or last;       # Can't find the end--something's wrong.
-        $env{$var}=substr($command, 0, $ix);
-        $command = substr($command, $ix+1); # Chop off the environment variable.
+        $env{$var} = substr $command, 0, $ix, ''; # Chop off the environment variable's value.
         $command =~ s/^\s+//;
       }
       # TBD: expand and/or parse back-quotes
@@ -251,28 +250,28 @@ sub parse_rule {
 # C/C++ compilation.  See if this rule looks like it's some sort of a
 # compile:
 #
-  if ($parsers_found == 0) {    # No scanners found at all?
+  if( $parsers_found == 0 &&	# No scanners found at all?
+      $Mpp::warn_level &&
+      !$rule->{SCANNER_NONE} ) { # From scanner none or skip_word
     my $tinfo = $rule->{EXPLICIT_TARGETS}[0];
-    if (ref($tinfo) eq 'Mpp::File' && # Target is a file?
-        $tinfo->{NAME} =~ /\.l?o$/) { # And it's an object file?
-      my $deps = $rule->{EXPLICIT_DEPENDENCIES};
-      if (@$deps &&             # There is a dependency?
-          ref($deps->[0]) eq 'Mpp::File' && # It's a file?
-          $deps->[0]{NAME} =~ /\.c(?:|xx|\+\+|c|pp)$/i) {
+    if( ref($tinfo) eq 'Mpp::File' && # Target is a file?
+        $tinfo->{NAME} =~ /\.l?o$/ ) { # And it's an object file?
+      my $deps = $rule->{ALL_DEPENDENCIES};
+      if( grep { 'Mpp::File' eq ref && $_->{NAME} =~ /\.c(?:|xx|\+\+|c|pp)$/i } values %$deps ) {
                                 # Looks like C source code?
-        if( $Mpp::warn_level ) {
-          warn 'action scanner not found for rule at `',
-	    $rule->source,
-	    "'\nalthough it seems to be a compilation command.
-This means that makepp will not know about any include files.
-To specify a scanner (and to get rid of this annoying message), add a
-:scanner modifier line to the rule actions, like this:
-    : scanner c_compilation     # Scans for include files.
+        warn 'action scanner not found for rule at `',
+	  $rule->source,
+	  "'\nalthough it seems to be a compilation command.  This means that makepp will
+not detect any include files.  To specify a scanner for the whole rule,
+add a :scanner modifier line to the rule actions, like this:
+    : scanner gcc-compilation	# Scans for include files.
 or
-    : scanner none              # Does not scan, but suppresses warning.
+    : scanner none		# Does not scan, but suppresses warning.
+Or to do it on a per command basis, if you have such obscure commands:
+register-scanner my_obscure_cc_wrapper	skip-word
+register-scanner my_obscure_cc		c-compilation
 "
-              unless $scanner_warnings{$rule->source}++;
-        }
+	    unless $scanner_warnings{$rule->source}++;
       }
     }
   }
@@ -304,13 +303,10 @@ failed.
 =cut
 
 sub parse_command {
-  my ($self,$command, $rule, $dir, $setenv)=@_;
-  $dir ||= '.';
-  $setenv ||= {};
+  #my ($self,$command, $rule, $dir, $setenv)=@_;
   my $result = 0;
-  my $command_parser=$self->find_command_parser($command, $rule, $dir, \$result);
-  if($command_parser) {
-    return undef unless defined $command_parser->parse_command($command, $setenv);
+  if( my $command_parser = $_[0]->find_command_parser($_[1], $_[2], $_[3] || '.', \$result) ) {
+    return undef unless defined $command_parser->parse_command($_[1], $_[4] || {});
   }
   $result;
 }

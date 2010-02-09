@@ -1,4 +1,4 @@
-# $Id: Recursive.pm,v 1.4 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: Recursive.pm,v 1.5 2009/07/15 21:16:40 pfeiffer Exp $
 
 =head1 NAME
 
@@ -21,6 +21,12 @@ use Mpp::Event qw(wait_for read_wait);
 our $traditional;		# 1 if we invoke makepp recursively, undef if
 				# we call the recursive_makepp stub and do
 				# the build in the parent process.
+
+END {
+  local $?;
+  defined $traditional and $Mpp::Rule::last_build_cwd and
+    print "$progname: Leaving directory `" . absolute_filename( $Mpp::Rule::last_build_cwd ). "'\n";
+}
 
 #
 # Set up our socket for listening to recursive make requests.  We don't do

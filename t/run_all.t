@@ -10,6 +10,7 @@ c_compilation.test
 log_graph.test
 makeppreplay.test
 md5.test
+rule_include.test
 additional_tests/2003_10_11_idash.test
 additional_tests/2003_11_25_wild.test
 additional_tests/2004_02_19_repository_change.test

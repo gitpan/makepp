@@ -37,52 +37,54 @@ list below.  The first two lines are special, based on the OS field being
 empty.  This is converted to html by install.pl and readable as is in other
 formats.
 
-		#||	5.6		#||||||||			5.8						# 5.10  #
+		#||	5.6		#||||||||			5.8						#|	 5.10	#
 
-		# .0	| .1	| .2	# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	| .9	# .0	#
+		# .0	| .1	| .2	# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	| .9	# .0	| .1	#
 
- GNU/Linux (x86)# x	| x	| req	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	#
+ GNU/Linux (x86)# x	| x	| req	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	#
 
- GNU/Linux (amd64)#	|	|	#	|	|	|	|	| x	|	|	|	|	#	#
+ GNU/Linux (amd64)#	|	|	#	|	|	|	|	| x	|	|	|	|	#	|	#
 
- GNU/Linux (alpha)#	| x	|	#	|	|	|	|	|	|	|	|	|	#	#
+ GNU/Linux (alpha)#	| x	|	#	|	|	|	|	|	|	|	|	|	#	|	#
 
- FreeBSD (x86)	#	| x	| x	#	|	|	|	|	|	|	|	| x	|	# x	#
+ GNU/Linux (S/390)#	|	| x	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#
 
- NetBSD (alpha)	#	|	|	#	|	|	|	|	|	|	|	|	|	# x	#
+ FreeBSD (x86)	#	| x	| x	#	|	|	|	|	|	|	|	| x	|	# x	|	#
 
- OpenBSD (x86)	#	|	|	# x	|	|	|	|	|	|	|	|	|	#	#
+ NetBSD (alpha)	#	|	|	#	|	|	|	|	|	|	|	|	|	# x	|	#
 
-
- AIX (PPC)	#	|	|	#	| x	| x	|	|	|	|	| x	| x	|	#	#
-
- Darwin (PPC)	# x	|	|	#	|	|	|	|	|	|	|	|	|	#	#
-
- HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	|	#	#
-
- Irix		#	|	|	#	|	|	|	|	|	|	|	| x	|	#	#
-
- Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	|	#	#
-
- Solaris (Sparc)# x	| req	|	# x	| x	| x	| x	| x	| x	| x	| x	| x	| x	# x	#
-
- Solaris (64bit)#	|	|	#	| x	|	|	|	|	|	|	| x	|	#	#
-
- Solaris (x86)	#	| x	|	#	| x	|	|	|	|	|	|	| x	|	#	#
+ OpenBSD (x86)	#	|	|	# x	|	|	|	|	|	|	|	|	|	#	|	#
 
 
- BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	|	# /	#
+ AIX (PPC)	#	|	|	#	| x	| x	|	|	|	|	| x	| x	|	#	|	#
 
- z/OS USS (S/390)#	|	|	#	|	|	|	|	|	|	|	| zOS	|	# /	#
+ Darwin (PPC)	# x	|	|	#	|	|	|	|	|	|	|	|	|	#	|	#
+
+ HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	|	#	|	#
+
+ Irix		#	|	|	#	|	|	|	|	|	|	|	| x	|	#	|	#
+
+ Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	|	#	|	#
+
+ Solaris (Sparc)# x	| req	|	# x	| x	| x	| x	| x	| x	| x	| x	| x	| x	# x	|	#
+
+ Solaris (64bit)#	|	|	#	| x	|	|	|	|	|	|	| x	|	#	|	#
+
+ Solaris (x86)	#	| x	|	#	| x	|	|	|	|	|	|	| x	|	#	|	#
 
 
- Cygwin (x86)	#	|	|	#	|	|	|	|	|	|	| Win	| x	|	# x	#
+ BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	|	# /	|	#
 
- MinGW MSYS	#	| Win	|	#	|	|	|	|	|	|	|	|	|	#	#
+ z/OS USS (S/390)#	|	|	#	|	|	|	|	|	|	|	| zOS	|	# /	|	#
 
- Stawberry	#	|	|	#	|	|	|	|	|	|	|	| x	|	# x	#
 
- Windows	# Win	| Win	|	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	#
+ Cygwin (x86)	#	|	|	#	|	|	|	|	|	|	| Win	| x	|	# x	|	#
+
+ MinGW MSYS	#	| Win	|	#	|	|	|	|	|	|	|	|	|	#	|	#
+
+ Stawberry	#	|	|	#	|	|	|	|	|	|	|	| x	|	# x	|	#
+
+ Windows	# Win	| Win	|	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	|	#
 
 =for html </table>
 

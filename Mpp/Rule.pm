@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.100 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: Rule.pm,v 1.102 2010/02/09 22:34:27 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -791,6 +791,7 @@ sub sorted_dependencies {
     if( $dups{$name} ) {
       $long_dependencies{relative_filename( $_, $build_cwd )} = $_;
     } elsif( $dependencies{$name} ) {
+      next if $_ == $dependencies{$name}; # Same dep explicitly given multiply
       $dups{$name} = 1;
       $long_dependencies{relative_filename( $dependencies{$name}, $build_cwd )} = $dependencies{$name};
       delete $dependencies{$name};
@@ -976,7 +977,7 @@ sub split_actions {
   pos( $_[1] ) = 0;
   $_[1] =~ /\G\s*/gc;
   $_[1] =~ /\G((?:[\@-]|noecho\s+|ignore_error\s+)*)(?:(?:make)?perl\s*(\{(?s:\{.*?\}\})?.*)|(&)?(.*))\s*/gcm;
-  #		  1							   2			 3   4
+  #	      1					   1		       2		   2 3 3 4  4
 }
 
 =head2 $rule->setup_environment()
@@ -1317,16 +1318,13 @@ Returns the rule scanner object, creating it if it doesn't already exist.
 =cut
 
 sub parser {
-  my $self = $_[0];
-  my $parser_obj = $self->{PARSER_OBJ}; # Is the scanner already cached?
-  unless($parser_obj) {
-    my $scanner = $self->{ACTION_SCANNER}; # Was one explicitly set?
-    $parser_obj = $scanner ?
-      &$scanner() : # Yes: generate it
-      new Mpp::ActionParser; # No: Use the default
-    $self->{PARSER_OBJ}=$parser_obj;
-  }
-  $parser_obj;
+  $_[0]{PARSER_OBJ} ||=	# Is the scanner already cached?
+    do {
+      my $scanner = $_[0]{ACTION_SCANNER};
+      $scanner ?		# Was one explicitly set?
+	&$scanner() :		# Yes: generate it
+	new Mpp::ActionParser;	# No: Use the default
+    };
 }
 
 =head2 $rule->source

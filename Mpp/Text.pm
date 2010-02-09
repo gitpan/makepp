@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.41 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Text.pm,v 1.42 2009/07/15 22:10:05 pfeiffer Exp $
 
 =head1 NAME
 
@@ -74,9 +74,6 @@ sub pattern_substitution {
 
   my $src_prefix = substr($src, 0, $percent_pos);
   my $src_suffix = substr($src, $percent_pos+1);
-
-  $dest =~ /%/ or
-    die "\$(patsubst ...) called with '$dest' as second argument\n";
 
   my @ret_words;
   foreach (@words) {
