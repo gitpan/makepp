@@ -2,7 +2,7 @@
 
 makepp_compatibility -- Compatibility list for makepp
 
-=for vc $Id: makepp_compatibility.pod,v 1.20 2009/02/09 22:07:39 pfeiffer Exp $
+=for vc $Id: makepp_compatibility.pod,v 1.22 2010/04/22 20:35:25 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -35,56 +35,56 @@ has the structure " OS#x|x|x#x|x|...#".  Here 'x' means success, '/' means
 failure, empty means not tested, and anything else is a footnote link to the
 list below.  The first two lines are special, based on the OS field being
 empty.  This is converted to html by install.pl and readable as is in other
-formats.
+formats.  The 1st header line is currently not dynamic.
 
-		#||	5.6		#||||||||			5.8						#|	 5.10	#
+		#||	5.6		#|||||||||			5.8						#|	 5.10	# 5.12	#
 
-		# .0	| .1	| .2	# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	| .9	# .0	| .1	#
+		# .0	| .1	| .2	# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	| .9	# .0	| .1	# .0	#
 
- GNU/Linux (x86)# x	| x	| req	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	#
+ GNU/Linux (x86)# x	| x	| req	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	#
 
- GNU/Linux (amd64)#	|	|	#	|	|	|	|	| x	|	|	|	|	#	|	#
+ GNU/Linux (amd64)#	|	|	#	|	|	|	|	| x	|	|	|	|	#	|	#	#
 
- GNU/Linux (alpha)#	| x	|	#	|	|	|	|	|	|	|	|	|	#	|	#
+ GNU/Linux (alpha)#	| x	|	#	|	|	|	|	|	|	|	|	|	#	|	#	#
 
- GNU/Linux (S/390)#	|	| x	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#
+ GNU/Linux (S/390)#	|	| x	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	#
 
- FreeBSD (x86)	#	| x	| x	#	|	|	|	|	|	|	|	| x	|	# x	|	#
+ FreeBSD (x86)	#	| x	| x	#	|	|	|	|	|	|	|	| x	|	# x	|	#	#
 
- NetBSD (alpha)	#	|	|	#	|	|	|	|	|	|	|	|	|	# x	|	#
+ NetBSD (alpha)	#	|	|	#	|	|	|	|	|	|	|	|	|	# x	|	#	#
 
- OpenBSD (x86)	#	|	|	# x	|	|	|	|	|	|	|	|	|	#	|	#
-
-
- AIX (PPC)	#	|	|	#	| x	| x	|	|	|	|	| x	| x	|	#	|	#
-
- Darwin (PPC)	# x	|	|	#	|	|	|	|	|	|	|	|	|	#	|	#
-
- HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	|	#	|	#
-
- Irix		#	|	|	#	|	|	|	|	|	|	|	| x	|	#	|	#
-
- Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	|	#	|	#
-
- Solaris (Sparc)# x	| req	|	# x	| x	| x	| x	| x	| x	| x	| x	| x	| x	# x	|	#
-
- Solaris (64bit)#	|	|	#	| x	|	|	|	|	|	|	| x	|	#	|	#
-
- Solaris (x86)	#	| x	|	#	| x	|	|	|	|	|	|	| x	|	#	|	#
+ OpenBSD (x86)	#	|	|	# x	|	|	|	|	|	|	|	|	|	#	|	#	#
 
 
- BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	|	# /	|	#
+ AIX (PPC)	#	|	|	#	| x	| x	|	|	|	|	| x	| x	|	#	|	#	#
 
- z/OS USS (S/390)#	|	|	#	|	|	|	|	|	|	|	| zOS	|	# /	|	#
+ Darwin (PPC)	# x	|	|	#	|	|	|	|	|	|	|	|	|	#	|	#	#
+
+ HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	|	#	|	#	#
+
+ Irix		#	|	|	#	|	|	|	|	|	|	|	| x	|	#	|	#	#
+
+ Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	|	#	|	#	#
+
+ Solaris (Sparc)# x	| req	|	# x	| x	| x	| x	| x	| x	| x	| x	| x	| x	# x	|	# x	#
+
+ Solaris (64bit)#	|	|	#	| x	|	|	|	|	|	|	| x	|	#	|	#	#
+
+ Solaris (x86)	#	| x	|	#	| x	|	|	|	|	|	|	| x	|	#	|	#	#
 
 
- Cygwin (x86)	#	|	|	#	|	|	|	|	|	|	| Win	| x	|	# x	|	#
+ BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	|	# /	|	#	#
 
- MinGW MSYS	#	| Win	|	#	|	|	|	|	|	|	|	|	|	#	|	#
+ z/OS USS (S/390)#	|	|	#	|	|	|	|	|	|	|	| zOS	|	# /	|	#	#
 
- Stawberry	#	|	|	#	|	|	|	|	|	|	|	| x	|	# x	|	#
 
- Windows	# Win	| Win	|	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	|	#
+ Cygwin (x86)	#	|	|	#	|	|	|	|	|	|	| Win	| x	|	# x	|	#	#
+
+ MinGW MSYS	#	| Win	|	#	|	|	|	|	|	|	|	|	|	#	|	#	#
+
+ Stawberry	#	|	|	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	#
+
+ ActiveState Win# Win	| Win	|	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	#
 
 =for html </table>
 
@@ -138,9 +138,9 @@ MAKEPP_LN_CP=1> or C<3>, depending on your file system.
 
 While Windows programs can handle normal slashes as directory separators, this
 does not work for command names.  Those should always be portably written as
-F<dir$/command>, where C<$/> is a forward or backward slash, depending on the
-environment.  If you tell makepp, via the SHELL variable, where to find a a
-Unix-like Shell, you don't have these worries.
+F<dir$/command>, where C<$/> gets replaced by a forward or backward slash,
+depending on the environment.  If you tell makepp, via the SHELL variable,
+where to find a a Unix-like Shell, you don't have these worries.
 
 It cannot do smart recursive makes (but who would want them, since they are
 known to be a broken paradigm) and B<parallel> builds.
@@ -180,17 +180,17 @@ time when working on them:
 =item NFS
 
 NFS may reorder file operations at its discretion, leading to unexpected
-relationships between time stamps.  This is relevant for the build info meta
-files, which makepp stores alongside each file.  Especially in build caches,
-with their concurrent access, some workaround handling was necessary, but it
-seems to work fine.
+relationships between time stamps.  This is relevant for the build info
+meta-data files, which makepp stores alongside each file.  Especially in build
+caches, with their concurrent access, some workaround handling was necessary,
+but it is shown by load test to work fine.
 
 =item Windows CIFS on Gnu/Linux
 
 A few special characters are not allowed in filenames.  Links are emulated by
 copying while symbolic linking fails.  Apparently write operations come back
 before they are visible on disk, which confuses makepp about the success of
-the commands it executes.  Several tests fail due to this.  On the bright
+the commands it executes.  Six out of 76 tests fail due to this.  On the bright
 side, timestamps have a precision of 100 nanoseconds (though the observed
 obtainable differences are only about a centisecond).  This is much better
 than most older Unix file systems -- alas perl's C<stat> function has no
@@ -199,7 +199,7 @@ access to this very welcome precision.
 =item Windows Server Share on Cygwin
 
 The same CIFS disk that was works so badly on Linux, passes all tests on
-Cygwin.  Possibly there are options that might improve something.
+Cygwin.  Possibly there are CIFS mount options that might improve something.
 
 =item Unix SMBFS from Gnu/Linux
 
@@ -210,7 +210,7 @@ a more realistic Windows SMB server, where the situation might be different.
 
 A few special characters are not allowed in filenames.  Linking and symbolic
 linking fails.  The file permission mask and owner are mount options, while
-the time stamps are not settable.  One test fails.
+the time stamps are not settable.
 
 =back
 

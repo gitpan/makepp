@@ -4,19 +4,16 @@
 # Figure out if using a compiler where we know how to activate on-the-fly dep generation.
 #
 makepp 'CHECK_COMPILER=1';
-###	12	755	1265379162	1265748015	makepp_test_script.pl
+###	9	755	1265379162	1266604527	makepp_test_script.pl
 makepp 'B1H=1';
 n_files 'n_files1';
 
-my $opt = 'OPT=:scanner none';
-$opt .= ' :signature c_compilation_md5' unless no_md5;
-
 rename 'a2.z', 'a.z';
-makepp $opt;
+makepp;
 n_files 'n_files2';
 
 unlink 'b1.h';
-makepp $opt;
+makepp;
 ###	46	644	1265379162	1265747981	RootMakeppfile
 ifdef CHECK_COMPILER
   makeperl {{
@@ -55,7 +52,7 @@ b.c:
 
 b.$(OBJ_SUFFIX): pre			# Dep must not be forgotten when rereading, or would rebuild next time
 
-%.$(OBJ_SUFFIX): %.c $[OPT] :include %.$(DEP_SUFFIX)
+%.$(OBJ_SUFFIX): %.c $[perl $Mpp::has_md5_signatures && ':signature c_compilation_md5'] :include %.$(DEP_SUFFIX)
   ifmakeperl '$(CC)' =~ /\bcl/
 	cl -showIncludes -c $(input) >$(stem).d
 	&sed &dependify -o +<$(stem).d

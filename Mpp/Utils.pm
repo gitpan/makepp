@@ -2,7 +2,7 @@
 require 5.006;
 use strict;
 
-# $Id: Utils.pm,v 1.13 2009/03/19 22:46:14 pfeiffer Exp $
+# $Id: Utils.pm,v 1.14 2010/04/22 20:34:19 pfeiffer Exp $
 
 # This is syntactically needed by many modules but not called in utils, except mppr.
 sub log($@);
@@ -36,11 +36,11 @@ sub maybe_die() {
 # Can't put eval_or_die here, or variables end up in the wrong scope :-(
 
 sub find_logfiles(\@) {
-  @{$_[0]} = '.' if !@{$_[0]};
+  @{$_[0]} = '.' unless @{$_[0]};
   for( @{$_[0]} ) {
     next if $_ eq '-' || -f;
     $_ .= '/.makepp/log';
-    s!/.makepp/!/! if !-r;
+    s!/.makepp/!/! unless -r;
     die "$Mpp::progname: can't read `$_'--$!\n" if !-r;
   }
 }
@@ -50,8 +50,9 @@ my( $max_up, $cwd_re );
 sub Mpp::Rewrite::cwd(;$$$) {
   if( defined and $_ ne '' ) {
     my( $up, $name, $sep ) = @_;
-    if( !$cwd_re ) {
-      my @path = split /(?=\/)/, absolute_filename dereference $CWD_INFO;
+    unless( $cwd_re ) {
+      my $tmp = dereference $CWD_INFO; # 5.12.0 crashes when -d _ called in context of split :-(
+      my @path = split /(?=\/)/, absolute_filename $tmp;
       if( @path > 1 && $path[0] eq '/' ) { # //server/share
 	shift @path;
 	substr $path[0], 0, 0, '/';
@@ -65,8 +66,8 @@ sub Mpp::Rewrite::cwd(;$$$) {
 				# undef -> 0, else max( $max_up : $up )
       my $up_found = $max_up + 2 - grep defined, @match;
       if( $up_found <= $up ) {
-	$name = '..' if !defined $name;
-	$sep = '/' if !defined $sep;
+	$name = '..' unless defined $name;
+	$sep = '/' unless defined $sep;
 	substr $_, 0, length( $match[0] ),
 	  (join( $sep, ($name) x $up_found, $match[-1] ? '' : () ) || ($match[-1] ? '' : '.'));
 	1;			# Return true

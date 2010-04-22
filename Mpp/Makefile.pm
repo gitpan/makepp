@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.135 2010/02/09 22:43:14 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.136 2010/02/24 23:26:45 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_action needed_wildcard_action);
@@ -1226,6 +1226,7 @@ sub parse_assignment {
 # f) Any other : modifiers that were present on the line after the
 #    dependency string.
 #
+my $scanner_none;
 sub parse_rule {
   my ($self, $makefile_line, $makefile_line_dir, $is_double_colon, $target_string, @after_colon) = @_;
 				# Name the arguments.
@@ -1413,7 +1414,7 @@ sub parse_rule {
           die "$makefile_line: invalid scanner $scanner_name\n";
         $scanner = sub {
           require Mpp::ActionParser::Legacy;
-          return Mpp::ActionParser::Legacy->new($scanref);
+          Mpp::ActionParser::Legacy->new($scanref);
         };
       }
     } elsif ($after_colon[-1] =~ /\s*(?:smart()|quick)scan/) {
@@ -1535,6 +1536,34 @@ sub parse_rule {
     }
   }
 
+  my $handle_include = defined $include && sub {
+    my $rule = $_[0];
+    my $include = expand_text $self, $_[1], $makefile_line;
+    $rule->{TARGET_STRING} .= " $include"; # So count of built files is correct and mppc cleans it.
+    $rule->{INCLUDE} = $include = file_info $include, $self->{CWD};
+    Mpp::File::set_rule $include, $rule; # I don't expect anything else to depend on this, just in case.
+    unless( $Mpp::force_rescan ) {
+      Mpp::Repository::get( $include, $include->{ALTERNATE_VERSIONS}[0] )
+				# Get first one as we can't precalculate its signature
+	if $include->{ALTERNATE_VERSIONS};
+      if( Mpp::File::have_read_permission $include ) {
+	if( Mpp::is_perl_5_6 ? $Mpp::has_md5_signatures : 1 ) {
+	  require Mpp::Signature::md5;
+	  $rule->{INCLUDE_MD5} = Mpp::Signature::md5::signature( undef, $include );
+				# remember it for checking if content changed
+	}
+	$rule->{ACTION_SCANNER} = $scanner_none ||= sub {
+	  require Mpp::ActionParser::Legacy;
+	  Mpp::ActionParser::Legacy->new( \&Mpp::Subs::scanner_none );
+	};
+	Mpp::log LOAD_INCL => $include, $makefile_line
+	  if $Mpp::log_level;
+	local $rule_include = 1;
+	read_makefile( $self, $include );
+      }
+    }
+  };
+
   if ($foreach) {		# Is there a foreach clause?
     die "$makefile_line: Combining \":foreach\" and \":last_chance\" is not supported.\n" if $last_chance_rule;
 ###### TODO: This needs to handle rules with no actions here, as well as
@@ -1627,26 +1656,10 @@ sub parse_rule {
 				# no target was specified on the command
 				# line.
       }
-      if( $include ) {
-	my $include = expand_text $self, $include, $makefile_line;
-	$rule->{TARGET_STRING} .= " $include"; # So count of built files is correct and mppc cleans it.
-	$rule->{INCLUDE} = $include = file_info $include, $self->{CWD};
-	Mpp::File::set_rule $include, $rule; # I don't expect anything else to depend on this, just in case.
-	if( Mpp::File::have_read_permission $include ) {
-	  if( Mpp::is_perl_5_6 ? $Mpp::has_md5_signatures : 1 ) {
-	    require Mpp::Signature::md5;
-	    $rule->{INCLUDE_MD5} = Mpp::Signature::md5::signature( undef, $include );
-				# remember it for checking if content changed
-	  }
-	  Mpp::log LOAD_INCL => $include, $makefile_line
-	    if $Mpp::log_level;
-	  local $rule_include = 1;
-	  read_makefile( $self, $include );
-	}
-      }
+      &$handle_include( $rule, $include ) if $include;
     };				# End subroutine called on every file that
 				# matches the wildcard.
-  } elsif(!defined $foreach) { # it's not a foreach rule
+  } elsif(!defined $foreach) {	# it's not a foreach rule
 #
 # This rule is not a pattern rule.  If there is an action, then it's
 # a non-pattern rule; otherwise, we're just adding extra dependencies to
@@ -1733,7 +1746,9 @@ sub parse_rule {
 	# just a single rule that we can generate now.
       	if(index_ignoring_quotes($tstring, '%') >= 0) {
 	  die "Can't use :last_chance and :include together\n" if $include; # TODO: figure out how to handle %.d
-	  my ($pct_re, $pct_glob) = expand_variable( $self, 'makepp_percent_subdirs', $makefile_line ) ? ('.*', '**/*') : ('[^/]*', '*');
+	  my ($pct_re, $pct_glob) = expand_variable( $self, 'makepp_percent_subdirs', $makefile_line ) ?
+	    ('.*', '**/*') :
+	    ('[^/]*', '*');
 	  my @wild_targets;
 	  foreach (split_on_whitespace($tstring)) {
 	    if( index_ignoring_quotes($_, '%') >= 0 ) {
@@ -1776,28 +1791,12 @@ sub parse_rule {
 	    $found or die "makepp internal error: no matching target patterns";
 	  };
 	} elsif( $include ) {
-	  my $rule = &$generate_rule($tstring);
-	  $include = expand_text $self, $include, $makefile_line;
-	  $rule->{TARGET_STRING} .= " $include"; # So count of built files is correct and mppc cleans it.
-	  $rule->{INCLUDE} = $include = file_info $include, $self->{CWD};
-	  Mpp::File::set_rule $include, $rule; # I don't expect anything else to depend on this, just in case.
-	  if( Mpp::File::have_read_permission $include ) {
-	    if( Mpp::is_perl_5_6 ? $Mpp::has_md5_signatures : 1 ) {
-	      require Mpp::Signature::md5;
-	      $rule->{INCLUDE_MD5} = Mpp::Signature::md5::signature( undef, $include );
-				# remember it for checking if content changed
-	    }
-	    Mpp::log LOAD_INCL => $include, $makefile_line
-	      if $Mpp::log_level;
-	    local $rule_include = 1;
-	    read_makefile( $self, $include );
-	  }
+	  &$handle_include( &$generate_rule( $tstring ), $include );
 	} else {
-	  &$generate_rule($tstring);
+	  &$generate_rule( $tstring );
 	}
       }
-    }
-    else {
+    } else {
 #
 # We're just adding a dependency to this target, like this:
 #   target : additional-dependency
@@ -1832,7 +1831,6 @@ sub parse_rule {
       }
     }
   }				# End if not a pattern rule.
-
 }
 
 #

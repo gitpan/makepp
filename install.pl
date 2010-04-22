@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.88 2010/02/09 23:09:10 pfeiffer Exp $
+# $Id: install.pl,v 1.89 2010/04/22 20:35:25 pfeiffer Exp $
 #
 
 package Mpp;
@@ -463,7 +463,8 @@ if ($htmldir_val ne 'none') {
 
 	if( /^(.*#.*\|.*\|.*#.*\|.*\|.*)<\/pre>$/ ) { # Special case for compatibility table.
 
-	  my @list = split /[#|]/, $1;
+	  my $row = $1;
+	  my @list = split /[#|]/, $row;
 	  s/^\s+//, s/\s+$// for @list;
 	  if( $list[0] ) {
 	    $_ = '<tr><th align="left">' . shift( @list ) . '</th>';
@@ -482,7 +483,12 @@ if ($htmldir_val ne 'none') {
 	    shift @list;
 	    $_ = '<tr><th></th>';
 	    if( $list[0] ne '.0' ) {
-	      $_ .= '<th colspan="3">5.6</th><th colspan="' . (@list - 4) . '">5.8</th><th>5.10</th>';
+	      (undef, @list) = split /#/, $row;
+	      for my $elem ( @list ) {
+		my $span = $elem =~ tr/|//d + 1;
+		$elem =~ tr/ \t//d;
+		$_ .= "<th colspan='$span'>&nbsp;$elem&nbsp;</th>";
+	      }
 	    } else {
 	      for my $elem ( @list ) {
 		$_ .= "<th>&nbsp;$elem&nbsp;</th>";

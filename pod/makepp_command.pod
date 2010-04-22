@@ -2,7 +2,7 @@
 
 makepp_command -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.43 2009/12/27 23:15:39 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.44 2010/04/22 20:36:21 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -378,6 +378,12 @@ makepp directs their output to a file and only displays the output when
 the commands have finished.  This prevents output from several different
 commands from being mixed together on the display, but it does mean that
 you might have to wait a little longer to see the output.
+
+Native Windows Perls (i.e. Strawberry and ActiveState), because they do not
+support the Unix fork/exec paradigm, do not allow this option (Cygwin works
+fine!).  As a partial replacement, you can use the
+L<--sandbox|/_2D_2Dsandbox_3Dfilename> option there, though this is far less
+comfortable.
 
 =item -k
 

@@ -2,7 +2,7 @@
 
 makepp_rules -- How to tell makepp to build something
 
-=for vc $Id: makepp_rules.pod,v 1.25 2010/02/09 23:10:45 pfeiffer Exp $
+=for vc $Id: makepp_rules.pod,v 1.26 2010/02/24 23:29:45 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -595,54 +595,54 @@ as to whether the queueing system is used at all.
 Rule varies depending on compiler:
 
     %.o : %.c
- 	: include %.d
+ 	: include %.d : signature c_compilation_md5
  	gcc -MD -c ...
  
     %.o : %.c
- 	: include %.u		# IBM uses a different suffix
+ 	: include %.u : signature c_compilation_md5 # IBM uses a different suffix
  	xlc -M -c ...
  
     sub dependify {		# Turn Microsoft's chatter into useful format
  	s/(Note: including file: *)?(.+)\n/$1 ? "'$2' " : "'".f_output()."': "/e;
     }
     %.o : %.c
- 	: include %.d
+ 	: include %.d : signature c_compilation_md5
  	cl -showIncludes -c ... >$(stem).d
  	&sed &dependify -o +<$(stem).d
 
 Some compilers (Intel's icc just like gcc above, or IBM's xlc) can produce
 dependency files on the fly.  That is, while they compile, they write a
 makefile that makepp can include.  The advantage over makepp's scanner is that
-it is guaranteed to be 100% correct, where we may only come close, and also
-much faster.
+it is guaranteed to be 100% correct, where we may only come close.
 
-This option harnesses that in a special way: It includes the file, if present,
-before executing the rule.  After successfully executing the rule, it forgets
-whatever it read the first time, given that the file might have been outdated.
-Instead it reads the file again, if it changed, for having up-to-date build
-info.
+This option harnesses that in a special way: If the file is not present,
+i.e. typically on the 1st build, normal scanning occurs.  But if the file is
+present, no scanning occurs (which is why we specify a smart signature above
+—— not scanning falls back to the dumb default of timestamp and size).
+Instead it includes the file, before executing the rule.  After successfully
+executing the rule, it forgets whatever it read the first time, given that the
+file might have been outdated.  Instead it reads the file again, if it
+changed, for having up-to-date build info.
 
-The disadvantage over makepp's scanner is that dependencies will not be known
-before they are needed the first time, so on-demand generation, such as with
-swig or embedded SQL will not work.  If you need that you would turn off the
-scanner optionally, by giving C<NOSCAN=1> on the command line:
-
-    ifdef NOSCAN
-      SCAN_OPT = :scanner none :signature c_compilation_md5
-    endif	# :scanner none alone uses trivial timestamp signatures
- 
-    %.o : %.c $[SCAN_OPT]
- 	: include %.d
- 	gcc -MD -c ...
+WARNING: This is efficient, but inherently unreliable.  The dependency file
+gets produced by the very rule for which it is a dependency.
 
 There is a catch when you remove an C<#include> statement b<and> the
 corresponding file: It will still be mentioned in the dependency file from the
 last time, when it was needed.  In such a case you must edit the dependency
 file to remove the dependency which is no longer fulfillable.
 
-This feature is not yet usable with build cache or repository, due to the way
-the dependency file is itself both a prerequisite and a target of such a rule
--- something that is not normally possible in a reliable build system.
+This feature can not be used with a build cache because fetching a file from
+there requires knowing everything about the file.  But a dependency file
+depends on those files makepp learns about by reading it.  Such a circular
+dependency is not normally possible in a reliable build system.  This is an
+exception because after rebuilding and rereading a dependency file everything
+is correct again.
+
+If you build in your repositories, makepp will pick up the depency file from
+the 1st repository which contains one.  This is unlike other files, where it
+takes the 1st with the expected signature.  This is better than for build
+caches, where for lack of signature, it can't even find the file.
 
 =head3 last_chance X<last_chance>
 

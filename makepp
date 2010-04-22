@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.184 2010/02/09 22:36:54 pfeiffer Exp $
+# $Id: makepp,v 1.185 2010/02/24 23:27:59 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -1366,15 +1366,15 @@ perform eval {
      }],
 
     [undef, qr/md5[-_]?(?:check[-_]?)?bc/, \$md5check_bc],
-    [undef, qr/stop[-_]?(?:on[-_]?)?race/, \$stop_on_race],
+
     [undef, qr/no[-_]?cache[-_]?scaninfos?/, \$nocache_scaninfo],
     [undef, qr/no[-_]?implicit[-_]?load/, \$implicitly_load_makefiles, undef, 0],
+    [undef, qr/no[-_]?path[-_]?exe(?:cutable)?[-_]?dep(?:s|endency|endencies)?/, \$no_path_executable_dependencies],
     [undef, qr/no[-_]?populate[-_]?bc/, \$nopopulate_bc],
 				# don't populate bc with targets, just read from it
     [undef, qr/no[-_]?remake[-_]?makefiles/, \$remake_makefiles, undef, 0],
 				# Don't remake makefiles automatically?
     [undef, qr/no[-_]?warn/, \$warn_level, undef, 0],
-
 
     ['o', qr/(?:assume[-_]?old|old[-_]?file)/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
@@ -1393,18 +1393,17 @@ perform eval {
 
     [qw(q quiet), \$quiet_flag],
 
-
     [undef, 'recursive[-_]?makepp'],
 				# This is a dummy option simply used to make
 				# recursive invocations easily identifiable by
 				# searching the action string.	It does
 				# nothing.
     [undef, qr/re?m(?:ove)?[-_]?stale(?:[-_]?files)?/, \$rm_stale_files],
-    [undef, qr/symlink[-_]?in[-_]?rep(?:os(?:itory)?)?[-_]?as[-_]?file/, \$symlink_in_rep_as_file],
-    [undef, qr/no[-_]?path[-_]?exe(?:cutable)?[-_]?dep(?:s|endency|endencies)?/, \$no_path_executable_dependencies],
 
     [undef, qr/sand[-_]?box[-_]?warn(?:ing)?/, \$sandbox_warn_flag],
     [undef, qr/stop(?:[-_]?after[-_]?load(?:ing|ed)?)?/, \$stop],
+    [undef, qr/stop[-_]?(?:on[-_]?)?race/, \$stop_on_race],
+    [undef, qr/symlink[-_]?in[-_]?rep(?:os(?:itory)?)?[-_]?as[-_]?file/, \$symlink_in_rep_as_file],
 
     [undef, qr/traditional[-_]?recursive[-_]?make/, \$Mpp::Recursive::traditional],
 
@@ -1489,6 +1488,8 @@ Valid options include:
 	of the build cache but still allows reading from the build cache.
 --no-remake-makefiles
 	Don't try to make each makefile using instructions in that makefile.
+--no-repository-include
+	Don't get files for :include rule option from repository if available.
 --no-warn
 	Don't print any warning messages.
 -q or --quiet

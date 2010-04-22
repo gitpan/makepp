@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.32 2009/02/21 11:28:49 pfeiffer Exp $
+# $Id: makepplog,v 1.33 2010/02/24 23:28:27 pfeiffer Exp $
 
 package Mpp;
 
@@ -371,6 +371,7 @@ for my $logfile ( @logfiles ) {
 	  printf "$prefix$showkey$indent$log_msg{INCL}\n",
 	    "`$file_name{$incl}'",
 	    '`' . (join $tabulate ? "',\n$prefix$showkey$indent  `" : "', `", map $file_name{$_}, @incl) . "'";
+	  no warnings 'deprecated';    # TODO: replace the goto
 	  goto INCL if $key eq 'INCL'; # Next one follows right behind.
 	  undef $incl;
 	}

@@ -1,8 +1,39 @@
+2010-04-22  Daniel Pfeiffer  <occitan@esperanto.org>
+
+Snapshot makepp-1.50.100422.tgz, version 1.50-04221-02242-02094 on CPAN.
+
+	* Mpp/Utils.pm (Mpp::Rewrite::cwd): Work around a 5.12.0 crash.
+
+	* install.pl:
+	* pod/makepp_compatibility.pod: Mention 5.12 as working.
+
+	* pod/makepp_command.pod: Mention --sandbox as a workaround for -j
+	on native Win.
+
+2010-02-25  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm (parse_rule):
+	* t/rule_include.test: Use :scanner none if :include file found.
+
+	* makepp (parse_command_line): Order options alphabetically.
+
+	* makepplog (instdir): Erstwhile workaround for 5.11 deprecation.
+
+	* pod/makepp_rules.pod:
+	* pod/makepp_faq.pod: Update about new behaviour of :include.
+
+	* pod/makepp_repositories.pod: Remove long outdated limitation of
+	only parsing the 1st command of an action.  Explain about
+	--dont-read.
+
+	* pod/makepp_compatibility.pod: Add more tested versions.
+
 2010-02-09  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	* Mpp/Makefile.pm (parse_rule):
 	* makepp (build_target_done):
-	* Mpp/FileOpt.pm (set_additional_dependencies): Handle :include.
+	* Mpp/FileOpt.pm (set_additional_dependencies): Handle :include of
+	generated dependency file. (Suggested by Yoni Londner)
 	(get_rule): Remove unneeded label colliding with a reserved word
 	in perl 5.11.
 
@@ -264,8 +295,9 @@ Snapshot makepp-1.50.081214.tgz, version 1.50-12149-11231-10151 on CPAN.
 	* makepp:
 	* FileInfo_makepp.pm:
 	* Rule.pm:
-	* makepplog:
-	* t/additional_tests/2004_04_01_stale_repository.test: Handle stale symlinks in, via or without repository cleanly.
+	* makepplog: 
+	* t/additional_tests/2004_04_01_stale_repository.test: Handle
+	stale symlinks in, via or without repository cleanly.
 
 	* BuildCheck/exact_match.pm: Use cheaper "unless".
 
