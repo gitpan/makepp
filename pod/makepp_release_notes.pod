@@ -2,13 +2,17 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.57 2009/02/09 22:07:39 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.59 2010/09/03 21:26:28 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 =head2 Version 1.50 (under development)
 
 =over 4
+
+=item *
+
+New variable MAKEPP_VERSION.
 
 =item *
 
@@ -644,8 +648,9 @@ line.  This is necessary to load makefiles in a consistent way.
 
 =item *
 
-C<$(INFERRED_OBJS)> is no longer supported (since it was not a
-well-designed interface anyway).  Use the newer S<C<$(infer_objects )>>
+C<$(INFERRED_OBJS)> is no longer supported (since it was not a well-designed
+interface anyway).  Use the newer
+L<C<$(infer_objects)>|makepp_functions/infer_objects_file1_file2_pattern>
 function instead.
 
 =item *

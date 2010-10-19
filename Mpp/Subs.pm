@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.173 2010/02/09 22:45:23 pfeiffer Exp $
+# $Id: Subs.pm,v 1.176 2010/10/18 21:40:21 pfeiffer Exp $
 
 =head1 NAME
 
@@ -149,20 +149,19 @@ sub scanner_skip_word {
       $action =~ s/$compl//;
     }
     next if $action =~ /^-/;	# Word that doesn't look like an option?
-    local $_[1]{ACTION_SCANNER} if $_[1]{ACTION_SCANNER}; # Don't skip next word on recursion.
-    local $_[1]{PARSER_OBJ} if $_[1]{PARSER_OBJ}; # ditto
-    my $action_parser = new Mpp::ActionParser;
+    local $_[1]{LEXER} if $_[1]{LEXER}; # Don't skip next word on recursion.
+    local $_[1]{LEXER_OBJ} if $_[1]{LEXER_OBJ}; # ditto
+    my $lexer = new Mpp::Lexer;
     $_[1]{SCANNER_NONE} = 1
-      if Mpp::ActionParser::parse_command( $action_parser, $action, $_[1], $_[2], $_[1]{MAKEFILE}{ENVIRONMENT} );
+      if Mpp::Lexer::parse_command( $lexer, $action, $_[1], $_[2], $_[1]{MAKEFILE}{ENVIRONMENT} );
     last;			# Don't go any further.
   }
-  new Mpp::ActionParser;
+  new Mpp::Lexer;
 }
 
 #
 # This array contains the list of the default scanners used for various
 # command words.
-# (Don't use 'our', because it does bad things to eval calls in this file.)
 #
 our %scanners =
   (
@@ -182,20 +181,11 @@ our %scanners =
    diet		=> \&scanner_skip_word, # dietlibc
    distcc	=> \&scanner_skip_word,
    fast_cc	=> \&scanner_skip_word,
-   ignore_error	=> \&scanner_skip_word,
    libtool	=> \&scanner_skip_word,
-   noecho	=> \&scanner_skip_word,
    purecov	=> \&scanner_skip_word,
    purify	=> \&scanner_skip_word,
    quantify	=> \&scanner_skip_word,
    time		=> \&scanner_skip_word,
-   if		=> \&scanner_skip_word, # Sometimes people do things like
-   then		=> \&scanner_skip_word, # "if gcc main.o -labc -o my_program; ..."
-   elif		=> \&scanner_skip_word,
-   else		=> \&scanner_skip_word,
-   do		=> \&scanner_skip_word,
-   while	=> \&scanner_skip_word,
-   until	=> \&scanner_skip_word,
 
    # All the C/C++ compilers we have run into so far:
    cc		=> \&scanner_c_compilation,
@@ -300,6 +290,7 @@ sub f_absolute_filename {
     map absolute_filename( file_info unquote(), $cwd ),
       split_on_whitespace $_[0];
 }
+*f_abspath = \&f_absolute_filename;
 
 sub f_absolute_filename_nolink {
   my $cwd = $_[1]{CWD};
@@ -307,6 +298,7 @@ sub f_absolute_filename_nolink {
     map absolute_filename_nolink( file_info unquote(), $cwd ),
       split_on_whitespace $_[0];
 }
+*f_realpath = \&f_absolute_filename_nolink;
 
 sub f_addprefix {
   my ($prefix, $text) = split(/,\s*/, $_[0]); # Get the prefix.
@@ -316,6 +308,23 @@ sub f_addprefix {
 sub f_addsuffix {
   my ($suffix, $text) = split(/,\s*/, $_[0]); # Get the prefix.
   join ' ', map "$_$suffix", split ' ', $text;
+}
+
+sub f_and {
+  my $ret = '';
+  for my $cond ( split /,\s*/, $_[0] ) {
+    $ret = $_[1]->expand_text( $cond, $_[2] );
+    return '' unless length $ret;
+  }
+  $ret;
+}
+
+sub f_or {
+  for my $cond ( split /,\s*/, $_[0] ) {
+    $cond = $_[1]->expand_text( $cond, $_[2] );
+    return $cond if length $cond;
+  }
+  '';
 }
 
 sub f_basename {
@@ -1019,12 +1028,14 @@ sub f_only_stale {
 #
 sub f_origin {
   my( $varname, $mkfile ) = @_;
-  $mkfile->{COMMAND_LINE_VARS}{$varname} ? 'command line' :
   $perl_unfriendly_symbols{$varname} ? 'automatic' :
-  defined( ${$mkfile->{PACKAGE} . "::$varname"} ) ? 'file' :
+  $Mpp::Makefile::private && defined $Mpp::Makefile::private->{PRIVATE_VARS}{$varname} ? 'file' :
+  defined ${$mkfile->{PACKAGE} . "::$varname"} ? 'file' :
+  defined ${"Mpp::global::$varname"} ? 'global' :
+  $mkfile->{COMMAND_LINE_VARS}{$varname} ? 'command line' :
   $mkfile->{ENVIRONMENT}{$varname} ? 'environment' :
   !defined( *{$mkfile->{PACKAGE} . "::f_$varname"}{CODE} ) ? 'undefined' :
-  $varname =~ /^(?:foreach|targets?|dependency|dependencies|inputs?|outputs?)$/ ? 'automatic' :
+  $varname =~ /^(?:foreach|targets?|dependenc(?:y|ies)|inputs?|outputs?)$/ ? 'automatic' :
     'default';	# Must be a variable like "CC".
 }
 
@@ -1177,7 +1188,10 @@ sub f_sort {
 }
 
 sub f_stem {
-  defined $rule or die "\$(stem) or \$* used outside of rule\n";
+  unless( defined $rule ) {
+    warn "\$(stem) or \$* used outside of rule\n";
+    return '';
+  }
   defined $rule->{PATTERN_STEM} and
     return $rule->{PATTERN_STEM};
 
@@ -1197,7 +1211,7 @@ sub f_subst {
 }
 
 sub f_suffix {
-  join ' ', map { m@\.([^\./]*)$@ ? $1 : () } split ' ', $_[0];
+  join ' ', map { m@(\.[^\./]*)$@ ? $1 : () } split ' ', $_[0];
 }
 
 #
@@ -1222,11 +1236,6 @@ sub f_wildcard {
   join ' ', map zglob($_, $cwd), split ' ', $_[0];
 }
 
-sub f_word {
-  my ($wordidx, $text) = split(/,\s*/, $_[0]);
-  (split ' ', $text)[($wordidx < 0) ? $wordidx : $wordidx-1] || '';
-}
-
 sub f_wordlist {
   my ($startidx, $endidx, $text) = split(/,\s*/, $_[0]);
   if( defined $text ) {
@@ -1242,6 +1251,7 @@ sub f_wordlist {
     join ' ', (split ' ', $endidx)[map { $_ > 0 ? $_ - 1 : $_ } split ' ', $startidx];
   }
 }
+*f_word = \&f_wordlist;		# It's a special case of the index-list form.
 
 sub f_words {
   # Must map split result, or implicit assignment to @_ takes place
@@ -1253,15 +1263,20 @@ sub f_words {
 # Define special automatic variables:
 #
 sub f_target {
-  defined $rule or die "\$(target) or \$\@ used outside of rule\n";
+  unless( defined $rule ) {
+    warn "\$(output), \$(target) or \$\@ used outside of rule\n";
+    return '';
+  }
   relative_filename $rule->{EXPLICIT_TARGETS}[$_[0] ? ($_[0] > 0 ? $_[0] - 1 : $_[0]) : 0],
     $rule->build_cwd;
 }
 *f_output = \&f_target;
 
 sub f_targets {
-  defined $rule or
-    die "\$(targets) or \$(outputs) used outside of rule\n";
+  unless( defined $rule ) {
+    warn "\$(outputs) or \$(targets) used outside of rule\n";
+    return '';
+  }
   join ' ', relative_filenames
     $_[0] ?
       [@{$rule->{EXPLICIT_TARGETS}}[map { $_ > 0 ? $_ - 1 : $_ } split ' ', $_[0]]] :
@@ -1270,8 +1285,10 @@ sub f_targets {
 *f_outputs = *f_targets;
 
 sub f_dependency {
-  defined $rule or
-    die "\$(dependency) or \$(input) used outside of rule\n";
+  unless( defined $rule ) {
+    warn "\$(dependency) or \$(input) or \$< used outside of rule\n";
+    return '';
+  }
   my $finfo = $rule->{EXPLICIT_DEPENDENCIES}[$_[0] ? ($_[0] > 0 ? $_[0] - 1 : $_[0]) : 0];
   $finfo or return '';		# No dependencies.
 
@@ -1280,8 +1297,10 @@ sub f_dependency {
 *f_input = *f_dependency;
 
 sub f_dependencies {
-  defined $rule or
-    die "\$(dependencies) or \$(inputs) or \$^ used outside of rule\n";
+  unless( defined $rule ) {
+    warn "\$(dependencies) or \$(inputs) or \$^ used outside of rule\n";
+    return '';
+  }
   join ' ', relative_filenames
     $_[0] ?
       [@{$rule->{EXPLICIT_DEPENDENCIES}}[map { $_ > 0 ? $_ - 1 : $_ } split ' ', $_[0]]] :
@@ -1295,9 +1314,10 @@ sub f_dependencies {
 # only called from find_all_targets_dependencies.
 #
 sub f_changed_inputs {
-  defined $rule && defined $rule->{EXPLICIT_TARGETS} or
-    die "\$(changed_inputs) or \$(changed_dependencies) or \$? used outside of rule action\n";
-
+  unless( defined $rule && defined $rule->{EXPLICIT_TARGETS} ) {
+    warn "\$(changed_dependencies) or \$(changed_inputs) or \$? used outside of rule\n";
+    return '';
+  }
   my @changed_dependencies =
     $rule->build_check_method->changed_dependencies
       ($rule->{EXPLICIT_TARGETS}[0],
@@ -1312,7 +1332,10 @@ sub f_changed_inputs {
 *f_changed_dependencies = \&f_changed_inputs;
 
 sub f_sorted_dependencies {
-  defined $rule or die "\$(sorted_dependencies) or \$(sorted_inputs) or \$\^ used outside of rule\n";
+  unless( defined $rule ) {
+    warn "\$(sorted_dependencies) or \$(sorted_inputs) or \$+ used outside of rule\n";
+    return '';
+  }
   Mpp::Subs::f_sort join ' ', relative_filenames $rule->{EXPLICIT_DEPENDENCIES};
 }
 *f_sorted_inputs = *f_sorted_dependencies;
@@ -1868,11 +1891,11 @@ sub s_autoload {
 #
 #
 sub s_register_scanner {
-  my ($text_line, $mkfile, $mkfile_line) = @_; # Name the arguments.
+  my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
 
-  my (@fields) = split_on_whitespace $mkfile->expand_text($text_line, $mkfile_line);
+  my( @fields ) = split_on_whitespace $mkfile->expand_text( $_[0], $mkfile_line );
 				# Get the words.
-  @fields == 2 or die "$mkfile_line: invalid register_scanner line, need 2 arguments\n";
+  @fields == 2 or die "$mkfile_line: register_scanner needs 2 arguments\n";
   my $command_word = unquote $fields[0]; # Remove quotes, etc.
   $fields[1] =~ tr/-/_/;
   my $scanner_sub = $fields[1] =~ /^(?:scanner_)?none$/ ?
@@ -1888,23 +1911,21 @@ sub s_register_scanner {
 #
 #
 sub s_register_command_parser {
-  my( $text_line, $mkfile, $mkfile_line ) = @_; # Name the arguments.
+  my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
 
-  my (@fields) = split_on_whitespace $mkfile->expand_text( $text_line, $mkfile_line );
+  my( @fields ) = unquote_split_on_whitespace $mkfile->expand_text( $_[0], $mkfile_line );
 				# Get the words.
-  @fields == 2 or die "$mkfile_line: invalid register_command_parser line\n";
-  my $command_word = unquote $fields[0]; # Remove quotes, etc.
-  my $class = unquote $fields[1];
-  substr $class, 0, 0, 'Mpp::CommandParser::' unless $class =~ /^Mpp::CommandParser::/;
+  @fields == 2 or die "$mkfile_line: register_command_parser needs 2 arguments\n";
+  substr $fields[1], 0, 0, 'Mpp::CommandParser::' unless $fields[1] =~ /^Mpp::CommandParser::/;
   my $scanner_sub = eval qq{
     sub {
       \$mkfile->cd;
-      require $class;
+      require $fields[1];
       shift;
-      return $class->new( \@_ );
+      return new $fields[1]( \@_ );
     }
   } or die $@;
-  $mkfile->register_scanner( $command_word, $scanner_sub );
+  $mkfile->register_scanner( $fields[0], $scanner_sub );
 }
 
 #

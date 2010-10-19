@@ -1,4 +1,4 @@
-# $Id: Gcc.pm,v 1.31 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: Gcc.pm,v 1.33 2010/09/29 22:19:53 pfeiffer Exp $
 
 =head1 NAME
 
@@ -45,7 +45,7 @@ sub set_default_signature_method {
 
 # The subclass can override these. Don't start doing any actual scanning here,
 # because the signature method isn't necessarily set yet.
-*parse_opt = \&Mpp::Text::CONST0; # Ignore unknown option.
+*parse_opt = $Mpp::Text::N[0]; # Ignore unknown option.
 sub parse_arg {
   #my( undef, $arg, undef, $files ) = @_;
 
@@ -142,7 +142,7 @@ sub xparse_command {
       $scanner->add_include_dir( lib => $_ );
     } elsif( s/^l// ) {
       $_ ||= shift @words;
-      push @libs, $_;
+      push @libs, "lib$_";
     } elsif( s/^D// ) {
       $_ ||= shift @words;
       if( /^(\w+)=(.*)/ ) {
@@ -200,10 +200,12 @@ sub xparse_command {
   unless( $stop_at_obj ) {
     $scanner->add_include_dir( lib => $_ )
       for @Mpp::Subs::system_lib_dirs;
-    $scanner->add_dependency( $self, lib => "lib$_" )
-      for @libs;
     $self->add_simple_dependency( $_ )
       for @obj_files;
+    return 1 unless @libs;
+    my $tag = $scanner->get_tagname( 'lib' );
+    $self->add_simple_dependency( $scanner->find( undef, 'lib', $_ ), $tag, undef, $_ )
+      for @libs;
   }
   return 1;
 }

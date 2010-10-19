@@ -2,7 +2,7 @@
 
 makepp_tutorial -- Tutorial on writing makefiles
 
-=for vc $Id: makepp_tutorial.pod,v 1.11 2006/07/02 16:41:01 pfeiffer Exp $
+=for vc $Id: makepp_tutorial.pod,v 1.12 2010/08/22 20:26:19 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -462,7 +462,7 @@ that it appears in.  The most useful automatic variables are:
 The name of the first input file.  In this rule, this would be the file
 that matches the C<%.c> pattern.  C<$(dependency)> is a synonymn for
 C<$(input)>.  In older makefiles, you will also see the cryptic symbol
-C<E<lt>> used as well.
+C<$E<lt>> used as well.
 
 =item C<$(output)>
 
@@ -1238,30 +1238,25 @@ details, see L<makepp_repositories>.
 
 =head2 Debugging Makefiles
 
-=head3 .makepp_log
+=head3 Log File
 
-If you have a complicated build procedure, you find that makepp is
-rebuilding things more often than you think they need to be rebuilt.  Or
-you may find that it is not rebuilding things when it should.  You don't
-have to keep staring at your makefiles until you see the problem.  On
-every build, makepp produces a log file that explains which rule it
-thought it was supposed to use to build each target, what files it
-thought each target depended on, and (if it did decide to rebuild) why
-it thought a rebuild was necessary.  This file is called C<.makepp_log>
-and it is placed in the directory you actually ran makepp from.  (Of
-course, the filename has a leading period, which means that you won't
-see it there unless you specifically look for it.  It's designed to be
-unobtrusive.)
+If you have a complicated build procedure, you find that makepp is rebuilding
+things more often than you think they need to be rebuilt.  Or you may find
+that it is not rebuilding things when it should.  You don't have to keep
+staring at your makefiles until you see the problem.  On every build, makepp
+produces a log file that explains which rule it thought it was supposed to use
+to build each target, what files it thought each target depended on, and (if
+it did decide to rebuild) why it thought a rebuild was necessary.  This binary
+file is viewed L<makepplog, mppl|makepplog> utility.
 
-The log file's format is more or less self-explanatory.  Indentation in
-the log file conveys depth in makepp's inference tree.  Suppose the
-target is C<all>, and C<all> depends on C<my_program>, and C<my_program>
-depends on C<*.o>, which depend on the corresponding C<.c> files.  Log
-messages related to C<all> will not be indented, log messages related to
-building the target C<my_program> will be indented two spaces, log
-messages related to building any of the object files will be indented 4
-spaces, and log messages related to building any of the source files
-will be indented 6 spaces.
+The output format is more or less self-explanatory.  Indentation conveys depth
+in makepp's inference tree.  Suppose the target is C<all>, and C<all> depends
+on C<my_program>, and C<my_program> depends on C<*.o>, which depend on the
+corresponding C<.c> files.  Log messages related to C<all> will not be
+indented, log messages related to building the target C<my_program> will be
+indented two spaces, log messages related to building any of the object files
+will be indented 4 spaces, and log messages related to building any of the
+source files will be indented 6 spaces.
 
 If you're doing a parallel make (using the C<-j> command line option),
 the order of the messages in the log file will not make nearly as much

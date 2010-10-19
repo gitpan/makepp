@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.32 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.35 2010/10/18 21:40:21 pfeiffer Exp $
 
 =head1 NAME
 
@@ -25,6 +25,11 @@ package Mpp::CommandParser;
 use Mpp::Text ();
 use Mpp::Subs ();
 use Mpp::File;
+
+
+# Two overridable methods:
+(*add_more_executable_dependencies, *xparse_command) = @Mpp::Text::N;
+
 
 =head1 METHODS
 
@@ -61,27 +66,28 @@ Splits the command into words, prints a log message, and calls xparse_command.
 our $ignore_exe;		# Emergency override.
 my %is_builtin;
 @is_builtin{qw(
-  source break cd continue echo exit export kill let pwd return
+  break cd continue echo exit export kill let pwd return
   set test ulimit umask unset wait
   case esac fi for done
 )} = ();			# Make these exist
+our $shell_skip_words = qr/^\s*(?:(?:[.!]|do|e(?:lif|lse|val|xec)|if|source|t(?:hen|ime)|while|until)\s+)*/;
+				# Skip things like: then if ! . myfile
 sub parse_command {
   my( $self, $command, $setenv_hash ) = @_;
 
   Mpp::log PARSE => $command, $self->dirinfo, $self->rule
     if $Mpp::log_level;
 
+  $command =~ s/$Mpp::CommandParser::shell_skip_words//o;
+				# Sometimes we have "if gcc main.o -labc -o my_program; ..."
+
   my @cmd_words = Mpp::is_windows < 2 ?
     Mpp::Text::unquote_split_on_whitespace $command :
     map { tr/"//d; $_ } Mpp::Text::split_on_whitespace $command; # Don't unquote \, which is Win dir separator, TODO: \" -> "
   unless( $ignore_exe || UNIVERSAL::isa($self->rule->build_check_method, 'Mpp::BuildCheck::ignore_action') ) {
     # TODO: This test is redundant with scanner_skip_word:
-    if( $cmd_words[0] =~ /^(?:\.|do|e(?:val|xec)|if|source|t(?:hen|ime)|while|until)$/ ) {
-      $self->add_executable_dependency( $cmd_words[1] ) if @cmd_words > 1
-        && !exists $is_builtin{$cmd_words[1]};
-    } elsif( !exists $is_builtin{$cmd_words[0]} ) {
-      $self->add_executable_dependency( $cmd_words[0] );
-    }
+    $self->add_executable_dependency( $cmd_words[0] )
+      unless exists $is_builtin{$cmd_words[0]}
   }
   $self->xparse_command( \@cmd_words, $setenv_hash );
 }
@@ -127,8 +133,6 @@ sub add_executable_dependency {
       if $exe =~ m@^(.+)/[^/]+$@ || Mpp::is_windows > 1 && $exe =~ /^(.+)\\[^\\]+$/;
   }
 }
-
-*add_more_executable_dependencies = \&Mpp::Text::CONST0;
 
 =head2 input_filename_regexp
 
@@ -181,8 +185,6 @@ A failure forces the rule to propagate failure status, without attempting to
 build the target.
 
 =cut
-
-*xparse_command = \&Mpp::Text::CONST1;
 
 =head2 rule
 
@@ -253,7 +255,7 @@ add_simple_dependency adds a simple dependency, and does not attempt to
 build the dependency if it doesn't exist.
 
 Even if no actual file dependency is added, calls to add_dependency and
-add_simple_dependency and recorded for the purposes of caching scanner info,
+add_simple_dependency are recorded for the purposes of caching scanner info,
 in case the file becomes buildable in subsequent makepp runs.
 
 add_env_dependency adds a dependency on the value of the named environment
@@ -275,27 +277,27 @@ sub dirinfo {
 
 sub add_dependency {
   my $self = shift;
-  Mpp::ActionParser::add_dependency( $self->{DIR}, $self->dirinfo, $self->{RULE}, @_ );
+  Mpp::Lexer::add_dependency( $self->{DIR}, $self->dirinfo, $self->{RULE}, @_ );
 }
 
 sub add_optional_dependency {
   my $self = shift;
-  Mpp::ActionParser::add_optional_dependency( $self->{DIR}, $self->dirinfo, $self->{RULE}, @_ );
+  Mpp::Lexer::add_optional_dependency( $self->{DIR}, $self->dirinfo, $self->{RULE}, @_ );
 }
 
 sub add_simple_dependency {
   my $self = shift;
-  Mpp::ActionParser::add_simple_dependency( $self->{DIR}, $self->dirinfo, $self->{RULE}, @_ );
+  Mpp::Lexer::add_simple_dependency( $self->{DIR}, $self->dirinfo, $self->{RULE}, @_ );
 }
 
 sub add_target {
   my $self = shift;
-  Mpp::ActionParser::add_target( $self->{DIR}, $self->{RULE}, @_ );
+  Mpp::Lexer::add_target( $self->{DIR}, $self->{RULE}, @_ );
 }
 
 sub add_env_dependency {
   my $self = shift;
-  Mpp::ActionParser::add_env_dependency( $self->{RULE}, @_ );
+  Mpp::Lexer::add_env_dependency( $self->{RULE}, @_ );
 }
 
 #=head1 FIELDS

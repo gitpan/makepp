@@ -1,4 +1,4 @@
-# $Id: c_compilation_md5.pm,v 1.21 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: c_compilation_md5.pm,v 1.22 2010/06/01 20:49:11 pfeiffer Exp $
 use strict;
 package Mpp::Signature::c_compilation_md5;
 
@@ -154,13 +154,13 @@ sub md5sum_c_tokens {
 
       } elsif( /\G\"/gc ) {	# Quoted string?
 	my $quotepos = pos()-1;	# Remember where the string started.
-	1 while pos() < length and /\G[^\\\"]+/sgc || /\G\\./sgc;
+	1 while pos() < length and /\G[^\\"]+/sgc || /\G\\./sgc;
 				# Skip over everything between the quotes.
 	$tokens .= substr $_, $quotepos, ++pos()-$quotepos;
 				# Add the string to the checksum.
       } elsif( /\G\'/gc ) {	# Single quote expression?
 	my $quotepos = pos()-1;	# Remember where the string started.
-	1 while pos() < length and /\G[^\\\"]+/sgc || /\G\\./sgc;
+	1 while pos() < length and /\G[^\\']+/sgc || /\G\\./sgc;
 				# Skip over everything between the quotes.
 	$tokens .= substr $_, $quotepos, ++pos()-$quotepos;
 				# Add the string to the checksum.

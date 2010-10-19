@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.34 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.35 2010/08/22 20:17:17 pfeiffer Exp $
 use strict;
 package Mpp::BuildCheck::exact_match;
 
@@ -175,9 +175,8 @@ sub build_check {
   These are technically different and force a recompilation of everything,
   but this may not be what you want.  The difference is most likely caused
   by running a different copy of perl.\n"
-      if $Mpp::warn_level &&
-      (Mpp::ARCHITECTURE =~ /^i[34567]86-linux/ && $arch =~ // || Mpp::ARCHITECTURE =~ /^(\w+-\w+)/ && $arch =~ /^$1/) &&
-      !$arch_warning++;
+      if (Mpp::ARCHITECTURE =~ /^i[34567]86-linux/ && $arch =~ // || Mpp::ARCHITECTURE =~ /^(\w+-\w+)/ && $arch =~ /^$1/) &&
+	!$arch_warning++;
 
     Mpp::log BUILD_ARCH => $tinfo, $arch, Mpp::ARCHITECTURE
       if $Mpp::log_level;

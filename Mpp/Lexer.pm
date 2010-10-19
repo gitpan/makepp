@@ -1,51 +1,25 @@
-# $Id: ActionParser.pm,v 1.42 2010/02/09 22:39:51 pfeiffer Exp $
+# $Id: Lexer.pm,v 1.44 2010/10/18 21:40:21 pfeiffer Exp $
 
 =head1 NAME
 
-Mpp::ActionParser - Makepp action parser base class
-
-=head1 SYNOPSIS
-
-	perl_begin
-	 { package Mpp::ActionParser::MyParser;
-		our @ISA = qw/Mpp::ActionParser/;
-	 }
-	 sub parser_myscan{
-	 	return new Mpp::ActionParser::MyParser;
-	 };
-	perl_end
-
-	target: dependency : scanner myscan
-		action
+Mpp::Lexer - Makepp lexer for finding commands and redirections in a rule
 
 =head1 DESCRIPTION
 
-C<Mpp::ActionParser> is a base class for makepp(1) action parsers.
-It is responsible for dealing with generic shell command parsing.
+C<Mpp::Lexer> is responsible for lexical analysis of shell commands.  It finds
+file redirections as prerequisites or targets.  It also splits pipelines or
+series of commands checking each one, whether there is a command parser for it.
 
 Ideally, rule options should indicate whether back-quotes should be expanded
-and/or parsed.
-Currently, they are neither.
+and/or parsed.  Currently, they are neither.
 
-=head1 THE SCANNER INTERFACE
-
-When a scanner $parser is specified for a rule, first a subroutine named
-"parser_$parser" is sought.
-If it is found, then the parser object returned by that subroutine is used
-for the rule.
-Second, a subroutine named "scanner_$parser" is sought.
-If it is found, then a action parser that always uses that routine as the
-command parser is used.
-The second subroutine search is for legacy compatibility, and it is deprecated.
-
-Note that this is implemented in the Mpp::Makefile package, but we explain it here
-because you only need to know about it when you're messing with custom
-scanners.
+This class should handle all POSIX-like shells (bash, ksh, zsh) well enough,
+but not fully different ones like csh.
 
 =cut
 
 use strict;
-package Mpp::ActionParser;
+package Mpp::Lexer;
 
 use Mpp::Text;
 use Mpp::Rule;
@@ -57,30 +31,29 @@ use Mpp::FileOpt;
 
 =head2 new
 
-	my $parser=new Mpp::ActionParser;
+	my $lexer=new Mpp::Lexer;
 
-Returns a new Mpp::ActionParser object.
+Returns a new Mpp::Lexer object.
 
 =cut
 
-my $parser;
-
+my $lexer;
 sub new {
   my $self = $_[0];
   my $class=ref($self)||$self;
 
-  # Optimize the default parser constructor, because we know it's stateless.
+  # Optimize the default lexer constructor, because we know it's stateless.
   if($class eq __PACKAGE__) {
-    $parser ||= bless \$parser;
-    return $parser;
+    $lexer ||= bless \$lexer;
+    return $lexer;
   }
 
   bless {}, $class;
 }
 
-=head2 parse_rule
+=head2 lex_rule
 
-	$parser->parse_rule($actions, $rule);
+	$lexer->lex_rule($actions, $rule);
 
 For each action in $actions, first deal with shell stuff, for example:
 
@@ -104,7 +77,7 @@ Expand and/or parse back-quoted expressions if $rule's options so indicate [TBD]
 
 =item 5.
 
-For "cd" commands, determine the directory into which it changes [TBD]
+For "cd" commands, determine the directory into which it changes
 
 =back
 
@@ -119,8 +92,8 @@ Return value is TRUE on success.
 
 my %scanner_warnings;
 
-sub parse_rule {
-  my( $self, undef, $rule ) = @_; # $_[1] gets used via &Mpp::Rule::split_actions
+sub lex_rule {
+  my $rule = $_[2];	       # $_[1] gets used via &Mpp::Rule::split_actions
   my $parsers_found = 0;
 
   # TBD: There are 3 known problems with adding dependencies here:
@@ -177,7 +150,7 @@ sub parse_rule {
     # Split action into commands
     # TBD: This isn't quite right, because env and cwd settings don't propagate
     # to the next command if they are separated by '&' or '|'.
-    for my $command ( split_commands $action ) {
+    for $command ( split_commands $action ) {
       while( $command =~ /[<>]/ ) {
 	my $max = max_index_ignoring_quotes $command, '>';
 	my( $expr, $is_in );
@@ -214,6 +187,8 @@ sub parse_rule {
 	  add_target( $dir, $rule, $file );
 	}
       }
+      $command =~ s/$Mpp::CommandParser::shell_skip_words//o;
+				# Sometimes we have "if gcc main.o -labc -o my_program; ..."
       $rule->{MAKEFILE}->setup_environment;
       my %env = %ENV; # copy the set env to isolate command settings
       while ($command =~ s/^\s*(\w+)=//) {
@@ -251,7 +226,6 @@ sub parse_rule {
 # compile:
 #
   if( $parsers_found == 0 &&	# No scanners found at all?
-      $Mpp::warn_level &&
       !$rule->{SCANNER_NONE} ) { # From scanner none or skip_word
     my $tinfo = $rule->{EXPLICIT_TARGETS}[0];
     if( ref($tinfo) eq 'Mpp::File' && # Target is a file?
@@ -259,7 +233,7 @@ sub parse_rule {
       my $deps = $rule->{ALL_DEPENDENCIES};
       if( grep { 'Mpp::File' eq ref && $_->{NAME} =~ /\.c(?:|xx|\+\+|c|pp)$/i } values %$deps ) {
                                 # Looks like C source code?
-        warn 'action scanner not found for rule at `',
+        warn 'command parser not found for rule at `',
 	  $rule->source,
 	  "'\nalthough it seems to be a compilation command.  This means that makepp will
 not detect any include files.  To specify a scanner for the whole rule,
@@ -270,8 +244,7 @@ or
 Or to do it on a per command basis, if you have such obscure commands:
 register-scanner my_obscure_cc_wrapper	skip-word
 register-scanner my_obscure_cc		c-compilation
-"
-	    unless $scanner_warnings{$rule->source}++;
+"	    unless $scanner_warnings{$rule->source}++;
       }
     }
   }
@@ -281,7 +254,7 @@ register-scanner my_obscure_cc		c-compilation
 
 =head2 parse_command
 
-	$parser->parse_command($command, $rule, $dir, $setenv_hash);
+	$lexer->parse_command($command, $rule, $dir, $setenv_hash);
 
 Parse $command as if it is executed in directory $dir (relative to
 $rule->build_cwd), and update $rule accordingly.
@@ -313,7 +286,7 @@ sub parse_command {
 
 =head2 find_command_parser
 
-	my $command_parser=$parser->find_command_parser(
+	my $command_parser=$lexer->find_command_parser(
 	  $command, $rule, $dir, \$found
 	);
 
@@ -350,8 +323,7 @@ sub find_command_parser {
     my $scanner_hash = \%{$rule->{MAKEFILE}{PACKAGE} . '::scanners'};
     $parser = $scanner_hash->{$firstword};
 				# First try it unmodified.
-    unless( $parser ) {		# If that fails, strip out the
-				# directory path and try again.
+    unless( $parser ) {		# If that fails, strip out the directory path and try again.
       $firstword =~ s@^.*/@@ || Mpp::is_windows > 1 && $firstword =~ s@^.*\\@@ and  # Is there a directory path?
         $parser = $scanner_hash->{$firstword};
       $parser ||= $Mpp::Subs::scanners{$firstword} ||
@@ -363,8 +335,7 @@ sub find_command_parser {
     $parser=&$parser($command, $rule, $dir) || 0;
                                 # Call the routine.
     unless(UNIVERSAL::isa($parser, 'Mpp::CommandParser')) {
-      # This is assumed to mean that calling the %scanners value already
-      # did the scanning.
+      # This is assumed to mean that calling the %scanners value already did the scanning.
       $parser=0;
       Mpp::log SCAN_UNCACHEABLE => $rule, $firstword
 	if $Mpp::log_level;
