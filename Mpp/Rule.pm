@@ -225,7 +225,7 @@ sub find_all_targets_dependencies {
   # scan from scratch. (Well, not completely from scratch, because the cached
   # lists of include directives can still be used if they're up-to-date.)
   if( my $msg = $self->load_scaninfo( $oinfo, $command_string, \@explicit_dependencies )) {
-    Mpp::log SCAN_RULE => $oinfo, $msg
+    Mpp::log LEX_RULE => $oinfo, $msg
       if $Mpp::log_level;
     unless( eval { $self->lexer->lex_rule( $command_string, $self ) } ) {
       die $@ if $@ && $@ ne "SCAN_FAILED\n";

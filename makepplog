@@ -42,6 +42,7 @@ my %log_msg =
   INFER_DEP => 'infer_objects adding %s to dependency list because of %s',
   INFER_SEED => 'infer_objects called with seed objects %s',
 
+  LEX_RULE => 'Lexically analyzing rule for %s because %s',
   LOAD => 'Loading makefile %s with default directory %s',
   LOAD_AGAIN => 'Reloading makefile %s (because of %s) with default directory %s',
   LOAD_AUTOMAKE => 'Cleaning automake junk out of %S',
@@ -89,7 +90,6 @@ my %log_msg =
   SCAN_INFO_NOT => 'Couldn\'t use %s to retrieve scan info because %s',
   SCAN_NOT_SYS => 'Not scanning system file %s',
   SCAN_NOT_UNWRITABLE => 'Not scanning unwritable file %s',
-  SCAN_RULE => 'Scanning rule for %s because %s',
   SCAN_UNCACHEABLE => 'Not caching scan info for %s because the parser for %s doesn\'t support it',
 
   SYMLINK => 'After building, %s is a symbolic link',
@@ -119,7 +119,9 @@ $obsolete_msg[0] =
  };
 $obsolete_msg[1] =
  {
-  N_FILES => '%d files updated and %d targets failed'
+  N_FILES => '%d files updated and %d targets failed',
+
+  SCAN_RULE => 'Scanning rule for %s because %s',
  };
 
 

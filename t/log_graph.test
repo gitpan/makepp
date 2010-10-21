@@ -26,7 +26,7 @@ makepp '--dont-build=/', '--do-build=.'; # Can't have a RootMakeppfile because t
 
 makepp \'log', '-ciKnuokey.txt', '-k!PARSE !NOT_FOUND !VERSION'; # $(CC) varies and thus the parsed cmd
 				# and $(FC) may not be found on Windows.
-makepp \'log', '-cipuolog.txt', '-k!PARSE !SCAN* !NOT_FOUND !VERSION';
+makepp \'log', '-cipuolog.txt', '-k!LEX_RULE !PARSE !SCAN* !NOT_FOUND !VERSION';
 
 makepp \'graph';
 
@@ -1031,7 +1031,7 @@ PREBUILD Pre-building `a.o' from `makefile:25'
 TRY Trying to build `a.o'
 USE  Using rule `.../makepp_builtin_rules.mk:90(.)'
 SCAN_INFO  Trying to retrieve scan info for `a.o'
-SCAN_RULE Scanning rule for `a.o' because `info not cached'
+LEX_RULE Lexically analyzing rule for `a.o' because `info not cached'
 TRY Trying to build `a.c'
 USE  Using rule `default rule'
 DEPEND  Targets `a.c' depend on 
@@ -1057,7 +1057,7 @@ LOAD_INCL Including `.../makepp_builtin_rules.mk' from `.../makepp_default_makef
 LOAD_END Finished loading `.../makepp_default_makefile.mk'
 USE  Using rule `makefile:15'
 SCAN_INFO  Trying to retrieve scan info for `c/c.h'
-SCAN_RULE Scanning rule for `c/c.h' because `info not cached'
+LEX_RULE Lexically analyzing rule for `c/c.h' because `info not cached'
 DEPEND  Targets `c/c.h' depend on `c/c.h.in'
 TRY Trying to build `c/c.h.in'
 USE  Using rule `default rule'
@@ -1090,7 +1090,7 @@ PREBUILD Pre-building `b/b.o' from `makefile:25'
 TRY Trying to build `b/b.o'
 USE  Using rule `.../makepp_builtin_rules.mk:90(b)'
 SCAN_INFO  Trying to retrieve scan info for `b/b.o'
-SCAN_RULE Scanning rule for `b/b.o' because `info not cached'
+LEX_RULE Lexically analyzing rule for `b/b.o' because `info not cached'
 TRY Trying to build `b/b.c'
 USE  Using rule `default rule'
 DEPEND  Targets `b/b.c' depend on 
@@ -1104,7 +1104,7 @@ PREBUILD Pre-building `c/c.o' from `makefile:25'
 TRY Trying to build `c/c.o'
 USE  Using rule `.../makepp_builtin_rules.mk:90(c)'
 SCAN_INFO  Trying to retrieve scan info for `c/c.o'
-SCAN_RULE Scanning rule for `c/c.o' because `info not cached'
+LEX_RULE Lexically analyzing rule for `c/c.o' because `info not cached'
 TRY Trying to build `c/c.c'
 USE  Using rule `default rule'
 DEPEND  Targets `c/c.c' depend on 
@@ -1122,7 +1122,7 @@ DEPEND  Targets `c/c.o' depend on `a.h', `a1.h', `b/b.h', `b/b1.h', `c/c.c', `c/
 BUILD_NONE Build `c/c.o' because it doesn't exist
 SUCCESS `.../makepp_builtin_rules.mk:90(c)' successfully executed for `c/c.o'
 SCAN_INFO  Trying to retrieve scan info for `a'
-SCAN_RULE Scanning rule for `a' because `info not cached'
+LEX_RULE Lexically analyzing rule for `a' because `info not cached'
 DEPEND  Targets `a' depend on `a.o', `b/b.o', `c/c.o'
 BUILD_NONE Build `a' because it doesn't exist
 SUCCESS `makefile:25' successfully executed for `a'
