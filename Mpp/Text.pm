@@ -723,7 +723,7 @@ BEGIN {
   $Mpp::datadir ||= (grep -f( "$_/Mpp.pm" ), @INC)[0] or
     die "Can't find our libraries in \@INC.\n";
   open my $fh, '<', "$Mpp::datadir/VERSION" or
-    die "You are missing the file VERSION.  This should be part of the standard distribution.\n";
+    die "Can't read the file $Mpp::datadir/VERSION--$!.\nThis should be part of the standard distribution.\n";
   chomp( $Mpp::VERSION		# Hide assignment from CPAN scanner.
 	 = <$fh> );
   if( $Mpp::VERSION		# -"-

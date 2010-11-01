@@ -243,8 +243,8 @@ sub find_all_subdirs {
 # become directories.)	We make sure that all real directories have a
 # DIRCONTENTS hash (even if it's empty).
 #
-  unless( exists $dirinfo->{SCANNED_FOR_SUBDIRS} ) {
-    undef $dirinfo->{SCANNED_FOR_SUBDIRS};
+  unless( exists $dirinfo->{LOOKED_FOR_SUBDIRS} ) {
+    undef $dirinfo->{LOOKED_FOR_SUBDIRS};
 				# Don't do this again, because we may have
 				# to stat a lot of files.
     if( &is_dir ) {		# Don't even try to do this if this directory

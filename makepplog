@@ -59,6 +59,9 @@ my %log_msg =
   N_REP_HITS => '%d files imported from repositories',
   OUT_OF_DATE => 'Discarding out-of-date or corrupt build info file %s',
   PARSE => 'Parsing command %s from directory %s for rule %s',
+  PARSE_NONE => 'Parser none for %s for rule %s',
+  PARSE_SHELL => 'Parser shell %s command %s for rule %s',
+  PARSE_SKIP_WORD => 'Parser skip_word from %s to %s for rule %s',
   PREBUILD => 'Pre-building %s from %s',
   REMOVE => 'Removing target %s before running its rule',
 

@@ -240,7 +240,7 @@ sub makepp(@) {
     rename log => 'log' . $log_count++;
     chdir '..';
   }
-  system_intabort \"makepp$suffix", PERL, -f 'makeppextra.pm' ? '-Mmakeppextra' : (), $makepp_path.$suffix, @_;
+  system_intabort \"makepp$suffix", PERL, '-w', -f 'makeppextra.pm' ? '-Mmakeppextra' : (), $makepp_path.$suffix, @_;
   1;				# Command succeeded.
 }
 

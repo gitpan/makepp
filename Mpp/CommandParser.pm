@@ -66,26 +66,20 @@ Splits the command into words, prints a log message, and calls xparse_command.
 our $ignore_exe;		# Emergency override.
 my %is_builtin;
 @is_builtin{qw(
-  break cd continue echo exit export kill let pwd return
-  set test ulimit umask unset wait
+  break cd continue echo exit export false kill let pwd return
+  set test true ulimit umask unset wait
   case esac fi for done
 )} = ();			# Make these exist
-our $shell_skip_words = qr/^\s*(?:(?:[.!]|do|e(?:lif|lse|val|xec)|if|source|t(?:hen|ime)|while|until)\s+)*/;
-				# Skip things like: then if ! . myfile
 sub parse_command {
   my( $self, $command, $setenv_hash ) = @_;
 
   Mpp::log PARSE => $command, $self->dirinfo, $self->rule
     if $Mpp::log_level;
 
-  $command =~ s/$Mpp::CommandParser::shell_skip_words//o;
-				# Sometimes we have "if gcc main.o -labc -o my_program; ..."
-
   my @cmd_words = Mpp::is_windows < 2 ?
     Mpp::Text::unquote_split_on_whitespace $command :
     map { tr/"//d; $_ } Mpp::Text::split_on_whitespace $command; # Don't unquote \, which is Win dir separator, TODO: \" -> "
   unless( $ignore_exe || UNIVERSAL::isa($self->rule->build_check_method, 'Mpp::BuildCheck::ignore_action') ) {
-    # TODO: This test is redundant with scanner_skip_word:
     $self->add_executable_dependency( $cmd_words[0] )
       unless exists $is_builtin{$cmd_words[0]}
   }

@@ -14,7 +14,7 @@ Ideally, rule options should indicate whether back-quotes should be expanded
 and/or parsed.  Currently, they are neither.
 
 This class should handle all POSIX-like shells (bash, ksh, zsh) well enough,
-but not fully different ones like csh.
+but not rather different ones like csh.
 
 =cut
 
@@ -90,10 +90,10 @@ Return value is TRUE on success.
 
 =cut
 
-my %scanner_warnings;
-
+my %parser_warnings;
+our @actions;			# private, except find_command_parser (p_shell) alters it
 sub lex_rule {
-  my $rule = $_[2];	       # $_[1] gets used via &Mpp::Rule::split_actions
+  my $rule = $_[2];		# $_[1] gets used via &Mpp::Rule::split_actions
   my $parsers_found = 0;
 
   # TBD: There are 3 known problems with adding dependencies here:
@@ -111,7 +111,7 @@ sub lex_rule {
   #    live with that, it would be more efficient to call
   #    $rule->mark_scaninfo_uncacheable, to save it the effort of trying.
 
-  my( undef, undef, $command, $action, @actions ) = &Mpp::Rule::split_actions; # Get the commands to execute.
+  (undef, undef, my( $command, $action ), local @actions) = &Mpp::Rule::split_actions; # Get the commands to execute.
   $#actions -= 4;		# Eliminate bogus undefs.
   while( 1 ) {
     next unless defined $action;
@@ -129,10 +129,10 @@ sub lex_rule {
 	add_simple_dependency( '.', $cwd, $rule,
 			       relative_filename Mpp::is_perl_5_6 ?
 				 $rule->makefile->{MAKEFILE} :
-				 # For '.' this returns a relative name to where use was performed, but we might be somewhere else now :-(
+				 # In case of chdir since '.'-based use was performed:
 				 path_file_info( B::svref_2object( \&$makefile_cmd )->FILE, $cwd ),
 				 $cwd );
-      } elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
+      } elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin function?
 	# TODO: Should we use our knowledge of the builtins to find out exactly what files
 	# they handle?  That would mean redoing half of what they'll really do, like option
 	# processing.  E.g. -fo is a -o option, but if it's -o '|...' then there's no file.
@@ -187,8 +187,8 @@ sub lex_rule {
 	  add_target( $dir, $rule, $file );
 	}
       }
-      $command =~ s/$Mpp::CommandParser::shell_skip_words//o;
-				# Sometimes we have "if gcc main.o -labc -o my_program; ..."
+      $command =~ s/^\s*(?:(?:[.!]|do|e(?:lif|lse|xec)|if|source|then|while|until)\s+)*//;
+				# Skip "if gcc main.o -labc -o my_program; ..." or even "then if ! . myfile"
       $rule->{MAKEFILE}->setup_environment;
       my %env = %ENV; # copy the set env to isolate command settings
       while ($command =~ s/^\s*(\w+)=//) {
@@ -209,9 +209,9 @@ sub lex_rule {
       }
 
       unless($command =~ /^\s*$/) {
-	my $result = $_[0]->parse_command( $command, $rule, $dir, \%env );
-	return undef unless defined $result;
-	$result and ++$parsers_found;
+	my $found = $_[0]->parse_command( $command, $rule, $dir, \%env );
+	return undef unless defined $found;
+	$found == 1 and ++$parsers_found;
       }
     }
   } continue {
@@ -225,7 +225,7 @@ sub lex_rule {
 # C/C++ compilation.  See if this rule looks like it's some sort of a
 # compile:
 #
-  if( $parsers_found == 0 &&	# No scanners found at all?
+  if( $parsers_found == 0 &&	# No parsers found at all?
       !$rule->{SCANNER_NONE} ) { # From scanner none or skip_word
     my $tinfo = $rule->{EXPLICIT_TARGETS}[0];
     if( ref($tinfo) eq 'Mpp::File' && # Target is a file?
@@ -244,7 +244,7 @@ or
 Or to do it on a per command basis, if you have such obscure commands:
 register-scanner my_obscure_cc_wrapper	skip-word
 register-scanner my_obscure_cc		c-compilation
-"	    unless $scanner_warnings{$rule->source}++;
+"	    unless $parser_warnings{$rule->source}++;
       }
     }
   }
@@ -254,7 +254,7 @@ register-scanner my_obscure_cc		c-compilation
 
 =head2 parse_command
 
-	$lexer->parse_command($command, $rule, $dir, $setenv_hash);
+	$lexer->parse_command($command, $rule, $dir, $setenv_hash, \$found);
 
 Parse $command as if it is executed in directory $dir (relative to
 $rule->build_cwd), and update $rule accordingly.
@@ -276,26 +276,24 @@ failed.
 =cut
 
 sub parse_command {
-  #my ($self,$command, $rule, $dir, $setenv)=@_;
-  my $result = 0;
-  if( my $command_parser = $_[0]->find_command_parser($_[1], $_[2], $_[3] || '.', \$result) ) {
-    return undef unless defined $command_parser->parse_command($_[1], $_[4] || {});
+  my $command = $_[1];		# modified by skip-word
+  my $found = 0;
+  if( my $command_parser = $_[0]->find_command_parser($command, $_[2], $_[3] || '.', \$found) ) {
+    if( ref $command_parser ) {
+      return undef unless defined $command_parser->parse_command($command, $_[4] || {});
+    }
   }
-  $result;
+  $found;
 }
 
 =head2 find_command_parser
 
-	my $command_parser=$lexer->find_command_parser(
-	  $command, $rule, $dir, \$found
-	);
+	my $command_parser=$lexer->find_command_parser($command, $rule, $dir, \$found);
 
-The first word of $command is looked up in %scanners from the
-Makeppfile's namespace.
+The first word of $command is looked up in %parsers from the Makeppfile's namespace.
 If it isn't found, then undef is returned (after issuing a warning if it
 looks like the rule really ought to have a scanner).
-Otherwise, the resulting coderef is called with the command, rule
-and directory.
+Otherwise, the resulting coderef is called with the command, rule and directory.
 If the return value is a reference to an object of type Mpp::CommandParser,
 then it is returned.
 Otherwise, 0 is returned.
@@ -308,41 +306,68 @@ backward compatibility.
 
 sub find_command_parser {
   my( undef, $command, $rule, $dir, $found ) = @_;
-  my $firstword;
-  if( ($firstword) = $command =~ /^\s*(\S+)/ ) {
-    if( Mpp::is_windows < 2 && $firstword =~ /['"\\]/ ) {	# Cheap way was not good enough.
-      ($firstword) = unquote +(split_on_whitespace $command)[0];
-    } elsif( Mpp::is_windows > 1 && $firstword =~ /"/ ) {
-      ($firstword) = split_on_whitespace $command;
-      $firstword =~ tr/"//d;	# Don't unquote \, which is Win dir separator
-    }
-  }
   my $parser;
-  if( defined $firstword ) {
-    no strict 'refs';
-    my $scanner_hash = \%{$rule->{MAKEFILE}{PACKAGE} . '::scanners'};
-    $parser = $scanner_hash->{$firstword};
+  my $from_rule = $rule->{PARSER};
+  my( $firstword, @rest ) = split_on_whitespace $command;
+  until( defined $parser ) {
+    if( $from_rule ) {
+      $parser = $from_rule;
+      undef $from_rule;		# Only applies to relly 1st word
+    } else {
+      if( Mpp::is_windows < 2 && $firstword =~ /['"\\]/ ) {
+	$firstword = unquote $firstword;
+      } elsif( Mpp::is_windows > 1 && $firstword =~ /"/ ) {
+	$firstword =~ tr/"//d;	# Don't unquote \, which is Win dir separator
+      }
+      if( defined $firstword ) {
+	no strict 'refs';
+	my $parser_hash = \%{$rule->{MAKEFILE}{PACKAGE} . '::parsers'};
+	$parser = $parser_hash->{$firstword};
 				# First try it unmodified.
-    unless( $parser ) {		# If that fails, strip out the directory path and try again.
-      $firstword =~ s@^.*/@@ || Mpp::is_windows > 1 && $firstword =~ s@^.*\\@@ and  # Is there a directory path?
-        $parser = $scanner_hash->{$firstword};
-      $parser ||= $Mpp::Subs::scanners{$firstword} ||
-	$firstword =~ /gcc|g\+\+/ && \&Mpp::Subs::scanner_gcc_compilation;
+	unless( $parser ) {	# If that fails, strip out the directory path and try again.
+	  $firstword =~ s@^.*/@@ || Mpp::is_windows > 1 && $firstword =~ s@^.*\\@@ and  # Is there a directory path?
+	    $parser = $parser_hash->{$firstword};
+	  $parser ||= $Mpp::Subs::parsers{$firstword} ||
+	    $firstword =~ /gcc|g\+\+/ && \&Mpp::Subs::p_gcc_compilation;
+	}
+      }
     }
-  }
-  if ($parser) {               # Did we get one?
-    $$found++;
-    $parser=&$parser($command, $rule, $dir) || 0;
-                                # Call the routine.
-    unless(UNIVERSAL::isa($parser, 'Mpp::CommandParser')) {
-      # This is assumed to mean that calling the %scanners value already did the scanning.
-      $parser=0;
-      Mpp::log SCAN_UNCACHEABLE => $rule, $firstword
-	if $Mpp::log_level;
-      $rule->mark_scaninfo_uncacheable;
+    if( $parser ) {		# Did we get one?
+      $parser = &$parser( $command, $rule, $dir ) || 0; # Call the routine.
+      if( ref $parser ) {
+	$$found = 1;
+	unless( UNIVERSAL::isa $parser, 'Mpp::CommandParser' ) {
+	  # This is assumed to mean that calling the %parsers value already did the scanning.
+	  $parser = 0;
+	  Mpp::log SCAN_UNCACHEABLE => $rule, $firstword
+	    if $Mpp::log_level;
+	  $rule->mark_scaninfo_uncacheable;
+	}
+      } elsif( $parser ) {	# p_skip_word or p_shell
+	shift @rest while @rest && $rest[0] =~ /^["'\\]?-/; # skip options
+	if( $parser == &Mpp::Subs::p_shell ) {
+	  unshift @actions, undef, undef, undef, join ' ', map unquote, @rest;
+				# just 1 rest for sh -c cmd, but possibly eval cmd1\; cmd2
+	  Mpp::log PARSE_SHELL => $firstword, $actions[3], $rule
+	    if $Mpp::log_level;
+	  $$found = 2;		# Not 1, but continue
+	  return;
+	}
+	# Must be p_skip_word; doesn't count as found
+	Mpp::log PARSE_SKIP_WORD => $firstword, $rest[0], $rule
+	  if $Mpp::log_level;
+	$_[1] = $command = join ' ', @rest; # parse only rest
+	$firstword = shift @rest;
+	undef $parser;
+      } else {			# p_none
+	Mpp::log PARSE_NONE => $firstword, $rule
+	  if $Mpp::log_level;
+	$$found = 1;
+	return;
+      }
+    } else {			# No parser:
+      $parser = new Mpp::CommandParser($rule, $dir);
     }
-  } else {   # No parser:
-    $parser = new Mpp::CommandParser($rule, $dir);
   }
   $parser;
 }

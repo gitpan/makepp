@@ -2007,10 +2007,10 @@ sub read_makefile {
 # b) The word in the command to match.
 # c) A reference to the subroutine.
 #
-sub register_scanner {
+sub register_parser {
   #my ($self, $word, $subr) = @_;
 
-  ${"$_[0]{PACKAGE}::scanners"}{$_[1]} = $_[2];
+  ${"$_[0]{PACKAGE}::parsers"}{$_[1]} = $_[2];
 }
 
 #

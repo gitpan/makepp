@@ -1,3 +1,7 @@
+2010-10-22  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Rule.pm (set_signature_class): New name for set_signature_method_scanner.
+
 2010-10-18  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	* *: Rename ActionParser to Lexer and only refer to it by that

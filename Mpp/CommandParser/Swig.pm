@@ -122,7 +122,7 @@ sub xparse_command {
   $includeall and $scanner->{INCLUDEALL} = 1;
 
   my $rule = $self->rule;
-  $rule->set_signature_method_scanner("c_compilation_md5");
+  $rule->set_signature_class("c_compilation_md5");
 
   $scanner->set_var(SWIG => 1);
   $scanner->set_var("SWIG" . uc($swig_language), 1);

@@ -229,7 +229,7 @@ perform eval {
       $Mpp::n_files_changed += $n_files;
       next if $temporary;
       my $sig = $build_info->{SIG_METHOD_NAME}; # All targets have the same.
-      $sig &&= $rule->set_signature_method_scanner( $sig );
+      $sig &&= $rule->set_signature_class( $sig );
       my $dep_sigs = '';	# Precalculate this for the targets loop
       my $sep = '';
       for my $dep ( split /\cA/, $build_info->{SORTED_DEPS} ) {

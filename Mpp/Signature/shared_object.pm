@@ -60,7 +60,7 @@ sub signature_shared_lib {
   my ($self, $finfo) = @_;
 
   my $cksum = Mpp::File::build_info_string( $finfo, build_info_key );
-  return $cksum if $cksum;	# Don't bother rescanning if the
+  return $cksum if $cksum;	# Don't bother redigesting if the
 				# file hasn't changed.	(The build info is
 				# discarded if the file date changes, so this
 				# flushes our cached signature.)

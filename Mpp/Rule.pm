@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.107 2010/10/18 21:40:21 pfeiffer Exp $
+# $Id: Rule.pm,v 1.107 2010/10/31 21:40:21 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -459,17 +459,17 @@ sub add_implicit_env_dependency {
   $self->add_env_dependency($name);
 }
 
-=head2 set_signature_method_scanner
+=head2 set_signature_class
 
-   $rule->set_signature_method_scanner($name)
+   $rule->set_signature_class($name)
 
 Like set_signature_method_default, except that it takes a class name
 instead of an object, and it caches how the signature method was set by a
-scanner.
+command parser.
 
 =cut
 
-sub set_signature_method_scanner {
+sub set_signature_class {
   my ($self, $name) = @_;
   my $signature = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
     eval "use Signature::$name; \$Signature::${name}::$name" # TODO: provisional
@@ -633,7 +633,7 @@ sub load_scaninfo_single {
   return 'the build command changed' if $command_string ne $command;
 
   my $saved_signature_method = $self->{SIGNATURE_METHOD};
-  $self->set_signature_method_scanner($sig_method)
+  $self->set_signature_class($sig_method)
     if $sig_method;
 
   # Trump up a dummy scanner object to help us look for files.
@@ -976,7 +976,7 @@ sub split_actions {
   pos( $_[1] ) = 0;
   $_[1] =~ /\G\s*/gc;
   $_[1] =~ /\G($action_prefix)(?:(?:make)?perl\s*(\{(?s:\{.*?\}\})?.*)|(&)?(.*))\s*/cgmo;
-  #	      1					       1		   2		       2 3 3 4  4
+  #	      1		     1			 2		 2     3 3 4  4
 }
 
 =head2 $rule->setup_environment()
@@ -1334,7 +1334,7 @@ sub source { $_[0]{RULE_SOURCE} }
 #
 # This should only be called from subroutines which are called by
 # find_all_targets_dependencies.  This basically means it should only be
-# called by the command scanners.
+# called by the command parsers.
 #
 sub add_dependency {
   $_[0]{ALL_DEPENDENCIES}{int $_[1]} ||= $_[1];
@@ -1396,7 +1396,7 @@ sub expand_additional_deps {
 #
 # This should only be called from subroutines which are called by
 # find_all_targets_dependencies.  This basically means it should only be
-# called by the command scanners.
+# called by the command parsers.
 #
 sub add_target {
   my ($self, $oinfo) = @_;

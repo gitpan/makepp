@@ -81,45 +81,48 @@ our $rule;
 
 ###############################################################################
 #
-# Command scanners included with makepp:
-#
-
+# Command parsers included with makepp:
 #
 # Scan C command, looking for sources and includes and libraries.
-# (Don't use 'our', because it does bad things to eval calls in this file.)
 #
 # TODO: is $ENV{INCLUDE} a reliable alternative on native Windows?  And if
 # ActiveState is to call MinGW gcc, must makepp translate directory names?
 our @system_include_dirs = grep -d, qw(/usr/local/include /usr/include);
 our @system_lib_dirs = grep -d, qw(/usr/local/lib /usr/lib /lib);
 
-sub scanner_gcc_compilation {
+sub p_gcc_compilation {
   shift;
   Mpp::CommandParser::Gcc->new( @_ );
 }
+# TODO: remove the backwards compatibility scanner_ variants.
+*scanner_gcc_compilation = \&p_gcc_compilation;
 
-sub scanner_c_compilation {
+sub p_c_compilation {
   shift;
   Mpp::CommandParser::Gcc->new_no_gcc( @_ );
 }
+*scanner_c_compilation = \&p_c_compilation;
 
-sub scanner_esqlc_compilation {
+sub p_esqlc_compilation {
   shift;
   require Mpp::CommandParser::Esqlc;
   Mpp::CommandParser::Esqlc->new( @_ );
 }
+*scanner_esqlc_compilation = \&p_esqlc_compilation;
 
-sub scanner_vcs_compilation {
+sub p_vcs_compilation {
   shift;
   require Mpp::CommandParser::Vcs;
   Mpp::CommandParser::Vcs->new( @_ );
 }
+*scanner_vcs_compilation = \&p_vcs_compilation;
 
-sub scanner_swig {
+sub p_swig {
   shift;
   require Mpp::CommandParser::Swig;
   Mpp::CommandParser::Swig->new( @_ );
 }
+*scanner_swig = \&p_swig;
 
 #
 # This scanner exists only to allow the user to say ":scanner none" to suppress
@@ -159,69 +162,73 @@ sub scanner_skip_word {
   new Mpp::Lexer;
 }
 
+# These are implemented in Mpp::Lexer::find_command_parser
+(*p_none, *p_skip_word, *p_shell) = @Mpp::Text::N;
+
 #
-# This array contains the list of the default scanners used for various
+# This array contains the list of the default parsers used for various
 # command words.
 #
-our %scanners =
+our %parsers =
   (
    # These words usually introduce another command
    # which actually is the real compilation command:
-   ash		=> \&scanner_skip_word,
-   bash		=> \&scanner_skip_word,
-   csh		=> \&scanner_skip_word,
-   ksh		=> \&scanner_skip_word,
-   sh		=> \&scanner_skip_word,
-   tcsh		=> \&scanner_skip_word,
-   zsh		=> \&scanner_skip_word,
+   ash		=> \&p_shell,
+   bash		=> \&p_shell,
+   csh		=> \&p_shell,
+   ksh		=> \&p_shell,
+   sh		=> \&p_shell,
+   tcsh		=> \&p_shell,
+   zsh		=> \&p_shell,
+   eval		=> \&p_shell,
 
-   ccache	=> \&scanner_skip_word,
-   condor_compile => \&scanner_skip_word,
-   cpptestscan	=> \&scanner_skip_word, # Parasoft c++test
-   diet		=> \&scanner_skip_word, # dietlibc
-   distcc	=> \&scanner_skip_word,
-   fast_cc	=> \&scanner_skip_word,
-   libtool	=> \&scanner_skip_word,
-   purecov	=> \&scanner_skip_word,
-   purify	=> \&scanner_skip_word,
-   quantify	=> \&scanner_skip_word,
-   time		=> \&scanner_skip_word,
+   ccache	=> \&p_skip_word,
+   condor_compile => \&p_skip_word,
+   cpptestscan	=> \&p_skip_word, # Parasoft c++test
+   diet		=> \&p_skip_word, # dietlibc
+   distcc	=> \&p_skip_word,
+   fast_cc	=> \&p_skip_word,
+   libtool	=> \&p_skip_word,
+   purecov	=> \&p_skip_word,
+   purify	=> \&p_skip_word,
+   quantify	=> \&p_skip_word,
+   time		=> \&p_skip_word,
 
    # All the C/C++ compilers we have run into so far:
-   cc		=> \&scanner_c_compilation,
-  'c++'		=> \&scanner_c_compilation,
-   CC		=> \&scanner_c_compilation,
-   cxx		=> \&scanner_c_compilation,
-   c89		=> \&scanner_c_compilation,
-   c99		=> \&scanner_c_compilation,
-   pcc		=> \&scanner_c_compilation,
-   kcc		=> \&scanner_c_compilation, # KAI C++.
-   ccppc	=> \&scanner_c_compilation, # Green Hills compilers.
-   cxppc	=> \&scanner_c_compilation,
-   aCC		=> \&scanner_c_compilation, # HP C++.
-   lsbcc	=> \&scanner_c_compilation, # LSB wrapper around cc.
-  'lsbc++'	=> \&scanner_c_compilation,
-   xlc		=> \&scanner_c_compilation, # AIX
-   xlc_r	=> \&scanner_c_compilation,
-   xlC		=> \&scanner_c_compilation,
-   xlC_r	=> \&scanner_c_compilation,
-   cpp		=> \&scanner_c_compilation, # The C/C++ preprocessor.
-   cl		=> \&scanner_c_compilation, # MS Visual C/C++
-   bcc32	=> \&scanner_c_compilation, # Borland C++
-   insure	=> \&scanner_c_compilation, # Parasoft Insure++
+   cc		=> \&p_c_compilation,
+  'c++'		=> \&p_c_compilation,
+   CC		=> \&p_c_compilation,
+   cxx		=> \&p_c_compilation,
+   c89		=> \&p_c_compilation,
+   c99		=> \&p_c_compilation,
+   pcc		=> \&p_c_compilation,
+   kcc		=> \&p_c_compilation, # KAI C++.
+   ccppc	=> \&p_c_compilation, # Green Hills compilers.
+   cxppc	=> \&p_c_compilation,
+   aCC		=> \&p_c_compilation, # HP C++.
+   lsbcc	=> \&p_c_compilation, # LSB wrapper around cc.
+  'lsbc++'	=> \&p_c_compilation,
+   xlc		=> \&p_c_compilation, # AIX
+   xlc_r	=> \&p_c_compilation,
+   xlC		=> \&p_c_compilation,
+   xlC_r	=> \&p_c_compilation,
+   cpp		=> \&p_c_compilation, # The C/C++ preprocessor.
+   cl		=> \&p_c_compilation, # MS Visual C/C++
+   bcc32	=> \&p_c_compilation, # Borland C++
+   insure	=> \&p_c_compilation, # Parasoft Insure++
 
-   vcs		=> \&scanner_vcs_compilation,
+   vcs		=> \&p_vcs_compilation,
 
-   ecpg		=> \&scanner_esqlc_compilation,
-   esql		=> \&scanner_esqlc_compilation,
-   esqlc	=> \&scanner_esqlc_compilation,
-   proc		=> \&scanner_esqlc_compilation,
-   yardpc	=> \&scanner_esqlc_compilation,
+   ecpg		=> \&p_esqlc_compilation,
+   esql		=> \&p_esqlc_compilation,
+   esqlc	=> \&p_esqlc_compilation,
+   proc		=> \&p_esqlc_compilation,
+   yardpc	=> \&p_esqlc_compilation,
 
-   swig         => \&scanner_swig
+   swig         => \&p_swig
 );
 
-@scanners{ map "$_.exe", keys %scanners } = values %scanners
+@parsers{ map "$_.exe", keys %parsers } = values %parsers
   if Mpp::is_windows;
 
 # True while we are within a define statement.
@@ -1901,7 +1908,7 @@ sub s_register_scanner {
   my $scanner_sub = $fields[1] =~ /^(?:scanner_)?none$/ ?
     undef : (*{"$mkfile->{PACKAGE}::$fields[1]"}{CODE} || *{"$mkfile->{PACKAGE}::scanner_$fields[1]"}{CODE});
 				# Get a reference to the subroutine.
-  $mkfile->register_scanner($command_word, $scanner_sub);
+  $mkfile->register_parser($command_word, $scanner_sub);
 }
 
 #
@@ -1925,7 +1932,7 @@ sub s_register_command_parser {
       return new $fields[1]( \@_ );
     }
   } or die $@;
-  $mkfile->register_scanner( $fields[0], $scanner_sub );
+  $mkfile->register_parser( $fields[0], $scanner_sub );
 }
 
 #
@@ -2086,7 +2093,7 @@ sub import() {
   my $package = caller;
   no warnings 'redefine';	# In case we are reimporting this
   for( keys %Mpp::Subs:: ) {
-    $_[1] ? /^(?:$_[1])/ : /^[fs]_/ or # functions and statements only
+    $_[1] ? /^(?:$_[1])/ : /^[fps]_/ or # functions, parsers and statements only
       /^run/ or
       /^scanner_/ or
       next;

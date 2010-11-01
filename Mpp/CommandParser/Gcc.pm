@@ -40,7 +40,7 @@ sub set_default_signature_method {
 
   # Use the MD5 signature checking when we can.
   $Mpp::has_md5_signatures and
-    $self->rule->set_signature_method_scanner( $leave_comments ? 'md5' : 'c_compilation_md5' );
+    $self->rule->set_signature_class( $leave_comments ? 'md5' : 'c_compilation_md5' );
 }
 
 # The subclass can override these. Don't start doing any actual scanning here,

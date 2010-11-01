@@ -44,7 +44,7 @@ sub xparse_command {
   my( $self, $command, $setenv ) = @_;
 
   # Use the MD5 signature checking when we can.
-  $self->rule->set_signature_method_scanner( 'verilog_simulation_md5' )
+  $self->rule->set_signature_class( 'verilog_simulation_md5' )
     if $Mpp::has_md5_signatures;
 
   my @words=@$command;
