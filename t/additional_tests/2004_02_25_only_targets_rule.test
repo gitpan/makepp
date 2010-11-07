@@ -16,7 +16,7 @@ makepp 'working';
 makepp_no_builtin = 1
 
 # Make some nice pattern rules
-%.o : %.cpp : scanner none
+%.o : %.cpp : parser none
 	&touch $(output)
 
 # And another pattern rule involving .o files

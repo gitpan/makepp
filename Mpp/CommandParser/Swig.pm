@@ -19,6 +19,8 @@ our @ISA = qw/Mpp::CommandParser/;
 
 use Mpp::File;
 
+*factory = \&Mpp::Subs::p_swig;
+
 #
 # Swig has a convenient option to get where its library directories are, so
 #

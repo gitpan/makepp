@@ -113,6 +113,7 @@ sub lex_rule {
 
   (undef, undef, my( $command, $action ), local @actions) = &Mpp::Rule::split_actions; # Get the commands to execute.
   $#actions -= 4;		# Eliminate bogus undefs.
+  my $p_shell;
   while( 1 ) {
     next unless defined $action;
 
@@ -209,6 +210,7 @@ sub lex_rule {
       }
 
       unless($command =~ /^\s*$/) {
+	local $rule->{PARSER} if $p_shell; # Special recursion brake set by find_command_parser's p_shell handling.
 	my $found = $_[0]->parse_command( $command, $rule, $dir, \%env );
 	return undef unless defined $found;
 	$found == 1 and ++$parsers_found;
@@ -216,7 +218,8 @@ sub lex_rule {
     }
   } continue {
     last unless @actions;
-    (undef, undef, $command, $action) = splice @actions, 0, 4;
+    ($p_shell, undef, $command, $action) = splice @actions, 0, 4;
+    $p_shell = ref $p_shell;
   }
 
 #
@@ -226,7 +229,7 @@ sub lex_rule {
 # compile:
 #
   if( $parsers_found == 0 &&	# No parsers found at all?
-      !$rule->{SCANNER_NONE} ) { # From scanner none or skip_word
+      !$rule->{SCANNER_NONE} ) { # From deprecated form of scanner none or skip_word
     my $tinfo = $rule->{EXPLICIT_TARGETS}[0];
     if( ref($tinfo) eq 'Mpp::File' && # Target is a file?
         $tinfo->{NAME} =~ /\.l?o$/ ) { # And it's an object file?
@@ -236,14 +239,14 @@ sub lex_rule {
         warn 'command parser not found for rule at `',
 	  $rule->source,
 	  "'\nalthough it seems to be a compilation command.  This means that makepp will
-not detect any include files.  To specify a scanner for the whole rule,
-add a :scanner modifier line to the rule actions, like this:
-    : scanner gcc-compilation	# Scans for include files.
+not detect any include files.  To specify a parser for the whole rule,
+add a :parser modifier line to the rule actions, like this:
+    : parser gcc-compilation	# Scans source for include files.
 or
-    : scanner none		# Does not scan, but suppresses warning.
+    : parser none		# Does not scan, but suppresses warning.
 Or to do it on a per command basis, if you have such obscure commands:
-register-scanner my_obscure_cc_wrapper	skip-word
-register-scanner my_obscure_cc		c-compilation
+register-parser my_obscure_cc_wrapper	skip-word
+register-parser my_obscure_cc		c-compilation
 "	    unless $parser_warnings{$rule->source}++;
       }
     }
@@ -291,8 +294,7 @@ sub parse_command {
 	my $command_parser=$lexer->find_command_parser($command, $rule, $dir, \$found);
 
 The first word of $command is looked up in %parsers from the Makeppfile's namespace.
-If it isn't found, then undef is returned (after issuing a warning if it
-looks like the rule really ought to have a scanner).
+If it isn't found, then undef is returned.
 Otherwise, the resulting coderef is called with the command, rule and directory.
 If the return value is a reference to an object of type Mpp::CommandParser,
 then it is returned.
@@ -312,7 +314,7 @@ sub find_command_parser {
   until( defined $parser ) {
     if( $from_rule ) {
       $parser = $from_rule;
-      undef $from_rule;		# Only applies to relly 1st word
+      $from_rule = 0;		# Only applies to really 1st word
     } else {
       if( Mpp::is_windows < 2 && $firstword =~ /['"\\]/ ) {
 	$firstword = unquote $firstword;
@@ -346,7 +348,8 @@ sub find_command_parser {
       } elsif( $parser ) {	# p_skip_word or p_shell
 	shift @rest while @rest && $rest[0] =~ /^["'\\]?-/; # skip options
 	if( $parser == &Mpp::Subs::p_shell ) {
-	  unshift @actions, undef, undef, undef, join ' ', map unquote, @rest;
+	  unshift @actions, defined $from_rule ? \1 : undef, # special marker to not propagate parser into subcommand
+	      undef, undef, join ' ', map unquote, @rest;
 				# just 1 rest for sh -c cmd, but possibly eval cmd1\; cmd2
 	  Mpp::log PARSE_SHELL => $firstword, $actions[3], $rule
 	    if $Mpp::log_level;

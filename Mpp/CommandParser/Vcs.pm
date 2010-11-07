@@ -19,6 +19,8 @@ our @ISA = qw/Mpp::CommandParser/;
 use Mpp::File;
 use Mpp::Text;
 
+*factory = \&Mpp::Subs::p_vcs_compilation;
+
 sub new {
   my $self = &Mpp::CommandParser::new;
   require Mpp::Scanner::Verilog;

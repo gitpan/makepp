@@ -5,7 +5,7 @@
 # an undefined value being returned from Mpp::Scanner::include.
 
 %.h %.c: %.idl
-	: scanner c_compilation
+	: parser c_compilation
 	.$/idlcompiler -Iinclude $(input)
 
 include/%.idl: from/%.idl

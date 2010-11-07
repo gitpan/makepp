@@ -22,6 +22,8 @@ our @ISA = 'Mpp::CommandParser';
 use Mpp::Text;
 use Mpp::File;
 
+*factory = \&Mpp::Subs::p_gcc_compilation;
+
 sub new {
   my $self = &Mpp::CommandParser::new;
   require Mpp::Scanner::C;

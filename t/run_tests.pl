@@ -204,7 +204,8 @@ for( $ENV{PATH} ) {
   s/$sep+\.?$sep+/$sep/;
   $_ = "$source_path$sep$_";
 }
-
+our %global_ENV = %ENV;		# Make a copy of the environment, because
+				# some test wrappers change it.
 
 #
 # Equivalent of system() except that it handles INT signals correctly.
@@ -464,6 +465,7 @@ foreach $archive (@ARGV) {
       $page_break = '';
       $log_count = 1;
       if( -r 'makepp_test_script.pl' ) {
+	local %ENV = %global_ENV;
 	do 'makepp_test_script.pl' or
 	  die 'makepp_test_script.pl ' . ($@ ? "died: $@" : "returned false\n");
       } elsif( -x 'makepp_test_script' ) {

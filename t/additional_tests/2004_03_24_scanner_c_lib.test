@@ -11,7 +11,7 @@ iftrue $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC))
 endif
 ###	62	644	1160341077	1287952300	Makefile
 #
-# Test various things about the command parser:
+# Test various things about the lexer, command parsers and C scanner:
 # 1) Splitting command up into multiple lines;
 # 2) Ignoring the echo with quoted string;
 # 3) Handling -lxyz.

@@ -1899,6 +1899,7 @@ sub s_autoload {
 #
 sub s_register_scanner {
   my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
+  warn "$mkfile_line: register-scanner deprecated, please use register-parser\n";
 
   my( @fields ) = split_on_whitespace $mkfile->expand_text( $_[0], $mkfile_line );
 				# Get the words.
@@ -1917,23 +1918,22 @@ sub s_register_scanner {
 #    register_command_parser command_word command_parser_class_name
 #
 #
-sub s_register_command_parser {
+sub s_register_parser {
   my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
 
   my( @fields ) = unquote_split_on_whitespace $mkfile->expand_text( $_[0], $mkfile_line );
 				# Get the words.
   @fields == 2 or die "$mkfile_line: register_command_parser needs 2 arguments\n";
-  substr $fields[1], 0, 0, 'Mpp::CommandParser::' unless $fields[1] =~ /^Mpp::CommandParser::/;
-  my $scanner_sub = eval qq{
-    sub {
-      \$mkfile->cd;
-      require $fields[1];
-      shift;
-      return new $fields[1]( \@_ );
-    }
-  } or die $@;
-  $mkfile->register_parser( $fields[0], $scanner_sub );
+  $fields[1] =~ tr/-/_/;
+  $fields[1] =
+    *{"$mkfile->{PACKAGE}::p_$fields[1]"}{CODE} ||
+    *{"$fields[1]::factory"}{CODE} ||
+    *{"Mpp::CommandParser::$fields[1]::factory"}{CODE} ||
+    *{"$fields[1]::factory"}{CODE} ||
+    die "$mkfile_line: invalid command parser $fields[1]\n";
+  $mkfile->register_parser( @fields );
 }
+*s_register_command_parser = \&s_register_parser;
 
 #
 # Register an input filename suffix for a particular command.

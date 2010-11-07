@@ -6,13 +6,23 @@ makepp_scanning -- How makepp finds include files and other hidden dependencies
 
 =head1 DESCRIPTION
 
-Makepp can guess additional dependencies or targets for certain commands
+Makepp can determine additional dependencies or targets for certain commands
 that it knows something about.  This is especially important for C/C++
-compilation, where it is too error-prone to list manually all of the
-include files that a given source file depends on.  By looking at the
-compilation command and the source files themselves, makepp is able to
-determine accurately which object files need to be rebuilt when some
-include file changes.
+compilation, where it is too error-prone to list manually all of the include
+files that a given source file depends on.  By looking at the compilation
+command and the source files themselves, makepp is able to determine
+accurately which object files need to be rebuilt when some include file
+changes.
+
+Given a rule
+
+    foo.o:
+ 	time libtool cc -c -I somewhere foo.c
+
+makepp knows that C<time> and C<libtool> must be skipped and that C<cc> is the
+actual command to be parsed here.  It understands that F<a.c> is the input
+file and thus a dependency of this rule.  Moreover it will scan that file
+looking for include statements, also in directory F<somewhere>.
 
 Makepp looks at the first word of your command line.
 If it recognizes it, it uses the scanner corresponding to

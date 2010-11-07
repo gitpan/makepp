@@ -1202,7 +1202,6 @@ sub parse_assignment {
 # f) Any other : modifiers that were present on the line after the
 #    dependency string.
 #
-my $lexer_none;
 sub parse_rule {
   my ($self, $makefile_line, $makefile_line_dir, $is_double_colon, $target_string, @after_colon) = @_;
 				# Name the arguments.
@@ -1232,9 +1231,8 @@ sub parse_rule {
     $action = substr($after_colon[-1], $idx+1);
     substr( $after_colon[-1], $idx ) = '';
     $action =~ s/^\s+//;	# Strip out any leading space.	If the action
-				# is entirely blank (as happens in some
+  }				# is entirely blank (as happens in some
 				# makefiles), this will eliminate it.
-  }
 
 #
 # Get all the modifiers, and the actions for the rule (if any).
@@ -1308,7 +1306,7 @@ sub parse_rule {
 				# next target).
       last;			# We've found the end of this rule.
     }
-    if (/^:\s*((?:build_c(?:ache|heck)|dispatch|env(?:ironment)?|foreach|multiple_rules_ok|s(?:ignature|canner|martscan)|quickscan|last_chance)\b.*)/ ) {
+    if (/^:\s*((?:build[-_]?c(?:ache|heck)|dispatch|env(?:ironment)?|foreach|multiple[-_]?rules[-_]?ok|parser|s(?:ignature|canner|martscan)|quickscan|last[-_]?chance)\b.*)/ ) {
 				# A colon modifier?
       push @after_colon, $1;
     } else {			# Not a colon modifier?
@@ -1320,15 +1318,13 @@ sub parse_rule {
     $last_line_was_blank = 0;	# This line was not blank.
   }
 
-  unshift @hold_lines, $_ if $_; # We read too far, so put this
-				# line back.
+  unshift @hold_lines, $_ if $_; # We read too far, so put this line back.
 
 #
 # Pull off the : modifiers.
 #
-  my $foreach;
-  my ($signature, $build_check, $build_cache, $have_build_cache);
-  my $lexer;
+  my( $foreach, $signature, $build_check, $build_cache, $have_build_cache );
+  my( $lexer, $parser );
   my $conditional_scanning;
   my $multiple_rules_ok;
   my $last_chance_rule;
@@ -1339,32 +1335,28 @@ sub parse_rule {
   while (@after_colon > 1) {	# Anything left?
     if ($after_colon[-1] =~ /^\s*foreach\s+(.*)/) {
       $foreach and die "$makefile_line: multiple :foreach clauses\n";
-      my $foreach_val = $1;	# Make a copy of $1.  $1 gets wiped out and
-				# so it isn't valid to pass it to
-				# expand_text.
-      $foreach = expand_text($self, $foreach_val, $makefile_line);
-    } elsif ($after_colon[-1] =~ /^\s*build_cache\s+(\S+)/) {
+      $foreach = expand_text $self, $1, $makefile_line;
+    } elsif ($after_colon[-1] =~ /^\s*build[-_]?cache\s+(\S+)/) {
                                 # Specify a local build cache for this rule?
-      my $build_cache_fname = $1;
-      $build_cache_fname = expand_text($self, $build_cache_fname, $makefile_line);
-      if ($build_cache_fname eq 'none') {
+      $build_cache and die "$makefile_line: multiple :build_cache clauses\n";
+      $build_cache = expand_text $self, $1, $makefile_line;
+      if( $build_cache eq 'none' ) {
         $build_cache = undef;   # Turn off the build cache mechanism.
       } else {
         require Mpp::BuildCache;
-        $build_cache = new Mpp::BuildCache( absolute_filename( file_info( $build_cache_fname, $self->{CWD} )));
+        $build_cache = new Mpp::BuildCache( absolute_filename file_info $build_cache, $self->{CWD} );
       }
       $have_build_cache = 1;    # Remember that we have a build cache.
-    } elsif ($after_colon[-1] =~ /^\s*build_check\s+(\w+)/) { # Build check class?
+    } elsif ($after_colon[-1] =~ /^\s*build[-_]?check\s+(\w+)/) { # Build check class?
       $build_check and die "$makefile_line: multiple :build_check clauses\n";
-      my $method_val = $1;
-      my $name = expand_text($self, $method_val, $makefile_line);
+      my $name = expand_text $self, $1, $makefile_line;
       $build_check = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" || # Try to load the method.
 	eval "use BuildCheck::$name; \$BuildCheck::${name}::$name"; # TODO: provisional
       defined $build_check or
         die "$makefile_line: invalid build_check method $name\n";
     } elsif ($after_colon[-1] =~ /^\s*signature\s+(\w+)/) { # Specify signature class?
       $signature and die "$makefile_line: multiple :signature clauses\n";
-      my $name = expand_text $self, "$1", $makefile_line;
+      my $name = expand_text $self, $1, $makefile_line;
       $signature = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
 	eval "use Signature::$name; \$Signature::${name}::$name"; # TODO: provisional
       unless( defined $signature ) {
@@ -1379,6 +1371,7 @@ sub parse_rule {
         }
       }
     } elsif ($after_colon[-1] =~ /^\s*scanner\s+([-\w]+)/) { # Specify scanner class?
+      warn "$makefile_line: rule clause :scanner deprecated, please use :parser\n";
       $lexer and die "$makefile_line: multiple :scanner clauses\n";
       my $scanner_name = expand_text $self, $1, $makefile_line;
       $scanner_name =~ tr/-/_/;
@@ -1392,9 +1385,18 @@ sub parse_rule {
           Mpp::ActionParser::Legacy->new($scanref);
         };
       }
-    } elsif ($after_colon[-1] =~ /\s*(?:smart()|quick)scan/) {
+    } elsif ($after_colon[-1] =~ /\s*(?:smart()|quick)[-_]?scan/) {
       $conditional_scanning = defined $1;
-    } elsif ($after_colon[-1] =~ /^\s*multiple_rules_ok/) {
+    } elsif ($after_colon[-1] =~ /^\s*(?:command[-_]?)?parser\s+([-:\w'"\\]+)/) {
+      $parser and die "$makefile_line: multiple :command-parser clauses\n";
+      $parser = unquote expand_text $self, $1, $makefile_line;
+      $parser =~ tr/-/_/;
+      $parser =
+	*{"$self->{PACKAGE}::p_$parser"}{CODE} ||
+	*{"$parser\::factory"}{CODE} ||
+	*{"Mpp::CommandParser::$parser\::factory"}{CODE} ||
+	die "$makefile_line: invalid command parser $parser\n";
+    } elsif ($after_colon[-1] =~ /^\s*multiple[-_]?rules[-_]?ok/) {
       # This is an ugly hack to solve an unusual problem, and it shouldn't
       # be used by the general public.  The reason for it is that when you
       # have a directory with a makefile that needs to read lots of generated
@@ -1417,7 +1419,7 @@ sub parse_rule {
       }
     } elsif ($after_colon[-1] =~ /^\s*dispatch\s+(.*)/) {
       $dispatch = $1;
-    } elsif ($after_colon[-1] =~ /^\s*last_chance/) {
+    } elsif ($after_colon[-1] =~ /^\s*last[-_]?chance/) {
       $last_chance_rule = 1;
     } elsif ($after_colon[-1] =~ /^\s*include\s+(.*)/) {
       $include = $1;
@@ -1525,10 +1527,7 @@ sub parse_rule {
 	  $rule->{INCLUDE_MD5} = Mpp::Signature::md5::signature( undef, $include );
 				# remember it for checking if content changed
 	}
-	$rule->{LEXER} = $lexer_none ||= sub {
-	  require Mpp::ActionParser::Legacy;
-	  Mpp::ActionParser::Legacy->new( \&Mpp::Subs::scanner_none );
-	};
+	$rule->{PARSER} = \&Mpp::Subs::p_none;
 	Mpp::log LOAD_INCL => $include, $makefile_line
 	  if $Mpp::log_level;
 	local $rule_include = 1;
@@ -1606,6 +1605,7 @@ sub parse_rule {
       $have_build_cache and $rule->set_build_cache($build_cache);
                                 # If we have a build cache, set it too.
       $lexer and $rule->{LEXER} = $lexer;
+      $parser and $rule->{PARSER} = $parser;
       defined($conditional_scanning) and
         $rule->{CONDITIONAL_SCANNING} = $conditional_scanning;
       $rule->{FOREACH} = $finfo; # Remember what to expand $(FOREACH) as.
@@ -1691,6 +1691,7 @@ sub parse_rule {
         $build_check and $rule->set_build_check_method($build_check);
         $have_build_cache and $rule->set_build_cache($build_cache);
 	$lexer and $rule->{LEXER} = $lexer;
+	$parser and $rule->{PARSER} = $parser;
         defined($conditional_scanning) and
           $rule->{CONDITIONAL_SCANNING} = $conditional_scanning;
 	for( split_on_whitespace $tstring ) {
@@ -2002,7 +2003,7 @@ sub read_makefile {
 }
 
 #
-# Register a scanner.  Arguments:
+# Register a parser.  Arguments:
 # a) The makefile.
 # b) The word in the command to match.
 # c) A reference to the subroutine.

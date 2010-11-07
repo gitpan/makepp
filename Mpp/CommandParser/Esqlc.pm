@@ -23,6 +23,8 @@ our @ISA = 'Mpp::CommandParser::Gcc';
 use Mpp::Text;
 use Mpp::File;
 
+*factory = \&Mpp::Subs::p_esqlc_compilation;
+
 sub new {
   my $self = &Mpp::CommandParser::Gcc::new_no_gcc;
   require Mpp::Scanner::Esqlc;

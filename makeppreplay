@@ -232,7 +232,7 @@ perform eval {
       $sig &&= $rule->set_signature_class( $sig );
       my $dep_sigs = '';	# Precalculate this for the targets loop
       my $sep = '';
-      for my $dep ( split /\cA/, $build_info->{SORTED_DEPS} ) {
+      for my $dep ( split /\cA/, $build_info->{SORTED_DEPS} || '' ) {
 	$dep = path_file_info $dep, $rule->{MAKEFILE}{CWD};
 	$dep->{BUILD_INFO} ||= load_build_info_file $dep;
 	$dep_sigs .= $sep .

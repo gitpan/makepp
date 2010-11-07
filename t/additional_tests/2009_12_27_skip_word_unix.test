@@ -11,7 +11,7 @@ a/a.o:
 	$(CC) -E a.c > $(output)
 
 
-b.o: : scanner skip-word
+b.o: : parser shell
 	trap '$(CC) -E c.c > $(output)' 0
 
 
