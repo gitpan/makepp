@@ -1,4 +1,4 @@
-# $Id: Lexer.pm,v 1.44 2010/10/18 21:40:21 pfeiffer Exp $
+# $Id: Lexer.pm,v 1.45 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 NAME
 
@@ -74,6 +74,7 @@ Determine which environment variables are set by each action [partially done]
 =item 4.
 
 Expand and/or parse back-quoted expressions if $rule's options so indicate [TBD]
+OTOH, you can always use "SOMEOPT ;= $(shell someconfig --opt)" instead.
 
 =item 5.
 
@@ -282,9 +283,10 @@ sub parse_command {
   my $command = $_[1];		# modified by skip-word
   my $found = 0;
   if( my $command_parser = $_[0]->find_command_parser($command, $_[2], $_[3] || '.', \$found) ) {
-    if( ref $command_parser ) {
-      return undef unless defined $command_parser->parse_command($command, $_[4] || {});
-    }
+    return unless
+      defined( ref $command_parser ?
+	       $command_parser->parse_command($command, $_[4] || {}) :
+	       $command_parser );
   }
   $found;
 }
@@ -299,8 +301,6 @@ Otherwise, the resulting coderef is called with the command, rule and directory.
 If the return value is a reference to an object of type Mpp::CommandParser,
 then it is returned.
 Otherwise, 0 is returned.
-Returning 0 is for backwards compatibility, and it might turn into an error
-in the future.
 There is no way to indicate a scanning failure if 0 is returned, for
 backward compatibility.
 
@@ -314,7 +314,7 @@ sub find_command_parser {
   until( defined $parser ) {
     if( $from_rule ) {
       $parser = $from_rule;
-      $from_rule = 0;		# Only applies to really 1st word
+      $from_rule = 0;		# Only 1st word, not again after skip-word
     } else {
       if( Mpp::is_windows < 2 && $firstword =~ /['"\\]/ ) {
 	$firstword = unquote $firstword;
@@ -323,34 +323,29 @@ sub find_command_parser {
       }
       if( defined $firstword ) {
 	no strict 'refs';
-	my $parser_hash = \%{$rule->{MAKEFILE}{PACKAGE} . '::parsers'};
-	$parser = $parser_hash->{$firstword};
+	my $parsers = \%{$rule->{MAKEFILE}{PACKAGE} . '::parsers'};
+	$parser = $parsers->{$firstword};
 				# First try it unmodified.
 	unless( $parser ) {	# If that fails, strip out the directory path and try again.
 	  $firstword =~ s@^.*/@@ || Mpp::is_windows > 1 && $firstword =~ s@^.*\\@@ and  # Is there a directory path?
-	    $parser = $parser_hash->{$firstword};
+	    $parser = $parsers->{$firstword};
 	  $parser ||= $Mpp::Subs::parsers{$firstword} ||
 	    $firstword =~ /gcc|g\+\+/ && \&Mpp::Subs::p_gcc_compilation;
 	}
       }
     }
     if( $parser ) {		# Did we get one?
-      $parser = &$parser( $command, $rule, $dir ) || 0; # Call the routine.
+      $parser = &$parser( $command, $rule, $dir ); # Call the routine.
       if( ref $parser ) {
 	$$found = 1;
-	unless( UNIVERSAL::isa $parser, 'Mpp::CommandParser' ) {
-	  # This is assumed to mean that calling the %parsers value already did the scanning.
-	  $parser = 0;
-	  Mpp::log SCAN_UNCACHEABLE => $rule, $firstword
-	    if $Mpp::log_level;
-	  $rule->mark_scaninfo_uncacheable;
-	}
+	$parser = 0 unless UNIVERSAL::isa $parser, 'Mpp::CommandParser';
+				# This is assumed to mean that calling the parser already did the scanning.
       } elsif( $parser ) {	# p_skip_word or p_shell
 	shift @rest while @rest && $rest[0] =~ /^["'\\]?-/; # skip options
 	if( $parser == &Mpp::Subs::p_shell ) {
 	  unshift @actions, defined $from_rule ? \1 : undef, # special marker to not propagate parser into subcommand
 	      undef, undef, join ' ', map unquote, @rest;
-				# just 1 rest for sh -c cmd, but possibly eval cmd1\; cmd2
+				# just 1 arg for sh -c cmd, but handle eval cmd1\; cmd2
 	  Mpp::log PARSE_SHELL => $firstword, $actions[3], $rule
 	    if $Mpp::log_level;
 	  $$found = 2;		# Not 1, but continue
@@ -362,17 +357,21 @@ sub find_command_parser {
 	$_[1] = $command = join ' ', @rest; # parse only rest
 	$firstword = shift @rest;
 	undef $parser;
-      } else {			# p_none
+      } elsif(  defined $parser ) { # p_none
 	Mpp::log PARSE_NONE => $firstword, $rule
 	  if $Mpp::log_level;
 	$$found = 1;
+      } else {			# failed
+	Mpp::log SCAN_UNCACHEABLE => $rule, $firstword
+	  if $Mpp::log_level;
+	$rule->mark_scaninfo_uncacheable;
 	return;
       }
-    } else {			# No parser:
-      $parser = new Mpp::CommandParser($rule, $dir);
+    } else {
+      $parser = 0;
     }
   }
-  $parser;
+  $parser || new Mpp::CommandParser($rule, $dir); # none, fall back to trivial parser
 }
 
 =head2 add_dependency

@@ -189,7 +189,7 @@ sub build_check {
   return 1 if _check_env $tinfo, $env, $Mpp::log_level;
 
 #
-# If we get here, we have to scan through all of the dependencies
+# If we get here, we have to go through all of the dependencies
 # to see if any of them has changed.
 #
   my @old_dep_list = map
@@ -206,11 +206,11 @@ sub build_check {
   my $changed_dependencies;
   my @old_dep_sigs = split /\01/, $dep_sigs, -1;
   for (my $depidx = 0; $depidx < @$sorted_dependencies; ++$depidx) {
-				# Scan through the dependencies one at a time:
+				# Go through the dependencies one at a time:
     my $dep = $sorted_dependencies->[$depidx]; # Access the fileinfo.
     next if Mpp::File::assume_unchanged( $dep ); # Skip if this file is one of the ones we
 				# don't want to check at all.
-    if ($dep->{ASSUME_CHANGED}) {   # Marked by --assume-new option?
+    if ($dep->{ASSUME_CHANGED}) { # Marked by --assume-new option?
       Mpp::log BUILD_MARK_NEW => $tinfo, $dep
 	if $Mpp::log_level;
       return 1;

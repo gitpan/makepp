@@ -1,4 +1,4 @@
-# $Id: Esqlc.pm,v 1.16 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: Esqlc.pm,v 1.17 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 NAME
 
@@ -6,7 +6,7 @@ Mpp::CommandParser::Esqlc - makepp command parser for various Esql preprocessors
 
 =head1 DESCRIPTION
 
-Scans an Embedded SQL preprocessor or compile command for implicit
+Parses an Embedded SQL preprocessor or compile command for implicit
 dependencies.
 
 This is essentially identical to Gcc.pm, but for some extra args, because some

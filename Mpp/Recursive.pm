@@ -1,4 +1,4 @@
-# $Id: Recursive.pm,v 1.8 2010/09/13 20:54:58 pfeiffer Exp $
+# $Id: Recursive.pm,v 1.9 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 NAME
 
@@ -137,7 +137,7 @@ sub connection {
       my @lines = split(/\n/, $1); # Access each of the pieces.
       my @words = unquote_split_on_whitespace shift @lines;
 				# First one is the set of arguments to
-				# parse_command.
+				# parse_command_line.
       my %this_ENV;		# Remaining lines are environment variables.
       foreach (@lines) {
 	if( s/^([^=]+)=// ) {	# Correct format?

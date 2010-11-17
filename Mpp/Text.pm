@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.48 2010/10/18 21:28:28 pfeiffer Exp $
+# $Id: Text.pm,v 1.49 2010/11/17 21:36:59 pfeiffer Exp $
 
 =head1 NAME
 

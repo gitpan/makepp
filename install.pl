@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.96 2010/10/18 21:40:21 pfeiffer Exp $
+# $Id: install.pl,v 1.97 2010/11/17 21:35:52 pfeiffer Exp $
 #
 
 package Mpp;
@@ -137,7 +137,7 @@ if( $destdir ) {
 }
 
 make_dir("$datadir/$_") for
-  qw(Mpp Mpp/Lexer Mpp/BuildCheck Mpp/CommandParser Mpp/Scanner Mpp/Signature);
+  qw(Mpp Mpp/ActionParser Mpp/BuildCheck Mpp/CommandParser Mpp/Lexer Mpp/Scanner Mpp/Signature);
 
 our $useoldmodules = '';
 if( $ENV{MAKEPP_INSTALL_OLD_MODULES} ) {
@@ -248,9 +248,9 @@ sub highlight_keywords() {
   s!\G(\s*)((?:noecho\s+|ignore_error\s+|makeperl\s+|perl\s+|[-\@]|&amp;(?:cat|chmod|cp|mv|cut|echo|expr|printf|yes|grep|sed|(?:un)?install|ln|mkdir|perl|preprocess|rm|sort|template|touch|uniq)\b)+)!$1<b>$2</b>! or
 
   s!\G((?:override )?(?:define|export|global)|override|ifn?def|makesub|sub)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<i>$3</i>! or
-  s!\G(register[_-]scanner|signature)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<u>$3</u>! or
+  s!\G(register[_-](?:(?:command[_-])?parser|scanner)|signature)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<u>$3</u>! or
   # repeat the above, because they may appear in C<> without argument
-  s!\G(\s*(?:and |or |else )?if(?:n?(?:def|eq|sys|true|xxx)|(?:make)?perl)|build[_-]cache|else|endd?[ei]f|export|global|fi|[_-]?include|load[_-]makefile|makeperl|no[_-]implicit[_-]load|override|perl(?:|[_-]begin|[_-]end)|repository|runtime|unexport|define|makesub|sub|register[_-]scanner|signature)\b!<b>$1</b>! && s|xxx|<i>xxx</i>| or
+  s!\G(\s*(?:and |or |else )?if(?:n?(?:def|eq|sys|true|xxx)|(?:make)?perl)|build[_-]cache|else|endd?[ei]f|export|global|fi|[_-]?include|load[_-]makefile|makeperl|no[_-]implicit[_-]load|override|perl(?:|[_-]begin|[_-]end)|repository|runtime|unexport|define|makesub|sub|register[_-](?:(?:command[_-])?parser|scanner)|signature)\b!<b>$1</b>! && s|xxx|<i>xxx</i>| or
 
     # highlight assignment
     s,\G\s*(?:([-.\w\s%*?\[\]]+?)(\s*:\s*))?((?:override\s+)?)([-.\w]+)(?= *(?:[:;+?!]|&amp;)?=),
@@ -261,9 +261,9 @@ sub highlight_keywords() {
     $pre && !/define|export|global|override/ && s!\G(\s*)([^&\s].*?)(?=\s*:(?:$|.*?[^;{]\n))!$1<u>$2</u>!m;
 
   # highlight rule options
-  s!(: *)(build_c(?:ache|heck)|foreach|include|scanner|signature)(&nbsp;| +)([-_/\w%.]+)!$1<b>$2</b>$3<u>$4</u>!g or
+  s!(: *)(build_c(?:ache|heck)|(?:command[_-])?parser|foreach|include|scanner|signature)(&nbsp;| +)([-_/\w%.]+)!$1<b>$2</b>$3<u>$4</u>!g or
   # repeat the above, because they may appear in C<> without argument
-  s!(: *)(build_c(?:ache|heck)|foreach|include|last_chance|quickscan|scanner|signature|smartscan)\b!$1<b>$2</b>!g;
+  s!(: *)(build_c(?:ache|heck)|(?:command[_-])?parser|foreach|include|last_chance|quickscan|scanner|signature|smartscan)\b!$1<b>$2</b>!g;
 }
 
 sub highlight_variables() {

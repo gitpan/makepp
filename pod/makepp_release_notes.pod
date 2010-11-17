@@ -12,6 +12,20 @@ makepp_release_notes -- Major changes in each version of makepp
 
 =item *
 
+L<Scanning|makepp_scanning> terminology has been cleaned up (and the page
+rewritten) to finally match a redesign that happened a few years ago.  There
+are now 3 separate terms, the lexer (which users don't need to worry about),
+the (command) parsers and the (file) scanners.
+
+For advanced users: The new interface consists of the L<C<register_parser> or
+C<register_command_parser>|/register_command_parser_command_word_parser>
+statements, the C<:parser> rule option and the C<p_*> parser factory functions
+which get aliased to their parser class as C<factory>.  The misnamed
+C<register_scanner> statement, C<:scanner> rule option and C<:scanner_*> or
+C<:parser_*> functions are deprecated.
+
+=item *
+
 New variable MAKEPP_VERSION.
 
 =item *

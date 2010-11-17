@@ -1,4 +1,4 @@
-# $Id: Verilog.pm,v 1.21 2010/09/29 22:19:53 pfeiffer Exp $
+# $Id: Verilog.pm,v 1.22 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 NAME
 
@@ -47,7 +47,7 @@ sub new {
   # UNRESOLVED maps unresolved modules that have been instanced to 1
   $self->{UNRESOLVED}={};
 
-  # MODULE is the name of the current module being parsed, if any.
+  # MODULE is the name of the current module being scanned, if any.
   # Although this seems like it ought to be tied to a each file, in
   # reality the real VCS parser is flat, meaning that it treats the
   # input files as though they had been concatenated into a single input

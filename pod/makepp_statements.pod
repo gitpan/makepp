@@ -2,7 +2,7 @@
 
 makepp_statements -- Various statements in a makefile
 
-=for vc $Id: makepp_statements.pod,v 1.36 2010/07/16 21:15:23 pfeiffer Exp $
+=for vc $Id: makepp_statements.pod,v 1.37 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -33,9 +33,9 @@ B<N:>E<nbsp>L</no_implicit_load>,E<nbsp>
 B<P:>E<nbsp>L<perl|/perl_perlcode>,
   L</perl_begin>,
   L<prebuild|/prebuild_target>,E<nbsp>
-B<R:>E<nbsp>L<register_command_parser|/register_command_parser_command_word_class_name>,
+B<R:>E<nbsp>L<register_command_parser|/register_command_parser_command_word_parser>,
   L<register_input_suffix|/register_input_suffix_command_word_suffix>,
-  L<register_scanner|/register_scanner_command_word_scanner_name>,
+  L<register_parser|/register_command_parser_command_word_parser>,
   L<repository|/repository_directory>,
   L<runtime|/runtime_program_library>,E<nbsp>
 B<S:>E<nbsp>L</signature>,
@@ -685,30 +685,40 @@ Currently, it will quietly fail to build targets if there is a dependency
 loop among the prebuilt targets and the Makefiles that must be loaded to
 build them, but that ought to be treated as an error.
 
-=item register_scanner I<command_word scanner_name>
+=item register_command_parser I<command_word parser>
 
-Registers the C<scanner_name> (which usually begins with prefix "scanner_"
-that can be omitted here) as the command parser for commands whose base name
-is C<command_word>.  In the name you can use C<-> interchangeably with C<_>.
-The predefined scanners are documented in L<makepp_scanning>.
+=item register_parser I<command_word parser>
 
-=item register_command_parser I<command_word class_name>
+When L<lexically analyzing rule actions|makepp_scanning>, use I<parser> for
+I<command_word>, which may be the full path or just the basename.  The
+basename is usually enough because the lexer tries both.
 
-Register an anonymous subroutine that constructs and returns an object of
-exact type Mpp::CommandParser::C<class_name> as the command parser
-for commands whose base name is C<command_word>.
+The I<parser> may either be a classname with or without the leading
+C<Mpp::CommandParser::>.  Such a class must have a member function called
+C<factory> that returns an object of that class.  If the classname contains
+colons, it must be quoted, so as not make this line look like a rule.
+
+Or, because that class is usually not yet loaded, instead the factory function
+may reside in the Makefile namespace.  These functions have a prefix of C<p_>
+which must not be given.  This is the case of the L<builtin
+parsers|makepp_scanning/SCANNERS (PARSERS)>.
+
+The effect is comparable to the L<C<:parser> rule
+option|makepp_rules/parser_parser>.  But for multi-command rules this is the
+better way.
 
 =item register_input_suffix I<command_word suffix ...>
 
-Add C<suffix> ... to the list of input file suffixes recognized when an
-action beginning with C<command_word> is scanned.  The scanner would
-normally pick this up via Mpp::CommandParser::input_filename_regexp, but it
-might instead ignore this entirely.
+Add C<suffix> ... to the list of input file suffixes recognized when an action
+beginning with C<command_word> is parsed.  The parser would normally pick this
+up via Mpp::CommandParser::input_filename_regexp, but it might instead ignore
+this entirely.
 
-Mpp::Scanners don't normally pick up all the arguments that aren't recognized as
-options, because they might be arguments of unrecognized options.
-(For example, F<i386v> is I<not> an input file of the command C<gcc -b i386v foo.c>.)
-Instead, they pick up only positional arguments that look like input filenames.
+Parsers don't normally pick up all the arguments that aren't recognized as
+options, because they might be arguments of unrecognized options.  (For
+example, F<i386v> is I<not> an input file of the command C<gcc -b i386v
+foo.c>.)  Instead, they pick up only positional arguments that look like input
+filenames.
 
 It is not unusual to use standard tools with site-specific nonstandard suffixes
 in order to signify that those files require special handling, such as

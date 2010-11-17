@@ -2,7 +2,7 @@
 
 makepp_cookbook -- The best way to set up makefiles for various situations
 
-=for vc $Id: makepp_cookbook.pod,v 1.20 2010/08/22 20:21:25 pfeiffer Exp $
+=for vc $Id: makepp_cookbook.pod,v 1.21 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -122,11 +122,11 @@ Here's an example of the way I use it:
     my_program: $(infer_objects *.o, $(LIB1)/*.o $(LIB2)/*.o)
  	$(CXX) $(inputs) -o $(output) $(SYSTEM_LIBRARIES)
 
-The S<C<$(infer_objects )>> function returns its first argument (after
-doing wildcard expansion on it), and also scans through the list of
-files in its second argument, looking for files whose name is the same
-as the name of any F<.h> files included by any file in its first
-argument.  If any such files are found, these are added to the list.
+The S<C<$(infer_objects )>> function returns its first argument (after doing
+wildcard expansion on it), and also looks through the list of files in its
+second argument, for files whose name is the same as the name of any F<.h>
+files included by any file in its first argument.  If any such files are
+found, these are added to the list.
 
 =head3 Building a static library
 

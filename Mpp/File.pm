@@ -254,10 +254,6 @@ $root = bless { NAME => '',
 #		For files that can be imported from a repository, this field
 #		contains a reference to the Mpp::File structs for the file in
 #		the repositories.
-# SCANNED_FOR_SUBDIRS
-#		Exists iff this is a directory and we have found all of the
-#		subdirectories under the current directory, i.e., we don't
-#		need to stat any more files to see if they are subdirectories.
 # FULLNAME	The absolute filename cached for performance.
 # WILDCARD_ROUTINES
 #		For a directory, this is a list of subroutines to be called

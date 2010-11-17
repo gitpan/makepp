@@ -1,6 +1,13 @@
-2010-10-22  Daniel Pfeiffer  <occitan@esperanto.org>
+2010-11-17  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* Mpp/Rule.pm (set_signature_class): New name for set_signature_method_scanner.
+Snapshot makepp-1.50.101117.tgz, version 1.50-101117:18-1018:5-0929:8 on CPAN.
+
+	* *: Cleanly distinguish between lexing, parsing and scanning.
+	Fix skip-word without recursion and provide new variant for
+	(sub)shell.
+
+	* pod/makepp_compatibility.pod: Add 5.12.2 and more CPAN-tester
+	results.
 
 2010-10-18  Daniel Pfeiffer  <occitan@esperanto.org>
 

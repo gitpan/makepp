@@ -1,4 +1,4 @@
-# $Id: Swig.pm,v 1.13 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: Swig.pm,v 1.14 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 NAME
 
@@ -6,7 +6,7 @@ Mpp::CommandParser::Swig - makepp command parser for swig
 
 =head1 DESCRIPTION
 
-Scans a SWIG (Simplified Wrapper and Interface Generator, http://www.swig.org)
+Parses a SWIG (Simplified Wrapper and Interface Generator, http://www.swig.org)
 command line for dependencies.
 
 =cut

@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.140 2010/10/18 21:40:21 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.141 2010/11/17 21:35:52 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_action needed_wildcard_action);
@@ -1309,6 +1309,9 @@ sub parse_rule {
     if (/^:\s*((?:build[-_]?c(?:ache|heck)|dispatch|env(?:ironment)?|foreach|multiple[-_]?rules[-_]?ok|parser|s(?:ignature|canner|martscan)|quickscan|last[-_]?chance)\b.*)/ ) {
 				# A colon modifier?
       push @after_colon, $1;
+      if( (my $i = index_ignoring_quotes $after_colon[-1], '#') > 0 ) {
+	substr( $after_colon[-1], $i ) = ''
+      }
     } else {			# Not a colon modifier?
       $action .= $_;		# Must be an action for the rule.
     }
@@ -1333,10 +1336,10 @@ sub parse_rule {
   my $include;
 
   while (@after_colon > 1) {	# Anything left?
-    if ($after_colon[-1] =~ /^\s*foreach\s+(.*)/) {
+    if ($after_colon[-1] =~ /^\s*foreach\s+(.*?)\s*$/) {
       $foreach and die "$makefile_line: multiple :foreach clauses\n";
       $foreach = expand_text $self, $1, $makefile_line;
-    } elsif ($after_colon[-1] =~ /^\s*build[-_]?cache\s+(\S+)/) {
+    } elsif ($after_colon[-1] =~ /^\s*build[-_]?cache\s+(.+)/) {
                                 # Specify a local build cache for this rule?
       $build_cache and die "$makefile_line: multiple :build_cache clauses\n";
       $build_cache = expand_text $self, $1, $makefile_line;
@@ -1347,14 +1350,14 @@ sub parse_rule {
         $build_cache = new Mpp::BuildCache( absolute_filename file_info $build_cache, $self->{CWD} );
       }
       $have_build_cache = 1;    # Remember that we have a build cache.
-    } elsif ($after_colon[-1] =~ /^\s*build[-_]?check\s+(\w+)/) { # Build check class?
+    } elsif ($after_colon[-1] =~ /^\s*build[-_]?check\s+(.*?)\s*$/) { # Build check class?
       $build_check and die "$makefile_line: multiple :build_check clauses\n";
       my $name = expand_text $self, $1, $makefile_line;
       $build_check = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" || # Try to load the method.
 	eval "use BuildCheck::$name; \$BuildCheck::${name}::$name"; # TODO: provisional
       defined $build_check or
         die "$makefile_line: invalid build_check method $name\n";
-    } elsif ($after_colon[-1] =~ /^\s*signature\s+(\w+)/) { # Specify signature class?
+    } elsif ($after_colon[-1] =~ /^\s*signature\s+(.*?)\s*$/) { # Specify signature class?
       $signature and die "$makefile_line: multiple :signature clauses\n";
       my $name = expand_text $self, $1, $makefile_line;
       $signature = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
@@ -1387,7 +1390,7 @@ sub parse_rule {
       }
     } elsif ($after_colon[-1] =~ /\s*(?:smart()|quick)[-_]?scan/) {
       $conditional_scanning = defined $1;
-    } elsif ($after_colon[-1] =~ /^\s*(?:command[-_]?)?parser\s+([-:\w'"\\]+)/) {
+    } elsif ($after_colon[-1] =~ /^\s*(?:command[-_]?)?parser\s+(.*?)\s*$/) {
       $parser and die "$makefile_line: multiple :command-parser clauses\n";
       $parser = unquote expand_text $self, $1, $makefile_line;
       $parser =~ tr/-/_/;
@@ -1411,17 +1414,17 @@ sub parse_rule {
       # (so that buildable targets can be computed lazily), but that would
       # require a significant re-design of makepp.
       $multiple_rules_ok = 1;
-    } elsif ($after_colon[-1] =~ /^\s*env(?:ironment)?\s+(.*)/) {
+    } elsif ($after_colon[-1] =~ /^\s*env(?:ironment)?\s+(.*?)\s*$/) {
       if($env_dep_str) {
         $env_dep_str .= " $1";
       } else {
         $env_dep_str = $1;
       }
-    } elsif ($after_colon[-1] =~ /^\s*dispatch\s+(.*)/) {
+    } elsif ($after_colon[-1] =~ /^\s*dispatch\s+(.*?)\s*$/) {
       $dispatch = $1;
     } elsif ($after_colon[-1] =~ /^\s*last[-_]?chance/) {
       $last_chance_rule = 1;
-    } elsif ($after_colon[-1] =~ /^\s*include\s+(.*)/) {
+    } elsif ($after_colon[-1] =~ /^\s*include\s+(.*?)\s*$/) {
       $include = $1;
     } else {			# Something we don't recognize?
       last;

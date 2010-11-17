@@ -1,4 +1,4 @@
-# $Id: Glob.pm,v 1.35 2010/10/18 21:24:14 pfeiffer Exp $
+# $Id: Glob.pm,v 1.36 2010/11/17 21:35:52 pfeiffer Exp $
 
 package Mpp::Glob;
 

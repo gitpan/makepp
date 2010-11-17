@@ -1,4 +1,4 @@
-# $Id: Vcs.pm,v 1.27 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: Vcs.pm,v 1.28 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 NAME
 
@@ -6,7 +6,7 @@ Mpp::CommandParser::Vcs - makepp command parser for Synopsys VCS
 
 =head1 DESCRIPTION
 
-Scans a vcs command for implicit dependencies.
+Parses a vcs command for implicit dependencies.
 
 =cut
 

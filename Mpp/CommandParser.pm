@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.35 2010/10/18 21:40:21 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.36 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 NAME
 
@@ -168,9 +168,6 @@ The current plan is that a new object of this class is created for each
 command, but that might change in the future.
 If it does, then this method is responsible for clearing previous command
 information, such as the include paths.
-
-If the command line contains another command to be parsed, then that can
-be handled by calling $self->rule->scan_action recursively.
 
 A TRUE return value indicates that some meaningful scanner was successfully
 employed.

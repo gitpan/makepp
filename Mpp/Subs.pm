@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.176 2010/10/18 21:40:21 pfeiffer Exp $
+# $Id: Subs.pm,v 1.177 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 NAME
 
@@ -83,7 +83,7 @@ our $rule;
 #
 # Command parsers included with makepp:
 #
-# Scan C command, looking for sources and includes and libraries.
+# Parse C command, looking for sources and includes and libraries.
 #
 # TODO: is $ENV{INCLUDE} a reliable alternative on native Windows?  And if
 # ActiveState is to call MinGW gcc, must makepp translate directory names?
@@ -94,7 +94,7 @@ sub p_gcc_compilation {
   shift;
   Mpp::CommandParser::Gcc->new( @_ );
 }
-# TODO: remove the backwards compatibility scanner_ variants.
+# TODO: remove the deprecated backwards compatibility scanner_ variants.
 *scanner_gcc_compilation = \&p_gcc_compilation;
 
 sub p_c_compilation {
@@ -125,8 +125,8 @@ sub p_swig {
 *scanner_swig = \&p_swig;
 
 #
-# This scanner exists only to allow the user to say ":scanner none" to suppress
-# the default scanner.
+# This parser exists only to allow the user to say ":parser none" to suppress
+# the default parser.
 #
 sub scanner_none {
   $_[1]{SCANNER_NONE} = 1;
@@ -135,8 +135,8 @@ sub scanner_none {
 }
 
 #
-# This scanner simply moves to the next word that doesn't begin with
-# - and scans again.
+# This parser simply moves to the next word that doesn't begin with
+# - and parses again.
 #
 sub scanner_skip_word {
   #my ($action, $myrule, $dir) = @_;
@@ -1913,8 +1913,7 @@ sub s_register_scanner {
 }
 
 #
-# Register a command parser (alternate form of a scanner).
-# Usage from the makefile:
+# Register a command parser. Usage from the makefile:
 #    register_command_parser command_word command_parser_class_name
 #
 #

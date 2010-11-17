@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.39 2010/10/18 21:40:21 pfeiffer Exp $
+# $Id: makepplog,v 1.40 2010/11/17 21:35:52 pfeiffer Exp $
 
 package Mpp;
 

@@ -2,7 +2,7 @@
 
 makepp_tutorial -- Tutorial on writing makefiles
 
-=for vc $Id: makepp_tutorial.pod,v 1.12 2010/08/22 20:26:19 pfeiffer Exp $
+=for vc $Id: makepp_tutorial.pod,v 1.13 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -282,19 +282,17 @@ like this:
     processing.o: processing.cxx processing.h simple_vector.h list.h
  	c++ -c processing.cxx -o processing.o
 
-However, it is a real nuisance to modify the makefile every time you
-change the list of files that are included, and it is also extremely
-error prone.  You would not only have to list the files that
-C<processing.cxx> includes, but also all the files that those files
-include, etc.  B<You don't have to do this.> Makepp is smart enough to
-check for include files automatically.  Any time it sees a command that
-looks like a C or C++ compilation (by looking at the first word of the
-action), it reads in the source files looking for C<#include>
-directives.  It knows where to look for include files by scanning for
-C<-I> options on your compiler command line.  Any files which are
-included are automatically added to the dependency list, and any files
-which those include.  If any of them has changed, the file will be
-recompiled.
+However, it is a real nuisance to modify the makefile every time you change
+the list of files that are included, and it is also extremely error prone.
+You would not only have to list the files that C<processing.cxx> includes, but
+also all the files that those files include, etc.  B<You don't have to do
+this.> Makepp is smart enough to check for include files automatically.  Any
+time it sees a command that looks like a C or C++ compilation (by looking at
+the first word of the action), it reads in the source files looking for
+C<#include> directives.  It knows where to look for include files by parsing
+your compiler command line for C<-I> options .  Any files which are included
+are automatically added to the dependency list, and any files which those
+include.  If any of them has changed, the file will be recompiled.
 
 Once makepp knows that C<processing.o> is up to date, it then determines
 whether C<gui.o> needs to be rebuilt by applying the same procedure to
@@ -1277,11 +1275,11 @@ makepp smarter.)  However, if you are running commands other than
 compilation, or dealing with languages other than C or C++, it is much
 easier to run into problems.
 
-If you don't tell makepp all of the dependencies of a file, and it can't
-infer them by looking at the command line or scanning the files for
-includes, then it may not rebuild a file when it should.  You can make
-this kind of error less likely by using only automatic variables in your
-actions, rather than repeating the dependency lists.  For example,
+If you don't tell makepp all of the dependencies of a file, and it can't infer
+them by parsing the command line or scanning the files for includes, then it
+may not rebuild a file when it should.  You can make this kind of error less
+likely by using only automatic variables in your actions, rather than
+repeating the dependency lists.  For example,
 
     combined_file: a b c
  	 do_something a b c d > combined_file

@@ -1,12 +1,12 @@
-# $Id: Gcc.pm,v 1.33 2010/09/29 22:19:53 pfeiffer Exp $
+# $Id: Gcc.pm,v 1.34 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 NAME
 
-Mpp::CommandParser::Gcc - makepp command parser for Gcc
+Mpp::CommandParser::Gcc - makepp command parser for gcc or cc
 
 =head1 DESCRIPTION
 
-Scans a gcc compile command for implicit dependencies.
+Parses a gcc compile command for implicit dependencies.
 
 This class is readily subclassed for similar things, such as the
 Embedded SQL preprocessor/compiler.

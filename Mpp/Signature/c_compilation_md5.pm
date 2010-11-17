@@ -1,4 +1,4 @@
-# $Id: c_compilation_md5.pm,v 1.22 2010/06/01 20:49:11 pfeiffer Exp $
+# $Id: c_compilation_md5.pm,v 1.23 2010/11/17 21:35:52 pfeiffer Exp $
 use strict;
 package Mpp::Signature::c_compilation_md5;
 

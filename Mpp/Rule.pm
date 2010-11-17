@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.107 2010/11/07 21:40:21 pfeiffer Exp $
+# $Id: Rule.pm,v 1.108 2010/11/17 21:35:52 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -78,8 +78,9 @@ sub makefile { $_[0]{MAKEFILE} }
 
 #
 # This subroutine is called to find all the targets and dependencies of the
-# rule.	 It does so by repeatedly expanding the dependency and target string,
-# and repeatedly scanning the command, until there are no further changes.
+# rule.  It does so by expanding the dependency and target string, and
+# lexically analysing the action, which in turn parses the commands, which
+# scans some types of input files, like C for #include statements.
 #
 # Usage:
 #   ($all_targets, $all_dependencies, $action_string, $env_deps) =

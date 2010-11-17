@@ -1,4 +1,4 @@
-# $Id: shared_object.pm,v 1.11 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: shared_object.pm,v 1.12 2010/11/17 21:35:52 pfeiffer Exp $
 use strict;
 package Mpp::Signature::shared_object;
 

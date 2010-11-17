@@ -2,7 +2,7 @@
 
 makepp_rules -- How to tell makepp to build something
 
-=for vc $Id: makepp_rules.pod,v 1.31 2010/09/29 22:06:41 pfeiffer Exp $
+=for vc $Id: makepp_rules.pod,v 1.32 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -20,9 +20,9 @@ B<I:>E<nbsp>L</ignore_error>,
 B<L:>E<nbsp>L<:last_chance|/last_chance>,E<nbsp>
 B<M:>E<nbsp>L<makeperl|/perl>,E<nbsp>
 B<N:>E<nbsp>L</noecho>,E<nbsp>
-B<P:>E<nbsp>L</perl>,E<nbsp>
-B<S:>E<nbsp>L<:scanner|/scanner_name>,
-  L<:signature|/signature_signature_method>
+B<P:>E<nbsp>L<:parser|/parser_parser>,
+  L</perl>,E<nbsp>
+B<S:>E<nbsp>L<:signature|/signature_signature_method>
 
 A rule is what tells makepp how to build a file or a class of files.  Makepp
 supports the same rule syntax as other implementations of make, plus some
@@ -706,39 +706,43 @@ when it erroneously relies on a wildcard to match targets from a previous run.
 The C<:last_chance> option is intended to call attention to the special
 behavior of the rule with respect to matching wildcards.
 
-=item :scanner I<name> X<scanner>
+=item :parser I<parser>
 
-This tells makepp how to scan for include files.  Usually, makepp
-guesses how to do this based on the words in the command itself (see
-L<makepp_scanning> for details).  However, if makepp guesses wrongly,
-you may want to explicitly indicate the scanner, like this:
+This tells makepp how to parse the command for detecting (include) files.
+Usually, makepp guesses how to do this based on the words in the command
+itself (see L<makepp_scanning> for details).  However, if makepp guesses
+wrongly, you may want to explicitly indicate the parser, like this:
 
     %.o: %.abc
- 	: scanner c_compilation
+ 	: parser c_compilation
  	action here
 
-This causes makepp to perform the same scanning that it does for C/C++
-build commands, even if it doesn't recognize the action as a C
+This causes makepp to perform the same parsing and scanning that it does for
+C/C++ build commands, even if it doesn't recognize the action as a C
 compilation.
 
-The default scanner depends on the command.  If you do not specify a
-C<:scanner> option, then the first word of each command is examined.  If
-it looks like a compile or link command, then makepp will use the
-C<c_compilation> scanner; otherwise it usese the C<none> scanner.  For
-more details on this, or if you want to write your own scanner or change
-makepp's default scanners, see L<makepp_scanning>.
+The default parser depends on the command.  If you do not specify a C<:parser>
+option, then the first word of each command is examined.  For example for a
+compile or link command, makepp will use the C<c_compilation> parser; or if
+the command looks like the Gnu variant, C<gcc_compilation>.  If no parser is
+found it uses the C<none> parser.  For more details on this, or if you want to
+write your own parser or change makepp's default parsers, see
+L<makepp_scanning>.
 
 Note that this applies to every command in the rule, which may not be what you
 want:
 
-    %.o: %.c : scanner c-compilation
+    %.o: %.c : parser c-compilation
  	@echo 'Building $(output)'
  	@funny_cc ...
 
 This will also interpret C<echo> as a compiler and deduce its argument
 'Building mymodule.o' as an implicit dependency.  This will lead to the
 complaint that it doesn't know how to build such a file.  In this case you
-would be better off with C<register_scanner>.
+would be better off with
+L<C<register_parser>|/register_command_parser_command_word_parser>.  There you
+find an explanation how I<parser> can be given either as a classname or as a
+function name.
 
 =item :signature I<signature_method> X<signature>
 

@@ -1,4 +1,4 @@
-# $Id: C.pm,v 1.27 2010/09/29 22:19:53 pfeiffer Exp $
+# $Id: C.pm,v 1.28 2010/11/17 21:35:52 pfeiffer Exp $
 
 =head1 NAME
 
@@ -244,7 +244,7 @@ sub xscan_file {
     }
     # Get rid of single line comments.
     s!/(/.*|\*.*?\*/)!$continued_comment=1 if $continuation && ord $1 == ord '/'; ' '!eg;
-    # Parse multiline instructions and comments.
+    # Scan multiline instructions and comments.
     if( s!/\*.*! ! and $pending_comment = 1 or $continuation ) {
       chomp;
       $line_so_far .= $_;
@@ -272,7 +272,7 @@ sub xscan_file {
 	  $self->include($cp, $userinc ? 'user' : 'sys', $1, $finfo)
 	    or return undef;
 	} else {
-	  warn "$absname:$.: Include $_ not parsed\n" if /\S/;
+	  warn "$absname:$.: Include $_ not scanned\n" if /\S/;
 	}
 	$scanworthy = 1;
       } elsif( $conditional ) {
