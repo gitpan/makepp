@@ -1,4 +1,4 @@
-# $Id: target_newer.pm,v 1.10 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: target_newer.pm,v 1.11 2010/12/10 22:06:32 pfeiffer Exp $
 use strict;
 package Mpp::BuildCheck::target_newer;
 
@@ -99,10 +99,10 @@ sub changed_dependencies {
   my( @changed, $mtime );
 
   foreach (@dependencies) {
-    next if Mpp::File::assume_unchanged( $_ );
+    next if Mpp::File::assume_unchanged $_;
     push @changed, $_
-      if $_->{ASSUME_CHANGED} ||
-	Mpp::File::file_mtime( $_ ) > ($mtime ||= Mpp::File::file_mtime $target);
+      if $_->{ASSUME_CHANGED} or
+	(Mpp::File::file_mtime $_ or 1) > ($mtime ||= Mpp::File::file_mtime( $target ) || 0);
   }
 
   return @changed;

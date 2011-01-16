@@ -2,7 +2,7 @@
 
 makepp_compatibility -- Compatibility list for makepp
 
-=for vc $Id: makepp_compatibility.pod,v 1.26 2010/11/17 21:34:28 pfeiffer Exp $
+=for vc $Id: makepp_compatibility.pod,v 1.27 2011/01/16 17:09:07 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -121,7 +121,12 @@ L<&ln|makepp_builtins/ln_option_sourcefile_destfile>.
 B<Cygwin> fairly closely emulates GNU/Linux and gives the best results.  Perl
 5.8.7 has a small problem with environment vars, making one test fail.  In the
 long gone past, parallel builds didn't work, but it hasn't be verified which
-version of Cygwin or Perl made them usable.
+version of Cygwin or Perl made them usable.  Perl 5.10.1 has a problem with
+chmod 0 files, so they can't be used to prevent repository imports.  In rare
+cases recent cygwin also leads stat() to report a symlink for an inexistent
+file.  This does not seem a perl bug, since the same perls that were error
+free before, now show this behaviour.  Makepp has been reorganized to much
+reduce this, so you may never see it.
 
 =item *
 

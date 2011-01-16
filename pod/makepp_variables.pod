@@ -2,7 +2,7 @@
 
 makepp_variables -- How to use variables in makepp
 
-=for vc $Id: makepp_variables.pod,v 1.37 2010/09/29 22:06:41 pfeiffer Exp $
+=for vc $Id: makepp_variables.pod,v 1.39 2010/12/10 22:14:40 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -72,7 +72,7 @@ in the makefile, so that if it changes, there is no danger of the two copies
 of the information getting out of sync.
 
 Variable names are case sensitive.  In theory, variable names can be made of
-many characters, but you will probably confuse the makefile parser if you do
+many characters, but makepp will probably not be able to grok it if you do
 anything other than alphanumeric characters, C<_>, and C<->.
 
 Each makefile has its own set of variables, and setting a variable in one
@@ -400,8 +400,8 @@ literal dollar sign, put in a double dollar sign (C<$$>), like this:
  	for file in $(inputs); do cat $$file >> $(output); done
 
 Additionally makepp has a C<$[VARIABLE]> syntax, which does the same thing as
-the other two, but before any other parsing happens.  This allows using it for
-complete rules and/or conditionals:
+the other two, but before makepp groks anything else.  This allows using it
+for complete rules and/or conditionals:
 
     define bracket_rule =
       ifdef SOME_VAR
@@ -808,6 +808,9 @@ I<Default:> C<libtool>.
 This variable has two different values, depnding on the presence or not of
 C<--traditional-recursive-make>.  Makepp recognizes when this variable is used
 and turns off some features, even before the recursion actually takes place.
+This can be undesirable while you are gradually eliminating it, so first
+convert the calls to a makepp specific C<$((MAKE))>, which will not turn off
+features.
 
 =item MAKECMDGOALS
 

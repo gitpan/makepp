@@ -1,4 +1,4 @@
-# $Id: Lexer.pm,v 1.45 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: Lexer.pm,v 1.46 2010/12/10 22:08:15 pfeiffer Exp $
 
 =head1 NAME
 
@@ -73,8 +73,9 @@ Determine which environment variables are set by each action [partially done]
 
 =item 4.
 
-Expand and/or parse back-quoted expressions if $rule's options so indicate [TBD]
-OTOH, you can always use "SOMEOPT ;= $(shell someconfig --opt)" instead.
+Parse back-quoted expressions, which get replaced by -backquote which parsers
+should ignore.  In Makeppfiles use "SOMEOPT ;= $(shell someconfig --opt)"
+instead, because then makepp is aware of whatever the command got replaced by.
 
 =item 5.
 
@@ -149,9 +150,21 @@ sub lex_rule {
     }
 
     my $dir = '.';
-    # Split action into commands
-    # TBD: This isn't quite right, because env and cwd settings don't propagate
-    # to the next command if they are separated by '&' or '|'.
+
+    # Take the backquotes out of parser's way
+    my $bq1 = -10;		# pretend initial replacement, length of -backquote
+    my $extra = '';
+    while( ($bq1 = Mpp::Text::index_ignoring_single_quotes $action, '`', $bq1 + 10) >= 0 ) {
+      my $bq2 = Mpp::Text::index_ignoring_single_quotes $action, '`', $bq1 + 1; # If not found, this is convently -1, eos
+      $extra .= ';' .substr
+	substr( $action, $bq1, $bq2 - $bq1 + 1, '-backquote' ), # Make parser's life easier
+	1, -1;			# append content of backquote, so it will get parsed as normal commands
+    }
+    $action .= $extra;
+
+    # Split action into commands. TBD: This isn't quite right, because env and
+    # cd settings don't propagate to the next command if they are separated
+    # by '&' or '|', (but do if a ';' precedes the pipeline).
     for $command ( split_commands $action ) {
       while( $command =~ /[<>]/ ) {
 	my $max = max_index_ignoring_quotes $command, '>';
@@ -184,7 +197,7 @@ sub lex_rule {
 	  die "Undefined redirection in rule " . $rule->source . "\n";
 	next if $file eq '/dev/null' or $file =~ m|[^-+=@%^\w:,./]|;
 	if( $is_in ) {
-	  add_simple_dependency( $dir, file_info( $dir, $rule->makefile->{CWD} ), $rule, $file );
+	  add_optional_dependency( $dir, file_info( $dir, $rule->makefile->{CWD} ), $rule, $file );
 	} else {
 	  add_target( $dir, $rule, $file );
 	}
@@ -208,6 +221,7 @@ sub lex_rule {
       # Deal with cd commands and set $dir
       if( my( $reldir ) = $command =~ m|^\s*cd\s+([-+=@%^\w:,./]+)\s*|) {
         $dir = $reldir =~ m|^/| ? $reldir : $dir . '/' . $reldir;
+	next;
       }
 
       unless($command =~ /^\s*$/) {
@@ -344,8 +358,8 @@ sub find_command_parser {
 	shift @rest while @rest && $rest[0] =~ /^["'\\]?-/; # skip options
 	if( $parser == &Mpp::Subs::p_shell ) {
 	  unshift @actions, defined $from_rule ? \1 : undef, # special marker to not propagate parser into subcommand
-	      undef, undef, join ' ', map unquote, @rest;
-				# just 1 arg for sh -c cmd, but handle eval cmd1\; cmd2
+	      undef, undef, join ' ', ($dir eq '.' ? () : "cd $dir;"), map unquote, @rest;
+				# just 1 arg for "sh -c cmd", but handle "sh script arg..." or "eval cmd1\; cmd2"
 	  Mpp::log PARSE_SHELL => $firstword, $actions[3], $rule
 	    if $Mpp::log_level;
 	  $$found = 2;		# Not 1, but continue

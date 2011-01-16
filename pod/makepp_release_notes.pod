@@ -2,13 +2,60 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.59 2010/09/03 21:26:28 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.62 2011/01/16 16:59:29 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 =head2 Version 1.50 (under development)
 
 =over 4
+
+=item *
+
+CMake generated makefiles no longer lead to deep recursion.
+
+=item *
+
+New scanner C<esql_compilation> for embedded SQL C, now covers all databeses.
+You must supply the rules, however.
+
+=item *
+
+New option L<--hybrid-recursive-make|makepp_command/hybrid> (follow each
+option link, to see shorter forms) as a smarter alternative to
+L<--traditional-recursive-make|makepp_command/traditional>.
+
+New option L<--stop-after-loading|makepp_command/stop> gives makepp a
+headstart while you're still editing.
+
+New options L<--rm-stale|makepp_command/rm_stale>,
+L<--sandbox|makepp_command/sandbox_directory> and
+L<--dont-read|makepp_command/dont_read_filename>, for sandbox control when
+running multiple concurrent (possibly distributed) makepp commands.
+
+Makepp will now also look for options in files called F<.makepprc>.  The
+option L<--args-file|makepp_command/a_filename> is now consistently available
+on all commands.
+
+The environment variable MAKEPP_CASE_SENSITIVE_FILENAMES supercedes the
+options --case-sensitive-filenames and --no-case-sensitive-filenames.
+
+Removed C<--keep-repository-links> option, the behaviour of which is now the
+default.
+
+All utilities now also query an environment variable for presetting options.
+Each one is called like the utility in upper case, with FLAGS added,
+e.g. C<$MAKEPPCLEANFLAGS> or C<$MAKEPPLOGFLAGS>.
+
+Short command line options may now be grouped in the Unix way, so C<-k -j 4>
+may be given as C<-kj4>.  In all long options the dash between words may now
+consistently be omitted or replaced with an underscore, so that C<--no-log>
+can be C<--nolog> or C<--no_log>.  Unknown options now cause an error.
+
+=item *
+
+Originally C<makeppclean> C<-l> meant C<--leave-src-info>, but now the options
+have been extended and this one changed to C<-k|--keep-src-info>.
 
 =item *
 
@@ -72,16 +119,6 @@ function names.
 
 =item *
 
-Makepp will now also look for options in files called F<.makepprc>.  The
-option C<-A> or C<--args-file> is now consistently available on all commands.
-
-=item *
-
-The environment variable MAKEPP_CASE_SENSITIVE_FILENAMES supercedes the
-options --case-sensitive-filenames and --no-case-sensitive-filenames.
-
-=item *
-
 New variable $/ for portable directory separator.  Lots of Windows fixes,
 including C<-j> (parallel builds) for Cygwin and MinGW and smart recursive
 builds on Cygwin.
@@ -93,19 +130,8 @@ following word, e.g. 'mppc' for L<makeppclean|makeppclean>.
 
 =item *
 
-All utilities now also query an environment variable for presetting options.
-Each one is called like the utility in upper case, with FLAGS added,
-e.g. C<$MAKEPPCLEANFLAGS> or C<$MAKEPPLOGFLAGS>.
-
-=item *
-
 New `:build_check only_action' for commands that don't depend on the contents
 of their dependencies, like symlink creation, where it is used automatically.
-
-=item *
-
-Removed C<--keep-repository-links> option, the behaviour of which is now the
-default.
 
 =item *
 
@@ -147,13 +173,6 @@ into a C<:=> when first used.
 
 =item *
 
-Short command line options may now be grouped in the Unix way, so C<-k -j 4>
-may be given as C<-kj4>.  In all long options the dash between words may now
-consistently be omitted or replaced with an underscore, so that C<--no-log>
-can be C<--nolog> or C<--no_log>.  Unknown options now cause an error.
-
-=item *
-
 A makefile is now also found if it is called C<Makeppfile.mk>.
 
 =item *
@@ -173,11 +192,6 @@ Usually this means that the root of your build system gets marked for
 C<--do-build>.  If, however, you say C<--do-build> for something under your
 build system root, which doesn't inherit C<--dont-build>, then instead your
 build system root gets marked for C<--dont-build>.
-
-=item *
-
-New option C<--stop-after-loading> (or C<--stop>) gives makepp a headstart
-while you're still editing.
 
 =item *
 
@@ -222,11 +236,6 @@ adds lines at a C<$>C<Log$> tag when checking in.
 
 =item *
 
-New scanner C<esqlc_compilation> for embedded SQL C.  You must supply the
-rules, however.
-
-=item *
-
 Implement C<$?> exactly as GNU make does.  New long name C<$(changed_inputs)>
 for it.
 
@@ -248,12 +257,6 @@ New statements C<ifperl>, C<ifmakeperl>, C<iftrue>, C<ifntrue>, C<ifsys> and C<i
 Conditionals C<ifxxx> may now be grouped with C<and> and C<or>.  When written
 on the same line after C<else>, they create a branch of the same statement,
 rather than requiring nesting.
-
-=item *
-
-New options C<--rm-stale>, C<--sandbox> and C<--dont-read>, for sandbox
-control when running multiple concurrent (possibly distributed) makepp
-commands.
 
 =item *
 

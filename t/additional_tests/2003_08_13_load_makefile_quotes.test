@@ -1,4 +1,10 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	5	755	1295029025	1295029025	is_relevant.pl
+#
+# Test if unpacking used our uid (nfs) and managed to chmod to a special value.
+#
+my( $mode, $uid ) = (stat 'Makeppfile')[2, 4];
+$uid == $> && ($mode & 0777) == 0400;
 ###	9	400	1164353694	1060835785	Makeppfile
 #
 # Test bug reported by Chris van Engelen about quotes in load_makefile command

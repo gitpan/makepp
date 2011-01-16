@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.177 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: Subs.pm,v 1.181 2011/01/16 17:09:07 pfeiffer Exp $
 
 =head1 NAME
 
@@ -103,12 +103,12 @@ sub p_c_compilation {
 }
 *scanner_c_compilation = \&p_c_compilation;
 
-sub p_esqlc_compilation {
+sub p_esql_compilation {
   shift;
-  require Mpp::CommandParser::Esqlc;
-  Mpp::CommandParser::Esqlc->new( @_ );
+  require Mpp::CommandParser::Esql;
+  Mpp::CommandParser::Esql->new( @_ );
 }
-*scanner_esqlc_compilation = \&p_esqlc_compilation;
+*scanner_esql_compilation = \&p_esql_compilation;
 
 sub p_vcs_compilation {
   shift;
@@ -206,6 +206,7 @@ our %parsers =
    ccppc	=> \&p_c_compilation, # Green Hills compilers.
    cxppc	=> \&p_c_compilation,
    aCC		=> \&p_c_compilation, # HP C++.
+   ingcc	=> \&p_c_compilation, # Ingres wrapper
    lsbcc	=> \&p_c_compilation, # LSB wrapper around cc.
   'lsbc++'	=> \&p_c_compilation,
    xlc		=> \&p_c_compilation, # AIX
@@ -219,17 +220,22 @@ our %parsers =
 
    vcs		=> \&p_vcs_compilation,
 
-   ecpg		=> \&p_esqlc_compilation,
-   esql		=> \&p_esqlc_compilation,
-   esqlc	=> \&p_esqlc_compilation,
-   proc		=> \&p_esqlc_compilation,
-   yardpc	=> \&p_esqlc_compilation,
+   apre		=> \&p_esql_compilation, # Altibase APRE*C/C++
+   db2		=> \&p_esql_compilation, # IBM DB2
+   dmppcc	=> \&p_esql_compilation, # CASEMaker DBMaker
+   ecpg		=> \&p_esql_compilation, # PostgreSQL
+   esql		=> \&p_esql_compilation, # IBM Informix ESQL/C / Mimer
+   esqlc	=> \&p_esql_compilation, # Ingres
+   gpre		=> \&p_esql_compilation, # InterBase / Firebird
+   proc		=> \&p_esql_compilation, # Oracle
+   yardpc	=> \&p_esql_compilation, # YARD
 
    swig         => \&p_swig
 );
 
 @parsers{ map "$_.exe", keys %parsers } = values %parsers
   if Mpp::is_windows;
+
 
 # True while we are within a define statement.
 our $s_define;
@@ -579,7 +585,7 @@ sub f_find_upwards {
 
   for( split_on_whitespace $_[0] ) {
     $_ = unquote;
-    my( $found, $finfo );
+    my $found;
     for( my $dirinfo = $cwd;
 	 $dirinfo &&
 	 (stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
@@ -588,14 +594,14 @@ sub f_find_upwards {
 				# intended to avoid trouble with automounters
 				# or dead network file systems.
 	 $dirinfo = $dirinfo->{'..'} ) { # Look in all directories above us.
-      $finfo = file_info $_, $dirinfo;
+      my $finfo = file_info $_, $dirinfo;
       if( Mpp::File::exists_or_can_be_built $finfo ) { # Found file in the path?
 	$found = 1;
+	push @ret_names, relative_filename $finfo, $cwd;
 	last;			# done searching
       }
     }
     $found or die "find_upwards: cannot find file $_\n";
-    push @ret_names, relative_filename $finfo, $cwd;
   }
 
   join ' ', @ret_names;
@@ -657,9 +663,8 @@ sub f_first_available {
 sub f_if {
   my $iftrue = shift if ref $_[0];
   my ($text, $mkfile, $mkfile_line) = @_; # Name the arguments.
-  my $comma = index_ignoring_quotes($text, ',');
-				# Find the first comma.
-  $comma >= 0 or die "$mkfile_line: \$(if ) with only one argument\n";
+  (my $comma = index_ignoring_quotes $text, ',') >= 0 or # Find the first comma.
+    die "$mkfile_line: \$(if ) with only one argument\n";
   my $cond = $mkfile->expand_text(substr($text, 0, $comma), $mkfile_line);
 				# Evaluate the condition.
   $cond =~ s/^\s+//;		# Strip out whitespace on the response.
@@ -667,7 +672,7 @@ sub f_if {
 
   $text = substr $text, $comma+1; # Get the text w/o the comma.
 
-  $comma = index_ignoring_quotes($text, ',');
+  $comma = index_ignoring_quotes $text, ',';
 				# Find the boundary between the then and the
 				# else clause.
   if ($cond || (!$iftrue && $cond ne "")) {	# Is the condition true?
@@ -877,7 +882,7 @@ sub f_join {
 # map Perl code to variable values
 #
 sub f_map {
-  my $comma = index_ignoring_quotes $_[0], ',' or
+  (my $comma = index_ignoring_quotes $_[0], ',') >= 0 or
     die "$_[2]: too few arguments to map\n";
   my $code = eval_or_die 'sub {' . substr( $_[0], $comma + 1 ) . "\n;defined}",
     $_[1], $_[2];
@@ -1368,20 +1373,18 @@ sub f_foreach {
 # because of some special code in expand_text, VAR,LIST,TEXT has not yet
 # been expanded.
 #
-  my $comma = index_ignoring_quotes($text, ','); # Find the variable name.
-  $comma >= 0 or
+  (my $comma = index_ignoring_quotes $text, ',') >= 0 or # Find the variable name.
     die "$mkfile_line: $(foreach VAR,LIST,TEXT) called with only one argument\n";
   my $varname = $mkfile->expand_text(substr($text, 0, $comma));
 				# Get the name of the variable.
   $varname =~ s/^\s+//;		# Strip off leading and trailing whitespace.
   $varname =~ s/\s+$//;
 
-  $text = substr($text, $comma+1); # Get rid of the variable name.
-  $comma = index_ignoring_quotes($text, ',');	# Find the next comma.
-  $comma >= 0 or
+  $text = substr $text, $comma+1; # Get rid of the variable name.
+  ($comma = index_ignoring_quotes $text, ',') >= 0 or # Find the next comma.
     die "$mkfile_line: $(foreach VAR,LIST,TEXT) called with only two arguments\n";
-  my $list = $mkfile->expand_text(substr($text, 0, $comma));
-  $text = substr($text, $comma+1);
+  my $list = $mkfile->expand_text( substr $text, 0, $comma );
+  $text = substr $text, $comma+1;
 
   my $ret_str = '';
   my $sep = '';
@@ -1414,21 +1417,18 @@ sub f_xargs {
   my ($text, $mkfile, $mkfile_line) = @_; # Name the arguments.
   my $max_length = 1000;
 
-  my $comma = index_ignoring_quotes($text, ','); # Find the command
-  $comma >= 0 or
+  (my $comma = index_ignoring_quotes $text, ',') >= 0 or # Find the command
     die "$mkfile_line: $(xargs CMD,LIST) called with only one argument\n";
-  my $command = $mkfile->expand_text(substr($text, 0, $comma));
+  my $command = $mkfile->expand_text( substr $text, 0, $comma );
 
-  $text = substr($text, $comma+1); # Get rid of the variable name.
-  $comma = index_ignoring_quotes($text, ',');	# Find the next comma.
+  $text = substr $text, $comma+1; # Get rid of the variable name.
   my $list;
   my $postfix = '';
-  if($comma >= 0) {
+  if( ($comma = index_ignoring_quotes $text, ',') >= 0 ) {
     $list = $mkfile->expand_text(substr($text, 0, $comma));
     $text = substr($text, $comma+1);
     $postfix = $mkfile->expand_text($text, $mkfile_line);
-  }
-  else {
+  } else {
     $list = $mkfile->expand_text($text);
   }
   my @list = split(' ', $list);
@@ -1450,23 +1450,17 @@ sub f_xargs {
   join "\n", @pieces;
 }
 
-# Internal function for builtin rule on Windows.
-# This is a hack hack hack to make a phony target xyz that indirectly depends on
-# xyz.exe.  We must mark xyz as a phony target *after* we have associated
-# a rule with the target, or else the rule will not work because makepp
+#
+# Internal function for builtin rule on Windows.  This is a hack to make a
+# phony target xyz that depends on xyz.exe.  set_rule marks xyz as a phony
+# target *after* it has associated a rule with the target, because it
 # specifically rejects builtin rules for phony targets (to prevent disasters).
-# (See code in set_rule().)  So we evaluate $(phony ) only after the
-# rule has been set.  This kind of shenanigan is never necessary in normal
-# makefiles because there are no special restrictions about rules from anywhere
-# except this file
-*f__exe_magic_ = sub {
-  undef $rule->{EXPLICIT_TARGETS}[0]{IS_PHONY};
-  my $exe_rule = file_info( $rule->{EXPLICIT_TARGETS}[0]{NAME} . '.exe', $rule->build_cwd )->get_rule;
-  $exe_rule->{DEPENDENCY_STRING} .= " $rule->{DEPENDENCY_STRING}";
-  f_make( $rule->{EXPLICIT_TARGETS}[0]{NAME} . '.exe',
-	  $rule->{MAKEFILE},
-	  $rule->{RULE_SOURCE} );
-  '';
+#
+*f__exe_phony_ = sub {
+  my $cwd = $rule->build_cwd;
+  my $phony = substr relative_filename( $rule->{FOREACH}, $cwd ), 0, -4; # strip .exe
+  file_info( $phony, $cwd )->{_IS_EXE_PHONY_} = 1;
+  $phony;
 } if Mpp::is_windows;
 
 #
@@ -1492,7 +1486,7 @@ sub f_MAKE {
 #
 # Define a build cache for this makefile.
 #
-sub s_build_cache {
+sub s_build_cache {#_
   my ($arg, $mkfile, $mkfile_line) = @_;
 
   my $build_cache_fname = $mkfile->expand_text($arg, $mkfile_line);
@@ -1515,7 +1509,7 @@ sub s_build_cache {
 #
 # Build_check statement.
 #
-sub s_build_check {
+sub s_build_check {#_
   my( undef, $mkfile, $mkfile_line ) = @_;
   my $name = $mkfile->expand_text( $_[0], $mkfile_line );
   $name =~ s/^\s*(\w+)\s*$/$1/ or
@@ -1557,13 +1551,13 @@ sub s_no_implicit_load {
 
 #
 # Define statement.
-# 5 args means we're called from Mpp::Makefile::parse_assignment, because the new form was used:
+# 5 args means we're called from Mpp::Makefile::grok_assignment, because the new form was used:
 # define var +=		# or := etc.
 #
-sub s_define {
+sub s_define {#__
   my( $varname, $mkfile, $mkfile_line, $type, $override ) = @_; # Name the arguments.
 
-  if( @_ < 5 ) {	      # If not called from Mpp::Makefile::parse_assignment.
+  if( @_ < 5 ) {	      # If not called from Mpp::Makefile::grok_assignment.
 #
 # Parse the rest of the statement line.	 There should be a single word
 # which is the name of the variable to define.
@@ -1594,9 +1588,9 @@ sub s_define {
 
 #
 # Export statement.  If it contains an assignment that is handled by
-# Mpp::Makefile::parse_assignment, which calls this only to mark it for export.
+# Mpp::Makefile::grok_assignment, which calls this only to mark it for export.
 #
-sub s_export {
+sub s_export {#__
   #my ($text_line, $mkfile, $mkfile_line) = @_; # Name the arguments.
 
   undef $_[1]{EXPORTS}{$_} for
@@ -1607,9 +1601,9 @@ sub s_export {
 
 #
 # Global statement.  If it contains an assignment that is handled by
-# Mpp::Makefile::parse_assignment.
+# Mpp::Makefile::grok_assignment.
 #
-sub s_global {
+sub s_global {#__
   $Mpp::Makefile::global ||= {};
   my $reexpandref = $_[1]{VAR_REEXPAND};
   for( split ' ', $_[1]->expand_text( $_[0], $_[2] )) {
@@ -1630,11 +1624,16 @@ sub s_global {
 #
 # Include statement:
 #
-sub s_include {
-  my ($text_line, $mkfile, $mkfile_line) = @_;
+our( $defer_include, @defer_include ); # gmake cludge
+sub s_include {#__
+  my( undef, $mkfile, $mkfile_line, $ignore ) = @_;
 				# Name the arguments.
+  if( $defer_include ) {
+    push @defer_include, $ignore ? \&s__include : \&s_include, @_[0..2];
+    return;
+  }
 
-  my @files = split ' ', $mkfile->expand_text( $text_line, $mkfile_line );
+  my @files = split ' ', $mkfile->expand_text( $_[0], $mkfile_line );
 				# Get a list of files.
   my $cwd_devid;		# Remember what device this is mounted on
 				# so we can avoid crossing file system boundaries.
@@ -1671,8 +1670,10 @@ sub s_include {
 	$finfo = file_info($file, $_); # See if it's here.
 	last if file_exists( $finfo );
       }
-      file_exists( $finfo ) or
+      unless( file_exists $finfo ) {
+	next if $ignore;
 	die "makepp: can't find include file `$file'\n";
+      }
     }
 
     Mpp::log LOAD_INCL => $finfo, $mkfile_line
@@ -1686,22 +1687,14 @@ sub s_include {
 # This subroutine does exactly the same thing as include, except that it
 # doesn't die with an error message if the file doesn't exist.
 #
-sub s__include {
-  my ($text_line, $mkfile, $mkfile_line) = @_;
-				# Name the arguments.
-  foreach (split(' ', $mkfile->expand_text($text_line, $mkfile_line))) {
-    eval { s_include($_, $mkfile, $mkfile_line) };
-    $@ or next;                 # No error.
-    $@ =~ /can\'t find include file/ or die $@; # Ignore not found errors.
-  }
-
-  $@ = '';			# Discard any error.
+sub s__include {#_
+  s_include @_[0..2], 1;#__
 }
 
 #
 # Load one or several makefiles.
 #
-sub s_load_makefile {
+sub s_load_makefile {#_
   my ($text_line, $mkfile, $mkfile_line) = @_; # Name the arguments.
 
   my @words = split_on_whitespace($mkfile->expand_text($text_line, $mkfile_line));
@@ -1806,7 +1799,7 @@ sub s_makesub { s_sub( @_, 1 ) }
 #
 # Begin a whole block of perl { } code.
 #
-sub s_perl {
+sub s_perl {#__
   my ($perl_code, $mkfile, $mkfile_line, $expand) = @_;
 				# Name the arguments.
   $perl_code = read_block $perl_code;
@@ -1820,7 +1813,7 @@ sub s_perl {
 #
 # Begin a whole block of perl code.
 #
-sub s_perl_begin {
+sub s_perl_begin {#_
   my ($junk, $mkfile, $mkfile_line) = @_;
 				# Name the arguments.
   my $perl_code = "\n";		# To get line numbers right in messages
@@ -1838,7 +1831,7 @@ sub s_perl_begin {
 # Built targets immediately.
 # Useful when the list of targets depends on files that might be generated.
 #
-sub s_prebuild {
+sub s_prebuild {#__
   my ($text_line, $mkfile, $mkfile_line) = @_;
   my (@words) = split_on_whitespace($mkfile->expand_text($text_line, $mkfile_line));
 
@@ -1883,7 +1876,7 @@ sub prebuild {
 # Usage from the makefile:
 #    autoload filename ...
 #
-sub s_autoload {
+sub s_autoload {#__
   my ($text_line, $mkfile, $mkfile_line) = @_; # Name the arguments.
 
   ++$Mpp::File::n_last_chance_rules;
@@ -1897,7 +1890,7 @@ sub s_autoload {
 #    register_scanner command_word scanner_subroutine_name
 #
 #
-sub s_register_scanner {
+sub s_register_scanner {#_
   my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
   warn "$mkfile_line: register-scanner deprecated, please use register-parser\n";
 
@@ -1917,7 +1910,7 @@ sub s_register_scanner {
 #    register_command_parser command_word command_parser_class_name
 #
 #
-sub s_register_parser {
+sub s_register_parser {#_
   my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
 
   my( @fields ) = unquote_split_on_whitespace $mkfile->expand_text( $_[0], $mkfile_line );
@@ -1953,7 +1946,7 @@ sub s_register_input_suffix {
 #
 # Load from repositories:
 #
-sub s_repository {
+sub s_repository {#__
   require Mpp::Repository;
   goto &s_repository;		# Redefined.
 }
@@ -1961,14 +1954,13 @@ sub s_repository {
 #
 # Add runtime dependencies for an executable.
 #
-sub s_runtime {
+sub s_runtime {#__
   my ($text, $mkfile, $mkfile_line) = @_; # Name the arguments.
 
-  my $first_comma = index_ignoring_quotes($text, ','); # Find the command
-  $first_comma >= 0 or
+  (my $comma = index_ignoring_quotes $text, ',') >= 0 or # Find the command
     die "$mkfile_line: runtime EXE,LIST called with only one argument\n";
-  my $exelist = $mkfile->expand_text(substr($text, 0, $first_comma), $mkfile_line);
-  substr $text, 0, $first_comma+1, ''; # Get rid of the variable name.
+  my $exelist = $mkfile->expand_text(substr($text, 0, $comma), $mkfile_line);
+  substr $text, 0, $comma+1, ''; # Get rid of the variable name.
   my @deps = map file_info($_, $mkfile->{CWD}), split_on_whitespace($mkfile->expand_text($text, $mkfile_line));
   for my $exe ( map file_info($_, $mkfile->{CWD}), split_on_whitespace( $exelist )) {
     for my $dep (@deps) {
@@ -1980,7 +1972,7 @@ sub s_runtime {
 #
 # Set the default signature method for all rules in this makefile:
 #
-sub s_signature {
+sub s_signature {#__
   my( undef, $mkfile, $mkfile_line ) = @_;
   my $name = $mkfile->expand_text( $_[0], $mkfile_line );
   $name =~ s/^\s*(\w+)\s*$/$1/ or
@@ -2014,7 +2006,7 @@ sub s_signature {
 #   ... perl code
 # }
 #
-sub s_sub {
+sub s_sub {#__
   my ($subr_text, $mkfile, $mkfile_line, $expand) = @_;
 				# Name the arguments.
   $subr_text = read_block $subr_text;
@@ -2025,7 +2017,7 @@ sub s_sub {
 #
 # Don't export a variable to child processes.
 #
-sub s_unexport {
+sub s_unexport {#__
   my ($text_line, $mkfile, $mkfile_line) = @_;
 				# Name the arguments.
   return unless $mkfile->{EXPORTS};

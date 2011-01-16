@@ -1,4 +1,4 @@
-# $Id: Glob.pm,v 1.36 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: Glob.pm,v 1.37 2010/11/19 20:59:31 pfeiffer Exp $
 
 package Mpp::Glob;
 
@@ -430,7 +430,7 @@ sub wild_to_regex {
   return $regexp_cache[$anchor]{$_} if $regexp_cache[$anchor]{$_}; # Processed this before.
 
   if( $anchor || /[[?*]/ ) {	# Is it possible that there are wildcards?  If not,
-				# don't bother to do the more complicated parsing.
+				# don't bother to do the more complicated grokking.
     my $is_wildcard = 0;	# Haven't seen a wildcard yet.
     my $file_regex = '';	# A regular expression to match this level.
     pos() = 0;
@@ -453,7 +453,7 @@ sub wild_to_regex {
 	++pos();		# Skip it.
 	$is_wildcard = 1;
 	$file_regex .= '[';	# Begin the character class.
-      CLASSLOOP:		# Nested loop for parsing the character class.
+      CLASSLOOP:		# Nested loop for grokking the character class.
 	{
 	  if( /\G([^\\\]]+)/gc ) { $file_regex .= $1; redo CLASSLOOP; }
 				# No quotemeta because we want it to

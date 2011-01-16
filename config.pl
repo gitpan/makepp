@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: config.pl,v 1.28 2010/10/18 21:40:21 pfeiffer Exp $
+# $Id: config.pl,v 1.29 2011/01/16 17:09:32 pfeiffer Exp $
 #
 # Configure this package.
 #
@@ -18,7 +18,7 @@ if ($@) {			# Not recent enough?
   die "I need perl version 5.6 or newer.  If you have it installed somewhere
 already, run this installation procedure with that perl binary, e.g.,
 
-	perl5.10.0 config.pl
+	perl5.12.1 config.pl ...
 
 If you don't have a recent version of perl installed (what kind of system are
 you on?), get the latest from www.perl.com and install it.
@@ -79,6 +79,7 @@ open MAKEFILE, '>', $makefile or die "$0: can't write $makefile--$!\n";
 my $perl = PERL;
 
 s/\$/\$\$/g for $perl, $bindir, $datadir, $findbin, $mandir, $htmldir, $VERSION;
+$VERSION =~ s/:.*//;
 
 print MAKEFILE "PERL = $perl
 BINDIR = $bindir
@@ -90,37 +91,36 @@ VERSION = makepp-$VERSION\n";
 
 print MAKEFILE q[
 
+FILES = makepp makeppbuiltin makeppclean makeppgraph makepplog makeppreplay recursive_makepp \
+	*.pm Mpp/*.pm \
+	Mpp/ActionParser/*.pm Mpp/BuildCheck/*.pm Mpp/CommandParser/*.pm Mpp/Fixer/*.pm Mpp/Scanner/*.pm Mpp/Signature/*.pm \
+	*.mk
+
 all: test
 
 test: .test_done
 
-.test_done: *.pm Mpp/*.pm Mpp/Signature/*.pm Mpp/Scanner/*.pm Mpp/CommandParser/*.pm Mpp/Lexer/*.pm makepp \
-	t/*.test t/run_tests.pl
+.test_done: $(FILES) t/*.test t/run_tests.pl
 	cd t && PERL=$(PERL) $(PERL) run_tests.pl --hint
 	touch $@
 
 testall: .testall_done
 
-.testall_done: *.pm Mpp/*.pm Mpp/Signature/*.pm Mpp/Scanner/*.pm Mpp/CommandParser/*.pm Mpp/Lexer/*.pm makepp \
-	t/*.test t/*/*.test t/run_tests.pl
-	cd t && PERL=$(PERL) $(PERL) run_tests.pl --hint *.test */*.test
+.testall_done: .test_done t/*/*.test
+	cd t && PERL=$(PERL) $(PERL) run_tests.pl --hint */*.test
 	touch $@
 
 distribution: $(VERSION).tar.gz
 
-$(VERSION).tar.gz: README INSTALL LICENSE VERSION makepp.lsm ChangeLog \
-	makepp recursive_makepp makeppclean \
-	Mpp/*.pm Mpp/Signature/*.pm Mpp/Scanner/*.pm \
-	Mpp/BuildCheck/*.pm Mpp/CommandParser/*.pm Mpp/Lexer/*.pm *.mk *.pm \
-	pod/*.pod \
-	t/*.test t/*/*.test t/run_tests.pl \
-	config.pl configure install.pl makepp_build_cache_control
+$(VERSION).tar.gz: README INSTALL LICENSE VERSION ChangeLog \
+	pod/*.pod $(FILES) makepp_build_cache_control makeppinfo \
+	t/*.test t/*/*.test t/run_all.t t/run_tests.pl \
+	config.pl configure configure.bat install.pl
 	rm -rf $(VERSION)
 	./configure         # Reset Makefile.
-	mkdir $(VERSION) \
-	   $(VERSION)/pod $(VERSION)/t \
-	   $(VERSION)/Mpp $(VERSION)/Mpp/Signature $(VERSION)/Mpp/Scanner \
-	   $(VERSION)/Mpp/CommandParser $(VERSION)/Mpp/Lexer
+	mkdir $(VERSION) $(VERSION)/pod $(VERSION)/t \
+	   $(VERSION)/Mpp $(VERSION)/Mpp/ActionParser $(VERSION)/Mpp/BuildCheck $(VERSION)/Mpp/CommandParser \
+	   $(VERSION)/Mpp/Fixer $(VERSION)/Mpp/Scanner $(VERSION)/Mpp/Signature
 	for file in $^; do cp $$file $(VERSION)/$$file; done
 	GZIP=-9 tar --create --gzip --file $@ $(VERSION)
 	cd $(VERSION) && make test    # Make sure it all runs.

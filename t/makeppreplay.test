@@ -1,8 +1,8 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	45	644	1227216359	1229020580	makepp_test_script.pl
+###	43	644	1227216359	1294260032	makepp_test_script.pl
 # This test creates some files, also in other dirs, messes them up and wants mppr to recreate them.
 
-local $ENV{X} = 0;			# Set up a dependency mpp won't know about.
+local $ENV{X} = 0;		# Set up a dependency mpp won't know about.
 local $ENV{C} = 1;
 eval { makepp '-k' };
 cp qw(out out1);
@@ -41,8 +41,6 @@ local @ARGV = <.makepp/*.mk dir/.makepp/*.mk>;
 local $/;
 /^RESCAN=/m and $rescan++ while <>;
 die 'rescan' if $rescan != 5;	# a, d, dir/e, dir/f & xreal.c don't need scanning, so they don't lose this flag.
-
-cp 'n_files.win', 'answers/n_files' if is_windows && is_windows < 2;
 
 1;
 ###	35	644	1227216620	1229020504	RootMakeppfile.mk
@@ -100,8 +98,6 @@ sub c_cmd {
 1;
 ###	1	644	1228321990	1228590123	dd
 a dep with no special scanner, to edit: y0
-###	1	644	1067451873	1228322580	n_files.win
-8 2 2
 ###	1	644	1228321911	1228159851	x0.h
 int main() { puts("a"); return 0; }
 ###	1	644	1228321990	1228160207	x1.h

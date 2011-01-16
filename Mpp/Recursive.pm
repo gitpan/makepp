@@ -1,4 +1,4 @@
-# $Id: Recursive.pm,v 1.9 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: Recursive.pm,v 1.12 2011/01/16 16:59:29 pfeiffer Exp $
 
 =head1 NAME
 
@@ -21,21 +21,18 @@ use Mpp::Event qw(wait_for read_wait);
 our $traditional;		# 1 if we invoke makepp recursively, undef if
 				# we call the recursive_makepp stub and do
 				# the build in the parent process.
+our $hybrid;			# 1 if we try non-traditionl, but fall back for
+				# directories with multiple makefiles.
+our $depth;			# Brake
+if( defined $traditional || defined $hybrid ) {
+  $depth = 50 unless defined $depth;
+  die "`--traditional-recursive-make' has reached max depth.
+  Probably your invocations of \$(MAKE) have a cycle (which gmake ignores).
+  For e.g. 70 levels of recursion, add to command line: recursive_makepp=70\n"
+    if --$depth < 0;
+}
 
-our $_MAKEPPFLAGS = $traditional ?
-  join_with_protection( defined $traditional ? '--traditionalrecursivemake' : (),
-			$Mpp::last_chance_rules ? '--lastchancerules' : (),
-			$Mpp::final_rule_only ? '--finalruleonly' : (),
-			$Mpp::gullible ? '--gullible' : (),
-			$Mpp::sigmethod_name ? "-m$Mpp::sigmethod_name" : (),
-			$Mpp::build_check_method_name ne 'exact_match' ? "--buildcheck=$Mpp::build_check_method_name" : (),
-			$Mpp::no_path_executable_dependencies ? '--nopathexedep' : (),
-			$Mpp::rm_stale_files ? '--rmstalefiles' : (),
-
-
-			map { /^makepp_/ ? "$_=$Mpp::Makefile::global_command_line_vars->{$_}" : () }
-			keys %$Mpp::Makefile::global_command_line_vars ) :
-  '';
+my $_MAKEPPFLAGS;
 
 
 # Do this here on behalf of makepp, because it should only be necessary for downloaded recursive open source.
@@ -72,7 +69,7 @@ if( $ENV{MAKEPP_IGNORE_OPTS} ) {
 
 END {
   local $?;
-  defined $traditional and $Mpp::Rule::last_build_cwd and $Mpp::print_directory and
+  defined $traditional || defined $hybrid and $Mpp::Rule::last_build_cwd and $Mpp::print_directory and
     print "$Mpp::progname: Leaving directory `" . absolute_filename( $Mpp::Rule::last_build_cwd ). "'\n";
 }
 
@@ -80,7 +77,9 @@ END {
 # Set up our socket for listening to recursive make requests.  We don't do
 # this unless we actually detect the use of the $(MAKE) variable.
 #
-our( $socket, $socket_name );
+our $socket;
+our $socket_name = $Mpp::global_ENV{MAKEPP_SOCKET} if exists $Mpp::global_ENV{MAKEPP_SOCKET};
+				# In case of --hybrid, speak to the original process, don't have our own socket.
 sub setup_socket {
   return if $socket_name; # Don't do anything if we've already
 				# made the socket.
@@ -103,6 +102,8 @@ sub setup_socket {
   read_wait $socket, \&connection;
 }
 
+our $command;			# Once this is set, we know we can potentially have recursion.
+my $traditional_command;
 #
 # This subroutine is called whenever a connection is made to the recursive
 # make socket.
@@ -158,7 +159,16 @@ sub connection {
         wait_for Mpp::parse_command_line %this_ENV; # Build all the targets.
       };
       if( $@ ) {		# Have an error code?
-	$status = 1;
+	if( defined $hybrid && $@ =~ /\Aattempt to load two makefiles/ ) {
+	  local $traditional = 1;
+	  local $command = $traditional_command;
+	  $depth = 50 unless defined $depth;
+	  $status = 'exec ' . Mpp::Subs::f_MAKE( undef, {}, 'recursion' ) . "\n$_MAKEPPFLAGS\n";
+	  $traditional_command ||= $command;
+	  $@ = '';
+	} else {
+	  $status = 1;
+	}
       } elsif( 'Mpp::File' eq ref $status ) {
 	$status = '2 Dependency of `' . absolute_filename($status) . "' failed";
       }
@@ -183,10 +193,25 @@ no warnings 'redefine';
 # $(MAKE) needs to expand to the name of the program we use to replace a
 # recursive make invocation.  We pretend it's a function with no arguments.
 #
-our $command;			# Once this is set, we know we can potentially have recursion.
+my $n = -1;
 sub Mpp::Subs::f_MAKE {
-  if( defined $traditional ) {	# Do it the bozo way?
-    $_[1]{EXPORTS}{_MAKEPPFLAGS} = $_MAKEPPFLAGS;
+  if( defined $traditional ) { # Do it the bozo way?
+    $_[1]{EXPORTS}{_MAKEPPFLAGS} = $_MAKEPPFLAGS ||= join_with_protection
+      defined $hybrid ? '--hybrid' : '--traditional',
+      $Mpp::build_check_method_name ne 'exact_match' ? "--buildcheck=$Mpp::build_check_method_name" : (),
+      $Mpp::Subs::defer_include ? '--deferinclude' : (),
+      $Mpp::final_rule_only ? '--finalruleonly' : (),
+      $Mpp::gullible ? '--gullible' : (),
+      $Mpp::last_chance_rules ? '--lastchancerules' : (),
+      $Mpp::log_level == 1 ? '-v' : $Mpp::log_level == 0 ? '--nolog' : (),
+      $Mpp::no_path_executable_dependencies ? '--nopathexedep' : (),
+      $Mpp::remake_makefiles ? () : '--noremakemakefiles',
+      $Mpp::rm_stale_files ? '--rmstalefiles' : (),
+      $Mpp::sigmethod_name ? "-m$Mpp::sigmethod_name" : (),
+
+      map { /^makepp_/ ? "$_=$Mpp::Makefile::global_command_line_vars->{$_}" : () }
+	keys %$Mpp::Makefile::global_command_line_vars;
+
     unless( defined $command ) { # Haven't figured it out yet?
       $command = $0;		# Get the name of the program.
       unless( $command =~ m@^/@ ) { # Not absolute?
@@ -202,9 +227,16 @@ sub Mpp::Subs::f_MAKE {
 	}
       }
     }
-    Mpp::PERL . ' ' . $command . ' --recursive_makepp';
+    my $log = '';
+    if( $Mpp::log_level == 2 ) {
+      $log = ".makepp/log-$$-" . ++$n;
+      Mpp::log LOG => $_[2], $log
+	if $Mpp::log_level;
+      substr $log, 0, 0, ' --log=';
+    }
+    Mpp::PERL . " $command recursive_makepp=$depth$log";
 				# All the rest of the info is passed in the
-				# MAKEFLAGS environment variable.
+				# _MAKEPPFLAGS environment variable.
 				# The --recursive option is just a flag that
 				# helps the build subroutine identify this as
 				# a recursive make command.  It doesn't

@@ -2,7 +2,7 @@
 
 makepp_scanning -- How makepp finds include files and other hidden dependencies
 
-=for vc $Id: makepp_scanning.pod,v 1.17 2010/11/17 21:35:52 pfeiffer Exp $
+=for vc $Id: makepp_scanning.pod,v 1.19 2011/01/16 17:10:41 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -32,12 +32,14 @@ Actually there are three steps to what is historically known as scanning:
 =item 1.
 
 The rule action is split into lines (continuation lines count as one).  Each
-line (except builtins and perl blocks) is B<lexically analyzed> as one or
-more Shell commands.  Redirections are recognized as inputs or outputs to this
+line (except builtins and perl blocks) is B<lexically analyzed> as one or more
+Shell commands.  Redirections are recognized as inputs or outputs to this
 rule.  The first word of each command is looked up (with its directory part
-but, if not found, again without it) to find a parser for it.
+but, if not found, again without it) to find a parser for it.  These become
+optional dependencies, they are built if possible, but ignored if not found,
+as makepp can't know which part of a complex command is actually run.
 
-Commands in backquotes are neither analyzed nor executed.  (Often execution is
+Commands in backquotes are analyzed but not executed.  (Often execution is
 important, but this would be a major interference by makepp.)  It is better
 style to avoid them.  Instead have makepp run the command at most once by
 assigning it in this special way:
@@ -143,16 +145,24 @@ If your compiler has a funny name, you can say either of
     register-parser obscure_c_compiler c-compilation
     register-parser obscure_gcc_alias gcc-compilation
 
-=head2 Embedded SQL C/C++ compilation (esqlc-compilation)
+=head2 Embedded SQL C/C++ compilation (esql-compilation)
 
 These commands, which come with the various databases, preprocess special
 sections in otherwise C/C++-like sources, and produce C/C++ headers and
 sources.  This finds EXEC SQL INCLUDE "filename" or $INCLUDE "filename"
 directives.
 
-If your preprocessor is not recognized, you can say
+These preprocessors are recognized: Altibase APRE*C/C++ (F<apre>), CASEMaker
+DBMaker (F<dmppcc>), Firebird / InterBase (F<gpre>), IBM DB2 (F<db2
+precompile, db2 prep>) & Informix ESQL/C (F<esql>), Ingres (F<esqlc>), Mimer
+(F<esql>), Oracle (F<proc>), PostgreSQL (F<ecpg>) & YARD (F<yardpc>).  If your
+preprocessor is not recognized, you can say
 
-    register-parser obscure_esqlc_preprocessor esqlc-compilation
+    register-parser obscure_esqlc_preprocessor esql-compilation
+
+This will however only handle the style common to Informix and others: Command
+arguments ending in C<.ec> are files to be scanned, C<-I> defines the include
+path and EXEC SQL INCLUDE directives without a suffix get C<.h> appended.
 
 =head2 Swig (swig)
 

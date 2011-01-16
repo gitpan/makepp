@@ -1,4 +1,4 @@
-# $Id: Scanner.pm,v 1.55 2010/10/18 21:40:21 pfeiffer Exp $
+# $Id: Scanner.pm,v 1.56 2011/01/16 17:10:06 pfeiffer Exp $
 
 =head1 NAME
 
@@ -9,8 +9,7 @@ Mpp::Scanner - Base class for makepp file scanners
   use Mpp::Scanner;
   our @ISA = qw/Mpp::Scanner/;
   sub xscan_file {
-    my $self=shift;
-    my ($cp, $tag, $finfo, $conditional, $fh)=@_;
+    my( $self, $cp, $tag, $finfo, $conditional, $fh ) = @_;
     while(<$fh>) {
       # ...
     }
@@ -142,13 +141,11 @@ sub add_include_dir {
       # retargeted symbolic link, then a re-scan gets forced
       # (once the retargeting detection logic is added).
       if($front) {
-	unshift(@{$self->{$tag}[INCLUDE_DIRS]}, $dirinfo);
+	unshift @{$self->{$tag}[INCLUDE_DIRS]}, $dirinfo;
+      } else {
+	push @{$self->{$tag}[INCLUDE_DIRS]}, $dirinfo;
       }
-      else {
-	push(@{$self->{$tag}[INCLUDE_DIRS]}, $dirinfo);
-      }
-    }
-    else {
+    } else {
       warn 'invalid directory ' . absolute_filename( $dirinfo ) .
 	' mentioned in command `' . $self->{RULE}->source . "'\n"
         unless $dir_warnings{absolute_filename( $dirinfo )}++;
@@ -160,13 +157,11 @@ sub add_include_dir {
       Mpp::Lexer::relative_path( $self->{DIR}, $path ),
       $front
     );
-  }
-  else {
+  } else {
     if($front) {
-      unshift(@{$self->{$tag}[INCLUDE_DIRS]}, undef);
-    }
-    else {
-      push(@{$self->{$tag}[INCLUDE_DIRS]}, undef);
+      unshift @{$self->{$tag}[INCLUDE_DIRS]}, undef;
+    } else {
+      push @{$self->{$tag}[INCLUDE_DIRS]}, undef;
     }
     $self->{RULE}->add_include_dir(
       $self->get_tagname($tag), undef, $front
@@ -181,8 +176,9 @@ sub add_include_dir {
 Append $suffix to the list of suffixes to append to the string
 naming the file to be included (I<i.e.> the $name parameter of the include()
 method).
-The list starts as an empty array, but it defaults to C<("")> if a file is
-sought before any suffix is added.
+The list starts as an empty array, but it defaults to C<('')> if a file is
+sought before any suffix is added.  If the first element is '/' it means to try
+the other suffixes in the list only for a name that doesn't have one (embedded SQL/C).
 Directory search order takes precedence over suffix search order.
 [This is used by VCS, as well as a number of other Verilog-related tools.]
 
@@ -192,7 +188,7 @@ my %suffix_list_cache;
 sub add_include_suffix {
   my( $self, $tag, $sfx ) = @_;
   my @sfxs = @{$self->{$tag}[INCLUDE_SFXS] || []};
-  push(@sfxs, $sfx);
+  push @sfxs, $sfx;
   $self->add_include_suffix_list($tag, \@sfxs);
 }
 sub add_include_suffix_list {
@@ -369,7 +365,7 @@ sub scan_file1 {
 }
 sub scan_file {
   my ($self, $command_parser, $tag, $name)=@_;
-  push(@{$self->{PENDING}}, [$tag, $self->get_file_info($name)]);
+  push @{$self->{PENDING}}, [$tag, $self->get_file_info($name)];
   $command_parser->add_dependency($name) ?
     defined $self->continue_scanning($command_parser) :
     undef;
@@ -450,14 +446,15 @@ sub find {
       my $base = $dir ||
 	($src_dir ||= defined( $src ) && (is_or_will_be_dir( $src ) ? $src : $src->{'..'}))
 	or next;
-      if( $self->{$tag}[INCLUDE_SFXS] ) {
+      if( $self->{$tag}[INCLUDE_SFXS] and $self->{$tag}[INCLUDE_SFXS][0] ne '/' || $name !~ /\.[^\/]*$/ ) {
 	$key ||= '/' . $self->{$tag}[INCLUDE_SFXS] . '/' . $name;
 	if( exists $base->{SCANNER_CACHE}{$key} ) {
 	  return $base->{SCANNER_CACHE}{$key} if $base->{SCANNER_CACHE}{$key};
 	  next;
 	}
 	for my $sfx ( @{$self->{$tag}[INCLUDE_SFXS]} ) {
-	  my $finfo = file_info($name.$sfx, $base);
+	  next if $sfx eq '/';
+	  my $finfo = file_info $name.$sfx, $base;
 	  return $base->{SCANNER_CACHE}{$key} = $finfo if Mpp::File::exists_or_can_be_built_or_remove $finfo;
 	  undef $base->{SCANNER_CACHE}{$key};
 	}
@@ -471,14 +468,15 @@ sub find {
 	undef $base->{SCANNER_CACHE}{$name};
       }
     }
-  } elsif( $self->{$tag}[INCLUDE_SFXS] ) {
+  } elsif( $self->{$tag}[INCLUDE_SFXS] and $self->{$tag}[INCLUDE_SFXS][0] ne '/' || $name !~ /\.[^\/]*$/ ) {
     local $Mpp::File::read_dir_before_lstat = 1;
     for my $sfx (@{$self->{$tag}[INCLUDE_SFXS]}) {
-      my $finfo=file_info($name.$sfx);
+      next if $sfx eq '/';
+      my $finfo=file_info $name.$sfx;
       return $finfo if Mpp::File::exists_or_can_be_built_or_remove $finfo;
     }
   } else {
-    return file_info($name);
+    return file_info $name;
   }
 
   if( $self->{$tag}[SHOULD_FIND] && !$already_warned_missing{$name}++ ) {
@@ -543,7 +541,7 @@ sub include {
     if($self->{INFO_STRING}{$tag}) {
       $self->{INC}{$tag}{$name}=1;
     }
-    push(@{$self->{PENDING}}, [$tag, $finfo]) if $finfo && !$self->{SEEN}{$tag}{int $finfo}++;
+    push @{$self->{PENDING}}, [$tag, $finfo] if $finfo && !$self->{SEEN}{$tag}{int $finfo}++;
   }
   # NOTE: We don't need to return undef if this isn't found, because
   # it could come from a system path that we don't know about (which
@@ -665,7 +663,7 @@ conditional evaluated false.
 
 sub push_scope {
   $_[0]{ACTIVE} &&= $_[1];
-  push(@{$_[0]{SCOPES}}, $_[0]{ACTIVE});
+  push @{$_[0]{SCOPES}}, $_[0]{ACTIVE};
 }
 
 =head2 pop_scope
@@ -684,7 +682,7 @@ sub pop_scope {
   my $s=$self->{SCOPES};
   my $result = $s->[-1];
   if(@$s > 1) {
-    pop(@$s);
+    pop @$s;
     $self->{ACTIVE}=$s->[-1];
   } else {
     # TBD: Improve this diagnostic

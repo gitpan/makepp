@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.108 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: Rule.pm,v 1.110 2010/12/10 22:07:11 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -214,6 +214,8 @@ sub find_all_targets_dependencies {
   $command_string =~ s/\s+$//;	# so we don't trigger unnecessary rebuilds
 				# quite as often.
 
+  $self->{COMMAND_STRING} = $command_string; # Remember expansion for later.
+
   # In $dont_scan mode (--final-rule-only), don't try to build any
   # dependencies.  We assume that the user knows they're up to date.  The
   # build info won't show then either, so it will look out-of-date next time
@@ -231,8 +233,7 @@ sub find_all_targets_dependencies {
     unless( eval { $self->lexer->lex_rule( $command_string, $self ) } ) {
       die $@ if $@ && $@ ne "SCAN_FAILED\n";
       $self->{SCAN_FAILED} ||= 1;
-    }
-				# Look for any additional dependencies (or
+    }				# Look for any additional dependencies (or
 				# targets) that we didn't know about.
   } else {
     Mpp::log SCAN_CACHED => $oinfo
@@ -943,7 +944,7 @@ sub print_command {
 =head2 $rule->append($rule)
 
 Add the targets and commands from another rule to this rule.  This is used
-only when parsing double colon rules like this:
+only when grokking double colon rules like this:
 
    clean::
        $(RM) *.o
@@ -1067,7 +1068,7 @@ sub execute_command {
     }
 
 #
-# Parse the @ and - in front of the command.
+# Grok the @ and - in front of the command.
 #
     my $silent_flag = $Mpp::quiet_flag || $flags =~ /\@|noecho/;
     my $error_abort = $flags !~ /-|ignore_error/;
@@ -1145,7 +1146,7 @@ sub execute_command {
 
     undef $unsafe;		# Because exec() closes and fork() flushes
                                 # filehandles, and external cmd can't chdir.
-    my $nop = \&Mpp::is_windows;	# Reuse any old function that does nothing, to
+    my $nop = $Mpp::Text::N[0];	# Reuse any old function that does nothing, to
 				# save allocating a new sub.
     if ($error_abort && !@actions) { # Is this the last action?
       $SIG{__WARN__} = $nop;	# Suppress annoying warning message here if the

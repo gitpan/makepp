@@ -1,6 +1,93 @@
+2011-01-16  Daniel Pfeiffer  <occitan@esperanto.org>
+
+Snapshot makepp-1.50.110116.tgz, version 1.50-110116:13-101224:4-1210:6 on sourceforge & CPAN.
+
+	* Mpp/Scanner.pm (find): Initial suffix '/' means: try others only
+	for a name that has no suffix.
+
+	* CommandParser/Esql.pm, Mpp/Scanner/Esqlc.pm: Handle all known
+	kinds of embedded SQL preprocessors.  Rename to Esql as the
+	commands are not specific to C.
+
+	* makepp, Mpp/Recursive.pm, recursive_makepp,
+	* t/recursive_variants.test: New option --hybrid and put a brake
+	on deep recursion.
+
+	* Mpp/CommandParser.pm, Mpp/FileOpt.pm, Mpp/Subs.pm,
+	* makepp_builtin_rules.mk: Workaround for bug in new Cygwin (where
+	stat() rarely reports an inexistent file to be a symlink) lead to
+	cleaner implementation of $(phony xyz): xyz.exe
+
+	* Mpp/Makefile.pm, Mpp/Fixer/Automake.pm, Mpp/Fixer/CMake.pm
+	* makepplog, install.pl: New directory Fixer, to also fix CMake
+	makefiles avoiding recursion.
+
+	* config.pl: New version scheme caused an invalid installation
+	makefile. (Thanks to Thomas Kluge)
+
+	* t/additional_tests/2003_08_13_load_makefile_quotes.test:
+	* t/wildcard_repository.test: NFS can use strange uid on own files.
+
+2010-12-24  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/File.pm (mark_as_directory): Cache all upwards paths as
+	otherwise a relative path might include ../thisdir (thanks to
+	andrewdonkin).
+	(relative_filename): Use this caching to simplify very much.
+
+	* Mpp/Makefile.pm: Warn about unsupported VPATH (thanks to Harald
+	van Dijk) and ignore space after :build_cache.
+
+	* Mpp/Repository.pm: Count mkdir failure as build error.
+
+	* Mpp/Scanner/C.pm: Inside a <> include don't fall back to ""
+	(cygwin/config.h caused a warning).
+
+	* Mpp/Subs.pm (s_include): Also handle s__include.
+
+2010-12-10  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm Fix regression from change to Mpp, whereby
+	reload did not clear variables.
+	(expand_variable): Move sub expansion here.
+
+	* Mpp/Text.pm (index_ignoring_quotes, hash_neq): Accept 3rd argument.
+	(max_index_ignoring_quotes): Optimize.
+	(split_on_whitespace): Also parens delimit shell commands.
+
+	* Mpp/Subs.pm (f_map): Fix condition.
+
+	* Mpp/FileOpt.pm: Actually drop old rule on reload.
+
+	* Mpp/AutomakeFixer.pm (clean): Rename remove_automake_junk,
+	handle empty subdir list and don't cheat by calling make.
+
+	* Mpp/Recursive.pm: In traditional, start each make with a
+	different logfile, and log it so you have a chance to find it.
+
+	* Mpp/CommandParser.pm:
+	* Mpp/Lexer.pm: Make found dependencies optional because in a
+	complex action script not all commands are necessarily run.  Also
+	parse backquoted commands.
+
+	* Mpp/Makefile.pm:
+
+	* Mpp/Rule.pm (find_all_targets_dependencies): Remember expansion
+	so functions won't be evaluated a 2nd time.
+
+	* Mpp/BuildCheck/target_newer.pm (changed_dependencies): May not
+	have been built yet.
+
+	* makeppclean: New or changed options -k, -l & -m.
+
+2010-11-19  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* *: Reserve the term parse for command arguments.  Everything
+	else is now grokked.
+
 2010-11-17  Daniel Pfeiffer  <occitan@esperanto.org>
 
-Snapshot makepp-1.50.101117.tgz, version 1.50-101117:18-1018:5-0929:8 on CPAN.
+Snapshot makepp-1.50.101117.tgz, version 1.50-101117:18-1018:5-0929:8 on sourceforge & CPAN.
 
 	* *: Cleanly distinguish between lexing, parsing and scanning.
 	Fix skip-word without recursion and provide new variant for
@@ -14,9 +101,9 @@ Snapshot makepp-1.50.101117.tgz, version 1.50-101117:18-1018:5-0929:8 on CPAN.
 	* *: Rename ActionParser to Lexer and only refer to it by that
 	name, to get rid of previous chaos.
 
-	* Mpp/ActionParser/Specific.pm:
-	* Mpp/ActionParser/Legacy.pm: Deprecate useless subclasses that
-	make it hard to get skip-word right.
+	* Mpp/ActionParser/Specific.pm, Mpp/ActionParser/Legacy.pm:
+	Deprecate useless subclasses that make it hard to get skip-word
+	right.
 
 	* Mpp/Rule.pm (scan_action): Remove unused func.
 	(find_all_targets_dependencies): Fix missing return value (thx to
@@ -126,8 +213,7 @@ Snapshot makepp-1.50.100422.tgz, version 1.50-04221-02242-02094 on CPAN.
 
 	* Mpp/Utils.pm (Mpp::Rewrite::cwd): Work around a 5.12.0 crash.
 
-	* install.pl:
-	* pod/makepp_compatibility.pod: Mention 5.12 as working.
+	* install.pl, pod/makepp_compatibility.pod: Mention 5.12 as working.
 
 	* pod/makepp_command.pod: Mention --sandbox as a workaround for -j
 	on native Win.
@@ -141,8 +227,8 @@ Snapshot makepp-1.50.100422.tgz, version 1.50-04221-02242-02094 on CPAN.
 
 	* makepplog (instdir): Erstwhile workaround for 5.11 deprecation.
 
-	* pod/makepp_rules.pod:
-	* pod/makepp_faq.pod: Update about new behaviour of :include.
+	* pod/makepp_rules.pod, pod/makepp_faq.pod: Update about new
+	behaviour of :include.
 
 	* pod/makepp_repositories.pod: Remove long outdated limitation of
 	only parsing the 1st command of an action.  Explain about
@@ -226,13 +312,11 @@ Snapshot makepp-1.50.100422.tgz, version 1.50-04221-02242-02094 on CPAN.
 
 2009-03-19  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp:
-	* makeppreplay: Use __DATA__, to fix --help.
+	* makepp, makeppreplay: Use __DATA__, to fix --help.
 
 	* Mpp.pm (log): Try unwritable logfile only once.
 
-	* config.pl:
-	* install.pl: Provide $DESTDIR for Gentoo's indirect install.
+	* config.pl, install.pl: Provide $DESTDIR for Gentoo's indirect install.
 
 	* t/run_tests.pl: Give hints when tests fail.
 
@@ -248,10 +332,8 @@ Snapshot makepp-1.50.090221.tgz, version 1.50-02212-021122-02107 on CPAN.
 	* Mpp/Makefile.pm (expand_variable):
 	* Mpp/Subs.pm (s_global): Rename package global to Mpp::global.
 
-	* makeppgraph:
-	* makepplog:
-	* Mpp/Utils.pm:
-	* t/log_graph.test: Rename package Rewrite to Mpp::Rewrite.
+	* makeppgraph, makepplog, Mpp/Utils.pm, t/log_graph.test: Rename
+	package Rewrite to Mpp::Rewrite.
 
 	* install.pl: Don't put DOS newline into $VERSION if unpacked wrongly.
 
@@ -278,8 +360,8 @@ Snapshot makepp-1.50.090221.tgz, version 1.50-02212-021122-02107 on CPAN.
 
 2009-02-03  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* Makecmds.pm:
-	* Makesubs.pm: Cleanly separate these modules, and make the latter "our" based.
+	* Makecmds.pm, Makesubs.pm: Cleanly separate these modules, and
+	make the latter "our" based.
 
 2009-01-31  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -294,11 +376,10 @@ Snapshot makepp-1.50.090221.tgz, version 1.50-02212-021122-02107 on CPAN.
 
 2009-01-08  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp:
-	* Rule.pm:
-	* FileInfo_makepp.pm: Handle all variants of symlink changes.
-	With --rm-stale also rm files whose stale dependencies get rm`ed,
-	or where it can't initially be decided if it's really stale.
+	* makepp, Rule.pm, FileInfo_makepp.pm: Handle all variants of
+	symlink changes.  With --rm-stale also rm files whose stale
+	dependencies get rm`ed, or where it can't initially be decided if
+	it's really stale.
 
 	* BuildCheck/exact_match.pm: Extend arch-change explanation to any
 	similar pairs.
@@ -331,10 +412,7 @@ Snapshot makepp-1.50.090221.tgz, version 1.50-02212-021122-02107 on CPAN.
 
 Snapshot makepp-1.50.081214.tgz, version 1.50-12149-11231-10151 on CPAN.
 
-	* makeppreplay
-	* FileInfo_makepp.pm
-	* Makefile.pm
-	* Rule.pm
+	* makeppreplay, FileInfo_makepp.pm, Makefile.pm, Rule.pm
 	* Scanner.pm: Update mppr-modified or -recognized build infos, and
 	mark them with new info RESCAN.
 
@@ -355,11 +433,8 @@ Snapshot makepp-1.50.081214.tgz, version 1.50-12149-11231-10151 on CPAN.
 
 	* makeppreplay, t/makeppreplay.test: New very fast command and test.
 
-	* makepp
-	* FileInfo_makepp.pm
-	* Makefile.pm
-	* Rule.pm
-	* Utils.pm: Support makeppreplay by differentiating via new constant MAKEPP.
+	* makepp, FileInfo_makepp.pm, Makefile.pm, Rule.pm, Utils.pm:
+	Support makeppreplay by differentiating via new constant MAKEPP.
 
 	* FileInfo.pm: Don't leave testfile on Windows.
 
@@ -399,25 +474,20 @@ Snapshot makepp-1.50.081214.tgz, version 1.50-12149-11231-10151 on CPAN.
 
 	* makepp (build_dependencies_done): Fix evaluation order.
 
-	* Glob.pm:
-	* FileInfo.pm (dir_stat_array):
+	* Glob.pm, FileInfo.pm (dir_stat_array):
 	* FileInfo_makepp.pm (build_info_string): Optimize.
 
 2008-09-02  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* FileInfo.pm:
-	* FileInfo_makepp.pm:
-	* Makefile.pm:
-	* Makesubs.pm: Make EXISTS be undef/exists based, to save quite some memory.
+	* FileInfo.pm, FileInfo_makepp.pm, Makefile.pm, Makesubs.pm: Make
+	EXISTS be undef/exists based, to save quite some memory.
 
-	* Repository.pm (symlink): Move here from FileInfo.pm, as nobody else uses it.
+	* Repository.pm (symlink): Move here from FileInfo.pm, as nobody
+	else uses it.
 
 2008-09-01  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* makepp:
-	* FileInfo_makepp.pm:
-	* Rule.pm:
-	* makepplog: 
+	* makepp, FileInfo_makepp.pm, Rule.pm, makepplog
 	* t/additional_tests/2004_04_01_stale_repository.test: Handle
 	stale symlinks in, via or without repository cleanly.
 
@@ -436,12 +506,11 @@ Snapshot makepp-1.50.081214.tgz, version 1.50-12149-11231-10151 on CPAN.
 
 Snapshot makepp-1.50-cvs-080810.tgz, version 1.50-08093-08048-07303 on CPAN.
 
-	* BuildCache.pm:
-	* FileInfo*.pm: Use POSIX::S_IS* instead of hard wired non portable
-	constants.
+	* BuildCache.pm, FileInfo*.pm: Use POSIX::S_IS* instead of hard
+	wired non portable constants.
 
-	* pod/makepp_release_notes.pod:
-	* pod/makepp_compatibility.pod: Document z/OS as mostly working.
+	* pod/makepp_release_notes.pod, pod/makepp_compatibility.pod:
+	Document z/OS as mostly working.
 
 2008-08-04  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -492,29 +561,26 @@ Snapshot makepp-1.50-cvs-080810.tgz, version 1.50-08093-08048-07303 on CPAN.
 
 	* FileInfo_makepp.pm (version): Give same output as installed beta.
 
-	* config.pl:
-	* t/: Renames makepp_tests for conformance with Perl test frameworks.
+	* config.pl, t/: Renames makepp_tests for conformance with Perl
+	test frameworks.
 
 	* t/run_all.t: Send mail with details only when run by CPAN testers.
 
 	* pod/makepp_compatibility.pod: Add findings of CPAN testers.
 
-	* t/wildcard_repository.test:
-	* pod/makepp_repositories.pod: chmod 0 masking doesn't work for user
-	root.
+	* t/wildcard_repository.test, pod/makepp_repositories.pod: chmod 0
+	masking doesn't work for user root.
 
 	* t/additional_tests/2006_02_18_makeppbuiltin.test: Be more robust
 	about finding base test.
 
 	* t/log_graph.test: Rewriting rules need a minimum directory depth.
 
-	* t/spar:
-	* t/additional_tests/spar_unix.test: Give better warnings.
+	* t/spar, t/additional_tests/spar_unix.test: Give better warnings.
 
-	* install.pl:
-	* t/run_tests.pl:
-	* makepp: Move rewriting for broken perls to uninstalled makepp,
-	to be sure it gets performed before running.
+	* install.pl, t/run_tests.pl, makepp: Move rewriting for broken
+	perls to uninstalled makepp, to be sure it gets performed before
+	running.
 
 2008-07-09  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -539,10 +605,7 @@ Snapshot makepp-1.50-cvs-080810.tgz, version 1.50-08093-08048-07303 on CPAN.
 
 	* CommandParser/Esqlc.pm (parse_arg): Also depend on config file.
 
-	* ActionParser.pm:
-	* CommandParser.pm:
-	* FileInfo_makepp.pm:
-	* Rule.pm:
+	* ActionParser.pm, CommandParser.pm, FileInfo_makepp.pm, Rule.pm
 	* makepp: Don't use list slices, as they are even more expensive
 	than modifying @_.
 
@@ -574,18 +637,12 @@ Snapshot makepp-1.50-cvs-080810.tgz, version 1.50-08093-08048-07303 on CPAN.
 	badly implemented, because it would not notice if the file should
 	now come from a higher priority rep.
 
-	* Repository.pm:
-	* RecursiveMake.pm:
-	* FileInfo_makepp.pm:
-	* Makefile.pm:
-	* Makesubs.pm:
-	* install.pl:
-	* Rule.pm:
-	* makepp: Move all functions needed only for repositories or
-	recursive make to separate modules.
+	* Repository.pm, RecursiveMake.pm, FileInfo_makepp.pm, Makefile.pm
+	* Makesubs.pm, install.pl, Rule.pm, makepp: Move all functions
+	needed only for repositories or recursive make to separate
+	modules.
 
-	* t/run_tests.pl:
-	* makepp (makepprc): Look for and load file .makepprc.
+	* t/run_tests.pl, makepp (makepprc): Look for and load file .makepprc.
 	(usage): Inline it, putting text into DATA section to save memory.
 
 	* Makecmds.pm (frame):
@@ -670,11 +727,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	* TextSubs.pm (::is_perl_5_6): New constant.
 	(::is_windows): Centrally define it here.
 
-	* FileInfo.pm:
-	* makeppclean:
-	* makeppgraph:
-	* makeppinfo:
-	* makepplog:
+	* FileInfo.pm, makeppclean, makeppgraph, makeppinfo, makepplog
 	* Utils.pm: Ensure that HOME is set centrally in FileInfo.pm.
 
 2008-05-10  Daniel Pfeiffer  <occitan@esperanto.org>
@@ -715,10 +768,9 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 
 2008-04-26  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* Makesubs.pm:
+	* Makesubs.pm, Utils.pm:
 	* Makefile.pm (_truthval):
 	* ActionParser.pm (find_command_parser):
-	* Utils.pm:
 	* makepp: Ensure that HOME is set.  Enhance is_windows: negative
 	means Unix-like (Cygwin, MinGW msys), positive means Shell- and
 	coreutils-less (ActiveState).

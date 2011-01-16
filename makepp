@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.191 2010/10/18 21:48:19 pfeiffer Exp $
+# $Id: makepp,v 1.194 2011/01/16 16:59:29 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -272,30 +272,19 @@ sub build {
       'Not building ', $oinfo, " because it's a stale generated file"
     );
     &Mpp::File::unlink;
-    $Mpp::failed_count++;		# Wouldn't get counted, since there's no rule
+    ++$Mpp::failed_count;	# Wouldn't get counted, since there's no rule
     return 1;
   }
 
 #
 # If a makefile contains $(MAKE), then we turn off implicit loading of other
-# makefiles, assuming that the makefile is constructed to load them
-# manually.  This is a bit tricky, since the implicit loading flag must be
-# passed in a global variable.
+# makefiles, assuming that the makefile is constructed to load them manually.
+# This is a bit tricky, since the implicit loading flag must be passed in a
+# global variable. This local modification will not apply, however, to the
+# routines activated by when_done.
 #
-  my $local_implicit_load_flag = $implicitly_load_makefiles;
-				# Save the status of implicit loading, and pass
-				# it to our wildcard action routines via a
-				# closure.
-  $rule->{MAKEFILE} && $rule->{MAKEFILE}{RECURSIVE_MAKE} and
-    $local_implicit_load_flag = 0; # Turn off implicit loading of makefiles
-				# for dependencies of this target if
-				# recursive make was invoked anywhere in this
-				# makefile.
-  local $implicitly_load_makefiles = $local_implicit_load_flag;
-				# Make a locally modifiable version of the
-				# global flag.	This local modification will
-				# not apply, however, to the routines activated
-				# by when_done.
+  local $implicitly_load_makefiles if $implicitly_load_makefiles &&
+    $rule->{MAKEFILE} && $rule->{MAKEFILE}{RECURSIVE_MAKE};
 
   undef $oinfo->{BUILD_HANDLE}; # Indicate that we're trying to build.
 				# This will be replaced later by a real
@@ -453,10 +442,7 @@ sub build_dependencies_done {
 				# Note that the above will catch invocations
 				# of the recursive_makepp program, and also
 				# invocations of makepp when
-				# --traditional-recursive-make is in effect,
-				# because the latter adds a bogus
-				# --recursive_makepp option to the command
-				# line.
+				# --traditional-recursive-make is in effect.
   my $rebuild_needed;		# Assume we don't need to rebuild.
   my $dont_build;		# Assume no files marked with --dont-build.
   my $out_of_sandbox;		# Assume no files marked with --out-of-sandbox.
@@ -494,8 +480,7 @@ sub build_dependencies_done {
       next target_loop if $rebuild_needed
 	or exists $target->{IS_TEMP};
 				# Temporary targets don't have to be up-to-date
-      if( exists $target->{IS_PHONY} ) { # If this is a phony target, then we always
-				# rebuild.
+      if( exists $target->{IS_PHONY} ) { # If this is a phony target, then we always rebuild.
 	$rebuild_needed = 1;
 	Mpp::log BUILD_PHONY => $target
 	  if $log_level;
@@ -887,7 +872,8 @@ sub build_target_done {
 	    }
 	  }
 	} elsif( !exists $tinfo->{IS_TEMP} ) {
-	  if( ($rule->{MAKEFILE} || $tinfo->{'..'}{MAKEINFO})->expand_variable( 'makepp_require_phony', $rule->source )) {
+	  my $mfile = $rule->{MAKEFILE} || $tinfo->{'..'}{MAKEINFO};
+	  if( $mfile && $mfile->expand_variable( 'makepp_require_phony', $rule->source )) {
 	    $implicit_phony++;	# DefaultRule has no MAKEFILE.
 	  } elsif( $n_phony_messages++ ) { # Give a shorter message on other instances.
 	    warn 'Target ' . absolute_filename( $tinfo ) . " is probably also phony.\n";
@@ -1246,6 +1232,9 @@ sub parse_command_line(\%@) {
 				# Load the default makefile if we still haven't
 				# found one.
   }
+  $Mpp::Recursive::depth =	# Avoid warning.
+    $Mpp::Recursive::depth = $command_line_vars{recursive_makepp}
+    if defined $Mpp::Recursive::traditional || defined $Mpp::Recursive::hybrid;
 
   foreach (@makefiles) {
     $_ = Mpp::Makefile::load($_->[0], $_->[1], \%command_line_vars, $makecmdgoals,
@@ -1325,6 +1314,7 @@ perform eval {
 	 die "$progname: invalid build check method $build_check_method_name\n";
      }],
 
+    [undef, qr/defer[-_]?include/, \$Mpp::Subs::defer_include],
     [undef, qr/do[-_]?build/, \$tmp, 1, sub {
        $tmp = file_info $tmp;
        undef $tmp->{DONT_BUILD};
@@ -1351,6 +1341,8 @@ perform eval {
     [undef, qr/force[-_]?rescan/, \$force_rescan],
 
     [undef, 'gullible', \$gullible],
+
+    [undef, qr/hybrid(?:[-_]?recurs(?:ion|ive|ive[-_]?make))?/, \$Mpp::Recursive::hybrid],
 
     [undef, qr/implicit[-_]load[-_]?[Mm]akeppfile[-_]?only/, \$implicit_load_makeppfile_only],
     [undef, qr/(?:in(?:side)?[-_]?)?sand[-_]?box/, \$tmp, 1, sub {
@@ -1421,11 +1413,6 @@ perform eval {
 
     [undef, qr/populate[-_]?bc[-_]?only/, \$populate_bc_only],
 
-    [undef, 'recursive[-_]?makepp'],
-				# This is a dummy option simply used to make
-				# recursive invocations easily identifiable by
-				# searching the action string.	It does
-				# nothing.
     [undef, qr/re?m(?:ove)?[-_]?stale(?:[-_]?files)?/, \$rm_stale_files],
 
     [undef, qr/sand[-_]?box[-_]?warn(?:ing)?/, \$sandbox_warn_flag],
@@ -1433,7 +1420,7 @@ perform eval {
     [undef, qr/stop[-_]?(?:on[-_]?)?race/, \$stop_on_race],
     [undef, qr/symlink[-_]?in[-_]?rep(?:os(?:itory)?)?[-_]?as[-_]?file/, \$symlink_in_rep_as_file],
 
-    [undef, qr/traditional[-_]?recursive[-_]?make/, \$Mpp::Recursive::traditional],
+    [undef, qr/traditional(?:[-_]?recurs(?:ion|ive|ive[-_]?make))?/, \$Mpp::Recursive::traditional],
 
     [undef, qr/virtual[-_]?sandbox/, \$virtual_sandbox_flag];
 };
@@ -1458,6 +1445,9 @@ Valid options are:
     build the targets.
 -c, --root-dir, --root-directory
     Cd up to the directory containing a RootMakeppfile.
+--defer-include
+    Workaround for include statement before the rule that builds the include
+    file.
 --dont-build=filename, --do-build=filename
     Do not build the specified file, or, if it is a directory, everything
     thereunder, even though makepp thinks it should -- or do build,
@@ -1470,7 +1460,7 @@ Valid options are:
     Dump the raw contents of the makefile(s) for the current directory (as
     determined by the position of this option relative to any "-C" options)
     to filename.
--e, --env-overides, --environment-overides
+-e, --env-overrides, --environment-overrides
     Causes variables from the environment to override definitions in the
     makefile.
 -F Makeppfile, --makeppfile=Makeppfile
@@ -1493,6 +1483,9 @@ Valid options are:
     Believe that the rules create what they declare, rather than checking.
 -?, -h, --help
     Print out a brief summary of the options.
+--hybrid, --hybrid-recursion, --hybrid-recursive-make
+    This option is present to allow makepp to work with old makefiles that
+    use recursive make extensively, especially multiply into the same dir.
 -I directory, --include=directory, --include-dir=directory
     Search the given directory for included makefiles.
 --implicit-load-makeppfile-only
@@ -1510,8 +1503,8 @@ Valid options are:
     target side.
 --load-makefile=Makefile, --load-makeppfile=Makefile
     Loads the specified makefile before any other makefiles, except for
-    CFRootMakeppfile>, or RootMakeppfile.mk above it, but do not consider
-    this option for the purposes of determining the default target.
+    RootMakeppfile, or RootMakeppfile.mk above it, but do not consider this
+    option for the purposes of determining the default target.
 --log=logfilename, --log-file=logfilename
     Changes the name of the log file to the indicated name.
 -m method, --signature=method, --signature-method=method
@@ -1583,9 +1576,9 @@ Valid options are:
     link is imported as a link, which is to say that the target of the
     imported link need not be identical to the target of the symbolic link
     in the repository.
---traditional-recursive-make
+--traditional, --traditional-recursion, --traditional-recursive-make
     This option is present to allow makepp to work with old makefiles that
-    use recursive make extensively.
+    use recursive make extensively, especially with varying options.
 -v, --verbose
     Verbose mode.
 -V, --version

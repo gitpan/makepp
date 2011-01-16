@@ -1,4 +1,4 @@
-# $Id: c_compilation_md5.pm,v 1.23 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: c_compilation_md5.pm,v 1.24 2010/12/24 13:30:51 pfeiffer Exp $
 use strict;
 package Mpp::Signature::c_compilation_md5;
 
@@ -108,9 +108,8 @@ sub md5sum_c_tokens {
   my %keywords;
   @keywords{$_[0]->important_comment_keywords} = (); # Make them exist
 
-  local $/ = undef;		# Slurp in the whole file at once.
-				# (This makes it easier to handle C-style
-				# comments.)
+  local $/;			# Slurp in the whole file at once.
+				# (This makes it easier to handle C-style comments.)
   local $_ = "\n" . <$infile>;	# Read it all.  Prepend newline for preproc handling.
 
   pos = 0;			# Start digesting at position 0.

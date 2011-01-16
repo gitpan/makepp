@@ -2,7 +2,7 @@
 
 makepp_functions -- Functions in makepp
 
-=for vc $Id: makepp_functions.pod,v 1.39 2010/08/22 20:26:19 pfeiffer Exp $
+=for vc $Id: makepp_functions.pod,v 1.40 2010/11/19 20:59:31 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -83,7 +83,8 @@ the arguments contain these signs, either use the other, or double it as in
 C<$((name ...() ))>.  Doubling is also useful if you need the arguments to
 span several lines.  The newlines are then treated as spaces, except maybe in
 C<define>.  There is also the syntax C<$[name ...]> or C<$[[name ...]]>, which
-gets evalutated while reading the makefile, before parsing.
+gets evalutated while reading the makefile, before grokking rules and other
+constructs.
 
 Makepp has a number of builtin functions which may be useful.  It supports
 almost all of GNU make's textual functions (see GNU make's documentation for

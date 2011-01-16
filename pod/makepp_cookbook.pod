@@ -2,7 +2,7 @@
 
 makepp_cookbook -- The best way to set up makefiles for various situations
 
-=for vc $Id: makepp_cookbook.pod,v 1.21 2010/11/17 21:35:52 pfeiffer Exp $
+=for vc $Id: makepp_cookbook.pod,v 1.22 2010/12/10 22:03:50 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -671,12 +671,11 @@ makefile, and have it process all of the directories, like this:
 
 =head2 Using Qt's moc preprocessor
 
-This example shows a makefile for a utility that uses Troll Tech's Qt
-GUI library (see L<http://www.trolltech.com>).  The only thing that's
-slightly unusual about this is that you must run a preprocessor called
-C<moc> on most C<.h> files that contain widget definitions, but you
-don't want to run C<moc> on any C<.h> files that don't use the
-C<Q_OBJECT> macro.
+This example shows a makefile for a utility that uses Nokia's Qt GUI
+library (see L<http://qt.nokia.com>).  The only thing that's slightly unusual
+about this is that you must run a preprocessor called C<moc> on most C<.h>
+files that contain widget definitions, but you don't want to run C<moc> on any
+C<.h> files that don't use the C<Q_OBJECT> macro.
 
 =head3 Automatically determining which files need moc files
 

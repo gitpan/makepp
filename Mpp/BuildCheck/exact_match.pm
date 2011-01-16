@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.35 2010/08/22 20:17:17 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.36 2010/11/19 20:59:31 pfeiffer Exp $
 use strict;
 package Mpp::BuildCheck::exact_match;
 

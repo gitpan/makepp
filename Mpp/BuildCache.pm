@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.44 2009/02/11 23:22:37 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.45 2010/11/19 20:59:31 pfeiffer Exp $
 #
 # Possible improvements:
 #
@@ -607,7 +607,7 @@ sub copy_from_cache {
     return undef;
   };
   my $line;
-  my $build_info=Mpp::File::parse_build_info_file($fh);
+  my $build_info=Mpp::File::grok_build_info_file($fh);
   close $fh;
 
   $build_info or do {

@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.97 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: install.pl,v 1.99 2011/01/16 17:08:25 pfeiffer Exp $
 #
 
 package Mpp;
@@ -137,7 +137,7 @@ if( $destdir ) {
 }
 
 make_dir("$datadir/$_") for
-  qw(Mpp Mpp/ActionParser Mpp/BuildCheck Mpp/CommandParser Mpp/Lexer Mpp/Scanner Mpp/Signature);
+  qw(Mpp Mpp/ActionParser Mpp/BuildCheck Mpp/CommandParser Mpp/Fixer Mpp/Scanner Mpp/Signature);
 
 our $useoldmodules = '';
 if( $ENV{MAKEPP_INSTALL_OLD_MODULES} ) {
@@ -179,17 +179,19 @@ substitute_file( $_, $datadir, 0644 ) for
 
 foreach $module (qw(../Mpp
 
-		    AutomakeFixer BuildCache BuildCacheControl File FileOpt Glob
-		    Event Cmds Makefile Subs Recursive Repository Rule Utils
-
-		    Lexer ActionParser/Legacy ActionParser/Specific
+		    BuildCache BuildCacheControl Cmds Event File FileOpt Glob
+		    Lexer Makefile Subs Recursive Repository Rule Utils
 
 		    BuildCheck BuildCheck/architecture_independent
 		    BuildCheck/exact_match BuildCheck/ignore_action
 		    BuildCheck/only_action BuildCheck/target_newer
 
-		    CommandParser CommandParser/Esqlc CommandParser/Gcc
+		    CommandParser CommandParser/Esql CommandParser/Gcc
 		    CommandParser/Swig CommandParser/Vcs
+
+		    Fixer/Automake Fixer/CMake
+
+		    ActionParser/Legacy ActionParser/Specific
 
 		    Scanner Scanner/C Scanner/Esqlc Scanner/Swig Scanner/Vera
 		    Scanner/Verilog
@@ -494,7 +496,7 @@ if ($htmldir_val ne 'none') {
 	    $next_tall = '<sup class="tall">&nbsp;</sup>';
 	    next;
 	  } else {
-	    # don't parse comments
+	    # don't grok comments
 	    $end = s/(#|# .*?)?((?:<\/pre>)?)$// ?
 		($1 ? "<span class='comment'>$1</span>$next_tall$2" : "$next_tall$2") :
 		$next_tall;

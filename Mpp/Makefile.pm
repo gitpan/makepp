@@ -1,10 +1,10 @@
-# $Id: Makefile.pm,v 1.141 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.145 2011/01/16 17:08:25 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_action needed_wildcard_action);
 use Mpp::Event qw(wait_for);
 use Mpp::Text qw(max_index_ignoring_quotes index_ignoring_quotes split_on_whitespace split_on_colon
-		unquote unquote_split_on_whitespace requote hash_neq);
+		 unquote unquote_split_on_whitespace requote hash_neq);
 use Mpp::Subs;
 use Mpp::Cmds ();
 use Mpp::File;
@@ -14,7 +14,7 @@ use strict qw(vars subs);
 
 =head1 NAME
 
-Mpp::Makefile -- an object that parses makefiles and stores their relevant info
+Mpp::Makefile -- an object that groks makefiles and stores their relevant info
 
 =head1 USAGE
 
@@ -25,17 +25,17 @@ Mpp::Makefile -- an object that parses makefiles and stores their relevant info
 
 =head1 DESCRIPTION
 
-The Mpp::Makefile package is responsible for parsing a makefile, and
+The Mpp::Makefile package is responsible for grokking a makefile, and
 subsequently for holding all relevant information from the makefile,
 such as variable definitions.
 
 A new Makefile class may be created at any time, whenever you discover
-that it is available.  The Mpp::Makefile constructor parses the makefile, and
+that it is available.  The Mpp::Makefile constructor groks the makefile, and
 integrates all of its rules into the makepp's memory database.
 
 =cut
 
-my $package_seed = '000';
+my $package_seed = 0;
 # These get localized, so they can't be my vars.
 our( $makefile, $makefile_directory, $makefile_name, $makefile_contents,
      $makefile_lineno, @hold_lines );
@@ -45,7 +45,7 @@ our $global_command_line_vars;	# The command line variables that were
 				# (as opposed to additional ones that may
 				# have been specified on the load_makefile
 				# or recursive make lines).
-our $c_preprocess = 0;		# Set to 1 (parse assignments) or 2 in &preprocess.
+our $c_preprocess = 0;		# Set to 1 (grok assignments) or 2 in &preprocess.
 
 #
 # Targets that we ignore:
@@ -71,7 +71,6 @@ C<$makefile_line>.
 =cut
 
 my $expand_bracket;
-my $self_expanding_functions = qr/^(?:and|if|foreach|map|or|perl)\b/;
 sub expand_text {
   -1 < index $_[1], '$' or return $_[1]; # No variables ==> no substitution,
 				# so exit immediately to avoid consuming CPU
@@ -90,7 +89,42 @@ sub expand_text {
   my $ret_str = '';
   pos = 0;			# Suppress a warning message.
 
-  if( !expand_variable( $self, 'makepp_simple_concatenation', $makefile_line )) {
+  if( expand_variable( $self, 'makepp_simple_concatenation', $makefile_line )) {
+#
+# Code for handling the traditional substitution style (needed for some
+# legacy makefiles, usually those that depend on leading/trailing whitespace).
+#
+    while (pos() < length) {
+      if( /\G([^\$]+)/gc ) {	# Text w/o variables?
+	$ret_str .= $1;		# Just append it.
+      } else {			# Must be a dollar sign.
+	++pos;			# Skip it.
+	if( $expand_bracket ) {
+	  if( /\G([^[])/gc ) {
+	    $ret_str .= "\$$1";
+	    next;
+	  }
+	} elsif( /\G\$/gc ) {	# Double dollar sign?
+	  $ret_str .= '$';	# Replace with a single one.
+	  next;
+	}
+#
+# Get the whole text of the expression to expand, and expand any nested
+# parts of it.
+#
+	my $oldpos = pos;	# Remember where the expression starts.
+	my $len = &Mpp::Text::skip_over_make_expression; # Find the end of it.
+	defined $len or
+	  die "$makefile_line: unterminated reference $_\n";
+	my $newpos = pos;	# For some obscure reason, the following
+				# messes up pos($_).
+	$ret_str .= expand_expression($self, substr( $_, $oldpos + $len, $newpos - $oldpos - 2*$len ), $makefile_line);
+				# Do the expansion.
+	pos = $newpos;		# Move to after the make expression.
+      }
+    }
+
+  } else {
 #
 # Code for handling rc-style substitution (the default):
 #
@@ -135,14 +169,8 @@ sub expand_text {
 	  die "$makefile_line: unterminated reference $_\n";
 	my $newpos = pos;	# For some obscure reason, the following
 				# messes up pos($_).
-	my $expr = substr $_, $oldpos + $len, $newpos - $oldpos - 2*$len;
-				# Get the expression to expand.
-	$expr = expand_text($self, $expr, $makefile_line)
-	  if $expr !~ $self_expanding_functions;
-				# Expand any nested make expressions.
-
-	my $space = ord( $expr ) == ord ' ';
-	$expr = expand_expression($self, $expr, $makefile_line);
+	my $space = substr( $_, $oldpos + $len, 1 ) =~ /\s/;
+	my $expr = expand_expression($self, substr( $_, $oldpos + $len, $newpos - $oldpos - 2*$len ), $makefile_line);
 				# Evaluate the expression.
 
 	if( $space && !length $expr ) {
@@ -181,52 +209,11 @@ sub expand_text {
 	    }
 	  }
 	}
-	pos = $newpos;	       # Reset the position after the make expression.
+	pos = $newpos;		# Reset the position after the make expression.
       }
     }
 
-    $ret_str .= "@cur_words"; # Store the last word(s), if any.
-  } else {
-#
-# Code for handling the traditional substitution style (needed for some
-# legacy makefiles, usually those that depend on leading/trailing whitespace).
-#
-    while (pos() < length) {
-      if( /\G([^\$]+)/gc ) {	# Text w/o variables?
-	$ret_str .= $1;		# Just append it.
-      } else {			# Must be a dollar sign.
-	++pos;			# Skip it.
-	if( $expand_bracket ) {
-	  if( /\G([^[])/gc ) {
-	    $ret_str .= "\$$1";
-	    next;
-	  }
-	} elsif( /\G\$/gc ) {	# Double dollar sign?
-	  $ret_str .= '$';	# Replace with a single one.
-	  next;
-	}
-#
-# Get the whole text of the expression to expand, and expand any nested
-# parts of it.
-#
-	my $oldpos = pos;	# Remember where the expression starts.
-	my $len = &Mpp::Text::skip_over_make_expression; # Find the end of it.
-	defined $len or
-	  die "$makefile_line: unterminated reference $_\n";
-	my $newpos = pos;	# For some obscure reason, the following
-				# messes up pos($_).
-	my $expr = substr $_, $oldpos + $len, $newpos - $oldpos - 2*$len;
-				# Get the expression to expand.
-	$expr = expand_text($self, $expr, $makefile_line)
-	  if $expr !~ $self_expanding_functions;
-				# Expand any nested make expressions.
-
-	$ret_str .= expand_expression($self, $expr, $makefile_line);
-				# Do the expansion.
-	pos = $newpos;		# Move to after the make expression.
-      }
-    }
-
+    $ret_str .= "@cur_words";	# Store the last word(s), if any.
   }
   $ret_str;
 }
@@ -235,21 +222,25 @@ sub expand_text {
 # This is a helper routine which is used for expanding a complex variable expression.
 # Arguments:
 # a) The makefile.
-# b) The expression to expand.	This should have no nested make expressions.
+# b) The expression to expand.
 #    This expression should have had the surrounding parentheses removed.
 #    For example, if expand_text() was called on the string
 #    'x = $(patsubst %.o, %.c, stuff)' then the string that we actually
 #    will see is 'patsubst %.o, %.c, stuff'.
 # c) The makefile line number (for error messages only).
 #
-sub expand_expression {
-  my ($self, $expr, $makefile_line) = @_; # Name the arguments.
-  my $result;
-  if( $expr =~ s/^\s+//) {	# It begins with a space.  This is just a
+sub expand_expression  {
+  my( $self, undef, $makefile_line ) = @_; # Name the arguments.
+  return expand_text $self, substr( $_[1], length $1 ), $makefile_line
+    if $_[1] =~ /^(\s+)/;	# It begins with whitespace.  This is just a
 				# trigger for rc-style expansion, so we should
 				# return the text verbatim.
-    $result = $expr;
-  } elsif( $expr =~ /^([-.\w]+)\s+(.*)/s ) {
+
+  my $result;
+  my $expr = $_[1] =~ /^(?:and|if|foreach|map|or|perl)\b/ ?
+    $_[1] :
+    expand_text $self, $_[1], $makefile_line;
+  if( $expr =~ /^([-.\w]+)\s+(.*)/s ) {
 				# Does it begin with a leading word,
 				# so it must be a function?
     my( $rtn, $rest_of_line ) = ($1, $2);
@@ -304,7 +295,7 @@ sub expand_expression {
       Mpp::Text::pattern_substitution $from, $to,
 	split_on_whitespace expand_variable( $self, $1, $makefile_line );
   } else {			# Must be a vanilla variable to expand.
-    $result = &expand_variable;
+    $result = expand_variable( $self, $expr, $makefile_line );
   }
 
   if( !defined $result ) {
@@ -355,10 +346,10 @@ sub expand_variable {
 
   my( $varref, $result );
   {				# This isn't a real loop; it merely defines
-				# where "last" actually goes to.  Too bad
-				# almost every variable storage level has a
-				# different mechanism, so we can't just loop
-				# through these:
+				# what "last" leaves.  Too bad almost every
+				# variable storage level has a different
+				# mechanism, so we can't just loop through
+				# these:
 
 # 1st attempt:
     if( exists $Mpp::Subs::perl_unfriendly_symbols{$var} ) { # Is it one of the 1-char
@@ -415,7 +406,6 @@ sub expand_variable {
 
 # 6th attempt:
     my $fn = "$self->{PACKAGE}::f_$var"; # Name of the function with no arguments?
-				# Localizes $_; causes very weird errors if $_ is messed up.
     my $orig = $fn;
     $fn = $fn =~ tr/-/_/ && *{$fn}{CODE} || # Convert - to _ so it's more perl friendly.
       *{$orig}{CODE};
@@ -444,7 +434,7 @@ sub expand_variable {
     $reexpand = $reexpand->{VAR_REEXPAND}{$var};
 
   if( !$mode ) {
-    defined $result or $result = ''; # Variable not found--substitute blank.
+    defined $result or $result = ''; # Variable not found--make it defined.
     if( $reexpand ) {
       $result = expand_text $self, $result, $makefile_line;
 				# Reexpand any variables inside.
@@ -497,7 +487,7 @@ sub implicitly_load {
 
   my $dirinfo = $_[0];
 
-  exists($dirinfo->{MAKEINFO}) and return;
+  exists $dirinfo->{MAKEINFO} and return;
 				# Already tried to load something.
   Mpp::File::is_writable( $dirinfo ) ||	# Directory already exists?
     !exists $dirinfo->{EXISTS} && is_or_will_be_dir( $dirinfo ) &&
@@ -604,8 +594,8 @@ sub find_root_makefile_upwards {
 				# Remember what device this is mounted on
 				# so we can avoid crossing file system boundaries.
   until( exists $cwd->{ROOT} ) {
-    for( @root_makefiles ) {
-      my $finfo = file_info $_, $cwd;
+    for my $mfile( @root_makefiles ) {
+      my $finfo = file_info $mfile, $cwd;
       $found = $finfo, $cwd->{ROOT} = $cwd, last
 	if exists $finfo->{ALTERNATE_VERSIONS} ||
 	  file_exists $finfo;	# Found file in the path?  Don't
@@ -645,7 +635,7 @@ sub find_root_makefile_upwards {
 
 Makes a new makefile object.  The argument is the makefile to load, or else
 a directory that may contain the makefile.  Exits with die if no such
-makefile exists, or if there is a fatal parse error.  Otherwise, returns
+makefile exists, or if there is a fatal grokking error.  Otherwise, returns
 the Mpp::Makefile object.
 
 If you do not specify the default directory, then directory containing the
@@ -683,7 +673,8 @@ sub load {
   my( undef, $mdinfo, $command_line_vars, $makecmdgoals, $include_path, $env,
       $makeppfile_only, $autoload ) = @_; # Name the other arguments.
   my %this_ENV = %$env;		# Make a modifiable copy of the environment.
-  delete @this_ENV{'MAKEPP_SOCKET', # Get rid of our special variables.
+  delete @this_ENV{'A__z',	# Typesets can vary.
+		   'MAKEPP_SOCKET', # Get rid of our special variable.
 				# (This gets put back into the environment
 				# later by Rule::execute, but we don't want
 				# it here when we're making comparisons.)
@@ -745,16 +736,16 @@ sub load {
 				# same, no need to reload.  Otherwise, we'll
 				# have to reload.
       &cleanup_vars;
-      $var_changed = hash_neq($command_line_vars, $self->{COMMAND_LINE_VARS}) ||
-	hash_neq(\%this_ENV, $self->{ENVIRONMENT});
-				# Did any variables change?
-      unless ($var_changed) {
-	"@$include_path" eq "@{$self->{INCLUDE_PATH}}" or
+      no warnings 'uninitialized';
+      if( $var_changed = hash_neq $command_line_vars, $self->{COMMAND_LINE_VARS}, 1 ) {
+	$var_changed .= " old: $self->{COMMAND_LINE_VARS}{$var_changed}, new: $command_line_vars->{$var_changed}";
+      } elsif( $var_changed = hash_neq \%this_ENV, $self->{ENVIRONMENT}, 1 ) {
+	$var_changed .= " old: $self->{ENVIRONMENT}{$var_changed}, new: $this_ENV{$var_changed}";
+      } elsif( "@$include_path" ne "@{$self->{INCLUDE_PATH}}" ) {
 	  $var_changed = 'include path';
+      } else {
+	return $mdinfo->{MAKEINFO}; # No need to reload the makefile--just reuse what we've got.
       }
-      $var_changed or return $mdinfo->{MAKEINFO};
-				# No need to reload the makefile--just reuse
-				# what we've got.
     } elsif( ! $autoload ) {
 #
 # We're loading two makefiles for this directory.  This is disallowed because
@@ -762,8 +753,8 @@ sub load {
 #
       die 'attempt to load two makefiles (' . absolute_filename( $mdinfo->{MAKEINFO}{MAKEFILE} ) .
 	' and ' . absolute_filename( $minfo ) . ")
-  with the same default directory.  This is not supported unless you add
-  the --traditional-recursive-make option to the command line.\n";
+  with the same default directory.  This requires the --hybrid-recursive-make
+  or --traditional-recursive-make option on the command line.\n";
 
     }
 #
@@ -771,14 +762,6 @@ sub load {
 # up a few variables:
 #
     delete $self->{INITIALIZED};
-    unless($autoload) {
-      $self->{ENVIRONMENT} = \%this_ENV; # Store the new environment.
-      $self->{COMMAND_LINE_VARS} = $command_line_vars;
-      $self->{INCLUDE_PATH} = [ @$include_path ];
-      ++$self->{LOAD_IDX};	# Invalidate all the rules from the last time
-				# we loaded this makefile.  (See code in
-				# Mpp::File::set_rule.)
-    }
 
     $mpackage = $self->{PACKAGE};
     if($autoload) {
@@ -786,13 +769,17 @@ sub load {
       Mpp::log LOAD => $minfo, $mdinfo
 	if $Mpp::log_level;
     } else {
-      delete $Mpp::{$mpackage . '::'}; # Wipe the whole package.
+      %{$mpackage . '::'} = (); # Wipe the whole package.
+      $self->{ENVIRONMENT} = \%this_ENV; # Store the new environment.
+      $self->{COMMAND_LINE_VARS} = $command_line_vars;
+      $self->{INCLUDE_PATH} = [ @$include_path ];
+      ++$self->{LOAD_IDX};	# Invalidate all the rules from the last time
+				# we loaded this makefile.  (See code in
+				# Mpp::File::set_rule.)
 
-      if( $Mpp::log_level || !$Mpp::quiet_flag ) {
-	print "$Mpp::progname: Reloading makefile `" . absolute_filename( $minfo ) . "'\n" unless $Mpp::quiet_flag;
-	Mpp::log LOAD_AGAIN => $minfo, $var_changed, $mdinfo
-	  if $Mpp::log_level;
-      }
+      print "$Mpp::progname: Reloading makefile `" . absolute_filename( $minfo ) . "'\n" unless $Mpp::quiet_flag;
+      Mpp::log LOAD_AGAIN => $minfo, $var_changed, $mdinfo
+	if $Mpp::log_level;
     }
   } else {			# Loading a new makefile:
     if ($minfo->{NAME} eq 'makepp_default_makefile.mk') {
@@ -804,7 +791,7 @@ sub load {
 	if $Mpp::log_level;
     }
 
-    $mpackage = 'makefile_' . $package_seed++;
+    $mpackage = 'Mpp::makefile_' . $package_seed++;
 				# Make a unique package to store variables and
 				# functions from this makefile.
 
@@ -815,8 +802,7 @@ sub load {
 		    INCLUDE_PATH => [ @$include_path ],
 		    ENVIRONMENT => \%this_ENV,
 		    LOAD_IDX => 0 # First time this has been loaded.
-		  };
-				# Allocate our info structure.
+		  };		# Allocate our info structure.
   }
   $mdinfo->{MAKEINFO} = $self;	# Remember for later what the makefile is.
 
@@ -940,6 +926,13 @@ sub load {
 				# force rereading the makefile.
     }
   }
+  while( @Mpp::Subs::defer_include ) {
+    local $Mpp::Subs::defer_include;
+    my $sub = shift @Mpp::Subs::defer_include;
+    &$sub( splice @Mpp::Subs::defer_include, 0, 3 );
+  }
+  warn 'setting VPATH in `' . absolute_filename( $minfo ) . "' does not have any special effect\n"
+    if defined ${"$self->{PACKAGE}::VPATH"} && length ${"$self->{PACKAGE}::VPATH"};
 
   if( my $fh = $self->{CWD}{DUMP_MAKEFILE} ) {
     # Dump the final variables too.
@@ -974,7 +967,8 @@ sub initialize {
   #
     if ($self->{EXPORTS}) {	# Are there any?
       foreach my $var (keys %{$self->{EXPORTS}}) {
-        $self->{EXPORTS}{$var} = expand_variable $self, $var, absolute_filename $self->{MAKEFILE};
+        $self->{EXPORTS}{$var} = expand_variable $self, $var, absolute_filename( $self->{MAKEFILE} ) . ':0';
+				# We don't know the line here, but provide one, in case perl code gets assigned.
       }
     }
 
@@ -1110,7 +1104,7 @@ sub assign {
 }
 
 #
-# Parse a potential assignment statement.  Arguments:
+# Grok a potential assignment statement.  Arguments:
 # a) The makefile.
 # b) The makefile line number (for error messages).
 #  ) $_ is the implicit argument containing the assignment.
@@ -1118,7 +1112,7 @@ sub assign {
 #
 # Returns true if this is actually an assignment, false otherwise.
 #
-sub parse_assignment {
+sub grok_assignment {
   my( $self, $makefile_line ) = @_; # Name the arguments.
   my $var_name = substr $_, 0, $_[2];
   my $var_value = substr $_, $_[2] + 1;
@@ -1193,7 +1187,7 @@ sub parse_assignment {
 }
 
 #
-# Parse a rule definition.  Arguments:
+# Grok a rule definition.  Arguments:
 # a) The makefile.
 # b) The line in the makefile (for error messages).
 # c) Whether this is a double colon rule.
@@ -1202,7 +1196,7 @@ sub parse_assignment {
 # f) Any other : modifiers that were present on the line after the
 #    dependency string.
 #
-sub parse_rule {
+sub grok_rule {
   my ($self, $makefile_line, $makefile_line_dir, $is_double_colon, $target_string, @after_colon) = @_;
 				# Name the arguments.
 
@@ -1226,7 +1220,7 @@ sub parse_rule {
 # x.o: x.c; @echo this is a stupid syntax
 #	$(CC) $< -o $@
 #
-  my $idx = index_ignoring_quotes($after_colon[-1], ';');
+  my $idx = index_ignoring_quotes $after_colon[-1], ';';
   if ($idx >= 0) {		# Do we have this abhorrent syntax?
     $action = substr($after_colon[-1], $idx+1);
     substr( $after_colon[-1], $idx ) = '';
@@ -1255,7 +1249,7 @@ sub parse_rule {
 # Note that we have to be able to handle weird indentation schemes.  Make
 # requires that all rules begin with a tab character.  We don't do this
 # since there's no way visually to tell a tab from 8 spaces, but we do have
-# to properly parse things like this:
+# to properly grok things like this:
 #
 # ifneq ($X,y)
 #   target: dependencies
@@ -1339,7 +1333,7 @@ sub parse_rule {
     if ($after_colon[-1] =~ /^\s*foreach\s+(.*?)\s*$/) {
       $foreach and die "$makefile_line: multiple :foreach clauses\n";
       $foreach = expand_text $self, $1, $makefile_line;
-    } elsif ($after_colon[-1] =~ /^\s*build[-_]?cache\s+(.+)/) {
+    } elsif ($after_colon[-1] =~ /^\s*build[-_]?cache\s+(.*?)\s*$/) {
                                 # Specify a local build cache for this rule?
       $build_cache and die "$makefile_line: multiple :build_cache clauses\n";
       $build_cache = expand_text $self, $1, $makefile_line;
@@ -1669,11 +1663,11 @@ sub parse_rule {
 #
       my @target_exprs = ($expanded_target); # Assume only one target.
 
-      if (($is_double_colon ||	 # Obsolete syntax?
+      if (($is_double_colon ||	# Obsolete syntax?
 	   $action =~ /\$\@/) && # Does it include the old $@ target?
-	  $action !~ /\$[({](?:outputs|targets)[)}]/) {
+	  $action !~ /\$([({])\1?(?:outputs|targets)\b/) {
 				# And it doesn't include something that refers
-				# to all targets at once?
+				# to all/many targets at once?
 	@target_exprs = @targets; # Apply rule independently to each target.
       }
 
@@ -1842,7 +1836,7 @@ sub read_makefile {
 
   local $makefile_contents;
   {
-    local $/ = undef;		# Read in the whole file with one slurp.
+    local $/;			# Read in the whole file with one slurp.
     open my $fh, $makefile_name or
       die "can't read makefile $makefile_name--$!\n";
     $makefile_contents = <$fh>; # Read the whole makefile.
@@ -1852,18 +1846,17 @@ sub read_makefile {
   }
 
   unless( $c_preprocess ) {
-    if ($makefile_contents =~ /^# Makefile\.in generated by automake/) {
-      require Mpp::AutomakeFixer;	# Load the automake fixing stuff.
-      Mpp::log LOAD_AUTOMAKE => $minfo
-	if $Mpp::log_level;
-      $makefile_contents =
-	Mpp::AutomakeFixer::remove_automake_junk($makefile_contents);
-                                # Clean out the crap that automake puts in for
+    if( $makefile_contents =~ /\A# Makefile\.in generated by automake/ ) {
+      require Mpp::Fixer::Automake; # Load the Automake fixing stuff.
+      Mpp::Fixer::Automake::fix( $makefile_contents, $minfo );
+                                # Clean out the crap that Automake puts in for
                                 # dependency tracking and recursive make.
-    }
-
-    # TBD: Shouldn't we at least exclude *comments* from the grep?
-    if( $makefile_contents =~ /\$[({]MAKE[})]/ ) {
+    } elsif( $makefile_contents =~ /\A# CMAKE generated file: DO NOT EDIT!/ ) {
+      require Mpp::Fixer::CMake; # Load the CMake fixing stuff.
+      Mpp::Fixer::CMake::fix( $makefile_contents, $minfo );
+                                # Clean out the crap that CMake puts in for
+                                # dependency tracking and recursive make.
+    } elsif( $makefile_contents =~ /^[^#]+\$[({]MAKE[})]/m ) {
       Mpp::log LOAD_REC => $minfo
 	if $Mpp::log_level;
       $self->{RECURSIVE_MAKE} = 1;
@@ -1891,7 +1884,7 @@ sub read_makefile {
 				# The line name to use for error messages.
 
     if( $c_preprocess < 2 ) {
-      my $equals = /=/ ? index_ignoring_quotes($_, '=') : 0;
+      my $equals = /=/ ? index_ignoring_quotes $_, '=' : 0;
 				# Search for the equals of an assignment.
 				# We use index_ignoring_quotes to skip over
 				# equals signs that happen to be in quotes or
@@ -1899,7 +1892,7 @@ sub read_makefile {
 
       next if
 	$equals > 0 &&		# If it's a real assignment, then we're done.
-	parse_assignment $self, $makefile_line, $equals;
+	grok_assignment $self, $makefile_line, $equals;
     }
 
     if( $c_preprocess ) {
@@ -1941,7 +1934,7 @@ sub read_makefile {
 #
       my @pieces = split_on_colon($_);
       if( @pieces > 1 ) { # Was there a colon somewhere?
-	parse_rule( $self, $makefile_line, $makefile_line . $makefile_directory,
+	grok_rule( $self, $makefile_line, $makefile_line . $makefile_directory,
 		    substr($_, length($pieces[0]), 2) eq '::', # Double colon rule.
 		    @pieces );
 	next;
@@ -2239,7 +2232,7 @@ sub _read_makefile_line_stripped_1 {
 	$totaltruthval = $totaltruthval ? 0 : !$truthval;
 				# ifxxx, else is like a complex ifnxxx
 	goto IF_STATEMENT if $totaltruthval;
-				# Shortcut for pushback and reparsing.
+				# Shortcut for pushback and regrokking.
 	undef $line;		# line has already been processed
 	last;
       } elsif( $line =~ /^\s*else\s*(?:#|$)/ ) { # Empty then branch.

@@ -1,4 +1,4 @@
-# $Id: Repository.pm,v 1.5 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: Repository.pm,v 1.6 2010/12/24 13:27:24 pfeiffer Exp $
 
 =head1 NAME
 
@@ -182,9 +182,17 @@ sub Mpp::Repository::get {
   my( $dest_finfo, $src_finfo ) = @_;
 
   if( $dest_finfo->{DIRCONTENTS} ) { # Is this a directory?
-    &mkdir;			# Just make it, don't soft link to it.
-    return 0;			# Indicate success (TBD: how to tell if it
-				# failed?)
+    if( !$src_finfo->{DIRCONTENTS} ) {
+      Mpp::print_error 'Directory `' . &absolute_filename . "' is in the way of a repository import.";
+      ++$Mpp::failed_count;
+      return 1;
+    } elsif( &mkdir ) {	# Just make it if inexistent, don't soft link to it.
+      return 0;
+    } else {
+      Mpp::print_error 'Failed to make directory `' . &absolute_filename . "'--$!.";
+      ++$Mpp::failed_count;
+      return 1;
+    }
   }
 
   # Don't link to the repository if the source doesn't exist (even if it
@@ -217,11 +225,13 @@ sub Mpp::Repository::get {
   if( dont_read $src_finfo ) {
     Mpp::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
       ' because the former is marked for dont-read';
+    ++$Mpp::failed_count;
     return 1;			# Indicate failure.
   }
   if( &dont_read ) {
     Mpp::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
       ' because the latter is marked for dont-read';
+    ++$Mpp::failed_count;
     return 1;			# Indicate failure.
   }
 
@@ -258,6 +268,7 @@ sub Mpp::Repository::get {
     }
     if ($@) {			# Did something go wrong?
       Mpp::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo, ":\n$@";
+      ++$Mpp::failed_count;
       return 1;			# Indicate failure.
     }
     ++$Mpp::rep_hits;

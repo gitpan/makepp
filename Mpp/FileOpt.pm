@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.106 2010/09/29 22:12:24 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.109 2011/01/16 17:09:07 pfeiffer Exp $
 
 =head1 NAME
 
@@ -510,23 +510,23 @@ sub set_rule {
     return;
   }
 
-  my $rule_is_default = ($rule->source =~ /\bmakepp_builtin_rules\.mk:/);
+  my $rule_is_builtin = ($rule->source =~ /\bmakepp_builtin_rules\.mk:/);
 
   exists $finfo->{IS_PHONY} &&	# If we know this is a phony target, don't
-    $rule_is_default and	# ever let a default rule attempt to build it.
+    $rule_is_builtin and	# ever let a builtin rule attempt to build it.
       return;
 
   if( my $oldrule = $finfo->{RULE} ) {	# Is there a previous rule?
 
     if( $oldrule->{LOAD_IDX} < $oldrule->{MAKEFILE}{LOAD_IDX}) {
-      undef $oldrule;		# If the old rule is from a previous load
+      undef $finfo->{RULE};	# If the old rule is from a previous load
 				# of a makefile, discard it without comment.
       delete $finfo->{BUILD_HANDLE}; # Avoid the warning message below.  Also,
 				# if the rule has genuinely changed, we may
 				# need to rebuild.
     } else {
-      return if $rule_is_default; # Never let a builtin rule override a rule in the makefile.
-      if( $oldrule->source !~ /\bmakepp_builtin_rules\.mk:/ ) { # The old rule isn't a default rule.
+      return if $rule_is_builtin; # Never let a builtin rule override a rule in the makefile.
+      if( $oldrule->source !~ /\bmakepp_builtin_rules\.mk:/ ) { # The old rule isn't a builtin rule.
 	Mpp::log RULE_ALT => $rule, $oldrule, $finfo
 	  if $Mpp::log_level;
 
@@ -605,6 +605,15 @@ sub set_rule {
 #  $Mpp::log_level and
 #    Mpp::print_log(0, $rule, ' applies to target ', $finfo);
 
+  undef $finfo->{IS_PHONY}	# Hack to get past above restriction for xyz -> xyz.exe
+    if Mpp::is_windows && $rule_is_builtin && delete $finfo->{_IS_EXE_PHONY_};
+
+  if( exists $finfo->{BUILD_HANDLE} && UNIVERSAL::isa $finfo->{RULE}, 'Mpp::Rule' ) {
+    warn 'I became aware of the rule `', $rule->source,
+      "' for target ", &absolute_filename, " after I had already tried to build it\n"
+      unless $rule_is_builtin || exists $rule->{MULTIPLE_RULES_OK} || UNIVERSAL::isa $rule, 'Mpp::DefaultRule';
+  }
+
   $finfo->{RULE} = $rule;	# Store the new rule.
   $finfo->{PATTERN_RULES} = $rule->{PATTERN_RULES} if $rule->{PATTERN_RULES};
 				# Remember the pattern level, so we can prevent
@@ -613,16 +622,7 @@ sub set_rule {
 				# infinite recursion.
   $rule->{LOAD_IDX} = $rule->{MAKEFILE}{LOAD_IDX};
 				# Remember which makefile load it came from.
-
-  if (exists $finfo->{BUILD_HANDLE} &&
-      $finfo->{RULE} &&
-      ref($finfo->{RULE}) ne 'Mpp::DefaultRule' &&
-      $rule->source !~ /\bmakepp_builtin_rules\.mk:/) {
-    warn 'I became aware of the rule `', $rule->source,
-      "' for target ", &absolute_filename, " after I had already tried to build it\n"
-      unless exists($rule->{MULTIPLE_RULES_OK});
-  }
-  publish($finfo, $Mpp::rm_stale_files);
+  publish $finfo, $Mpp::rm_stale_files;
 				# Now we can build this file; we might not have
 				# been able to before.
 }
@@ -847,7 +847,7 @@ BEGIN {
 
 sub build_info_fname { "$_[0]{'..'}{FULLNAME}/$build_info_subdir/$_[0]{NAME}.mk" }
 
-sub parse_build_info_file {
+sub grok_build_info_file {
   my( $fh ) = @_;
   my %build_info;
   for( <$fh> ) {		# Read another line.  TODO: Why do some tests fail with 'while'?
@@ -871,7 +871,7 @@ sub load_build_info_file {
   open my $fh, $build_info_fname or
     return;
 
-  my $build_info = parse_build_info_file $fh;
+  my $build_info = grok_build_info_file $fh;
   if( defined $build_info ) {
     my( $finfo ) = @_;
     my $sig = &signature || '';	# Calculate the signature for the file, so

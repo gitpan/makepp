@@ -1,4 +1,4 @@
-# $Id: makepp_builtin_rules.mk,v 1.27 2009/02/10 22:55:49 pfeiffer Exp $
+# $Id: makepp_builtin_rules.mk,v 1.28 2011/01/16 17:09:07 pfeiffer Exp $
 # Please do NOT use this as an example of how to write a makefile.  This is
 # NOT A typical makefile.
 #
@@ -45,10 +45,10 @@ ifperl Mpp::is_windows
     #
     # We want "makepp xyz" to make xyz.exe if this is Windows.
     #
-    $(basename $(foreach)): : foreach *.exe
-	$(_exe_magic_)
+    $(_exe_phony_): $(foreach) : foreach *.exe
   endif
 endif
+
 
 ifntrue $(makepp_no_builtin_linker)
   #

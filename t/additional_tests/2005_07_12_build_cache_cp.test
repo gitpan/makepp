@@ -33,7 +33,7 @@ if( is_windows ) {
   }
 }
 1;
-###	1	644	1145710484	1121190843	Makeppfile
+###	1	644	1145710484	1121190843	RootMakeppfile
 $(phony default): foo
 ###	3	644	1121191772	1121188739	foo.c
 int main() {

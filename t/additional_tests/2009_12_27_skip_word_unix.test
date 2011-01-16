@@ -1,7 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	29	644	1289337252	1289337252	Makeppfile
 # The 1st rule used complain that it did not find a parser in the recursive
-# parse, as did th 2nd in the outer parse, which additionally didn't recognize
+# parse, as did the 2nd in the outer parse, which additionally didn't recognize
 # the compiler.  This is history because the new special parsers don't recurse.
 
 $(phony all): $( a/a b c d).o

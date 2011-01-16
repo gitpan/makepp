@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: Event.pm,v 1.27 2010/09/29 22:19:53 pfeiffer Exp $
+# $Id: Event.pm,v 1.28 2010/11/19 20:59:31 pfeiffer Exp $
 
 package Mpp::Event;
 
@@ -307,7 +307,7 @@ sub when_done {
   my $status;			# True if we were passed an error status
 				# code as one of the arguments.
 #
-# Parse the arguments:
+# Grok the arguments:
 #
   for( @_ ) {
     if( $subr ) {

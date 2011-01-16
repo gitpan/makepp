@@ -1,4 +1,4 @@
-# $Id: File.pm,v 1.94 2010/09/29 22:19:53 pfeiffer Exp $
+# $Id: File.pm,v 1.96 2010/12/24 13:30:17 pfeiffer Exp $
 
 package Mpp::File;
 require Exporter;
@@ -452,7 +452,8 @@ sub file_info {
     }
   }
   $dinfo->{DIRCONTENTS}{case_sensitive_filenames ? $_[0] : lc $_[0]} ||=
-    bless { NAME => case_sensitive_filenames ? $_[0] : lc $_[0], '..' => exists $dinfo->{LINK_DEREF} ? dereference $dinfo : $dinfo };
+    bless { NAME => case_sensitive_filenames ? $_[0] : lc $_[0],
+	    '..' => exists $dinfo->{LINK_DEREF} ? dereference $dinfo : $dinfo };
 }
 
 =head2 path_file_info
@@ -884,14 +885,15 @@ Unless it exists, makes the directory specified by the Mpp::File structure (and
 any parent directories that are necessary).
 
 =cut
+
 sub mkdir {
+  return 1 if &is_dir;		# If it's already a directory, don't do
+				# anything.
   my $dirinfo = $_[0];
 
-  return if &is_dir;		# If it's already a directory, don't do
-				# anything.
   &mkdir( $dirinfo->{'..'} );	# Make sure the parent exists.
-  CORE::mkdir &absolute_filename_nolink, 0777;
-				# Make the directory.
+  CORE::mkdir &absolute_filename_nolink, 0777
+    or return;			# Make the directory.
   &may_have_changed;		# Restat it.
   # Need to discard the LSTAT of the parent directory, because the number
   # of links to it has changed, and Mpp::Glob uses that.
@@ -963,88 +965,58 @@ sub read_directory {
   $str = relative_filename( $fileinfo, $dirinfo);
   $n = relative_filename( $fileinfo, $dirinfo, $distance ); # Only count hops.
 
-Return a file name relative to the given directory, if specified.
-If no directory is specified, uses the current working directory.
-If the directory and the file have no directories in common (e.g.,
-like '/home/mystuff/stuff' and '/usr/local/bin'), then an absolute
-file name is returned.
+Return a file name relative to the given directory, if specified.  If a
+directory is specified, which was not previously known to be a directory
+(e.g. because it is yet to be created and no files therein have been mentioned
+yet) it becomes marked as directory.  If no directory is specified, uses the
+current working directory.  If the directory and the file have no directories
+but the topmost in common (e.g., like '/home/mystuff/stuff' and
+'/usr/local/bin'), then an absolute file name is returned.
+
+A 3rd arg means to measure the distance to a file in directory traversals.  In
+the case where otherwise an absolute path would be returned, 999 is added to
+the length to make it further than any relative path.
 
 =cut
 
 sub relative_filename {
-  my $fileinfo = $_[0];		# Get the filename.
-  return '/' if $fileinfo == $root && !$_[2]; # Special case this.
+  my $finfo = $_[0];		# Get the filename.
+  unless( $_[2] ) {		# Special case these.
+    return '/' if $finfo == $root;
+    return &absolute_filename if Mpp::is_windows && $finfo->{NAME} =~ /\//; # //unc/name
+  }
 
   my $dir = $_[1] || $CWD_INFO;
+  mark_as_directory( $dir ) if $_[1] && !exists $_[1]{DIRCONTENTS};
 
-  return $_[2] ? 0 : '.' if $fileinfo == $dir; # Take care of this annoying special case
-				# first.
-  return $_[2] ? 0 : $fileinfo->{NAME} if $fileinfo->{'..'} == $dir;
+  return $_[2] ? 0 : '.' if $finfo == $dir; # Take care of this special case first.
+
+  my $fdir = exists $finfo->{DIRCONTENTS} ? $finfo : $finfo->{'..'};
+  my $orig_fdir = $fdir;
+  return $_[2] ? 0 : $finfo->{NAME} if $fdir == $dir;
 				# Optimize for the special case where the
 				# file is in the given directory.
 
-
-  unless( $_[2] ) {
-    # NOTE: We know that $fileinfo != $root here.
-    return $dir->{int $fileinfo} if exists $dir->{int $fileinfo};
-    return $dir->{int $fileinfo->{'..'}} . '/' . $fileinfo->{NAME}
-      if exists $dir->{int $fileinfo->{'..'}};
-  }
-
-#
-# Find the longest common prefix in the directories.  We can't take the
-# string returned from absolute_filename, since that uses symbolic links,
-# and .. doesn't do what you'd expect if symbolic links are involved.  So
-# we compare only the physical directories.
-#
-  my( $orig_dir, @dirs1, @dirs2 ) = $dir;
-  # Get a list of directories for the file.
-  while( $fileinfo != ($fileinfo->{ROOT} || $root) ) {
-    push @dirs1, $fileinfo;
-    $fileinfo = $fileinfo->{'..'}; # Go to the parent.
-    goto DONE if $fileinfo == $dir;
-				# Found it, no need to home in from the other side.
-  }
-
-  # Get a list of directories for the dir we want to be relative to.
-  while( $dir != ($dir->{ROOT} || $root) ) {
-    push @dirs2, $dir;
-    $dir = $dir->{'..'};
-  }
-
-  unless( $fileinfo->{ROOT} && $dir->{ROOT} && $fileinfo->{ROOT} == $dir->{ROOT} ) {
-				# Not in same subtree, so go up to system root
-    while( $fileinfo != $root ) {
-      push @dirs1, $fileinfo;
-      $fileinfo = $fileinfo->{'..'}; # Go to the parent.
+  my( @dirs, $abs );		# Profit from all upwards paths being cached.
+  until( $dir == $fdir || exists $dir->{int $fdir} ) { # So we meet at common root.
+    unshift @dirs, $fdir;
+    if( $fdir == $root || Mpp::is_windows && $fdir->{NAME} =~ /\// ) {
+      $abs = 1;
+      last;
+    } else {
+      $fdir = $fdir->{'..'};
     }
-    while( $dir != $root ) {
-      push @dirs2, $dir;
-      $dir = $dir->{'..'};
-    }
-    return ($orig_dir->{int $_[0]{'..'}} = $_[0]{'..'}{FULLNAME}) . '/' . $_[0]{NAME}
-				# May as well use absolute filename,
-      unless $_[2] or @dirs1 && @dirs2 && $dirs2[-1] == $dirs1[-1];
-				# when only thing in common is the root.
   }
 
-  while (@dirs1 && @dirs2) {	# Peel off the top level directories
-    last if $dirs2[-1] != $dirs1[-1]; # until we find a difference.
-    pop @dirs2;
-    pop @dirs1;
-  }
-
- DONE:
   if( $_[2] ) {
-    @dirs1 + @dirs2;
-  } elsif( @dirs1 ) {
-    my $file = shift @dirs1;
-    ($orig_dir->{int $_[0]{'..'}} = join '/', ('..') x @dirs2, map $_->{NAME}, reverse @dirs1) .
-      '/' . $file->{NAME};
-				# Form the relative filename.
+    ($abs ? 999 : (my $copy = $dir->{int $fdir}) =~ tr!/!!d) + @dirs;
+  } elsif( $abs ) {
+    &absolute_filename;
+  } elsif( exists $finfo->{DIRCONTENTS} ) {
+    $dir->{int $orig_fdir} = join '/', $dir == $fdir ? () : $dir->{int $fdir}, map $_->{NAME}, @dirs;
   } else {
-    $orig_dir->{int $_[0]} = join '/', ('..') x @dirs2;
-				# Form the relative filename.
+    ($dir->{int $orig_fdir} = join '/', $dir == $fdir ? () : $dir->{int $fdir}, map $_->{NAME}, @dirs) .
+      '/' . $finfo->{NAME};
   }
 }
 
@@ -1131,6 +1103,11 @@ sub mark_as_directory {
   $_[0]{FULLNAME} = &absolute_filename;
 				# We cache the absolute filename for all
 				# directories for performance reasons.
+  my $parent = '..';		# Ensure we cache all upwards paths.
+  for( my $pinfo = $_[0]{'..'}; $pinfo != $root; $pinfo = $pinfo->{'..'} ) {
+    $_[0]{int $pinfo} = $parent;
+    $parent .= '/..';
+  }
 }
 
 #

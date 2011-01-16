@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.40 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: makepplog,v 1.42 2011/01/16 17:08:25 pfeiffer Exp $
 
 package Mpp;
 
@@ -45,11 +45,13 @@ my %log_msg =
   LEX_RULE => 'Lexically analyzing rule for %s because %s',
   LOAD => 'Loading makefile %s with default directory %s',
   LOAD_AGAIN => 'Reloading makefile %s (because of %s) with default directory %s',
-  LOAD_AUTOMAKE => 'Cleaning automake junk out of %S',
+  LOAD_AUTOMAKE => 'Internally rewriting %s to fix Automake junk (see with --dump-makefile)',
+  LOAD_CMAKE => 'Internally rewriting %s to fix CMake recursion (see with --dump-makefile)',
   LOAD_DEFAULT => 'Loading default makefile for directory %s',
   LOAD_END => 'Finished loading %s',
   LOAD_INCL => 'Including %s from %s',
   LOAD_REC => 'Makefile %s seems recursive, so makefiles for its dependencies will not be implicitly loaded',
+  LOG => 'Recursive make at %s will log to %s in its destination directory',
 
   MAYBE_STALE => 'Ignoring possibly stale generated file %s',
   NOT_FOUND => '%s not found in $PATH at %s',

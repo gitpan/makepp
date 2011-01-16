@@ -2,7 +2,7 @@
 
 makepp_command -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.49 2010/09/29 22:06:41 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.52 2011/01/16 16:59:29 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -20,7 +20,8 @@ B<B:>E<nbsp>L<-b|/b_directory>,
   L<--build-check-method|/build_check_method>,E<nbsp>
 B<C:>E<nbsp>L<-C|/c_directory>,
   L<-c|/c>,E<nbsp>
-B<D:>E<nbsp>L<--directory|/c_directory>,
+B<D:>E<nbsp>L<--defer-include|/defer_include>,
+  L<--directory|/c_directory>,
   L<--do-build|/dont_build_filename>,
   L<--dont-build|/dont_build_filename>,
   L<--dont-read|/dont_read_filename>,
@@ -29,8 +30,8 @@ B<D:>E<nbsp>L<--directory|/c_directory>,
   L<--dump-makefile|/dump_makefile_filename>,
   L<--dump-makeppfile|/dump_makefile_filename>,E<nbsp>
 B<E:>E<nbsp>L<-e|/e>,
-  L<--environment-overides|/e>,
-  L<--env-overides|/e>,E<nbsp>
+  L<--environment-overrides|/e>,
+  L<--env-overrides|/e>,E<nbsp>
 B<F:>E<nbsp>L<-F|/f_makeppfile>,
   L<-f|/f_makefile>,
   L<--file|/f_makefile>,
@@ -39,7 +40,10 @@ B<F:>E<nbsp>L<-F|/f_makeppfile>,
   L<--force-rescan|/force_rescan>,E<nbsp>
 B<G:>E<nbsp>L<--gullible|/gullible>,E<nbsp>
 B<H:>E<nbsp>L<-h|/_>,
-  L<--help|/_>,E<nbsp>
+  L<--help|/_>,
+  L<--hybrid|/hybrid>,
+  L<--hybrid-recursion|/hybrid>,
+  L<--hybrid-recursive-make|/hybrid>,E<nbsp>
 B<I:>E<nbsp>L<-I|/i_directory>,
   L<--implicit-load-makeppfile-only|/implicit_load_makeppfile_only>,
   L<--include|/i_directory>,
@@ -104,7 +108,9 @@ B<S:>E<nbsp>L<-s|/s>,
   L<--stop-race|/stop_race>,
   L<--symlink-in-rep-as-file|/symlink_in_rep_as_file>,
   L<--symlink-in-repository-as-file|/symlink_in_rep_as_file>,E<nbsp>
-B<T:>E<nbsp>L<--traditional-recursive-make|/traditional_recursive_make>,E<nbsp>
+B<T:>E<nbsp>L<--traditional|/traditional>,
+  L<--traditional-recursion|/traditional>,
+  L<--traditional-recursive-make|/traditional>,E<nbsp>
 B<V:>E<nbsp>L<-V|/v>,
   L<-v|/v>,
   L<--verbose|/v>,
@@ -179,6 +185,15 @@ relative to the new directory, rather than the old one.
 =item --root-directory
 
 Cd up to the directory containing a RootMakeppfile.
+
+=item --defer-include
+
+Workaround for include statement before the rule that builds the include file.
+This happens by pretending the include statements come last in the makefile.
+That way the include statement is performable, but variable overrides or
+modifications may still fail, in which case you should set the problematic
+ones on the command line (whereas gmake ignores any variable setting from the
+include file that might influence how that file itself gets built).
 
 =item --dont-build=I<filename>
 
@@ -274,9 +289,9 @@ both the include statement and the interpolated file.
 
 =item -e
 
-=item --env-overides
+=item --env-overrides
 
-=item --environment-overides
+=item --environment-overrides
 
 Causes variables from the environment to override definitions in the
 makefile.  By default, assignments within the makefile override variable
@@ -358,6 +373,26 @@ is faster, but doesn't catch bugs in rules.
 
 Print out a brief summary of the options.
 
+=item --hybrid
+
+=item --hybrid-recursion
+
+=item --hybrid-recursive-make
+
+This option is present to allow makepp to work with old makefiles that use
+recursive make extensively, especially multiply into the same dir.  By
+default, recursive make is implemented by a subprocess that communicates with
+the parent process; the build is actually done by the parent process.  This
+allows some of makepp's nice features like repositories to work with recursive
+make invocations.  However, this technique will not work if you load more than
+one makefile from the same directory.  In that case this option says to fall
+back to starting another independent instance of makepp.  If this fails, try
+C<--traditional-recursive-make>.
+
+If you do use this option, you will get log files in the each directory the
+fall back occured in.  To get rid of only them use C<makeppclean --logs
+--recurse> or C<mppc -lr>.
+
 =item -I I<directory>
 
 =item --include=I<directory>
@@ -418,7 +453,7 @@ allowing it to find all creatable dependencies.
 =item --load-makeppfile=I<Makefile>
 
 Loads the specified makefile I<before> any other makefiles, except for
-CFRootMakeppfile>, or F<RootMakeppfile.mk> above it, but do not consider this
+F<RootMakeppfile>, or F<RootMakeppfile.mk> above it, but do not consider this
 option for the purposes of determining the default target.  If no other
 makefile is specified, then one is sought using the usual rules.  If the
 specified makefile is the same makefile that is found using the usual rules,
@@ -781,21 +816,30 @@ link points to the same target file as the symbolic link in the repository.
 This is useful if the symbolic link in the repository was intended to have
 the build-time semantics of a copy.
 
+=item --traditional
+
+=item --traditional-recursion
+
 =item --traditional-recursive-make
 
-This option is present to allow makepp to work with old makefiles that
-use recursive make extensively.  By default, recursive make is
-implemented by a subprocess that communicates with the parent process;
-the build is actually done by the parent process.  This allows some of
-makepp's nice features like repositories to work with recursive make
-invocations.  However, this technique will not work if you load more
-than one makefile from the same directory, or if you use different
-command line options on different invocations of recursive make.  The
-C<--traditional-recursive-make> option makes makepp do recursive makes
-the same way as the traditional make, allowing more makefiles to work,
-but then repositories and parallel builds do not work properly.  This
-option is rarely needed any more, and makepp will tell you if it runs
-into a construct that requires it.
+This option is present to allow makepp to work with old makefiles that use
+recursive make extensively, especially with varying options.  By default,
+recursive make is implemented by a subprocess that communicates with the
+parent process; the build is actually done by the parent process.  This allows
+some of makepp's nice features like repositories to work with recursive make
+invocations.  However, this technique will not work if you use different
+command line options on different invocations of recursive make.  Before you
+use this, try C<--hybrid-recursive-make>.
+
+C<--traditional-recursive-make> option makes makepp do recursive makes the
+same way as the traditional make, allowing more makefiles to work, but then
+repositories and parallel builds do not work properly.  This option is rarely
+needed any more, and makepp will tell you if it runs into a construct that
+requires it.
+
+If you do use this option, you will get log files piling up in the various
+directories this changes to.  To get rid of only them use C<makeppclean
+--logs --recurse> or C<mppc -lr>.
 
 =item -v
 

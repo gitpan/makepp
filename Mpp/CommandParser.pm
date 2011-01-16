@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.36 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.38 2011/01/16 17:09:07 pfeiffer Exp $
 
 =head1 NAME
 
@@ -112,14 +112,16 @@ sub add_executable_dependency {
       chdir $CWD_INFO;
       return if $exe eq 'not-found';
     }
-    $self->add_simple_dependency($exe);
+    $self->add_optional_dependency($exe);
+    $self->add_optional_dependency("$exe.exe")
+      if Mpp::is_windows && $exe !~ /\.exe$/;
     my $dirinfo = $self->dirinfo;
     my $finfo = file_info($exe, $dirinfo);
     my @runtime_deps = values %{$finfo->{RUNTIME_DEPS} || {}};
     my %visited = map { int, 1 } @runtime_deps;
     while(@runtime_deps) {
       my $runtime_dep = shift @runtime_deps;
-      $self->add_simple_dependency( relative_filename $runtime_dep, $dirinfo );
+      $self->add_optional_dependency( relative_filename $runtime_dep, $dirinfo );
       $visited{int()}++ or push @runtime_deps, $_
 	for values %{$runtime_dep->{RUNTIME_DEPS} || {}};
     }

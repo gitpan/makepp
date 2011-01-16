@@ -9,7 +9,7 @@ $(phony x):
 iftrue $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC))
   perl { die }
 endif
-###	62	644	1160341077	1287952300	Makefile
+###	62	644	1160341077	1287952300	RootMakeppfile
 #
 # Test various things about the lexer, command parsers and C scanner:
 # 1) Splitting command up into multiple lines;

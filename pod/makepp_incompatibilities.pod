@@ -2,20 +2,42 @@
 
 makepp_incompatibilities -- Incompatibilities between makepp and GNU make
 
-=for vc $Id: makepp_incompatibilities.pod,v 1.23 2010/09/13 21:17:25 pfeiffer Exp $
+=for vc $Id: makepp_incompatibilities.pod,v 1.27 2011/01/16 16:59:29 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 Makepp was designed to be as close as possible to GNU make
-(L<http://www.gnu.org/software/make/manual/html_node/>).  However, because of
-the difference in philosophy (see L<makepp_build_algorithm>), some of GNU
-make's or POSIX make's
+(L<http://www.gnu.org/software/make/manual/make.html>).  Gnu autotools
+(L<http://www.gnu.org/software/automake/manual/automake.html>), CMake
+(L<http://www.cmake.org/>), Premake (L<http://industriousone.com/premake/> and
+see L<remark below|/Compatibility via the option:
+--traditional-recursive-make>) or handcrafted legacy build systems should be
+buildable with makepp.  This is so you can either migrate projects
+effortlessly.  Or if you don't want to enjoy all of makepp's advantages
+(e.g. so others can still build your project with GNU make) while you profit
+from the reliabilty advantage for your development.
+
+However, because of the difference in L<philosophy|makepp_build_algorithm>,
+some of GNU make's or POSIX make's
 (L<http://www.opengroup.org/onlinepubs/009695399/utilities/make.html>)
 features cannot be supported.  A few have not been implemented because we
-haven't had time.  Most of the differences from GNU make are quite technical and
-only rarely cause problems.
+haven't had time.  Most of the differences from GNU make are quite technical
+and only rarely cause problems.  Alas the workarounds for the short-comings of
+traditional make are becoming more and more complex, and are giving makepp a
+hard time.
 
+In a nutshell, if it doesn't build out of the box, try:
 
+    makepp --no-warn makepp_simple_concatenation=1 makepp_percent_subdirs=1 \
+ 	--build-check=target_newer --last-chance-rules --no-remake-makefiles
+
+If that succeeds, you can try to eliminate those arguments one by one.  But if
+that fails, try adding either one or both of:
+
+ 	--defer-include
+ 	--traditional-recursive-make
+
+If that also fails, the build system needs some tweaking to cooperate with makepp.
 
 =head1 Forcing more POSIX or GNU make compatibility
 
@@ -51,7 +73,7 @@ many things which the traditional unix make accepts without flinching.  This
 is because there are better ways to do them with makepp.  If these warnings
 annoy you, you can turn them off with this option.
 
-=head2 Compatibility via the option: C<--traditional-recursive-make>
+=head2 Compatibility via the option: C<--hybrid-recursive-make>
 
 Recursive invocations of make are often considered to be an unsafe practice
 (see L<makepp/Better system for hierarchical builds> for details), but they
@@ -64,50 +86,42 @@ recursive invocations of make safer, makepp normally does not actually invoke
 itself recursively even if you tell it to.  Instead, a subprocess communicates
 with the parent process, and the actual build is done by the parent process.
 
-This works in most cases, but there are a few incompatibilities.  (All of
-these incompatibilities are removed by adding this option to the command line.)
-
-=over 4
-
-=item *
-
-You may not invoke several makefiles from the same directory, e.g., the
-following will not work:
+This works in most cases, but you may not invoke several makefiles from the
+same directory, e.g., the following will not work:
 
     target: dependencies
     	$(MAKE) -f other_makefile targets
 
-However, this will work:
+In this case makepp notices it is loading a 2nd makefile and complains.  With
+this option instead it will fall back to the traditional way of building from
+additional makefiles in a separate makepp process each.
+
+Note: Technically loading several makefiles would be no problem, but they
+usually have the same phony target names.  Keeping that apart would mean a
+complete redesign of makepp internals.  However, this will work, but it is not
+equivalent:
 
     target: dependencies
     	cd subdir && $(MAKE) -f other_makefile targets
 
-=item *
+=head2 Compatibility via the option: C<--traditional-recursive-make>
 
-Changes in environment variables are not passed to the
-recursive make process; the environment of the parent is used
-instead.
+Sometimes the previous option is not enough, especially if the recursive
+invocations use contradictory options.  Makepp uses only one set of global
+options, so a submake is not allowed to modify them, as that would also
+pertain to other makefiles.
 
-=item *
-
-The C<MAKEFLAGS> variable is not set up, and altering it has no effect.
-
-=back
-
-This may seem like a long list of restrictions, but many makefiles obey them.
-For example, as far as I know, all makefiles produced by C<automake> follow
-these restrictions.
-
-All of these restrictions go away if you add the
-C<--traditional-recursive-make> option to the command line, but that has the
-following undesirable side effects:
+Adding this option to the command line, has the following undesirable side
+effects:
 
 =over 4
 
 =item *
 
-Recursive makes do not execute in parallel, even if the parent
-does.
+Recursive makes do not internally execute in parallel, even if the parent
+does.  Unlike gmake there is no overall coordination of the number of
+processes.  This will not be implemented because this way of working is not a
+design goal of makepp.
 
 =item *
 
@@ -116,16 +130,29 @@ Recursive make processes do not know anything about repositories.
 =item *
 
 Each recursive make process produces its own log file, in the directory it is
-invoked in, instead of producing one log file for the entire build.  If you
-run it multiply in the same directory, it will overwrite the previous log
-file.  If you have several sub-makes running in the same directory at the same
-time, the log file will be more or less corrupted.
+invoked in, instead of producing one log file for the entire build.
+
+=item *
+
+Since makepp usually builds more than traditional make deems necessary, and
+since many build systems provide recursive calls in all directions, this may
+lead to endless recursion.  Makepp will pull the brake after 50 rounds and
+tell you how to increase that, in case you really have such deep nesting.
 
 =back
 
 Even with the C<--traditional-recursive-make> option, the environment
-variables C<MAKEOVERRIDES> and C<MFLAGS> not set up, and are ignored, so
+variables C<MAKEOVERRIDES> and C<MFLAGS> are not set up, and ignored, so
 makefiles that depend on those will not work.
+
+A B<Premake> generated F<Makefile> is only a funny wrapper to a sub-make
+invocation in the same directory.  If you have some project target I<XYZ> it
+will have a line like
+
+ 	@${MAKE} --no-print-directory -C . -f XYZ.make
+
+In this case you can avoid the C<--traditional-recursive-make> option by
+directly invoking makepp with that C<-f I<XYZ>.make> option.
 
 =head2 Compatibility without the option: C<--jobs=I<n>>
 
@@ -171,6 +198,30 @@ GNU make sets C<T> to contain C<-o> followed by a space, whereas makepp strips
 out the trailing space anyway.  If you want the trailing space, you must set
 C<makepp_simple_concatenation> and also set C<T> using the technique involving
 a dummy variable such as C<null>, as shown above.
+
+=head2 Workaround option C<--defer-include>
+
+Makepp reads makefiles in a single pass, where GNU make is multipass.  Hence
+this will not work, because F<GIT-VERSION-FILE> must be built to process the
+C<include> statement.  But it depends on something that is unknown at this
+point.  To solve this, the C<.PHONY> declaration must be moved up before the
+C<include> statement:
+
+    GIT-VERSION-FILE: FORCE
+ 	@$(SHELL_PATH) ./GIT-VERSION-GEN
+    include GIT-VERSION-FILE
+    .PHONY: FORCE
+
+This option internally reorders the include statements to the end of the makefile.
+That may in turn cause variables to have different values, in which case you
+should set the problematic ones on the command line.
+
+=head2 Workaround option C<--no-remake-makefiles>
+
+Typical open source requires calling C<configure> to create the makefiles.
+But then these makefiles can contain rules to remake the makefile, by calling
+some command.  Makepp will happily comply and update it according to the rule.
+But sometimes this is harmful, so just skip it.
 
 =head2 Compatibility via the variable: C<makepp_percent_subdirs=1>
 
@@ -239,8 +290,8 @@ following two forms of this mistake upto version 6.56 (Perl 5.12.1):
 =item *
 
 The C<VPATH> variable is currently ignored.  C<vpath> statements are
-unsupported and will cause errors.  Use repositories (see
-L<makepp_repositories>) instead.
+unsupported and will cause errors.  Use L<repositories|makepp_repositories>
+instead.
 
 =item *
 
@@ -249,13 +300,13 @@ earlier.  This is backwards from GNU make.
 
 =item *
 
-The set of builtin implicit rules (see L<makepp_builtin>) is somewhat
-different from those for GNU make, though the variable names are largely
-compatible.  The builtin rules should successfully compile C/C++/Fortran
-programs, and in fact may be able to guess the proper libraries in some cases
-too.  Support for Modula-2 and RatFor and other rare languages is deliberately
-not present, because I kept running into problems with GNU make's rules when I
-accidently reused the extensions for those languages.
+The set of L<builtin implicit rules|makepp_builtin> is somewhat different from
+those for GNU make, though the variable names are largely compatible.  The
+builtin rules should successfully compile C/C++/Fortran programs, and in fact
+may be able to guess the proper libraries in some cases too.  Support for
+Modula-2 and RatFor and other rare languages is deliberately not present,
+because I kept running into problems with GNU make's rules when I accidently
+reused the extensions for those languages.
 
 =item *
 
@@ -478,8 +529,8 @@ or this, which will make the file during the expansion:
         genfoo < $(&cat $(make bar))
 
 This is preferable here, because the file listed in F<bar> is also a
-dependency of this rule, and makepp can now catch it when parsing the
-redirection.
+dependency of this rule, and makepp can now catch it when lexically analyzing
+the redirection.
 
 =item *
 

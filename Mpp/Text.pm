@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.49 2010/11/17 21:36:59 pfeiffer Exp $
+# $Id: Text.pm,v 1.51 2010/12/10 22:12:05 pfeiffer Exp $
 
 =head1 NAME
 
@@ -92,7 +92,7 @@ sub pattern_substitution {
 }
 
 # Rather than cascade if( /\Gx/gc ), just look up the action
-my %skip_over = (
+our %skip_over = (
   "'", \&skip_over_squote,
   '"', \&skip_over_dquote,
   '$', \&skip_over_make_expression,
@@ -100,21 +100,25 @@ my %skip_over = (
 
 =head2 index_ignoring_quotes
 
-  my $index = index_ignoring_quotes($string, 'substr');
+  my $index = index_ignoring_quotes($string, 'substr'[, position]);
 
-Works like C<index($string, 'substr')>, except that the substring may not be
+Works like C<index($string, 'substr'[, position])>, except that the substring may not be
 inside quotes or a make expression.
+
+=head2 index_ignoring_single_quotes
+
+This is similar, but ignores only the characters in '' and the one after \.
 
 =cut
 
 sub index_ignoring_quotes {
   my $substr = $_[1];
   local $_ = $_[0];
-  pos = 0;			# Start at the beginning.
+  pos = $_[2] || 0;		# Start at the beginning.
 
   for (;;) {
     my $last_pos = pos;
-    if( /\G([^"'\\\$]+)/gc ) { # Just ordinary characters?
+    if( /\G([^"'\\\$]+)/gc ) {	# Just ordinary characters?
       my $idx = index $1, $substr; # See if it's in those characters.
       $idx >= 0 and return $last_pos + $idx;
     }
@@ -127,6 +131,10 @@ sub index_ignoring_quotes {
     &{$skip_over{substr $_, pos()++, 1}};
   }
 }
+sub index_ignoring_single_quotes {
+  local $skip_over{'"'} = local $skip_over{'$'} = $N[0];
+  &index_ignoring_quotes;
+}
 
 =head2 max_index_ignoring_quotes
 
@@ -136,15 +144,11 @@ instance rather than the first.
 =cut
 
 sub max_index_ignoring_quotes {
-  use strict;
-  my ($str, $sub) = @_;
-  my $max = 0;
-  my $len = length($sub) or return 0;
-  while((my $next = index_ignoring_quotes $str, $sub) >= 0) {
-    $max += $next + $len;
-    substr $str, 0, $next + $len, '';
-  }
-  $max ? $max - $len : -1;
+  my $pos = &index_ignoring_quotes;
+  my $opos = -1;
+  $pos = index_ignoring_quotes $_[0], $_[1], 1 + ($opos = $pos)
+    while $pos >= 0;
+  $opos;
 }
 
 =head2 split_on_whitespace
@@ -182,13 +186,13 @@ sub split_on_whitespace {
   my $last_pos = pos;
 
   for (;;) {
-    $cmds ? /\G[^;|&"'`\\\$]+/gc : /\G[^\s"'\\]+/gc;	# Skip over irrelevant things.
+    $cmds ? /\G[^;|&()"'`\\\$]+/gc : /\G[^\s"'\\]+/gc;	# Skip over irrelevant things.
 
     last if length() <= pos;	# End of string.
 
     my $cur_pos = pos;		# Remember the current position.
     if ($cmds && /\G(?<=[<>])&/gc) {	# Skip over redirector, where & is not a separator
-    } elsif ($cmds ? /\G[;|&]+/gc : /\G\s+/gc) { # Found some whitespace?
+    } elsif ($cmds ? /\G[;|&()]+/gc : /\G\s+/gc) { # Found some whitespace?
       push(@pieces, substr($_, $last_pos, $cur_pos-$last_pos));
       $last_pos = pos;		# Beginning of next string is after this space.
     } elsif (!$cmds and /\G"/gc) { # Double quoted string?
@@ -255,7 +259,7 @@ This subroutine is equivalent to
 
 except that colons inside double quoted strings or make expressions are passed
 over.  Also, a semicolon terminates the expression; any colons after a
-semicolon are ignored.	This is to support parsing of this horrible rule:
+semicolon are ignored.	This is to support grokking of this horrible rule:
 
   $(srcdir)/cat-id-tbl.c: stamp-cat-id; @:
 
@@ -522,7 +526,7 @@ sub format_exec_args {
     if Mpp::is_windows == -2 || Mpp::is_windows == 1 ||
       $cmd =~ /[()<>\\"'`;&|*?[\]]/ || # Any shell metachars?
       $cmd =~ /\{.*,.*\}/ || # Pattern in Bash (blocks were caught by ';' above).
-      $cmd =~ /^\s*(?:\w+=|[.:!]\s|e(?:val|xec|xit)\b|source\b|test\b)/;
+      $cmd =~ /^\s*(?:\w+=|[.:!](?:\s|$)|e(?:val|xec|xit)\b|source\b|test\b)/;
 				# Special commands that only
 				# the shell can execute?
 
@@ -564,16 +568,18 @@ the two associative arrays are unequal, and '' if not.
 =cut
 
 sub hash_neq {
-  my ($a, $b) = @_;
+  my ($a, $b, $ignore_empty ) = @_;
 #
 # This can't be done simply by stringifying the associative arrays and
 # comparing the strings (e.g., join(' ', %a) eq join(' ', %b)) because
-# the order of the key/value pairs in the list returned by %a may differ
-# even for identical hashes (if two keys happen to land in the same bucket).
+# the order of the key/value pairs in the list returned by %a differs.
 #
   my %a_not_b = %$a;		# Make a modifiable copy of one of them.
+  delete @a_not_b{grep !length $a_not_b{$_}, keys %a_not_b}
+    if $ignore_empty;
   foreach (keys %$b) {
-    exists($a_not_b{$_}) or return $_ || '0_'; # Must return a true value.
+    next if $ignore_empty && !length $b->{$_};
+    exists $a_not_b{$_} or return $_ || '0_'; # Must return a true value.
     $a_not_b{$_} eq $b->{$_} or return $_ || '0_';
     delete $a_not_b{$_};	# Remember which things we've compared.
   }

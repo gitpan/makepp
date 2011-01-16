@@ -1,4 +1,4 @@
-# $Id: C.pm,v 1.28 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: C.pm,v 1.29 2010/12/24 13:26:47 pfeiffer Exp $
 
 =head1 NAME
 
@@ -216,7 +216,7 @@ sub get_directive {
 *other_directive = $Mpp::Text::N[0];
 
 sub xscan_file {
-  my ($self, $cp, undef, $finfo, $conditional, $fh)=@_;
+  my ($self, $cp, $tag, $finfo, $conditional, $fh)=@_;
   my $absname = absolute_filename( $finfo );
   my ($go, $pending_comment, $continued_comment);
   my $guard_scope;		# So we can check that #define and #endif match #ifndef.
@@ -269,7 +269,7 @@ sub xscan_file {
 	  local $_;		# Preserve $_ for later
           warn "$absname:$.: File $1 included because condition ", $self->get_bad_expr, " cannot be evaluated\n"
 	    if $go == UNKNOWN;
-	  $self->include($cp, $userinc ? 'user' : 'sys', $1, $finfo)
+	  $self->include($cp, $userinc && $tag ne 'sys' ? 'user' : 'sys', $1, $finfo)
 	    or return undef;
 	} else {
 	  warn "$absname:$.: Include $_ not scanned\n" if /\S/;

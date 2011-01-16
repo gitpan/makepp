@@ -1,4 +1,4 @@
-# $Id: Mpp.pm,v 1.9 2010/09/13 21:02:52 pfeiffer Exp $
+# $Id: Mpp.pm,v 1.10 2010/12/10 21:57:50 pfeiffer Exp $
 
 =head1 NAME
 
@@ -217,6 +217,7 @@ numbers, even if they happen to coincide with a I<ref>.
 =cut
 
 use Mpp::File;
+use Mpp::Cmds;
 
 my $last_indent_level = 0;
 sub log($@) {
@@ -231,7 +232,10 @@ sub log($@) {
       open $logfh, '|' . PERL . " $mppl -pl-" or # Pass the mesages to makepplog for formatting.
 	die "$progname: can't pipe to `makepplog' for verbose option--$!\n";
     } else {
-      if( !$logfile ) {
+      if( $logfile ) {
+	my( $dir ) = $logfile =~ /(.+)\//;
+	Mpp::Cmds::c_mkdir -p => $dir if $dir;
+      } else {
 	mkdir '.makepp';	# Just in case
 	$logfile = '.makepp/log';
       }

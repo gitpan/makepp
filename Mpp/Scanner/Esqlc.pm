@@ -1,4 +1,4 @@
-# $Id: Esqlc.pm,v 1.10 2009/02/09 22:45:23 pfeiffer Exp $
+# $Id: Esqlc.pm,v 1.11 2011/01/16 17:10:41 pfeiffer Exp $
 
 =head1 NAME
 
@@ -24,6 +24,8 @@ filename or $INCLUDE E<lt>filenameE<lt> directive.
 
 =item sql
 
+Temporarily assigned internally to EXEC SQL INCLUDE or $INCLUDE, before
+deciding which of the above two to use.
 
 =back
 
@@ -36,8 +38,15 @@ use Mpp::Scanner::C;
 our @ISA = 'Mpp::Scanner::C';
 
 sub get_directive {
-  if( s/^\s*(?:EXEC\s+SQL\s+|\$\s*)INCLUDE\s+//i ) {
+  if( s/^\s*(?:EXEC\s+SQL\s+|\$\s*)INCLUDE(?:\s+EXTERN)?\s+(?=[^\s;])//i ) {
     'sql';
+  } elsif( s/^\s*EXEC\s+(?:SQL|ORACLE)\s+OPTION\s\((sys_?)?include=(?:\((.+)\)|(.+))\)//i ) {
+    my $sys = $1;
+    for( $2 ? split( ',', $2 ) : $3 ) {
+      $_[0]->add_include_dir( user => $_ );
+      $_[0]->add_include_dir( sys => $_ ) if $sys;
+    }
+    return;
   } elsif( s/^\s*EXEC\s+ORACLE\s+// ) {
       if( s/^(DEFINE|IFN?DEF)(\s+\w+)\s*;/$2/i || s/^(ELSE|ENDIF)\s*;//i ) {
 	lc $1;
