@@ -9,6 +9,7 @@ use strict;
 my %log_msg =
  (
   AUTOLOAD => 'Autoloading for target %s',
+
   BC_COPY => 'Copied %s from build cache file %s',
   BC_EXPORT => 'Target %s exported to build cache file %s',
   BC_FOUND => 'Found match for %s in build cache with key %s',
@@ -34,8 +35,10 @@ my %log_msg =
   BUILD_RECURSIVE => 'Rebuild %s because command is recursive invocation of make',
 
   CACHED_DEP => 'Building %s as a cached scanned dependency of %s',
+
   DEL_STALE => 'Removing stale generated file or symlink %s',
   DEPEND => ' Targets %s depend on %s',
+
   IFEQ => 'if(n)eq comparing %s with %s at %s',
   INCL => '%s includes %s',
   INCL_WHO => 'something includes %s',
@@ -59,7 +62,9 @@ my %log_msg =
   N_CACHE_HITS => '%d files imported from build cache',
   N_FILES => '%d files updated, %d phony targets built and %d targets failed',
   N_REP_HITS => '%d files imported from repositories',
+
   OUT_OF_DATE => 'Discarding out-of-date or corrupt build info file %s',
+
   PARSE => 'Parsing command %s from directory %s for rule %s',
   PARSE_NONE => 'Parser none for %s for rule %s',
   PARSE_SHELL => 'Parser shell %s command %s for rule %s',
@@ -96,12 +101,12 @@ my %log_msg =
   SCAN_NOT_SYS => 'Not scanning system file %s',
   SCAN_NOT_UNWRITABLE => 'Not scanning unwritable file %s',
   SCAN_UNCACHEABLE => 'Not caching scan info for %s because the parser for %s doesn\'t support it',
-
   SYMLINK => 'After building, %s is a symbolic link',
   SYMLINK_KEEP => 'Keeping symbolic link %s from previous build at %s',
-
   SUCCESS => '%s successfully executed for %s',
+
   TRY => 'Trying to build %s',
+
   UP_TO_DATE => '%s is up to date',
   USE => ' Using rule %s',
 

@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.181 2011/01/16 17:09:07 pfeiffer Exp $
+# $Id: Subs.pm,v 1.181 2011/04/16 17:09:07 pfeiffer Exp $
 
 =head1 NAME
 
@@ -295,13 +295,57 @@ our %perl_unfriendly_symbols =
   );
 
 #
+# Obtain the single arg of a makefile function.
+# This utility takes the same 3 parameters as f_* functions, so call it as: &arg
+#
+# It gives you the expanded value of the callings function single arg, if the
+# first parameter is a ref to a string, else just the unexpanded string.
+# If the 2nd arg is false it also doesn't expand.
+#
+# If the function doesn't take an arg, there is no need to call this.
+#
+sub arg { $_[1] && ref $_[0] ? $_[1]->expand_text( ${$_[0]}, $_[2] ) : $_[0] }
+
+#
+# Obtain multiple args of a makefile function.
+# This utility takes the same 3 parameters as arg
+#
+# Additional parameters:
+# max: number of args (default 2): give ~0 (maxint) for endless
+# min: number of args (default 0 if max is ~0, else same as max)
+# only_comma: don't eat space around commas
+#
+sub args {
+  local $_ = ref $_[0] ? ${$_[0]} : $_[0]; # Make a modifyable copy
+  my $max = $_[3] || 2;
+  my $min = ($_[4] or $max == ~0 ? 1 : $max) - 1;
+  pos = 0;
+  while( length() > pos ) {
+    /\G[^,\$]+/gc;
+    if( /\G,/gc ) {
+      --$min if $min;
+      last unless --$max;
+      my $pos = pos;
+      substr $_, $pos - 1, 1, "\01";
+      pos = $pos;
+    } elsif( /\G\$/gc ) {
+      &Mpp::Text::skip_over_make_expression;
+    }
+  }
+  tr/\01/,/,
+  die $_[2] || 'somewhere', ': $(', (caller 1)[3], " $_) $min more arguments expected\n" if $min;
+  $_ = $_[1]->expand_text( $_, $_[2] ) if $_[1] && ref $_[0] && /\$/;
+  $_[5] ? split "\01", $_, -1 : split /\s*\01\s*/, $_, -1;
+}
+
+#
 # Return the absolute filename of all the arguments.
 #
 sub f_absolute_filename {
-  my $cwd = $_[1]{CWD};
+  my $cwd = $_[1] && $_[1]{CWD};
   join ' ',
     map absolute_filename( file_info unquote(), $cwd ),
-      split_on_whitespace $_[0];
+      split_on_whitespace &arg;
 }
 *f_abspath = \&f_absolute_filename;
 
@@ -309,67 +353,61 @@ sub f_absolute_filename_nolink {
   my $cwd = $_[1]{CWD};
   join ' ',
     map absolute_filename_nolink( file_info unquote(), $cwd ),
-      split_on_whitespace $_[0];
+      split_on_whitespace &arg;
 }
 *f_realpath = \&f_absolute_filename_nolink;
 
 sub f_addprefix {
-  my ($prefix, $text) = split(/,\s*/, $_[0]); # Get the prefix.
+  my( $prefix, $text ) = args $_[0], $_[1], $_[2], 2, 2, 1; # Get the prefix.
   join ' ', map "$prefix$_", split ' ', $text;
 }
 
 sub f_addsuffix {
-  my ($suffix, $text) = split(/,\s*/, $_[0]); # Get the prefix.
+  my( $suffix, $text ) = args $_[0], $_[1], $_[2], 2, 2, 1; # Get the suffix.
   join ' ', map "$_$suffix", split ' ', $text;
 }
 
 sub f_and {
   my $ret = '';
-  for my $cond ( split /,\s*/, $_[0] ) {
-    $ret = $_[1]->expand_text( $cond, $_[2] );
+  for my $cond ( args $_[0], undef, $_[2], ~0 ) {
+    $ret = $_[1] && ref $_[0] ? $_[1]->expand_text( $cond, $_[2] ) : $cond;
     return '' unless length $ret;
   }
   $ret;
 }
 
 sub f_or {
-  for my $cond ( split /,\s*/, $_[0] ) {
-    $cond = $_[1]->expand_text( $cond, $_[2] );
+  for my $cond ( args $_[0], undef, $_[2], ~0 ) {
+    $cond = $_[1]->expand_text( $cond, $_[2] )
+      if $_[1] && ref $_[0];
     return $cond if length $cond;
   }
   '';
 }
 
 sub f_basename {
-  join ' ', map { s!\.[^./,]*$!!; $_ } split ' ', $_[0];
+  join ' ', map { s!\.[^./,]*$!!; $_ } split ' ', &arg;
 }
 
+our $call_args = 1;		# In nested call, don't inherit outer extra args.
 sub f_call {
-  my @args = split(/,\s*/, $_[0]);
-  return '' unless $args[0];
-  my( undef, $res ) = $_[1]->expand_variable( $args[0], $_[2], 1 );
-  return '' unless $res;
-  my $params = qr!\$(?:(\d+)|\{(\d+)\}|\((\d+)\))!;
-  $res =~ s!\$\$!\000!g;                        # Switch away all $$
-  {
-    no warnings 'uninitialized';  # Don't care, getting undef from @args
-    $res =~ s!$params!$args[$1||$2||$3||0]!ge; # Handle $n, ${n} and $(n)
-  };
-  $res =~ s!\000!\$\$!g;                        # Switch back to $$
-  $res ? $_[1]->expand_text($res, $_[2]) : '';
+  my @args= args $_[0], $_[1], $_[2], ~0, 1, 1;
+  local @perl_unfriendly_symbols{0..($#args>$call_args ? $#args : $call_args)} = @args; # assign to $0, $1, $2...
+  local $call_args = $#args;
+  $_[1]->expand_variable( $args[0], $_[2] );
 }
 
 sub f_dir {
-  join ' ', map { m@^(.*/)@ ? $1 : './' } split ' ', $_[0];
+  join ' ', map { m@^(.*/)@ ? $1 : './' } split ' ', &arg;
 }
 
 sub f_dir_noslash {		# An internal routine that does the same
 				# thing but doesn't return a trailing slash.
-  join ' ', map { m@^(.*)/@ ? $1 : '.'} split ' ', $_[0];
+  join ' ', map { m@^(.*)/@ ? $1 : '.'} split ' ', &arg;
 }
 
 sub f_error {
-  die "$_[2]: *** $_[0]\n";	# Throw the text.
+  die "$_[2]: *** ".&arg."\n";	# Throw the text.
 }
 
 #
@@ -382,9 +420,8 @@ sub f_error {
 # will work with filesubst but not with patsubst.
 #
 sub f_filesubst {
-  my ($src, $dest, $words) = split(/\s*,\s*/, $_[0]);
+  my ($src, $dest, $words) = args $_[0], $_[1], $_[2], 3;
 				# Get the patterns.
-  !defined($words) and die "filesubst: too few arguments";
   my $cwd = $_[1]{CWD};
 #
 # First we eat away at the directories on the source until we find the
@@ -407,12 +444,10 @@ sub f_filesubst {
 # directory.
 #
   my @words;
-  foreach (split(' ', $words)) {
+  foreach( split ' ', $words ) {
     my $thisdir = (s@^/+@@) ? $Mpp::File::root : $cwd;
-    while ($thisdir != $startdir &&
-	   s@([^/]+)/+@@) {	# Another directory?
-      $thisdir = dereference file_info $1, $thisdir;
-    }
+    $thisdir = dereference file_info $1, $thisdir
+      while $thisdir != $startdir && s@([^/]+)/+@@;	# Another directory?
     push @words, case_sensitive_filenames ? $_ : lc;
 				# What's left is the filename relative to that
 				# directory.
@@ -424,10 +459,8 @@ sub f_filesubst {
 }
 
 sub f_filter {
-  my ($filters, $words) = split(/,\s*/, $_[0]);
-
-  !defined($words) and die "filter: too few arguments";
-  my @filters = split(' ', $filters); # Can be more than one filter.
+  my ($filters, $words) = args $_[0], $_[1], $_[2];
+  my @filters = split ' ', $filters; # Can be more than one filter.
   foreach (@filters) {		# Convert these into regular expressions.
     s/([.+()])/\\$1/g;		# Protect all the periods and other special chars.
     s/[*%]/\.\*/g;		# Replace '*' and '%' with '.*'.
@@ -436,7 +469,7 @@ sub f_filter {
 
   my @ret_words;
  wordloop:
-  foreach (split(' ', $words)) { # Now look at each word.
+  foreach( split ' ', $words ) { # Now look at each word.
     foreach my $filter (@filters) {
       if (/$filter/) {		# Does it match this filter?
 	push @ret_words, $_;
@@ -448,11 +481,10 @@ sub f_filter {
   join ' ', @ret_words;
 }
 
-sub f_filter_out {
-  my ($filters, $words) = split(/,\s*/, $_[0]);
 
-  !defined($words) and die "filter_out: too few arguments";
-  my @filters = split(' ', $filters); # Can be more than one filter.
+sub f_filter_out {
+  my ($filters, $words) = args $_[0], $_[1], $_[2];
+  my @filters = split ' ', $filters; # Can be more than one filter.
   foreach (@filters) {		# Convert these into regular expressions.
     s/([.+()])/\\$1/g;		# Protect all the periods and other special chars.
     s/[*%]/\.\*/g;		# Replace '*' and '%' with '.*'.
@@ -461,7 +493,7 @@ sub f_filter_out {
 
   my @ret_words;
  wordloop:
-  foreach (split(' ', $words)) { # Now look at each word.
+  foreach( split ' ', $words ) { # Now look at each word.
     foreach my $filter (@filters) {
       next wordloop if /$filter/; # Skip if it matches this filter.
     }
@@ -473,7 +505,7 @@ sub f_filter_out {
 
 sub f_filter_out_dirs {
   #my ($text, $mkfile) = @_; # Name the arguments.
-  join ' ', grep { !is_or_will_be_dir file_info $_, $_[1]{CWD} } split ' ', $_[0];
+  join ' ', grep { !is_or_will_be_dir file_info $_, $_[1]{CWD} } split ' ', &arg;
 }
 
 #
@@ -491,7 +523,7 @@ sub f_find_program {
 
   my @pathdirs;			# Remember the list of directories to search.
   my $first_round = 1;
-  foreach my $name ( split ' ', $_[0]) {
+  foreach my $name ( split ' ', &arg) {
     if( $name =~ /\// || Mpp::is_windows > 1 && $name =~ /\\/ ) { # Either relative or absolute?
       my $finfo = path_file_info $name, $mkfile->{CWD};
       my $exists = Mpp::File::exists_or_can_be_built $finfo;
@@ -532,7 +564,7 @@ sub f_find_program {
     $first_round = 0;
   }
 
-  Mpp::log NOT_FOUND => $_[0], $_[2];
+  Mpp::log NOT_FOUND => ref $_[0] ? ${$_[0]} : $_[0], $_[2];
   'not-found';			# None of the programs were executable.
 }
 
@@ -541,19 +573,19 @@ sub f_find_program {
 # nothing is specified.
 #
 sub f_findfile {
-  my ($name, $path) = split(/,\s*/, $_[0]); # Get what to look for, and where
+  my ($name, $path) = args $_[0], $_[1], $_[2]; # Get what to look for, and where
 				# to look for it.
   my $mkfile = $_[1]; # Access the other arguments.
   my @pathdirnames = $path ? split( /\s+|:/, $path ) :
     Mpp::Text::split_path( $mkfile->{EXPORTS} );
 				# Get a separate list of directories.
-  my @names = split(' ', $name); # Get a list of names to find.
+  my @names = split ' ', $name; # Get a list of names to find.
   foreach $name (@names) {	# Look for each one in the path:
     foreach my $dir (@pathdirnames) {
-      my $finfo = file_info($name, file_info($dir, $mkfile->{CWD}));
+      my $finfo = file_info $name, file_info $dir, $mkfile->{CWD};
 				# Get the finfo structure.
-      if( file_exists( $finfo )) { # Found it?
-	$name = absolute_filename( $finfo ); # Replace it with the full name.
+      if( file_exists $finfo ) { # Found it?
+	$name = absolute_filename $finfo; # Replace it with the full name.
 	last;			# Skip to the next thing to look for.
       }
     }
@@ -576,14 +608,14 @@ sub f_findfile {
 # to "..", where it then also looks for any of the filenames. It returns the
 # first file that it finds.
 sub f_find_upwards {
-  my $cwd = $_[1]{CWD};
+  my $cwd = $_[1] && $_[1]{CWD};
 
   my @ret_names;
 
   my $cwd_devid;		# Remember what device this is mounted on
 				# so we can avoid crossing file system boundaries.
 
-  for( split_on_whitespace $_[0] ) {
+  for( split_on_whitespace &arg ) {
     $_ = unquote;
     my $found;
     for( my $dirinfo = $cwd;
@@ -608,8 +640,8 @@ sub f_find_upwards {
 }
 
 sub f_find_first_upwards {
-  my @fnames = unquote_split_on_whitespace $_[0];
-  my $cwd = $_[1]{CWD};
+  my @fnames = unquote_split_on_whitespace &arg;
+  my $cwd = $_[1] && $_[1]{CWD};
 
   my $cwd_devid;		# Remember what device this is mounted on
 				# so we can avoid crossing file system boundaries.
@@ -632,13 +664,13 @@ sub f_find_first_upwards {
 }
 
 sub f_findstring {
-  my ($find, $in) = split(/,/, $_[0]);
+  my( $find, $in ) = args $_[0], $_[1], $_[2], 2, 2, 1;
 
   (index($in, $find) >= 0) ? $find : '';
 }
 
 sub f_firstword {
-  (split ' ', $_[0], 2)[0] || '';
+  (split ' ', &arg, 2)[0] || '';
 }
 
 #
@@ -647,7 +679,7 @@ sub f_firstword {
 # environments.
 #
 sub f_first_available {
-  foreach my $fname (split(' ', $_[0])) {
+  foreach my $fname (split ' ', &arg) {
     Mpp::File::exists_or_can_be_built( file_info $fname, $_[1]->{CWD} ) and return $fname;
   }
   '';
@@ -661,35 +693,22 @@ sub f_first_available {
 # any side effects of the else expression do not happen.
 #
 sub f_if {
-  my $iftrue = shift if ref $_[0];
-  my ($text, $mkfile, $mkfile_line) = @_; # Name the arguments.
-  (my $comma = index_ignoring_quotes $text, ',') >= 0 or # Find the first comma.
-    die "$mkfile_line: \$(if ) with only one argument\n";
-  my $cond = $mkfile->expand_text(substr($text, 0, $comma), $mkfile_line);
-				# Evaluate the condition.
+  my( $cond, $then, $else ) = args $_[0], undef, $_[2], 3, 2, 1;
+  my( undef, $mkfile, $mkfile_line, $iftrue ) = @_; # Name the arguments.
+  $cond = ref $_[0] ? $mkfile->expand_text( $cond, $mkfile_line ) : $cond; # Evaluate the condition.
   $cond =~ s/^\s+//;		# Strip out whitespace on the response.
   $cond =~ s/\s+$//;
-
-  $text = substr $text, $comma+1; # Get the text w/o the comma.
-
-  $comma = index_ignoring_quotes $text, ',';
-				# Find the boundary between the then and the
-				# else clause.
-  if ($cond || (!$iftrue && $cond ne "")) {	# Is the condition true?
-    $text = substr $text, 0, $comma
-      if $comma >= 0;		# Was there an else clause?
-				# Otherwise no else clause, then clause is the rest.
-  } else {			# Condition was false.	Extract the else clause.
-    $comma >= 0 or return '';	# No else clause.
-    $text = substr $text, $comma+1; # Get the text.
+  if( $cond || !$iftrue && $cond ne "" ) {
+    ref $_[0] ? $mkfile->expand_text( $then, $mkfile_line ) : $then;
+  } elsif( defined $else ) {
+    ref $_[0] ? $mkfile->expand_text( $else, $mkfile_line ) : $else;
+  } else {
+    '';
   }
-  $text =~ s/^\s+//;		# Strip out leading whitespace.
-  $text =~ s/\s+$//;		# Strip out trailing whitespace.
-  $mkfile->expand_text($text, $mkfile_line);
 }
 sub f_iftrue {
-    unshift @_, \1;
-    goto &f_if;
+  $_[3] = 1;
+  goto &f_if;
 }
 
 #
@@ -701,8 +720,8 @@ sub f_iftrue {
 # makepp_builtin_rules.mk).
 #
 sub f_infer_linker {
-  my ($text, $mkfile, $mkfile_line) = @_; # Name the arguments.
-  my @objs = split(' ', $text);	# Get a list of objects.
+  my @objs = split ' ', &arg;	# Get a list of objects.
+  my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
 #
 # First build all the objs.  Until we build them, we don't actually know what
 # source files went into them.	They've probably been built, but we must
@@ -728,7 +747,7 @@ sub f_infer_linker {
 #
   my $linker;
   foreach my $obj (@objs) {
-    foreach my $source_name(split(/\01/, Mpp::File::build_info_string($obj, 'SORTED_DEPS') || '')) {
+    foreach my $source_name( split /\01/, Mpp::File::build_info_string($obj, 'SORTED_DEPS') || '' ) {
       # TODO: Why is $(FC) only Fortran 77?  What about .f90 files?
       $source_name =~ /\.f(?:77)?$/ and $linker = '$(FC)';
       $source_name =~ /\.(?:c\+\+|cc|cxx|C|cpp|moc)$/ and $linker ||= '$(CXX)';
@@ -745,11 +764,8 @@ sub f_infer_linker {
 #    target : $(infer_objs seed-list, list of possible objs)
 #
 sub f_infer_objects {
-  my ($text, $mkfile, $mkfile_line) = @_; # Name the arguments.
-  my ($seed_objs, $candidate_list) = split(/,\s*/, $text);
-				# Get the arguments.
-
-  $candidate_list or die "infer_objects called without a candidate list\n";
+  my ($seed_objs, $candidate_list) = args $_[0], $_[1], $_[2];
+  my (undef, $mkfile, $mkfile_line) = @_; # Name the arguments.
 
   my $build_cwd = $rule ? $rule->build_cwd : $mkfile->{CWD};
 
@@ -757,8 +773,7 @@ sub f_infer_objects {
 # Build up a list of all the possibilities:
 #
   my %candidate_objs;
-  foreach my $candidate_obj (map(Mpp::Glob::zglob_fileinfo_atleastone($_, $build_cwd),
-				 split(' ', $candidate_list))) {
+  foreach my $candidate_obj (map Mpp::Glob::zglob_fileinfo_atleastone($_, $build_cwd), split ' ', $candidate_list) {
 				# Get a list of all the possible objs.
     my $objname = $candidate_obj->{NAME};
     $objname =~ s/\.[^\.]+$//;	# Strip off the extension.
@@ -783,7 +798,7 @@ sub f_infer_objects {
   my @build_handles;		# Where we put the handles for building objects.
   my @deps = map zglob_fileinfo($_, $build_cwd), split ' ', $seed_objs;
 				# Start with the seed files themselves.
-  @deps == 0 and die "infer_objects called with no seed objects that exist or can be built\n";
+  @deps or die "infer_objects called with no seed objects that exist or can be built\n";
   Mpp::log INFER_SEED => \@deps
     if $Mpp::log_level;
 
@@ -814,7 +829,7 @@ sub f_infer_objects {
       sub {			# Called when the build is finished:
 	defined($bh) && $bh->status and return $bh->status;
 				# Skip if an error occured.
-	my @this_sources = split(/\01/, Mpp::File::build_info_string($o_info,'SORTED_DEPS') || '');
+	my @this_sources = split /\01/, Mpp::File::build_info_string($o_info,'SORTED_DEPS') || '';
 				# Get the list of source files that went into
 				# it.
 	foreach (@this_sources) {
@@ -859,16 +874,15 @@ sub f_infer_objects {
 }
 
 sub f_info {
-  print "$_[0]\n";		# Print the text.
+  print &arg."\n";		# Print the text.
   '';
 }
 
 sub f_join {
-  my ($words1, $words2) = split(/,/, $_[0]);
+  my ($words1, $words2) = args $_[0], $_[1], $_[2], 2, 2, 1;
 				# Get the two lists of words.
-  defined($words2) or die "$_[2]: $(join ) called with < 2 arguments\n";
-  my @words1 = split(' ', $words1);
-  my @words2 = split(' ', $words2);
+  my @words1 = split ' ', $words1;
+  my @words2 = split ' ', $words2;
 
   for my $word ( @words1 ) {
     last unless @words2;
@@ -881,15 +895,18 @@ sub f_join {
 #
 # map Perl code to variable values
 #
-sub f_map {
-  (my $comma = index_ignoring_quotes $_[0], ',') >= 0 or
-    die "$_[2]: too few arguments to map\n";
-  my $code = eval_or_die 'sub {' . substr( $_[0], $comma + 1 ) . "\n;defined}",
-    $_[1], $_[2];
+sub f_makemap {
+  my( $list, $code ) = args $_[0], $_[1], $_[2];
+  $code = eval_or_die "sub {$code\n;defined}", $_[1], $_[2];
   $_[1]->cd;			# Make sure we're in the correct directory
-  join ' ', grep &$code, split_on_whitespace $_[1]->expand_text( substr( $_[0], 0, $comma ), $_[2] );
+  join ' ', grep &$code, split_on_whitespace $list;
 }
-*f_makemap = \&f_map;		# This will expand 1st arg twice, but 2nd time there should be no $ left
+sub f_map {
+  my( $list, $code ) = args $_[0], undef, $_[2];
+  $code = eval_or_die "sub {$code\n;defined}", $_[1], $_[2];
+  $_[1]->cd;			# Make sure we're in the correct directory
+  join ' ', grep &$code, split_on_whitespace ref $_[0] ? $_[1]->expand_text( $list, $_[2] ) : $list;
+}
 
 #
 # make a temporary file name, similarly to the like named Unix command
@@ -897,7 +914,8 @@ sub f_map {
 our @temp_files;
 END { Mpp::File::unlink $_ for @temp_files }
 sub f_mktemp {
-  my( $template, $mkfile ) = @_;
+  my $template = &arg;
+  my $mkfile = $_[1];
   $mkfile ||= \%Mpp::Subs::;	# Any old hash for default LAST_TEMP_FILE & CWD
   return $mkfile->{LAST_TEMP_FILE} || die "No previous call to \$(mktemp)\n" if $template eq '/';
   $template ||= 'tmp.';
@@ -930,7 +948,8 @@ sub f_mktemp {
 # Force all the targets to be made.
 #
 sub f_prebuild {
-  my( $names, $mkfile, $mkfile_line ) = @_;
+  my $names = &arg;
+  my( undef, $mkfile, $mkfile_line ) = @_;
 
   my @build_handles;
   &Mpp::maybe_stop;
@@ -949,19 +968,18 @@ sub f_prebuild {
 *f_make = \&f_prebuild;
 
 sub f_notdir {
-  join ' ', map { m@^.*/([^/]+)@ ? $1 : $_ } split ' ', $_[0];
+  join ' ', map { m@^.*/([^/]+)@ ? $1 : $_ } split ' ', &arg;
 }
 
 #
 # Return only the files in the list that are actually targets of some rule:
 #
 sub f_only_targets {
-  my ($text, undef, undef, $phony) = @_; # Name the arguments.
-  my $cwd = $_[1]{CWD};
+  my $phony = $_[3];
+  my $cwd = $_[1] && $_[1]{CWD};
   my @ret_files;
 
-
-  foreach (split(' ', $_[0])) {
+  foreach (split ' ', &arg) {
     foreach my $finfo (zglob_fileinfo($_, $cwd, 0, $phony)) {
       $phony || exists($finfo->{RULE}) and
 	push @ret_files, relative_filename $finfo, $cwd;
@@ -975,19 +993,18 @@ sub f_only_targets {
 # Return only the targets in the list that are phony:
 #
 sub f_only_phony_targets {
-  #my ($text, $mkfile) = @_;	# Name the arguments.
-  f_only_targets $_[0], $_[1], 0, 1;
+  $_[3] = \1;
+  goto &f_only_targets;
 }
 
 #
 # Return only the files in the list that are not targets of some rule:
 #
 sub f_only_nontargets {
-  #my ($text, $mkfile) = @_;	# Name the arguments.
-  my $cwd = $_[1]{CWD};
+  my $cwd = $_[1] && $_[1]{CWD};
   my @ret_files;
 
-  foreach (split(' ', $_[0])) {
+  foreach (split ' ', &arg) {
     foreach my $finfo (Mpp::Glob::zglob_fileinfo_atleastone($_, $cwd)) {
       exists($finfo->{RULE}) or
 	push @ret_files, relative_filename $finfo, $cwd;
@@ -1003,10 +1020,10 @@ sub f_only_nontargets {
 #
 sub f_only_generated {
   #my ($text, $mkfile) = @_;	# Name the arguments.
-  my $cwd = $_[1]{CWD};
+  my $cwd = $_[1] && $_[1]{CWD};
   my @ret_files;
 
-  foreach (split(' ', $_[0])) {
+  foreach (split ' ', &arg) {
     foreach my $finfo (Mpp::Glob::zglob_fileinfo_atleastone($_, $cwd, 0,0,1)) {
       Mpp::File::was_built_by_makepp( $finfo ) and
 	push @ret_files, relative_filename $finfo, $cwd;
@@ -1021,11 +1038,10 @@ sub f_only_generated {
 # to the build info, but are no longer targets.
 #
 sub f_only_stale {
-  #my ($text, $mkfile) = @_;	# Name the arguments.
-  my $cwd = $_[1]{CWD};
+  my $cwd = $_[1] && $_[1]{CWD};
   my @ret_files;
 
-  foreach (split(' ', $_[0])) {
+  foreach (split ' ', &arg) {
     foreach my $finfo (Mpp::Glob::zglob_fileinfo_atleastone($_, $cwd, 0,0,1)) {
       Mpp::File::is_stale( $finfo ) and
 	push @ret_files, relative_filename $finfo, $cwd;
@@ -1039,7 +1055,8 @@ sub f_only_stale {
 # Figure out where a variable came from:
 #
 sub f_origin {
-  my( $varname, $mkfile ) = @_;
+  my $varname = &arg;
+  my $mkfile = $_[1];
   $perl_unfriendly_symbols{$varname} ? 'automatic' :
   $Mpp::Makefile::private && defined $Mpp::Makefile::private->{PRIVATE_VARS}{$varname} ? 'file' :
   defined ${$mkfile->{PACKAGE} . "::$varname"} ? 'file' :
@@ -1055,36 +1072,41 @@ sub f_origin {
 # Perform a pattern substitution:
 #
 sub f_patsubst {
-  my ($src, $dest, $words) = split(/,\s*/, $_[0]);
+  my ($src, $dest, $words) = args $_[0], $_[1], $_[2], 3;
 				# Get the arguments.
   join ' ', Mpp::Text::pattern_substitution( $src, $dest,
-					    split_on_whitespace($words));
+					     split_on_whitespace $words );
 }
 
 #
 # evaluate Perl code as a function
 #
-sub f_perl {
+sub f_makeperl {
   $_[1]->cd;			# Make sure we're in the correct directory
-  join ' ', grep { defined } &eval_or_die;
+  join ' ', grep { defined } eval_or_die &arg, $_[1], $_[2];
 }
-*f_makeperl = \&f_perl;
+sub f_perl {
+  if( ref $_[0] ) {
+    f_makeperl ${$_[0]}, $_[1], $_[2]; # deref to avoid expansion
+  } else {
+    goto &f_makeperl
+  }
+}
 
 #
 # Mark targets as phony:
 #
 sub f_phony {
-  #my ($str, $mkfile) = @_; # Name the arguments.
-
+  my $text = &arg;
   undef file_info( unquote(), $_[1]{CWD} )->{IS_PHONY}
-    for split_on_whitespace $_[0];
-
-  $_[0];			# Just return our argument.
+    for split_on_whitespace $text;
+  $text;			# Just return our argument.
 }
 
 sub f_print {
-  print "$_[0]\n";		# Print the text.
-  $_[0];			# Just return it verbatim.
+  my $text = &arg;
+  print "$text\n";		# Print the text.
+  $text;			# Just return it verbatim.
 }
 
 #
@@ -1092,7 +1114,7 @@ sub f_print {
 # (Modified from Matthew Lovell's contribution.)
 #
 sub f_relative_filename {
-  my( $files, $slash ) = split /, */, $_[0];
+  my( $files, $slash ) = args $_[0], $_[1], $_[2], 2, 1;
   my $cwd = $_[1]{CWD};
   join ' ',
     map {
@@ -1106,10 +1128,9 @@ sub f_relative_filename {
 # Syntax: $(relative_to file1 file2, path/to/other/directory)
 #
 sub f_relative_to {
-  my ($files, $dir, $slash, @extra_junk) = split(/, */, $_[0]);
+  my ($files, $dir, $slash) = args $_[0], $_[1], $_[2], 3, 2;
   my $cwd = $_[1]{CWD};
-  defined($dir) && @extra_junk == 0 or
-    die "wrong number of arguments to \$(relative_to file, dir)\n";
+  defined $dir or die "wrong number of arguments to \$(relative_to file, dir)\n";
   $dir =~ s/^\s+//;		# Trim whitespace.
   $dir =~ s/\s+$//;
   my $dirinfo = file_info unquote( $dir ), $cwd;
@@ -1122,7 +1143,8 @@ sub f_relative_to {
 }
 
 sub f_shell {
-  my ($str, $mkfile, $mkfile_line) = @_; # Name the arguments.
+  my $str = &arg;
+  my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
 
   local %ENV;			# Pass all exports to the subshell.
   $mkfile->setup_environment;
@@ -1175,7 +1197,7 @@ sub f_shell {
     my $n_errors_remaining = 3;
     for (;;) {
       my $n_chars = sysread(INHANDLE, $line, 8192); # Try to read.
-      if (!defined($n_chars)) {	 # An error on the read?
+      unless( defined $n_chars ) {	 # An error on the read?
 	$n_errors_remaining-- > 0 and next; # Probably "Interrupted system call".
 	die "read error--$!\n";
       }
@@ -1196,7 +1218,8 @@ sub f_sort {
 # Sort is documented to remove duplicates as well as to sort the string.
 #
   my $last = '';
-  join ' ', map { $last eq $_ ? () : ($last = $_) } sort split ' ', $_[0];
+  join ' ', map { $last eq $_ ? () : ($last = $_) }
+    sort split ' ', &arg;
 }
 
 sub f_stem {
@@ -1213,43 +1236,39 @@ sub f_stem {
 }
 
 sub f_strip {
-  join ' ', split ' ', $_[0];
+  join ' ', split ' ', &arg;
 }
 
 sub f_subst {
-  my ($from, $to, $text) = split(/,/, $_[0]);
+  my( $from, $to, $text ) = args $_[0], $_[1], $_[2], 3, 3, 1;
   $from = quotemeta($from);
   join ' ', map { s/$from/$to/g; $_ } split ' ', $text;
 }
 
 sub f_suffix {
-  join ' ', map { m@(\.[^\./]*)$@ ? $1 : () } split ' ', $_[0];
+  join ' ', map { m@(\.[^\./]*)$@ ? $1 : () } split ' ', &arg;
 }
 
 #
 # Mark targets as temporary:
 #
 sub f_temporary {
-  #my ($str, $mkfile) = @_; # Name the arguments.
-
-  for( split_on_whitespace $_[0] ) {
-    file_info( unquote(), $_[1]{CWD} )->{IS_TEMP} = 1;
-  }
-
-  $_[0];			# Just return our argument.
+  my $text = &arg;
+  file_info( unquote(), $_[1]{CWD} )->{IS_TEMP} = 1
+    for split_on_whitespace $text;
+  $text;			# Just return our argument.
 }
 
 
 sub f_wildcard {
-  #my ($text, $mkfile) = @_; # Name the arguments.
   my $cwd = $rule ? $rule->build_cwd : $_[1]{CWD};
 				# Get the default directory.
 
-  join ' ', map zglob($_, $cwd), split ' ', $_[0];
+  join ' ', map zglob($_, $cwd), split ' ', &arg;
 }
 
 sub f_wordlist {
-  my ($startidx, $endidx, $text) = split(/,\s*/, $_[0]);
+  my ($startidx, $endidx, $text) = args $_[0], $_[1], $_[2], 3, 2;
   if( defined $text ) {
     my @wordlist = split ' ', $text;
     $_ < 0 and $_ += @wordlist + 1 for $startidx, $endidx;
@@ -1259,7 +1278,7 @@ sub f_wordlist {
     $endidx = @wordlist if $endidx > @wordlist;
 
     join ' ', @wordlist[$startidx-1 .. $endidx-1];
-  } else {
+  } else {			# 2nd arg is the text
     join ' ', (split ' ', $endidx)[map { $_ > 0 ? $_ - 1 : $_ } split ' ', $startidx];
   }
 }
@@ -1267,7 +1286,7 @@ sub f_wordlist {
 
 sub f_words {
   # Must map split result, or implicit assignment to @_ takes place
-  scalar map undef, split ' ', $_[0];
+  scalar map undef, split ' ', &arg;
 }
 
 ###############################################################################
@@ -1279,7 +1298,8 @@ sub f_target {
     warn "\$(output), \$(target) or \$\@ used outside of rule\n";
     return '';
   }
-  relative_filename $rule->{EXPLICIT_TARGETS}[$_[0] ? ($_[0] > 0 ? $_[0] - 1 : $_[0]) : 0],
+  my $arg = defined $_[0] ? &arg : 0;
+  relative_filename $rule->{EXPLICIT_TARGETS}[$arg ? ($arg > 0 ? $arg - 1 : $arg) : 0],
     $rule->build_cwd;
 }
 *f_output = \&f_target;
@@ -1289,9 +1309,10 @@ sub f_targets {
     warn "\$(outputs) or \$(targets) used outside of rule\n";
     return '';
   }
+  my $arg = defined $_[0] ? &arg : 0;
   join ' ', relative_filenames
-    $_[0] ?
-      [@{$rule->{EXPLICIT_TARGETS}}[map { $_ > 0 ? $_ - 1 : $_ } split ' ', $_[0]]] :
+    $arg ?
+      [@{$rule->{EXPLICIT_TARGETS}}[map { $_ > 0 ? $_ - 1 : $_ } split ' ', $arg]] :
       $rule->{EXPLICIT_TARGETS};
 }
 *f_outputs = *f_targets;
@@ -1301,7 +1322,8 @@ sub f_dependency {
     warn "\$(dependency) or \$(input) or \$< used outside of rule\n";
     return '';
   }
-  my $finfo = $rule->{EXPLICIT_DEPENDENCIES}[$_[0] ? ($_[0] > 0 ? $_[0] - 1 : $_[0]) : 0];
+  my $arg = defined $_[0] ? &arg : 0;
+  my $finfo = $rule->{EXPLICIT_DEPENDENCIES}[$arg ? ($arg > 0 ? $arg - 1 : $arg) : 0];
   $finfo or return '';		# No dependencies.
 
   relative_filename $finfo, $rule->build_cwd;
@@ -1313,9 +1335,10 @@ sub f_dependencies {
     warn "\$(dependencies) or \$(inputs) or \$^ used outside of rule\n";
     return '';
   }
+  my $arg = defined $_[0] ? &arg : 0;
   join ' ', relative_filenames
-    $_[0] ?
-      [@{$rule->{EXPLICIT_DEPENDENCIES}}[map { $_ > 0 ? $_ - 1 : $_ } split ' ', $_[0]]] :
+    $arg ?
+      [@{$rule->{EXPLICIT_DEPENDENCIES}}[map { $_ > 0 ? $_ - 1 : $_ } split ' ', $arg]] :
       $rule->{EXPLICIT_DEPENDENCIES};
 }
 *f_inputs = *f_dependencies;
@@ -1338,7 +1361,7 @@ sub f_changed_inputs {
        @{$rule->{EXPLICIT_DEPENDENCIES}});
 
   # Somehow we can't pass this to sort directly
-  my @filenames = relative_filenames(@changed_dependencies);
+  my @filenames = relative_filenames @changed_dependencies;
   join ' ', sort @filenames;
 }
 *f_changed_dependencies = \&f_changed_inputs;
@@ -1359,8 +1382,8 @@ sub f_sorted_dependencies {
 # any arguments.
 #
 sub f_foreach {
-  my ($text, $mkfile, $mkfile_line) = @_; # Name the arguments.
-  if ($text !~ /\S/) {		# No argument?
+  my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
+  unless( $_[0] ) {		# No argument?
     defined $rule && defined $rule->{FOREACH} or
       die "\$(foreach) used outside of rule, or in a rule that has no :foreach clause\n";
     return relative_filename $rule->{FOREACH}, $rule->build_cwd;
@@ -1373,35 +1396,25 @@ sub f_foreach {
 # because of some special code in expand_text, VAR,LIST,TEXT has not yet
 # been expanded.
 #
-  (my $comma = index_ignoring_quotes $text, ',') >= 0 or # Find the variable name.
-    die "$mkfile_line: $(foreach VAR,LIST,TEXT) called with only one argument\n";
-  my $varname = $mkfile->expand_text(substr($text, 0, $comma));
-				# Get the name of the variable.
-  $varname =~ s/^\s+//;		# Strip off leading and trailing whitespace.
-  $varname =~ s/\s+$//;
-
-  $text = substr $text, $comma+1; # Get rid of the variable name.
-  ($comma = index_ignoring_quotes $text, ',') >= 0 or # Find the next comma.
-    die "$mkfile_line: $(foreach VAR,LIST,TEXT) called with only two arguments\n";
-  my $list = $mkfile->expand_text( substr $text, 0, $comma );
-  $text = substr $text, $comma+1;
-
+  my( $var, $list, $text ) = args $_[0], undef, $_[2], 3, 3, 1;
+				# Get the arguments.
+  $var = ref $_[0] ? $mkfile->expand_text( $var, $mkfile_line ) : $var;
   my $ret_str = '';
   my $sep = '';
   $Mpp::Makefile::private ?
-    (local $Mpp::Makefile::private->{PRIVATE_VARS}{$varname}) :
+    (local $Mpp::Makefile::private->{PRIVATE_VARS}{$var}) :
     (local $Mpp::Makefile::private);
-  local $Mpp::Makefile::private->{VAR_REEXPAND}{$varname} = 0 if $Mpp::Makefile::private->{VAR_REEXPAND};
+  local $Mpp::Makefile::private->{VAR_REEXPAND}{$var} = 0 if $Mpp::Makefile::private->{VAR_REEXPAND};
 				# We're going to expand ourselves.  No need to
 				# override this if there are no values,
 				# leading to a false lookup anyway.
-  for( split ' ', $list ) {	# Expand text:
-    $Mpp::Makefile::private->{PRIVATE_VARS}{$varname} = $_;
+  for( split ' ', ref $_[0] ? $mkfile->expand_text( $list, $mkfile_line ) : $list ) { # Expand text
+    $Mpp::Makefile::private->{PRIVATE_VARS}{$var} = $_;
 				# Make it a private variable so that it
 				# overrides even any other variable.
 				# The local makes it so it goes away at the
 				# end of the loop.
-    $ret_str .= $sep . $mkfile->expand_text($text, $mkfile_line);
+    $ret_str .= $sep . (ref $_[0] ? $mkfile->expand_text( $text, $mkfile_line ) : $text);
     $sep = ' ';			# Next time add a space
   }
 
@@ -1409,44 +1422,28 @@ sub f_foreach {
 }
 
 sub f_warning {
-  warn "$_[0] at `$_[2]'\n";	# Print the text.
+  warn &arg." at `$_[2]'\n";	# Print the text.
   '';
 }
 
 sub f_xargs {
-  my ($text, $mkfile, $mkfile_line) = @_; # Name the arguments.
-  my $max_length = 1000;
+  my( $command, $list, $postfix, $max_length ) = args $_[0], $_[1], $_[2], 3, 2;
+  $postfix = '' unless defined $postfix;
+  $max_length ||= 1000;
+  $max_length -= length $postfix;
 
-  (my $comma = index_ignoring_quotes $text, ',') >= 0 or # Find the command
-    die "$mkfile_line: $(xargs CMD,LIST) called with only one argument\n";
-  my $command = $mkfile->expand_text( substr $text, 0, $comma );
-
-  $text = substr $text, $comma+1; # Get rid of the variable name.
-  my $list;
-  my $postfix = '';
-  if( ($comma = index_ignoring_quotes $text, ',') >= 0 ) {
-    $list = $mkfile->expand_text(substr($text, 0, $comma));
-    $text = substr($text, $comma+1);
-    $postfix = $mkfile->expand_text($text, $mkfile_line);
-  } else {
-    $list = $mkfile->expand_text($text);
-  }
-  my @list = split(' ', $list);
-  undef $list;
-  my @pieces;
-  while(@list) {
-    my $piece = $command.' '.shift(@list);
-    while(@list) {
-      my $next = shift(@list);
-      my $try .= $piece.' '.$next;
-      if(length($try.' '.$postfix) > $max_length) {
-        unshift(@list, $next);
-        last;
-      }
-      $piece = $try;
+  my( $piece, @pieces ) = $command;
+  for my $elt ( split ' ', $list ) {
+    if( length( $piece ) + length( $elt ) < $max_length ) {
+      $piece .= " $elt";
+    } else {
+      push @pieces, "$piece $postfix";
+      $piece = $command;
+      redo;
     }
-    push(@pieces, $piece.' '.$postfix);
   }
+  push @pieces, "$piece $postfix"
+    if $piece ne $command;
   join "\n", @pieces;
 }
 
@@ -1471,7 +1468,6 @@ sub f_MAKE {
   require Mpp::Recursive;
   goto &f_MAKE;			# Redefined.
 }
-
 *f_MAKE_COMMAND = \&f_MAKE;
 
 ###############################################################################
@@ -1541,7 +1537,7 @@ sub s_no_implicit_load {
 				# the expansion of this wildcard.
 
   my @dirs = map zglob_fileinfo($_, $cwd),
-    split(' ', $mkfile->expand_text($text_line, $mkfile_line));
+    split ' ', $mkfile->expand_text($text_line, $mkfile_line);
 				# Get a list of things matching the wildcard.
   foreach my $dir (@dirs) {
     is_or_will_be_dir $dir and $dir->{NO_IMPLICIT_LOAD} = 1;
@@ -1594,7 +1590,7 @@ sub s_export {#__
   #my ($text_line, $mkfile, $mkfile_line) = @_; # Name the arguments.
 
   undef $_[1]{EXPORTS}{$_} for
-    split ' ', $_[1]->expand_text( $_[0], $_[2] );
+    split ' ', &arg;
 				# Mark these variables for export.  We'll
 				# fill out their values later.
 }
@@ -1605,8 +1601,8 @@ sub s_export {#__
 #
 sub s_global {#__
   $Mpp::Makefile::global ||= {};
-  my $reexpandref = $_[1]{VAR_REEXPAND};
-  for( split ' ', $_[1]->expand_text( $_[0], $_[2] )) {
+  my $reexpandref = $_[1] && $_[1]{VAR_REEXPAND};
+  for( split ' ', &arg) {
 				# Mark these variables for export.  We'll
 				# fill out their values later.
     (my $reexpand, ${"Mpp::global::$_"} ) = $_[1]->expand_variable( $_, $_[2], 1 );
@@ -1697,7 +1693,7 @@ sub s__include {#_
 sub s_load_makefile {#_
   my ($text_line, $mkfile, $mkfile_line) = @_; # Name the arguments.
 
-  my @words = split_on_whitespace($mkfile->expand_text($text_line, $mkfile_line));
+  my @words = split_on_whitespace $mkfile->expand_text($text_line, $mkfile_line);
 
   $mkfile->cleanup_vars;
   my %command_line_vars = %{$mkfile->{COMMAND_LINE_VARS}};
@@ -1833,7 +1829,7 @@ sub s_perl_begin {#_
 #
 sub s_prebuild {#__
   my ($text_line, $mkfile, $mkfile_line) = @_;
-  my (@words) = split_on_whitespace($mkfile->expand_text($text_line, $mkfile_line));
+  my (@words) = split_on_whitespace $mkfile->expand_text($text_line, $mkfile_line);
 
   &Mpp::maybe_stop;
   for my $target (@words) {
@@ -1880,7 +1876,7 @@ sub s_autoload {#__
   my ($text_line, $mkfile, $mkfile_line) = @_; # Name the arguments.
 
   ++$Mpp::File::n_last_chance_rules;
-  my (@fields) = split_on_whitespace($mkfile->expand_text($text_line, $mkfile_line));
+  my (@fields) = split_on_whitespace $mkfile->expand_text($text_line, $mkfile_line);
   push @{$mkfile->{AUTOLOAD} ||= []}, @fields;
 }
 
@@ -1961,8 +1957,8 @@ sub s_runtime {#__
     die "$mkfile_line: runtime EXE,LIST called with only one argument\n";
   my $exelist = $mkfile->expand_text(substr($text, 0, $comma), $mkfile_line);
   substr $text, 0, $comma+1, ''; # Get rid of the variable name.
-  my @deps = map file_info($_, $mkfile->{CWD}), split_on_whitespace($mkfile->expand_text($text, $mkfile_line));
-  for my $exe ( map file_info($_, $mkfile->{CWD}), split_on_whitespace( $exelist )) {
+  my @deps = map file_info($_, $mkfile->{CWD}), split_on_whitespace $mkfile->expand_text($text, $mkfile_line);
+  for my $exe ( map file_info($_, $mkfile->{CWD}), split_on_whitespace $exelist) {
     for my $dep (@deps) {
       $exe->{RUNTIME_DEPS}{$dep} = $dep;
     }
@@ -1978,8 +1974,7 @@ sub s_signature {#__
   $name =~ s/^\s*(\w+)\s*$/$1/ or
     die "$mkfile_line: invalid signature statement\n";
   if( $name eq 'default' ) {	# Return to the default method?
-    delete $mkfile->{DEFAULT_SIGNATURE_METHOD}; # Get rid of any previous
-				# stored signature method.
+    delete $mkfile->{DEFAULT_SIGNATURE_METHOD}; # Get rid of any previous stored signature method.
     return;
   }
   $mkfile->{DEFAULT_SIGNATURE_METHOD} = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
@@ -2056,18 +2051,17 @@ sub f_AR()	{ 'ar' }
 sub f_ARFLAGS()	{ 'rv' }
 sub f_AS()	{ 'as' }
 my $CC;
-sub f_CC	{ $CC ||=
-		    $_[1]->expand_expression('find_program gcc egcc pgcc c89 cc' . (Mpp::is_windows?' cl bcc32':''), $_[2]) }
-sub f_CFLAGS	{ $_[1]->expand_expression('if $(filter %gcc, $(CC)), -g -Wall, ' . (Mpp::is_windows?' $(if $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC)), , -g)':'-g'), $_[2]) }
-sub f_CURDIR	{ absolute_filename( $_[1]{CWD} ) }
+sub f_CC	{ $CC ||= f_find_program 'gcc egcc pgcc c89 cc' . (Mpp::is_windows?' cl bcc32':''), $_[1], $_[2] }
+sub f_CFLAGS	{ f_if \('$(filter %gcc, $(CC)), -g -Wall, ' . (Mpp::is_windows?' $(if $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC)), , -g)':'-g')), $_[1], $_[2] }
+sub f_CURDIR	{ absolute_filename $_[1]{CWD} }
 my $CXX;
-sub f_CXX	{ $CXX ||= $_[1]->expand_expression('find_program g++ c++ pg++ cxx ' . (Mpp::is_windows?'cl bcc32':'CC aCC'), $_[2]) }
-sub f_CXXFLAGS	{ $_[1]->expand_expression('if $(filter %g++ %c++, $(CXX)), -g -Wall, ' . (Mpp::is_windows?' $(if $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CXX)), , -g)':'-g'), $_[2]) }
+sub f_CXX	{ $CXX ||= f_find_program 'g++ c++ pg++ cxx ' . (Mpp::is_windows?'cl bcc32':'CC aCC'), $_[1], $_[2] }
+sub f_CXXFLAGS	{ f_if \('$(filter %g++ %c++, $(CXX)), -g -Wall, ' . (Mpp::is_windows?'$(if $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CXX)), , -g)':'-g')), $_[1], $_[2] }
 my $F77;
-sub f_F77	{ $F77 ||= $_[1]->expand_expression('find_program f77 g77 fort77', $_[2]) }
+sub f_F77	{ $F77 ||= f_find_program 'f77 g77 fort77', $_[1], $_[2] }
 sub f_FC	{ $_[1]->expand_variable('F77', $_[2]) }
 my $LEX;
-sub f_LEX	{ $LEX ||= $_[1]->expand_expression('find_program lex flex', $_[2]) }
+sub f_LEX	{ $LEX ||= f_find_program 'lex flex', $_[1], $_[2] }
 sub f_LIBTOOL()	{ 'libtool' }
 sub f_LD()	{ 'ld' }
 sub f_MAKEINFO() { 'makeinfo' }
@@ -2075,7 +2069,7 @@ sub f_MAKEINFO() { 'makeinfo' }
 # Can't use &rm -f, because it might get used in a complex Shell construct.
 sub f_RM()	{ 'rm -f' }
 my $YACC;
-sub f_YACC	{ $YACC ||= $_[1]->expand_expression('if $(filter bison, $(find_program yacc bison)), bison -y, yacc', $_[2]) }
+sub f_YACC	{ $YACC ||= f_if \'$(filter bison, $(find_program yacc bison)), bison -y, yacc', $_[1], $_[2] }
 
 sub f_ROOT	{ $_[1]{CWD}{ROOT} ? relative_filename( $_[1]{CWD}{ROOT}, $_[1]{CWD} ) : '' }
 
@@ -2085,6 +2079,7 @@ sub import() {
   no warnings 'redefine';	# In case we are reimporting this
   for( keys %Mpp::Subs:: ) {
     $_[1] ? /^(?:$_[1])/ : /^[fps]_/ or # functions, parsers and statements only
+      /^args?$/ or
       /^run/ or
       /^scanner_/ or
       next;

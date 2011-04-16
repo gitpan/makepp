@@ -216,7 +216,7 @@ sub build {
       print_error( "Not building inexistent `" . &absolute_filename . "' because it's marked for dont-build" );
       return 1;
     } else {
-      warn "Not building inexistent `" . &absolute_filename . "' because it's marked for dont-build";
+      warn "Not building inexistent `" . &absolute_filename . "' because it's marked for dont-build\n";
     }
     return undef $_[0]{BUILD_HANDLE};
   }

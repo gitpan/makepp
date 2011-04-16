@@ -1,7 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	644	1151611756	1212336947	.makepprc
 over1=over1 over2=over2 over4=not4 'bar=not ok'
-###	299	644	1171960619	1212428451	RootMakeppfile
+###	300	644	1171960619	1298672637	RootMakeppfile
 #
 # This makefile tests variable setting and expansion as completely as we can.
 #
@@ -123,7 +123,7 @@ tclose = $(if $1,$(firstword $1) \
 
 # The functions above are inspired by GNU make 3.81 testsuite.
 
-downcase = ${perl lc("$1")}
+downcase = ${map $1, $_ = lc}
 mymap = $(if $2,$(call $1,$(firstword $2)) $(call $0,$1,$(call rest,$2)))
 surround = ">$1<"
 
@@ -133,6 +133,7 @@ five = $(call three,foo,bar)
 six = $(call four,foo,bar)
 seven := $(three)
 
+misc_gnu_make_functions: makepp_simple_concatenation=1
 misc_gnu_make_functions:
 	&echo $(basename mydir.with.periods/version-1.0-module.c) \
 	  $(basename subdir/xyz) -o $@
@@ -221,7 +222,7 @@ define_test:
 # User defined function:
 #
 sub f_my_func {
-  return "a$_[0]b";
+  return 'a'.&arg.'b';
 }
 user_func:
 	&echo $(my_func $(P)) -o $@
@@ -433,7 +434,7 @@ $1 $2
 $1 $2
 $1 $2
 $1 $2
-bar baz
+$1 $2
 abc/def/ ./
 foo.c bar.c baz.s
 foo.o bar.o

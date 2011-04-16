@@ -1,11 +1,10 @@
 #!/usr/bin/perl -w
-# $Id: makeppinfo,v 1.10 2010/09/29 22:12:24 pfeiffer Exp $
+# $Id: makeppinfo,v 1.11 2011/01/23 22:44:27 pfeiffer Exp $
 
 package Mpp;
 
 use strict;
 
-use Config;
 use POSIX ();
 
 #
@@ -83,6 +82,18 @@ for( $keylist ) {
 }
 
 my( %seen, $no_warn, $cwd );
+sub merge($@) {
+  my( $build_info, $key1, $key2 ) = @_;
+  if( exists $build_info->{$key1} && exists $build_info->{$key2} ) {
+    my @list1 = split /\cA/, delete $build_info->{$key1};
+    my @list2 = split /\cA/, delete $build_info->{$key2};
+    push @ARGV, map file_info( $_, $cwd ), @list2
+      if $traverse;
+    $build_info->{"$key1 $key2"} = join "\n", '',
+      map sprintf( "%-22s %s", $_, shift @list2 ), @list1;
+  }
+}
+
 while( @ARGV ) {
   my $finfo = shift;
   if( ref $finfo ) {
@@ -109,15 +120,6 @@ while( @ARGV ) {
 
   $cwd = file_info $build_info->{CWD}, exists $finfo->{DIRCONTENTS} ? $finfo : $finfo->{'..'}
     if $traverse && exists $build_info->{CWD};
-  if( $build_info->{DEP_SIGS} && $build_info->{SORTED_DEPS} ) {
-    my @dep_sigs = split /\cA/, delete $build_info->{DEP_SIGS};
-    my @sorted_deps = split /\cA/, delete $build_info->{SORTED_DEPS};
-    push @ARGV, map file_info( $_, $cwd ), @sorted_deps
-      if $traverse;
-    $build_info->{'DEP_SIGS SORTED_DEPS'} = join "\n", '',
-      map sprintf( "%-22s %s", $_, shift @sorted_deps ), @dep_sigs;
-  }
-
   if( $keylist ) {
     my %want;
     for my $re ( split ' ', $keylist ) {
@@ -130,6 +132,9 @@ while( @ARGV ) {
     }
     delete @{$build_info}{grep !exists $want{$_}, keys %$build_info};
   }
+
+  merge $build_info, qw(DEP_SIGS SORTED_DEPS);
+  merge $build_info, qw(ENV_DEPS ENV_VALS);
 
   print relative_filename( $finfo ) . ":\n" unless $quiet;
   for my $key ( sort keys %$build_info ) {
@@ -161,7 +166,8 @@ __DATA__
 Usage: makeppinfo [file ...]
 
 For each file print a human readable version of makepp's build info.  DEP_SIGS
-and SORTED_DEPS get merged.  Tagged lists have the tag prepended.
+and SORTED_DEPS get merged, as do ENV_DEPS and ENV_VALS.  Tagged lists have the
+tag prepended.
 
 Valid options are:
 

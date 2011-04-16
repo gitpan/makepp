@@ -5,7 +5,6 @@ package Mpp;
 
 use strict;
 
-use Config;
 our $datadir;
 BEGIN {
   our $VERSION = '@VERSION@';
@@ -162,6 +161,7 @@ perform eval {
 	Mpp::Subs::eval_or_die $modules, $makefile, absolute_filename( $dinfo ) . ':0';
       }
     }
+    $makefile->{EXPORTS} ||= {};
 
     my $target = relative_filename $finfo, $dinfo;
     my $rule_cache = "$deps\01$cmd"; # Try to group targets that came from same rule.

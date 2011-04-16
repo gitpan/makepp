@@ -72,7 +72,7 @@ sub signature {
     } elsif( $self->recognizes_file( $finfo )) {
       my $build_info_key = $self->build_info_key;
       my $stored_cksum = Mpp::File::build_info_string( $finfo, $build_info_key );
-      if( !$stored_cksum ) {	# Do'nt bother redigesting if
+      unless( $stored_cksum ) {	# Don't bother redigesting if
 				# we have already digested the file.
 	$stored_cksum = md5sum_c_tokens( $self, &absolute_filename );
 				# Digest the file.

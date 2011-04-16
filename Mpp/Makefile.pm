@@ -71,6 +71,7 @@ C<$makefile_line>.
 =cut
 
 my $expand_bracket;
+my $makepp_simple_concatenation_seen; # Calculate only if set to a not-false value (even though a ref may end up false)
 sub expand_text {
   -1 < index $_[1], '$' or return $_[1]; # No variables ==> no substitution,
 				# so exit immediately to avoid consuming CPU
@@ -89,7 +90,7 @@ sub expand_text {
   my $ret_str = '';
   pos = 0;			# Suppress a warning message.
 
-  if( expand_variable( $self, 'makepp_simple_concatenation', $makefile_line )) {
+  if( $makepp_simple_concatenation_seen && expand_variable( $self, 'makepp_simple_concatenation', $makefile_line )) {
 #
 # Code for handling the traditional substitution style (needed for some
 # legacy makefiles, usually those that depend on leading/trailing whitespace).
@@ -139,7 +140,7 @@ sub expand_text {
 				# When we see a space, it is reset.
 
     while (pos() < length) {
-      if (/\G([\s,:;{[()\]}=#`"'@]+)/gc) {	 # Word separators?
+      if (/\G([\01\s,:;{[()\]}=#`"'@]+)/gc) {	 # Word separators?
 	$ret_str .= "@cur_words$1";
 				# Store the accumulated words.
 				# Put in the original punctuation.
@@ -230,16 +231,15 @@ sub expand_text {
 # c) The makefile line number (for error messages only).
 #
 sub expand_expression  {
-  my( $self, undef, $makefile_line ) = @_; # Name the arguments.
-  return expand_text $self, substr( $_[1], length $1 ), $makefile_line
-    if $_[1] =~ /^(\s+)/;	# It begins with whitespace.  This is just a
+  my( $self, $expr, $makefile_line ) = @_; # Name the arguments.
+  return expand_text $self, substr( $expr, length $1 ), $makefile_line
+    if $expr =~ /^(\s+)/;	# It begins with whitespace.  This is just a
 				# trigger for rc-style expansion, so we should
 				# return the text verbatim.
 
+  my $expanded = $expr =~ /^&?[-.\w]*\$/ # Need to expand to see what it is.
+    and $expr = expand_text $self, $expr, $makefile_line;
   my $result;
-  my $expr = $_[1] =~ /^(?:and|if|foreach|map|or|perl)\b/ ?
-    $_[1] :
-    expand_text $self, $_[1], $makefile_line;
   if( $expr =~ /^([-.\w]+)\s+(.*)/s ) {
 				# Does it begin with a leading word,
 				# so it must be a function?
@@ -250,52 +250,63 @@ sub expand_expression  {
       *{"$self->{PACKAGE}::f_$orig"}{CODE};
 				# See if it's a known function.
     if( $code ) {
+      if( $Mpp::Makefile::legacy_functions && !$expanded && !*{"Mpp::Subs::f_$rtn"}{CODE} ) {
+	# deprecated emergency switch to allow functions to work like before.
+	$rest_of_line = expand_text $self, $rest_of_line, $makefile_line;
+	$expanded = 1;
+      }
       $result = eval {		# Evaluate the function.
 	local $_;		# Prevent really strange head-scratching errors.
 	local $Mpp::makefile = $self; # Pass the function a reference to the makefile.
-	&$code( $rest_of_line, $self, $makefile_line );
+	&$code( $expanded ? $rest_of_line : \$rest_of_line, $self, $makefile_line );
 				# Call the function.
       };
       die $@ if $@;
+    } elsif( expand_variable( $self, $orig, $makefile_line, 2 )) {
+      $result = Mpp::Subs::f_call $expanded ? "$orig,$rest_of_line" : \"$rtn,$rest_of_line",
+	$self, $makefile_line;
     } else {
-      die "$makefile_line: unknown function $rtn\n";
+      die "$makefile_line: unknown function $orig\n";
     }
-  } elsif( $expr =~ s/^&(?=.)// ) { # & alone is a silly variable
-    my( $cmd, @args ) = unquote_split_on_whitespace $expr;
-    local $Mpp::Subs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
-    local *OSTDOUT;		# TODO: convert to my $fh, when discontinuing 5.6.
-    open OSTDOUT, ">&STDOUT" or die;
-    my $temp = f_mktemp '', $self;
-    open STDOUT, '>', $temp or die; # open '+>' screws up from 5.8.0 to 5.8.7 on some OS
-    eval {
-      local $_;
-      if( defined &{$self->{PACKAGE} . "::c_$cmd"} ) { # Function from makefile?
-	local $0 = $cmd;
-	&{$self->{PACKAGE} . "::c_$0"}( @args );
-      } elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
-	local $0 = $cmd;
-	&{"Mpp::Cmds::c_$0"}( @args );
-      } else {
-	run $cmd, @args;
-      }
-    };
-    open STDOUT, ">&OSTDOUT";
-    die $@ if $@;
-    open my $fh, '<', $temp or die;
-    local $/;
-    $result = <$fh>;
-    $result =~ s/\r?\n/ /g # Get rid of newlines.
-      unless $Mpp::Subs::s_define;
-    $result =~ s/\s+$//;	# Strip out trailing whitespace.
-  } elsif( $expr =~ /^([^\s:#=]+):([^=]+)=([^=]+)$/ ) {
+  } else {
+    $expr = expand_text $self, $expr, $makefile_line unless $expanded;
+    if( $expr =~ s/^&(?=.)// ) { # & alone is a silly variable
+      my( $cmd, @args ) = unquote_split_on_whitespace $expr;
+      local $Mpp::Subs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
+      local *OSTDOUT;		# TODO: convert to my $fh, when discontinuing 5.6.
+      open OSTDOUT, ">&STDOUT" or die;
+      my $temp = f_mktemp '', $self;
+      open STDOUT, '>', $temp or die; # open '+>' screws up from 5.8.0 to 5.8.7 on some OS
+      eval {
+	local $_;
+	if( defined &{$self->{PACKAGE} . "::c_$cmd"} ) { # Function from makefile?
+	  local $0 = $cmd;
+	  &{$self->{PACKAGE} . "::c_$0"}( @args );
+	} elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
+	  local $0 = $cmd;
+	  &{"Mpp::Cmds::c_$0"}( @args );
+	} else {
+	  run $cmd, @args;
+	}
+      };
+      open STDOUT, ">&OSTDOUT";
+      die $@ if $@;
+      open my $fh, '<', $temp or die;
+      local $/;
+      $result = <$fh>;
+      $result =~ s/\r?\n/ /g # Get rid of newlines.
+	unless $Mpp::Subs::s_define;
+      $result =~ s/\s+$//;	# Strip out trailing whitespace.
+    } elsif( $expr =~ /^([^\s:#=]+):([^=]+)=([^=]+)$/ ) {
 				# Substitution reference (e.g., 'x:%.o=%.c')?
-    my $from = (0 <= index $2, '%') ? $2 : "%$2"; # Use the full GNU make style
-    my $to = (0 <= index $3, '%') ? $3 : "%$3";
-    $result = join ' ',
-      Mpp::Text::pattern_substitution $from, $to,
-	split_on_whitespace expand_variable( $self, $1, $makefile_line );
-  } else {			# Must be a vanilla variable to expand.
-    $result = expand_variable( $self, $expr, $makefile_line );
+      my $from = (0 <= index $2, '%') ? $2 : "%$2"; # Use the full GNU make style
+      my $to = (0 <= index $3, '%') ? $3 : "%$3";
+      $result = join ' ',
+	Mpp::Text::pattern_substitution $from, $to,
+	    split_on_whitespace expand_variable( $self, $1, $makefile_line );
+    } else {			# Must be a vanilla variable to expand.
+      $result = expand_variable( $self, $expr, $makefile_line );
+    }
   }
 
   if( !defined $result ) {
@@ -352,9 +363,9 @@ sub expand_variable {
 				# these:
 
 # 1st attempt:
-    if( exists $Mpp::Subs::perl_unfriendly_symbols{$var} ) { # Is it one of the 1-char
-				# symbols like '$@' that conflict with perl
-				# variables?  These can't be per target or global.
+    if( $var =~ /^\d+$/ || exists $Mpp::Subs::perl_unfriendly_symbols{$var} ) { # Is it one of the call
+				# or 1-char symbols like '$(11)' or '$@' that conflict with perl variables?
+				# The call fn may eval more than got passed.  These can't be per target or global.
       if( ref $Mpp::Subs::perl_unfriendly_symbols{$var} ) {
 	$result = eval { &{$Mpp::Subs::perl_unfriendly_symbols{$var}}() };
 	$@ and die "$makefile_line: $@\n";
@@ -558,26 +569,13 @@ This might do other similar things (I<e.g.> set the umask) in the future.
 
 =cut
 sub setup_environment {
-  my $self = $_[0];
-
   # Make sure that the Mpp::Makefile is initialized in case it's not done loading
   # yet. This is allowed, but potentially dangerous because a rule could change
   # after it's executed.
   &initialize;
 
   &cleanup_vars;
-  my ($exports, $environment) = @{$self}{qw(EXPORTS ENVIRONMENT)};
-
-  %ENV = %$environment;		# Set the environment.
-#
-# Handle any exported variables.
-#
-  if ($exports) {		# Any exported variables?
-    my ($var, $val);
-    while (($var, $val) = each %$exports) {
-      $ENV{$var} = $val;
-    }
-  }
+  %ENV = (%{$_[0]{ENVIRONMENT}}, %{$_[0]{EXPORTS}});
 }
 
 #
@@ -795,8 +793,8 @@ sub load {
 				# Make a unique package to store variables and
 				# functions from this makefile.
 
-    $self = bless { MAKEFILE => $minfo,
-		    PACKAGE => $mpackage,
+    $self = bless { PACKAGE => $mpackage,
+		    MAKEFILE => $minfo,
 		    CWD => $mdinfo,
 		    COMMAND_LINE_VARS => $command_line_vars,
 		    INCLUDE_PATH => [ @$include_path ],
@@ -804,6 +802,7 @@ sub load {
 		    LOAD_IDX => 0 # First time this has been loaded.
 		  };		# Allocate our info structure.
   }
+  $makepp_simple_concatenation_seen ||= expand_variable $self, 'makepp_simple_concatenation', 'init'; # from env or command?
   $mdinfo->{MAKEINFO} = $self;	# Remember for later what the makefile is.
 
 #
@@ -958,18 +957,17 @@ sub load {
 #
 sub initialize {
   my $self = $_[0];
-  unless($self->{INITIALIZED}) {
+  unless(exists $self->{INITIALIZED}) {
   #
   # Fetch the values of exported variables so we can quickly change the
   # environment when we have to execute a rule.  When the export statement was
   # seen, we put the names of the variables into a hash with a null value;
   # now replace that null value with the actual value.
   #
-    if ($self->{EXPORTS}) {	# Are there any?
-      foreach my $var (keys %{$self->{EXPORTS}}) {
-        $self->{EXPORTS}{$var} = expand_variable $self, $var, absolute_filename( $self->{MAKEFILE} ) . ':0';
+    local $self->{INITIALIZED}; # Don't go into deep recursion if expanding an export
+    for my $var (keys %{$self->{EXPORTS}}) {
+      $self->{EXPORTS}{$var} = expand_variable $self, $var, absolute_filename( $self->{MAKEFILE} ) . ':0';
 				# We don't know the line here, but provide one, in case perl code gets assigned.
-      }
     }
 
     # NOTE: Don't set INITIALIZED here, because even though we've done the
@@ -984,12 +982,12 @@ sub initialize {
 sub get_env {
   my ($self, $var) = @_;
   $var or die;
-  if ($self->{EXPORTS} && exists($self->{EXPORTS}{$var})) {
+  if( exists $self->{EXPORTS}{$var} ) {
     unless($self->{INITIALIZED}) {
       # Even if it's already set, we still have to re-evaluate, because its
       # value could have changed since it was last set.
       $self->{EXPORTS}{$var} =
-	expand_variable $self, $var, absolute_filename $self->{MAKEFILE};
+	expand_variable $self, $var, absolute_filename( $self->{MAKEFILE} ) . ':0';
     }
     return $self->{EXPORTS}{$var};
   }
@@ -1087,7 +1085,7 @@ sub assign {
 
   } else {			# Must be a !=, run through shell to evaluate.
 
-    $$varref = f_shell expand_text( $self, $value, $makefile_line ), $self, $makefile_line;
+    $$varref = f_shell \$value, $self, $makefile_line;
 
   }
 
@@ -1101,6 +1099,10 @@ sub assign {
     delete $reexpandref->{VAR_REEXPAND} if !%{$reexpandref->{VAR_REEXPAND}};
 
   }
+
+  $makepp_simple_concatenation_seen = 1
+    if $value && $name eq 'makepp_simple_concatenation'; # don't set if empty or literal 0
+
 }
 
 #

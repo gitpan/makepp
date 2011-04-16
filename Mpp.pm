@@ -13,6 +13,7 @@ This package contains basic stuff for makepp.
 package Mpp;
 
 use strict;
+use Config;
 
 BEGIN {
   eval "sub ARCHITECTURE() { '$Config{archname}' }"; # Get a tag for the architecture.

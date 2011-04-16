@@ -1,3 +1,19 @@
+2011-04-11  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm (setup_environment): Since exporting MAKEFLAGS, we are sure to have EXPORTS.
+
+	* Mpp/Subs.pm (f_call): Correctly handle $0, $1, ... as normal variables.  $(macro arg1,arg2) is now equivalent to $(call macro,arg1,arg2) if $(macro) is defined.  Thanks to Clemens Hintze for these ideas.
+
+2011-01-23  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/CommandParser/Esql.pm (xparse_command): 5.13.7 no longer
+	understands binding =~ to two alternate regexps in a ternary
+	operator.
+
+	* pod/makepp_build_check.pod:
+	* makeppinfo: Improve makeppinfo and its doc, expecially for
+	understanding build check methods.
+
 2011-01-16  Daniel Pfeiffer  <occitan@esperanto.org>
 
 Snapshot makepp-1.50.110116.tgz, version 1.50-110116:13-101224:4-1210:6 on sourceforge & CPAN.

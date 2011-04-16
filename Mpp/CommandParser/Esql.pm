@@ -1,4 +1,4 @@
-# $Id: Esql.pm,v 1.18 2011/01/16 17:10:41 pfeiffer Exp $
+# $Id: Esql.pm,v 1.19 2011/01/23 22:52:15 pfeiffer Exp $
 
 =head1 NAME
 
@@ -9,10 +9,9 @@ Mpp::CommandParser::Esql - makepp command parser for various Esql preprocessors
 Parses an Embedded SQL preprocessor or compile command for implicit
 dependencies.
 
-This is essentially identical to Gcc.pm, but for some extra args, because some
-precompilers can call the compiler and produce an executable.  Currently it
-does not handle options or file extensions indicating an embedding language
-other than C/C++.
+This is partially identical to Gcc.pm, e.g. option C<-I>, but for some extra
+args.  Currently it does not handle options or file extensions indicating an
+embedding language other than C/C++.
 
 =cut
 
@@ -132,7 +131,7 @@ sub parse_opt {
 
 sub xparse_command {
   my $scanner = $_[0]{SCANNER};
-  my( $cmd ) = $_[1][0] =~ (Mpp::is_windows ? /(\w+)(?:\.exe)?$/ : /(\w+)$/);
+  my( $cmd ) = Mpp::is_windows ? $_[1][0] =~ /(\w+)(?:\.exe)?$/ : $_[1][0] =~ /(\w+)$/;
   $scanner->add_include_suffix_list( user => $inc_suffixes{$cmd} || $inc_suffixes );
 
   if( $cmd eq 'db2' ) {		# Special case this unusual syntax
