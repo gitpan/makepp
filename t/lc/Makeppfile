@@ -1,0 +1,16 @@
+$(phony default): file1 x
+
+f%ile2x: f%ile2
+	&cp $< $@
+
+f%ile3x: f%ile3
+	&cp $< $@
+
+file% other%: :last_chance
+	&echo $X $@ -o $@
+	&echo other$@ -o $(word 2, $(outputs))
+
+$(phony x): file1 file2 other3
+
+X := $(first_available file2)	# Instance the rule for file2
+X := $(wildcard file*)		# file1 and file3 aren't instanced yet

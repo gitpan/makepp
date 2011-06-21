@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.51 2010/12/10 22:12:05 pfeiffer Exp $
+# $Id: Text.pm,v 1.52 2011/05/07 11:10:55 pfeiffer Exp $
 
 =head1 NAME
 
@@ -524,7 +524,7 @@ sub format_exec_args {
   }
   return ($ENV{SHELL}, '-c', $cmd)
     if Mpp::is_windows == -2 || Mpp::is_windows == 1 ||
-      $cmd =~ /[()<>\\"'`;&|*?[\]]/ || # Any shell metachars?
+      $cmd =~ /[()<>\\"'`;&|*?[\]#]/ || # Any shell metachars?
       $cmd =~ /\{.*,.*\}/ || # Pattern in Bash (blocks were caught by ';' above).
       $cmd =~ /^\s*(?:\w+=|[.:!](?:\s|$)|e(?:val|xec|xit)\b|source\b|test\b)/;
 				# Special commands that only

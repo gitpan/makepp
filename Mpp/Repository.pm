@@ -1,4 +1,4 @@
-# $Id: Repository.pm,v 1.6 2010/12/24 13:27:24 pfeiffer Exp $
+# $Id: Repository.pm,v 1.7 2011/06/05 20:35:22 pfeiffer Exp $
 
 =head1 NAME
 
@@ -310,19 +310,44 @@ sub Mpp::Repository::get {
 no warnings 'redefine';
 
 sub Mpp::Subs::s_repository {
-  my( $text_line, $makefile, $makefile_line ) = @_; # Name the arguments.
+  #my( $text_line, $makefile, $makefile_line ) = @_; # Name the arguments.
 
-  foreach my $rdir ( split ' ', $makefile->expand_text( $text_line, $makefile_line )) {
+  foreach my $rdir ( split ' ', $_[1]->expand_text( $_[0], $_[2] )) {
 				# Get a list of repository directories.
     if( $rdir =~ /^([^=]+)=(.*)/ ) { # Destination directory specified?
-      my $rinfo = file_info $2, $makefile->{CWD};
-      my $dst_info = file_info $1, $makefile->{CWD};
+      my $rinfo = file_info $2, $_[1]{CWD};
+      my $dst_info = file_info $1, $_[1]{CWD};
       Mpp::Repository::load $rinfo, $dst_info;
     } else {
-      my $rinfo = file_info $rdir, $makefile->{CWD};
+      my $rinfo = file_info $rdir, $_[1]{CWD};
 				# Get the fileinfo structure.
-      Mpp::Repository::load $rinfo, $makefile->{CWD};
+      Mpp::Repository::load $rinfo, $_[1]{CWD};
 				# Load all the files.
+    }
+  }
+}
+
+sub Mpp::Subs::s_vpath {
+  #my( $text_line, $makefile, $makefile_line ) = @_; # Name the arguments.
+  my( $pattern, $dirs ) = split ' ', $_[1]->expand_text( $_[0], $_[2] ), 2;
+  unless( defined $pattern && defined $dirs ) {
+    warn "$_[2]: makepp never turns off vpath\n";
+    return;
+  }
+  if( $pattern eq '%' ) {
+    undef $pattern;
+  } else {
+    $pattern = "\Q$pattern";
+    $pattern =~ s/\\%/.*/;
+    $pattern = qr/^$pattern$/;	# Don't worry about .files, gmake doesn't
+  }
+  my $cwd = $_[1]{CWD};
+  for my $dir ( split Mpp::is_windows > 1 ? ';' : qr/[\s:]/, $dirs ) {
+    $dir = file_info $dir, $cwd;
+    read_directory $dir;
+    while( my( $name, $finfo ) = each %{$dir->{DIRCONTENTS}} ) {
+      next if $pattern and $name !~ $pattern;
+      load_single $finfo, file_info $name, $cwd;
     }
   }
 }

@@ -6,9 +6,9 @@ makepp;
 my %warnings;
 n_files 'n_files1', sub {
   undef $warnings{$1} if
-    /warning:.*?(is a symbolic link|I attempted to build|\w+ is probably also phony)/;
+    /warning:.*?(is a symbolic link|I attempted to build|\w+ is probably also phony|There is no rule to build inexistant.+)/;
 };
-die unless 3 == keys %warnings;
+die if 5 != keys %warnings;
 
 unlink qw(a bl f g h);		# Force rebuild of linkee or make link stale.
 wait_timestamp qw(c e);
@@ -29,10 +29,16 @@ makepp qw(--rm-stale D=dd);
 die if grep -f, qw(fl fl2 fc gl gl2 gc hl hl2 hc);
 
 1;
-###	26	644	1230569382	1231320259	Makeppfile
-default: default1			# Provoke no-phony warnings.
+###	32	644	1230569382	1304538479	Makeppfile
+default: default1			# Provoke inexistant warnings.
 
-default1: ?c
+default1: default2
+
+default2: default3			# Provoke no-phony warnings.
+	  @&expr 1
+
+default3: ?c
+	  @&expr 1
 
 $(foreach) $(foreach)l: :foreach a b # Both created in one rule.
 	&echo $(output) -o $(output)
@@ -71,8 +77,8 @@ g
 h
 ###	D	755	1230569356	1230569356	answers
 ###	1	644	1230569356	1230569356	answers/n_files1
-27 2 0
+27 4 0
 ###	1	644	1230569356	1230569356	answers/n_files2
 9 0 3
 ###	1	644	1230569356	1230569356	answers/n_files
-0 2 0
+0 4 0

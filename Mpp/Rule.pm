@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.110 2010/12/10 22:07:11 pfeiffer Exp $
+# $Id: Rule.pm,v 1.111 2011/06/21 20:20:45 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -35,15 +35,18 @@ This does not actually place the rule into the Mpp::File hierarchy.
 =cut
 
 sub new {
-  my ($class, $targets, $dependencies, $command, $makefile, $source_line) = @_;
-				# Name the arguments.
+  #my ($class, $targets, $dependencies, $command, $makefile, $source_line, $build_check_method, $signature_method) = @_;
+  my @extra = (BUILD_CHECK_METHOD => $_[6]) if $_[6];
+  push @extra, (SIGNATURE_METHOD => $_[7]) if $_[7];
 
-  bless { TARGET_STRING => $targets,
-	  DEPENDENCY_STRING => $dependencies,
-	  COMMAND_STRING => $command,
-	  MAKEFILE => $makefile,
-	  LOAD_IDX => $makefile->{LOAD_IDX},
-	  RULE_SOURCE => $source_line }, $class;
+  bless { TARGET_STRING => $_[1],
+	  DEPENDENCY_STRING => $_[2],
+	  COMMAND_STRING => $_[3],
+	  MAKEFILE => $_[4],
+	  LOAD_IDX => $_[4]{LOAD_IDX},
+	  RULE_SOURCE => $_[5],
+	  @extra
+	}, $_[0];
 				# Make the rule object.
 }
 
@@ -139,16 +142,14 @@ sub find_all_targets_dependencies {
 
 
   for( split_on_whitespace $target_string ) {
-    my $tinfo = file_info( unquote(), $build_cwd );
+    my $tinfo = file_info unquote(), $build_cwd;
     push @explicit_targets, $tinfo;
     $self->add_target( $tinfo );
   }
 
 # This is a good time to expand the dispatch rule option, if any:
   if($self->{DISPATCH}) {
-    $self->{DISPATCH} = $makefile->expand_text(
-      $self->{DISPATCH}, $self->{RULE_SOURCE}
-    );
+    $self->{DISPATCH} = $makefile->expand_text( $self->{DISPATCH}, $self->{RULE_SOURCE} );
     $self->{DISPATCH} =~ s/^\s*//;
     $self->{DISPATCH} =~ s/\s*$//;
     delete $self->{DISPATCH} unless $self->{DISPATCH};
@@ -474,10 +475,10 @@ command parser.
 sub set_signature_class {
   my ($self, $name) = @_;
   my $signature = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
-    eval "use Signature::$name; \$Signature::${name}::$name" # TODO: provisional
+    eval "use Signature::$name; warn qq!$self->{RULE_SOURCE}: name Signature::$name is deprecated, rename to Mpp::Signature::$name\n!; \$Signature::${name}::$name"
     or die "invalid signature class $name\n";
   $self->{SIG_METHOD_NAME} ||= $name;
-  $self->set_signature_method_default($signature);
+  $self->{SIGNATURE_METHOD} ||= $signature;
   $signature;
 }
 
@@ -1248,19 +1249,6 @@ sub set_build_check_method {
   $_[0]{BUILD_CHECK_METHOD} = $_[1];
 }
 
-
-=head2 set_build_check_method_default
-
-  $rule->set_build_check_method_default(method);
-
-Sets the build check method, unless it has already been set.
-
-=cut
-
-sub set_build_check_method_default {
-  $_[0]{BUILD_CHECK_METHOD} ||= $_[1];
-}
-
 =head2 $rule->signature_method
 
   my $sig_method = $rule->signature_method;
@@ -1272,10 +1260,7 @@ details).
 
 =cut
 
-sub signature_method {
-  $_[0]{SIGNATURE_METHOD} ||
-    $Mpp::default_signature; # Use the default method.
-}
+sub signature_method { $_[0]{SIGNATURE_METHOD} || $Mpp::default_signature }
 
 =head2 set_signature_method
 
@@ -1287,14 +1272,6 @@ Sets the signature method to use for this particular rule.
 
 sub set_signature_method {
   $_[0]{SIGNATURE_METHOD} = $_[1];
-}
-
-#
-# This subroutine sets the signature method if one hasn't already been
-# specified.
-#
-sub set_signature_method_default {
-  $_[0]{SIGNATURE_METHOD} ||= $_[1];
 }
 
 =head2 $rule->lexer

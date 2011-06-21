@@ -14,7 +14,7 @@ n_files 'n_files2';
 
 unlink 'b1.h';
 makepp;
-###	47	644	1265379162	1284664381	RootMakeppfile
+###	49	644	1265379162	1304620873	RootMakeppfile
 ifdef CHECK_COMPILER
   makeperl {{
     POSIX::_exit '$(notdir $(CC))' !~ /\b(?:g|icc|xlc|cl)/;
@@ -57,8 +57,10 @@ b.$(OBJ_SUFFIX): pre			# Dep must not be forgotten when rereading, or would rebu
   ifmakeperl '$(CC)' =~ /\bcl/
 	cl -showIncludes -c $(input) >$(stem).d
 	&sed &dependify -o +<$(stem).d
-  else
+  else ifperl Mpp::is_windows == 2
 	$(CC) $(DEP_OPT) -c $(input) -o $(output)
+  else
+	$(CC) $(DEP_OPT) -c $(input) -o $(output) # Must not pass comment to cc
   endif
 
 b.$(OBJ_SUFFIX): post			# Dep must not be forgotten when rereading

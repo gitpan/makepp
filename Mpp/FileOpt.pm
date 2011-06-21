@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.109 2011/01/16 17:09:07 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.110 2011/06/21 20:20:54 pfeiffer Exp $
 
 =head1 NAME
 
@@ -22,8 +22,7 @@ our $build_info_subdir = '.makepp';
 				# The name of the subdirectory that we store
 				# build information in.
 
-our @build_infos_to_update = ();
-				# References to all the build info files that
+our @build_infos_to_update;	# References to all the build info files that
 				# have to be flushed to disk.
 
 our $n_last_chance_rules;       # Number of last-chance rules seen this run.
@@ -73,10 +72,8 @@ If $no_last_chance is set, then don't consider last chance rules or autoloads.
 sub get_rule {
   return undef if &dont_build;
   my $mdir = $_[0]{'..'};
-  Mpp::Makefile::implicitly_load($mdir); # Make sure we've loaded a makefile
-				# for this directory.
-  # If we know the rule now, then return it.  Otherwise, try to find a
-  # "backwards inference" rule.
+  Mpp::Makefile::implicitly_load($mdir); # Make sure we've loaded a makefile for this directory.
+  # If we know the rule now, then return it.  Otherwise, try to find a "backwards inference" rule.
   return $_[0]{RULE} if exists $_[0]{RULE};
   if( $n_last_chance_rules && !$_[1] ) {
     # NOTE: Similar to Mpp::File::publish(), but we stop on the first match,
@@ -86,11 +83,12 @@ sub get_rule {
     my $dirinfo = $mdir;
     my $leaf = 1;
     DIR: while ($dirinfo) {
-      WILD: for( @{$dirinfo->{NEEDED_WILDCARD_ROUTINES}} ) {
-	# my( $re, $wild_rtn, $deep ) = @$_;
-	next unless $leaf || $_->[2];
-	next WILD if $fname !~ $_->[0];
-	$_->[1]( $finfo, 1 );
+      for my $arr ( @{$dirinfo->{LAST_CHANCE}} ) {
+	# my( $re, $wild_rtn, $deep, $need_dir ) = @$arr;
+	next unless $leaf || $arr->[2];
+	next if $fname !~ $arr->[0];
+	next if $arr->[3] && !is_or_will_be_dir $finfo;
+	$arr->[1]( $finfo );
 	last DIR;
       }
       substr $fname, 0, 0, $dirinfo->{NAME} . '/';
@@ -349,7 +347,7 @@ sub set_additional_dependencies {
 				# isn't an actual rule for them.
   if( $Mpp::Makefile::rule_include ) {
     # Via :include we read the compiler generated makefile twice.  If #include statements
-    # have been removed, we must not store those from the 1st reading in build info.
+    # have been removed, we must not store those from 1st time we read build info.
     if( $Mpp::Makefile::rule_include == 1 ) { # Initial lecture of possibly obsolete .d file
       $finfo->{ADDITIONAL_DEPENDENCIES_TEMP} = $#{$finfo->{ADDITIONAL_DEPENDENCIES}};
     } elsif( exists $finfo->{ADDITIONAL_DEPENDENCIES_TEMP} ) {
@@ -413,9 +411,7 @@ set_build_info_string, it's already handled for you.
 =cut
 
 sub mark_build_info_for_update {
-  undef $_[0]{NEEDS_BUILD_UPDATE};
-				# Remember that we haven't updated this
-				# file yet.
+  undef $_[0]{NEEDS_BUILD_UPDATE}; # Remember that we haven't updated this file yet.
   push @build_infos_to_update, $_[0];
 }
 
@@ -436,7 +432,7 @@ sub clear_build_info {
   # the same and we stop before the build info is re-written, then we could
   # pick up stale info on the next makepp run.
 
-  CORE::unlink(&build_info_fname); # Get rid of bogus file.
+  CORE::unlink &build_info_fname; # Get rid of bogus file.
   # TBD: What to do if it's still there (e.g. no directory write privilege)?
   delete $_[0]{NEEDS_BUILD_UPDATE}; # No need to update at the moment.
 }
@@ -623,8 +619,7 @@ sub set_rule {
   $rule->{LOAD_IDX} = $rule->{MAKEFILE}{LOAD_IDX};
 				# Remember which makefile load it came from.
   publish $finfo, $Mpp::rm_stale_files;
-				# Now we can build this file; we might not have
-				# been able to before.
+				# Now we can build this file; we might not have been able to before.
 }
 
 =head2 signature
@@ -688,10 +683,8 @@ sub write_build_info_file {
   open my $fh, '>', $build_info_fname or return undef;
   my $contents = '';
   while( my($key, $val) = each %$build_info ) {
-    $val =~ tr/\n/\cC/;
-			      # Protect newline.  Keys should not have any.
-			      # (This does not modify the value inside the
-			      # BUILD_INFO hash.)
+    $val =~ tr/\n/\cC/;		# Protect newline.  Keys must not have any.
+				# (This does not modify the value inside the BUILD_INFO hash.)
     $contents .= $key . '=' . $val . "\n";
   }
   # This provides proof that the writing of the build info file was not
@@ -722,8 +715,7 @@ sub update_build_infos {
        bless { NAME => $build_info_subdir, '..' => $finfo->{'..'} });
 
     my $build_info_fname = absolute_filename_nolink( $finfo->{'..'} ) .
-      "/$build_info_subdir/$finfo->{NAME}.mk";
-				# Form the name of the build info file.
+      "/$build_info_subdir/$finfo->{NAME}.mk"; # Form the name of the build info file.
 
     my $build_info = $finfo->{BUILD_INFO}; # Access the hash.
     $build_info->{SIGNATURE} ||= signature( $finfo );
@@ -741,8 +733,7 @@ sub update_build_infos {
     write_build_info_file($build_info_fname, $build_info);
 				# Ignore failure to write.  TBD: warn here?
   }
-  @build_infos_to_update = ();
-				# Clean out the list of files to update.
+  @build_infos_to_update = ();	# Clean out the list of files to update.
 }
 END {
   &update_build_infos;

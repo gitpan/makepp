@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.99 2011/01/16 17:08:25 pfeiffer Exp $
+# $Id: install.pl,v 1.101 2011/06/05 20:35:22 pfeiffer Exp $
 #
 
 package Mpp;
@@ -174,13 +174,14 @@ if( $ENV{MAKEPP_INSTALL_OLD_MODULES} ) {
 substitute_file( $_, $bindir, 0755, 1 ) for
   qw(makepp makeppbuiltin makeppclean makeppgraph makeppinfo makepplog makeppreplay makepp_build_cache_control);
 
-substitute_file( $_, $datadir, 0644 ) for
-  qw(recursive_makepp Mpp/Text.pm);
+substitute_file( 'recursive_makepp', $datadir, 0755 );
+
+substitute_file( 'Mpp/Text.pm', $datadir, 0644 );
 
 foreach $module (qw(../Mpp
 
 		    BuildCache BuildCacheControl Cmds Event File FileOpt Glob
-		    Lexer Makefile Subs Recursive Repository Rule Utils
+		    Lexer Makefile Subs Repository Rule Utils
 
 		    BuildCheck BuildCheck/architecture_independent
 		    BuildCheck/exact_match BuildCheck/ignore_action
@@ -202,6 +203,15 @@ foreach $module (qw(../Mpp
   copy("Mpp/$module.pm", "$datadir/Mpp/$module.pm");
   chmod 0644, "$datadir/Mpp/$module.pm";
 }
+
+our $explicit_perl = '';
+{
+  local $SIG{__WARN__}= sub {};
+  $explicit_perl = "Mpp::PERL . ' ' ."
+    if system "$bindir/makeppinfo"; # zero if executable, ouptputs nothing
+}
+
+substitute_file( 'Mpp/Recursive.pm', $datadir, 0644 );
 
 foreach $include (qw(makepp_builtin_rules makepp_default_makefile)) {
   copy("$include.mk", "$datadir/$include.mk");
@@ -252,7 +262,7 @@ sub highlight_keywords() {
   s!\G((?:override )?(?:define|export|global)|override|ifn?def|makesub|sub)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<i>$3</i>! or
   s!\G(register[_-](?:(?:command[_-])?parser|scanner)|signature)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<u>$3</u>! or
   # repeat the above, because they may appear in C<> without argument
-  s!\G(\s*(?:and |or |else )?if(?:n?(?:def|eq|sys|true|xxx)|(?:make)?perl)|build[_-]cache|else|endd?[ei]f|export|global|fi|[_-]?include|load[_-]makefile|makeperl|no[_-]implicit[_-]load|override|perl(?:|[_-]begin|[_-]end)|repository|runtime|unexport|define|makesub|sub|register[_-](?:(?:command[_-])?parser|scanner)|signature)\b!<b>$1</b>! && s|xxx|<i>xxx</i>| or
+  s!\G(\s*(?:and |or |else )?if(?:n?(?:def|eq|sys|true|xxx)|(?:make)?perl)|build[_-]cache|else|endd?[ei]f|export|global|fi|[_-]?include|load[_-]makefile|makeperl|no[_-]implicit[_-]load|override|perl(?:|[_-]begin|[_-]end)|repository|runtime|unexport|define|makesub|sub|register[_-](?:(?:command[_-])?parser|scanner)|signature|vpath)\b!<b>$1</b>! && s|xxx|<i>xxx</i>| or
 
     # highlight assignment
     s,\G\s*(?:([-.\w\s%*?\[\]]+?)(\s*:\s*))?((?:override\s+)?)([-.\w]+)(?= *(?:[:;+?!]|&amp;)?=),
@@ -426,6 +436,7 @@ if ($htmldir_val ne 'none') {
 	$_ = $unread . $_;
 	undef $unread;
       }
+      s/(<li><a href="#.+">.*<code>-)(\w\w)/$1-$2/; # it swallows one - :-(
       if( /^<\/head>/../<h1>.*(?:DESCRIPTION|SYNOPSIS)/ ) {
 	if ( /<(?:\/?ul|li)>/ ) {
 	  # These are visible anyway when the index is.
@@ -617,21 +628,22 @@ print "makepp successfully installed.\n";
 #
 # This subroutine makes a copy of an input file, substituting all occurences
 # of @xyz@ with the perl variable $xyz.  It also fixes up the header line
-# "#!/usr/bin/perl" if it sees one.
+# "#!/usr/bin/perl" if it sees one.  On Win also create a .bat to call it.
 #
 # Arguments:
 # a) The input file.
 # b) The output directory.
 # c) The protection to give the file when it's installed.
+# d) Create an mpp* abbreviation.
 #
 sub substitute_file {
   my ($infile, $outdir, $prot, $abbrev) = @_;
 
   local *INFILE;
-  open(INFILE, $infile) || die "$0: can't read file $infile--$!\n";
+  open INFILE, $infile or die "$0: can't read file $infile--$!\n";
   make_dir($outdir);
 
-  open(OUTFILE, "> $outdir/$infile") || die "$0: can't write to $outdir/$infile--$!\n";
+  open OUTFILE, "> $outdir/$infile" or die "$0: can't write to $outdir/$infile--$!\n";
 
   local $_;
   while( <INFILE> ) {
@@ -646,12 +658,16 @@ sub substitute_file {
 
     print OUTFILE $_;
   }
-  close(OUTFILE);
-  close(INFILE);
+  close OUTFILE;
+  close INFILE;
 
   chmod $prot, "$outdir/$infile";
-  for( $abbrev ) {
-    last unless defined;
+  if( is_windows > 0 && $prot == 0755 ) {
+    open my $outfile, "> $outdir/$infile.bat" or die "$0: can't write to $outdir/$infile.bat--$!\n";
+    print $outfile '@' . PERL . " $outdir/$infile %1 %2 %3 %4 %5 %6 %7 %8 %9\n";
+    close $outfile;
+  }
+  if( $abbrev ) {
     $_ = $infile;
     {
       no warnings 'uninitialized';
@@ -663,12 +679,7 @@ sub substitute_file {
       copy "$outdir/$infile", "$outdir/$_";
       chmod $prot, "$outdir/$_";
     }
-    if( is_windows > 0 ) {
-      open my $outfile, "> $outdir/$infile.bat" or die "$0: can't write to $outdir/$infile.bat--$!\n";
-      print $outfile '@' . PERL . " $outdir/$infile %1 %2 %3 %4 %5 %6 %7 %8 %9\n";
-      close $outfile;
-      copy "$outdir/$infile.bat", "$outdir/$_.bat";
-    }
+    copy "$outdir/$infile.bat", "$outdir/$_.bat" if is_windows > 0;
   }
 }
 

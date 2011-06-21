@@ -1,4 +1,4 @@
-# $Id: Glob.pm,v 1.37 2010/11/19 20:59:31 pfeiffer Exp $
+# $Id: Glob.pm,v 1.39 2011/06/21 20:20:54 pfeiffer Exp $
 
 package Mpp::Glob;
 
@@ -10,7 +10,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(chdir);	# Force our caller to use our chdir sub that
 				# we inherit from Mpp::File.
-our @EXPORT_OK = qw(zglob zglob_fileinfo $allow_dot_files wildcard_action needed_wildcard_action);
+our @EXPORT_OK = qw(zglob zglob_fileinfo $allow_dot_files wildcard_do);
 
 use strict;
 
@@ -23,7 +23,7 @@ Mpp::Glob -- Subroutines for reading directories easily.
   my @file_info_structs = Mpp::Glob::zglob_fileinfo('pattern'[, default dir]);
   my @filenames = Mpp::Glob::zglob('pattern'[, default dir]);
   $Mpp::Glob::allow_dot_files = 1;	# Enable returning files beginning with '.'.
-  wildcard_action @wildcards, sub { my $finfo = $_[0]; ... };
+  wildcard_do { my $finfo = $_[0]; ... } [\1,] @wildcards;
 
 =head1 DESCRIPTION
 
@@ -91,11 +91,10 @@ sub zglob_fileinfo_atleastone {
 #
 # The third argument to zglob_fileinfo indicates whether to avoid following
 # soft-linked directories ('**' never follows soft links, but other wildcards
-# can).	 Generally, you want to follow soft links, but because of some
-# technical restrictions, wildcard_action can't do it right so in order to
-# avoid having makefile bugs where things work some of the time but not all
-# of the time, when we're called from wildcard_action we don't follow soft
-# links either.
+# can).  Generally, you want to follow soft links, but because of some
+# technical restrictions, wildcard_do can't do it right so in order to avoid
+# having makefile bugs where things work some of the time but not all of the
+# time, when we're called from wildcard_do we don't follow soft links either.
 #
 sub zglob_fileinfo {
   local $_ = $_[0];		# Access the filename or wildcard.
@@ -123,10 +122,8 @@ sub zglob_fileinfo {
   my @new_candidates = ($startdir); # Directories that are possible.  At first,
 				# there is only the starting directory.
 
-  my @candidate_dirs;
-
   while ($_ = shift @pieces) {
-    @candidate_dirs = $dont_follow_soft ?
+    my @candidate_dirs = $dont_follow_soft ?
       grep($_->{DIRCONTENTS} && !Mpp::File::is_symbolic_link( $_ ) ||
 	   is_or_will_be_dir( $_ ),
 	   @new_candidates) :
@@ -150,8 +147,8 @@ sub zglob_fileinfo {
 # First translate the wildcards in this piece:
 #
     if ($_ eq '**') {		# Special zsh wildcard?
-      foreach (@candidate_dirs) {
-	push(@new_candidates, $_, find_all_subdirs_recursively($_));
+      for my $dir (@candidate_dirs) {
+	push @new_candidates, $dir, find_all_subdirs_recursively( $dir );
       }
       next;
     }
@@ -183,11 +180,6 @@ sub zglob_fileinfo {
 	while( my( $fname, $finfo ) = each %dircontents ) {
 	  next if !$allow_dotfiles and $fname =~ /^\./;
 	  next unless $fname =~ /^$file_regex_or_name$/;
-	  # Commas are evil, because they (currently) often get interpreted as argument delimiters
-	  if( $fname =~ /,/ ) {
-	    warn 'Wildcard not matching `', absolute_filename( $finfo ), "' because it contains a comma\n";
-	    next;
-	  }
 	  Mpp::File::exists_or_can_be_built( $finfo, @phony_expr ) and # File must exist, or
 	    push @new_candidates, $finfo;
 	}
@@ -484,41 +476,44 @@ sub wild_to_regex {
     lc;				# Not case sensitive--switch to lc.
 }
 
-=head2 Mpp::Glob::wildcard_action
+=head2 Mpp::Glob::wildcard_do
 
 You generally should not call this subroutine directly; it's intended to be
-called from the chain of responsibility handled by Mpp::wildcard_action.
+called from the chain of responsibility handled by wildcard_do.
 
 This subroutine is the key to handling wildcards in pattern rules and
 dependencies.  Usage:
 
-  wildcard_action @wildcards, sub {
-    my ($finfo, $was_wildcard_flag) = @_;
+  wildcard_do {
+    my( $finfo, $plain ) = @_;
     ...
-  };
+  } [\1,] @wildcards;
 
-The subroutine is called once for each file that matches the wildcards.	 If at
-some later time, files which match the wildcard are created (or we find rules
-to build them), then the subroutine is called again.  (Internally, this is done
-by Mpp::File::publish, which is called automatically whenever a file which
-didn't used to exist now exists, or whenever a build rule is specified for a
-file which does not currently exist.)
+The block is called once for each file that matches the wildcards.  If at some
+later time, files which match the wildcard are created (or we find rules to
+build them), then the block is called again.  (Internally, this is done by
+Mpp::File::publish, which is called automatically whenever a file which didn't
+used to exist now exists, or whenever a build rule is specified for a file
+which does not currently exist.)
 
-You can specify non-wildcards as arguments to wildcard_action.	In this case,
-the subroutine is called once for each of the files explicitly listed, even if
-they don't exist and there is no build command for them yet.  Use the second
-argument to the subroutine to determine whether there was actually a wildcard
-or not, if you need to know.
+An optional reference as 2nd parameter means this is from a last chance rule.
 
-As with Mpp::Glob::zglob, wildcard_action will match files in directories which
+You can specify non-wildcards as arguments to wildcard_do.  In this case, the
+block is called once for each of the files explicitly listed, even if they
+don't exist and there is no build command for them yet.  Use the second
+argument to the block to determine whether there was actually a wildcard or
+not, if you need to know.  It is true if (despite the name of this function)
+there was no wildcard.
+
+As with Mpp::Glob::zglob, wildcard_do will match files in directories which
 don't yet exist, as long as the appropriate Mpp::File structures have been put
-in by calls to file_info().
+in by calls to file_info.
 
 Of course, there are ways of creating new files which will not be detected by
-wildcard_action(), since it only looks at things that it expects to be
-modified.  For example, directories are not automatically reread (but when
-they are reread, new files are noticed).  Also, creation of new symbolic links
-to directories may deceive the system.
+wildcard_do, since it only looks at things that it expects to be modified.
+For example, directories are not automatically reread (but when they are
+reread, new files are noticed).  Also, creation of new symbolic links to
+directories may deceive the system.
 
 There are two restrictions on wildcards handled by this routine.  First, it
 will not soft-linked directories correctly after the first wildcard.  For
@@ -539,90 +534,86 @@ consider something like this:
    **/xyz/../*.cxx
 
 In theory, this should find all .cxx files in directories that have a
-subdirectory called xyz.  This won't work with wildcard_action (it'll work
-fine with zglob_fileinfo above, however).  wildcard_action emits a warning
-message in this case.
+subdirectory called xyz.  This won't work with wildcard_do (it'll work fine
+with zglob_fileinfo above, however).  wildcard_do emits a warning message in
+this case.
 
 =cut
 
-sub needed_wildcard_action {
-  push @_, 1;
-  goto &wildcard_action;
-}
-
-sub wildcard_action {
-  my( $subr, $needed ) = splice @_, ref( $_[-1] ) ? -1 : -2;
-  my $member = $needed ? 'NEEDED_WILDCARD_ROUTINES' : 'WILDCARD_ROUTINES';
+sub wildcard_do(&@) {
+  my( $subr, $last_chance ) = splice @_, 0, ref( $_[1] ) ? 2 : 1;
+  my $member = $last_chance ? 'LAST_CHANCE' : 'WILDCARD_DO';
 
 #
 # We first call the subroutine immediately with all files that we currently
 # know about that match the wildcard.
 #
- file_loop:
-  foreach my $filename (@_) {
+  for my $filename (@_) {
+    my $need_dir = $filename =~ /\/$/;
+    if( $filename !~ /[[?*]/ ) { # no-wildcard?
+      my $finfo = file_info $filename, $CWD_INFO;
+      Mpp::File::mark_as_directory $finfo if $need_dir;
+      &$subr( $finfo, 1 ); # Just call the subroutine directly, with the plain name flag.
+      next;
+    }
 #
 # Split this apart into the directories, and handle each layer separately.
 # First handle any leading non-wildcarded directories.
 #
-    my $initial_finfo = $CWD_INFO; # Start at the current directory.
-    my @file_pieces = split(/\/+/, $filename);
-				# Break up into directories.
-    if ($file_pieces[0] eq '') { # Was there a leading slash?
-      $initial_finfo = $Mpp::File::root; # Start at the root.
-      shift @file_pieces;	# Discard the leading slash.
-    }
-
-    while( @file_pieces ) {	# Loop through leading non-wildcarded dirs:
-      if( $file_pieces[0] eq '..' ) { # Common trivial case
-	$initial_finfo = $initial_finfo->{'..'} || $Mpp::File::root;
-      } else {
-	my $name_or_regex = $file_pieces[0] =~ /[[?*]/ ? wild_to_regex( $file_pieces[0] ) : $file_pieces[0];
-	last if ref $name_or_regex; # Quit if we hit the first wildcard.
-	$initial_finfo = exists $initial_finfo->{DIRCONTENTS} && $initial_finfo->{DIRCONTENTS}{$name_or_regex} ||
-	  file_info $name_or_regex, $initial_finfo;
-      }
-      shift @file_pieces;	# Get rid of that piece.
-    }
-
-#
-# At this point, $initial_finfo is the Mpp::File entry for the file that
-# matches the leading non-wildcard directories.
-#
-    if (@file_pieces == 0) {	# Is there anything left?
-      &$subr($initial_finfo, 0); # No.	Just call the subroutine directly,
-				# and set the no-wildcard flag.
+    my( $dirinfo, @file_pieces );
+    if( $filename =~ /^\// || Mpp::is_windows && $filename =~ /^[a-z]:/i ) { # Absolute path?
+      @file_pieces = split /\/+(?=[^\/]*[[?*])/, $filename, 2; # last slash before wildcard
+      $dirinfo = path_file_info $file_pieces[0], $CWD_INFO;
+      @file_pieces = split /\/+/, $file_pieces[1];
     } else {
-#
-# We have wildcards.  Convert the whole rest of the string into a regular
-# expression that matches:
-#
-      my $idx = 0;
-      while ($idx < @file_pieces) {
-	if ($file_pieces[$idx] eq '.') { # Remove useless './' components
-	  splice(@file_pieces, $idx, 1); # (since they will mess up the regex).
-	  next;			# Go back to top without incrementing idx.
-	}
+      $dirinfo = $CWD_INFO;	# Start at the current directory.
+      @file_pieces = split /\/+/, $filename;
+				# Break up into directories.
 
-	if ($file_pieces[$idx] eq '..') { # At least give a warning message
-	  warn "$0: .. is not supported after a wildcard
+      while( @file_pieces ) {	# Loop through leading non-wildcarded dirs:
+	if( $file_pieces[0] eq '..' ) { # Common trivial case
+	  $dirinfo = $dirinfo->{'..'} || $Mpp::File::root;
+	} elsif( $file_pieces[0] ne '.' ) { # normal case
+	  my $name_or_regex = $file_pieces[0] =~ /[[?*]/ ? wild_to_regex( $file_pieces[0] ) : $file_pieces[0];
+	  last if ref $name_or_regex; # Quit if we hit the first wildcard.
+	  $dirinfo = exists $dirinfo->{DIRCONTENTS} && $dirinfo->{DIRCONTENTS}{$name_or_regex} ||
+	    file_info $name_or_regex, $dirinfo;
+	}
+	shift @file_pieces;	# Get rid of that piece.
+      }
+    }
+#
+# At this point, $dirinfo is the Mpp::File entry for the file that matches the
+# leading non-wildcard directories.  Convert the whole rest of the string into
+# a regular expression that matches:
+#
+    my $idx = 0;
+    while ($idx < @file_pieces) {
+      if ($file_pieces[$idx] eq '.') { # Remove useless './' components
+	splice(@file_pieces, $idx, 1); # (since they will mess up the regex).
+	next;			# Go back to top without incrementing idx.
+      }
+
+      if ($file_pieces[$idx] eq '..') { # At least give a warning message
+	warn "$0: .. is not supported after a wildcard
   in the wildcard expression \"$filename\".
   This will only match existing files.\n";
 				# Let user know this will not do what he thinks.
-	}
-
-	++$idx;
       }
 
-      local $_ = join '/', @file_pieces;
-	my @deep = 1 if @file_pieces > 1 || /\*\*/;
-	my $anchor = 0;
-	unless( $needed ) {
-	  foreach( zglob_fileinfo $_, $initial_finfo, 1 ) {
-	    $_->{PUBLISHED}=2 if $Mpp::rm_stale_files;
+      ++$idx;
+    }
+
+    local $_ = join '/', @file_pieces;
+    $need_dir ||= 1 if $file_pieces[-1] =~ /\*\*/;
+    unless( $last_chance ) {
+      for my $finfo ( zglob_fileinfo $_, $dirinfo, 1 ) {
+	next if $need_dir && !Mpp::File::is_or_will_be_dir $finfo;
+	$finfo->{PUBLISHED}=2 if $Mpp::rm_stale_files;
 				# Don't also call $subr later if it looks like
 				# a source file now, but we find a rule for it.
-	    &$subr($_, 1);	# Call the subroutine on each file that matches
-	  }			# right now.  We give an extra argument to
+	&$subr( $finfo );	# Call the subroutine on each file that matches
+      }				# right now.  We give an extra argument to
 				# zglob_fileinfo that says not to match soft-
 				# linked directories, so the behavior is at
 				# least consistent and we do not have subtle
@@ -631,22 +622,23 @@ sub wildcard_action {
 				# filename including the directory
 				# path, and (in order to make that path unique)
 				# the path cannot contain soft-linked dirs.
-	}
-	if( @deep ) {
-	  s!^\*\*/?!! or $anchor++;
-	  s!/?\*\*$!! or $anchor += 2;
-	} else {
-	  s!^\*!! or $anchor++;
-	  s!/\*$!! or $anchor += 2;
-	}
-	push @{$initial_finfo->{$member}}, [wild_to_regex( $_, $anchor ), $subr, @deep];
+    }
+    my @extra = 1 if @file_pieces > 1 || /\*\*/; # Is pattern part multidir?
+    $extra[1] = 1 if $need_dir;
+    my $anchor = 0;
+    if( $extra[0] ) {
+      s!^\*\*/?!! or ++$anchor;
+      s!/?\*\*$!! or $anchor += 2;
+    } else {
+      s!^\*!! or ++$anchor;
+      s!/\*$!! or $anchor += 2;
+    }
+    push @{$dirinfo->{$member}}, [wild_to_regex( $_, $anchor ), $subr, @extra];
 				# Associate a wildcard checking subroutine with
 				# this directory, so that any subsequent files
 				# which match also cause the subroutine to
 				# be called.
-    }
   }
-
   1;				# Return true, because we accept all wildcards.
 				# We are the last-chance handler in the chain
 				# of responsibility for recognizing wildcards.

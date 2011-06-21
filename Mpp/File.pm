@@ -1,4 +1,4 @@
-# $Id: File.pm,v 1.96 2010/12/24 13:30:17 pfeiffer Exp $
+# $Id: File.pm,v 1.98 2011/06/21 20:21:02 pfeiffer Exp $
 
 package Mpp::File;
 require Exporter;
@@ -239,7 +239,7 @@ $root = bless { NAME => '',
 #		The DIRCONTENTS field is only created by the subroutine
 #		mark_as_directory().  This is so the wildcard routines are
 #		reliably informed that a new directory exists.	See the
-#		documentation for Mpp::Glob::wildcard_action for details.
+#		documentation for Mpp::Glob::wildcard_do for details.
 # EXISTS	Exists iff we know the file exists (either because we lstatted it,
 #		or because its name was in the directory).
 # IS_PHONY	Exists iff this has been tagged as a phony target.
@@ -255,13 +255,12 @@ $root = bless { NAME => '',
 #		contains a reference to the Mpp::File structs for the file in
 #		the repositories.
 # FULLNAME	The absolute filename cached for performance.
-# WILDCARD_ROUTINES
-#		For a directory, this is a list of subroutines to be called
-#		whenever a new file springs into existence in this directory
-#		or any subdirectory.  These routines are used so that wildcards
-#		can match files which didn't exist when the wildcard was
-#		invoked.  See Mpp::Glob::wildcard_action() and Mpp::File::publish()
-#		for details.
+# WILDCARD_DO	For a directory, this is a list of subroutines to be called
+#		whenever a new file springs into existence in this directory or
+#		any subdirectory.  These routines are used so that wildcards can
+#		match files which didn't exist when the wildcard was invoked.
+#		See Mpp::Glob::wildcard_do and Mpp::File::publish for details.
+# LAST_CHANCE	Like WILDCARD_DO, but for dependency-less rules.
 # <number>	Used in directory finfos, to store the relative path to another
 #		directory, of which this is the integral address.
 #
@@ -299,9 +298,8 @@ sub absolute_filename_nolink {
 
   my $ret_str = $fileinfo->{NAME};
 
-  return '/' if !defined($ret_str) or	# Ugly workaround for unknown problem.  (Forum 2005-05-23)
-    $fileinfo == $root;
-				# Special case this one.
+  return '/' if !defined $ret_str or # Ugly workaround for unknown problem.  (Forum 2005-05-23)
+    $fileinfo == $root;		# Special case this one.
   for (;;) {
     $fileinfo = $fileinfo->{'..'};
     last if $fileinfo == $root; # Quit when we reached the top.
@@ -509,7 +507,7 @@ sub path_file_info {
     $dinfo = $_[1] || $CWD_INFO;
   }
 
-  for( split /\/+/, $file ) { # Handle each piece of the filename.
+  for( split /\/+/, $file, -1 ) { # Handle each piece of the filename.
 #
 # Also, we now know the parent is (or possibly will be) a directory, so we
 # need to publish it as a directory.  This is necessary so wildcard routines
@@ -539,11 +537,13 @@ sub path_file_info {
 # file:
 #
     if( 3 > length ) {
-      if( $_ eq '..' ) {		# Go up a directory?
+      if( $_ eq '..' ) {	# Go up a directory?
 	$dinfo = $dinfo->{'..'} || $root; # Don't go up above the root.
 	next;
       } elsif( $_ eq '.' ) {	# Do nothing in same directory.
 	next;
+      } elsif( !length ) {	# Trailing slash
+	last;
       }
     }
     $dinfo = ($dinfo->{DIRCONTENTS}{$_} ||=
@@ -923,10 +923,9 @@ Rereads the given directory so we know what files are actually in it.
 
 sub read_directory {
   my $dirinfo = $_[0];		# Find the directory.
-  my $dircontents = $dirinfo->{DIRCONTENTS};
 
   my %previous_files;
-  @previous_files{keys %$dircontents} = (); # remember the file names
+  @previous_files{keys %{$dirinfo->{DIRCONTENTS}}} = (); # remember the file names
 
   opendir my $dirhandle, &absolute_filename_nolink or return;
 				# Just quit if we can't read the directory.
@@ -934,6 +933,7 @@ sub read_directory {
 				# exist yet, or directories which are unreadable.
 
   &mark_as_directory;		# Make sure we know this is a directory.
+  my $dircontents = $dirinfo->{DIRCONTENTS};
   foreach( readdir $dirhandle ) {
     next if $_ eq '.' || $_ eq '..'; # Skip the standard subdirectories.
     case_sensitive_filenames or tr/A-Z/a-z/;
@@ -1141,18 +1141,19 @@ sub publish {
   my $stale;
 
   while ($dirinfo) {		# Go until we hit the top level.
-    for( @{$dirinfo->{WILDCARD_ROUTINES}} ) {
+    for my $arr ( @{$dirinfo->{WILDCARD_DO}} ) {
 				# Check each wildcard match specified to start
 				# in this directory.
-      # my( $re, $wild_rtn, $deep ) = @$_;
-      next unless $leaf || $_->[2];
-      next if $fname !~ $_->[0];
+      # my( $re, $wild_rtn, $deep, $need_dir ) = @$arr;
+      next unless $leaf || $arr->[2];
+      next if $fname !~ $arr->[0];
+      next if $arr->[3] && !is_or_will_be_dir $finfo;
       if( $Mpp::rm_stale_files ) {
 	$stale = &is_stale unless defined $stale;
 	next if $stale;
 	$finfo->{PUBLISHED} = 2;
       }
-      $_->[1]( $finfo, 1 );	# Call the wildcard action routine if it matches.
+      $arr->[1]( $finfo );	# Call the wildcard action routine if it matches.
     }
 
     substr $fname, 0, 0, $dirinfo->{NAME} . '/';
@@ -1162,9 +1163,8 @@ sub publish {
   }
 }
 
-$CWD_INFO = file_info cwd;
-				# Store the current directory so we know how
-				# to handle relative file names.
+$CWD_INFO = file_info cwd;	# Store the current directory so we can handle relative file names.
+
 #
 # One unfortunate complication with the way we scan for include files in
 # makepp is that when the user switches to root to do the 'make install',

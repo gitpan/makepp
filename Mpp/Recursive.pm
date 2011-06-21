@@ -1,4 +1,4 @@
-# $Id: Recursive.pm,v 1.12 2011/01/16 16:59:29 pfeiffer Exp $
+# $Id: Recursive.pm,v 1.14 2011/06/21 20:21:10 pfeiffer Exp $
 
 =head1 NAME
 
@@ -33,39 +33,6 @@ if( defined $traditional || defined $hybrid ) {
 }
 
 my $_MAKEPPFLAGS;
-
-
-# Do this here on behalf of makepp, because it should only be necessary for downloaded recursive open source.
-if( $ENV{MAKEPP_IGNORE_OPTS} ) {
-  my( @lx, @l, @sx, @s );
-  for my $opt( split ' ', $ENV{MAKEPP_IGNORE_OPTS} ) {
-    if( $opt =~ /^--(.+)=/ ) {
-      push @lx, $1;
-    } elsif( $opt =~ /^--(.+)/ ) {
-      push @l, $1;
-    } elsif( $opt =~ /^-(.)./ ) {
-      push @sx, $1;
-    } elsif( $opt =~ /^-(.)/ ) {
-      push @s, $1;
-    } else {
-      die "\$MAKEPP_IGNORE_OPTS: '$opt' not understood\n";
-    }
-  }
-  my $nop;
-  local $" = '';
-  if( @lx || @sx ) {
-    my $lx = @lx ? join '|', @lx : 'DUMMY';
-    $lx = qr/$lx/;
-    my $sx = @sx > 1 ? qr/[@sx]/ : $sx[0];
-    push @Mpp::ignore_opts, [$sx, $lx, \$nop, 1];
-  }
-  if( @l || @s ) {
-    my $l = @l ? join '|', @l : 'DUMMY';
-    $l = qr/$l/;
-    my $s = @s > 1 ? qr/[@s]/ : $s[0];
-    push @Mpp::ignore_opts, [$s, $l, \$nop];
-  }
-}
 
 END {
   local $?;
@@ -162,7 +129,7 @@ sub connection {
 	if( defined $hybrid && $@ =~ /\Aattempt to load two makefiles/ ) {
 	  local $traditional = 1;
 	  local $command = $traditional_command;
-	  $depth = 50 unless defined $depth;
+	  local $depth = defined $depth ? $depth-1 : 50;
 	  $status = 'exec ' . Mpp::Subs::f_MAKE( undef, {}, 'recursion' ) . "\n$_MAKEPPFLAGS\n";
 	  $traditional_command ||= $command;
 	  $@ = '';
@@ -234,7 +201,10 @@ sub Mpp::Subs::f_MAKE {
 	if $Mpp::log_level;
       substr $log, 0, 0, ' --log=';
     }
-    Mpp::PERL . " $command recursive_makepp=$depth$log";
+#@@explicit_perl
+    Mpp::PERL . ' ' .
+#@@
+    "$command recursive_makepp=$depth$log";
 				# All the rest of the info is passed in the
 				# _MAKEPPFLAGS environment variable.
 				# The --recursive option is just a flag that
@@ -247,7 +217,10 @@ sub Mpp::Subs::f_MAKE {
 
     my $makefile = $_[1];	# Get the makefile we're run from.
 
-    $command ||= Mpp::PERL . ' ' .
+    $command ||=
+#@@explicit_perl
+      Mpp::PERL . ' ' .
+#@@
       absolute_filename( file_info $Mpp::datadir, $Mpp::original_cwd ) .
 	'/recursive_makepp';
 				# Sometimes we can be run as ../makepp, and

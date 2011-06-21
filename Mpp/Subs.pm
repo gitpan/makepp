@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.181 2011/04/16 17:09:07 pfeiffer Exp $
+# $Id: Subs.pm,v 1.185 2011/06/21 20:20:36 pfeiffer Exp $
 
 =head1 NAME
 
@@ -420,7 +420,7 @@ sub f_error {
 # will work with filesubst but not with patsubst.
 #
 sub f_filesubst {
-  my ($src, $dest, $words) = args $_[0], $_[1], $_[2], 3;
+  my( $src, $dest, $words ) = args $_[0], $_[1], $_[2], 3;
 				# Get the patterns.
   my $cwd = $_[1]{CWD};
 #
@@ -459,7 +459,7 @@ sub f_filesubst {
 }
 
 sub f_filter {
-  my ($filters, $words) = args $_[0], $_[1], $_[2];
+  my( $filters, $words ) = args $_[0], $_[1], $_[2];
   my @filters = split ' ', $filters; # Can be more than one filter.
   foreach (@filters) {		# Convert these into regular expressions.
     s/([.+()])/\\$1/g;		# Protect all the periods and other special chars.
@@ -1224,7 +1224,7 @@ sub f_sort {
 
 sub f_stem {
   unless( defined $rule ) {
-    warn "\$(stem) or \$* used outside of rule\n";
+    warn "\$(stem) or \$* used outside of rule at `$_[2]'\n";
     return '';
   }
   defined $rule->{PATTERN_STEM} and
@@ -1295,7 +1295,7 @@ sub f_words {
 #
 sub f_target {
   unless( defined $rule ) {
-    warn "\$(output), \$(target) or \$\@ used outside of rule\n";
+    warn "\$(output), \$(target) or \$\@ used outside of rule at `$_[2]'\n";
     return '';
   }
   my $arg = defined $_[0] ? &arg : 0;
@@ -1306,7 +1306,7 @@ sub f_target {
 
 sub f_targets {
   unless( defined $rule ) {
-    warn "\$(outputs) or \$(targets) used outside of rule\n";
+    warn "\$(outputs) or \$(targets) used outside of rule at `$_[2]'\n";
     return '';
   }
   my $arg = defined $_[0] ? &arg : 0;
@@ -1319,7 +1319,7 @@ sub f_targets {
 
 sub f_dependency {
   unless( defined $rule ) {
-    warn "\$(dependency) or \$(input) or \$< used outside of rule\n";
+    warn "\$(dependency) or \$(input) or \$< used outside of rule at `$_[2]'\n";
     return '';
   }
   my $arg = defined $_[0] ? &arg : 0;
@@ -1332,7 +1332,7 @@ sub f_dependency {
 
 sub f_dependencies {
   unless( defined $rule ) {
-    warn "\$(dependencies) or \$(inputs) or \$^ used outside of rule\n";
+    warn "\$(dependencies) or \$(inputs) or \$^ used outside of rule at `$_[2]'\n";
     return '';
   }
   my $arg = defined $_[0] ? &arg : 0;
@@ -1350,7 +1350,7 @@ sub f_dependencies {
 #
 sub f_changed_inputs {
   unless( defined $rule && defined $rule->{EXPLICIT_TARGETS} ) {
-    warn "\$(changed_dependencies) or \$(changed_inputs) or \$? used outside of rule\n";
+    warn "\$(changed_dependencies) or \$(changed_inputs) or \$? used outside of rule at `$_[2]'\n";
     return '';
   }
   my @changed_dependencies =
@@ -1368,7 +1368,7 @@ sub f_changed_inputs {
 
 sub f_sorted_dependencies {
   unless( defined $rule ) {
-    warn "\$(sorted_dependencies) or \$(sorted_inputs) or \$+ used outside of rule\n";
+    warn "\$(sorted_dependencies) or \$(sorted_inputs) or \$+ used outside of rule at `$_[2]'\n";
     return '';
   }
   Mpp::Subs::f_sort join ' ', relative_filenames $rule->{EXPLICIT_DEPENDENCIES};
@@ -1385,7 +1385,7 @@ sub f_foreach {
   my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
   unless( $_[0] ) {		# No argument?
     defined $rule && defined $rule->{FOREACH} or
-      die "\$(foreach) used outside of rule, or in a rule that has no :foreach clause\n";
+      die "\$(foreach) used outside of rule, or in a rule that has no :foreach clause at `$_[2]'\n";
     return relative_filename $rule->{FOREACH}, $rule->build_cwd;
   }
 
@@ -1515,9 +1515,8 @@ sub s_build_check {#_
     return;
   }
   $mkfile->{DEFAULT_BUILD_CHECK_METHOD} = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
-    eval "use BuildCheck::$name; \$BuildCheck::${name}::$name"; # TODO: provisional
-  die "$mkfile_line: invalid build_check method $name\n"
-    unless defined $mkfile->{DEFAULT_BUILD_CHECK_METHOD};
+    eval "use BuildCheck::$name; warn qq!$mkfile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name"
+    or die "$mkfile_line: invalid build_check method $name\n";
 }
 
 #
@@ -1888,7 +1887,7 @@ sub s_autoload {#__
 #
 sub s_register_scanner {#_
   my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
-  warn "$mkfile_line: register-scanner deprecated, please use register-parser\n";
+  warn "$mkfile_line: register-scanner deprecated, please use register-parser at `$_[2]'\n";
 
   my( @fields ) = split_on_whitespace $mkfile->expand_text( $_[0], $mkfile_line );
 				# Get the words.
@@ -1911,7 +1910,7 @@ sub s_register_parser {#_
 
   my( @fields ) = unquote_split_on_whitespace $mkfile->expand_text( $_[0], $mkfile_line );
 				# Get the words.
-  @fields == 2 or die "$mkfile_line: register_command_parser needs 2 arguments\n";
+  @fields == 2 or die "$mkfile_line: register_command_parser needs 2 arguments at `$_[2]'\n";
   $fields[1] =~ tr/-/_/;
   $fields[1] =
     *{"$mkfile->{PACKAGE}::p_$fields[1]"}{CODE} ||
@@ -1946,6 +1945,10 @@ sub s_repository {#__
   require Mpp::Repository;
   goto &s_repository;		# Redefined.
 }
+sub s_vpath {#__
+  require Mpp::Repository;
+  goto &s_vpath;		# Redefined.
+}
 
 #
 # Add runtime dependencies for an executable.
@@ -1978,7 +1981,7 @@ sub s_signature {#__
     return;
   }
   $mkfile->{DEFAULT_SIGNATURE_METHOD} = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
-    eval "use Signature::$name; \$Signature::${name}::$name"; # TODO: provisional
+    eval "use Signature::$name; warn qq!$mkfile_line: name Signature::$name is deprecated, rename to Mpp::Signature::$name\n!; \$Signature::${name}::$name";
   unless( defined $mkfile->{DEFAULT_SIGNATURE_METHOD} ) {
 #
 # The signature methods and build check methods used to be the same thing,
@@ -1986,7 +1989,7 @@ sub s_signature {#__
 # method.
 #
     $mkfile->{DEFAULT_BUILD_CHECK_METHOD} = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
-      eval "use BuildCheck::$name; \$BuildCheck::${name}::$name"; # TODO: provisional
+      eval "use BuildCheck::$name; warn qq!$mkfile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name";
     if( defined $mkfile->{DEFAULT_BUILD_CHECK_METHOD} ) {
       warn "$mkfile_line: requesting build check method $name via signature is deprecated.\n";
     } else {

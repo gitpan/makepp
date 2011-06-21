@@ -1,0 +1,164 @@
+=head1 NAME
+
+makeppinfo -- What makepp knows about files
+
+=for vc $Id: makeppinfo.pod,v 1.8 2011/01/23 22:44:27 pfeiffer Exp $
+
+=head1 DESCRIPTION
+
+=for genindex '[-$][-?\w]+' makeppinfo.pod
+
+B<?:>E<nbsp>L<-?|/_>,E<nbsp>
+B<A:>E<nbsp>L<-A|/a_filename>,
+  L<--args-file|/a_filename>,
+  L<--arguments-file|/a_filename>,E<nbsp>
+B<F:>E<nbsp>L<-f|/f>,
+  L<--force|/f>,E<nbsp>
+B<H:>E<nbsp>L<-h|/_>,
+  L<--help|/_>,E<nbsp>
+B<K:>E<nbsp>L<-k|/k_list>,
+  L<--keylist|/k_list>,
+  L<--keys|/k_list>,E<nbsp>
+B<M:>E<nbsp>L<$MAKEPPINFOFLAGS|/_makeppinfoflags>,E<nbsp>
+B<Q:>E<nbsp>L<-q|/q>,
+  L<--quiet|/q>,E<nbsp>
+B<T:>E<nbsp>L<-t|/t>,
+  L<--traverse|/t>,E<nbsp>
+B<V:>E<nbsp>L<-V|/v>,
+  L<--version|/v>
+
+B<makeppinfo> I<option> file ...
+
+B<mppi> I<option> file ...
+
+Makepp writes detailed information about the files it built and about their
+dependencies.  This information is stored in the F<.makepp> subdirectory along
+the file it pertains to.  It has the form of key-value pairs.  In some cases
+the value will again be a list of associated pairs, typically the signature
+and the file.
+
+If both C<ENV_DEPS> and C<ENV_VALS> get displayed, they are merged into a
+two column table.
+
+If both C<DEP_SIGS> and C<SORTED_DEPS> get displayed, they are merged into a
+two column table (in this order which gives a better layout).  Each dependency
+has a C<SIGNATURE> which is only C<timestamp,size>, used only to check if the
+file must be rescanned.  The interesting information is stored in some other
+key.  The C<md5> signature in C<MD5_SUM>, the smart C<c_compilation_md5>
+signature in C<C_MD5_SUM>, C<shared_object> in C<SHARED_OBJECT> and
+C<verilog_synthesis_md5> in C<V_MD5_SUM>.
+
+These signature lists are the most frequent reason for rebuilding a file, so
+you might like to check, whether the signature stored for a dependency matches
+the current build_signature of that file.  If the signatures and everything
+else matches, that is the basis for getting a file from (one of) your
+L<repositories|makepp_repositories> or L<build cache|makepp_build_cache> if it
+is found there.  The details depend on the applicable L<build check
+method|makepp_build_check>,
+
+This command is partially a makepp debug tool.  The list of keys varies
+depending on which scanner, build check and signature was used.  To fully
+understand the output, you may need to look at the source code.  That said,
+there is also some generally interesting information to be gotten.
+
+Valid options are:
+
+=over
+
+=item -A I<filename>
+
+=item --args-file=I<filename>
+
+=item --arguments-file=I<filename>
+
+Read the file and parse it as possibly quoted whitespace- and/or newline-separated options.
+
+=item -f
+
+=item --force
+
+Display info even when it is invalid because of inexistent or modified file.
+
+=item -?
+
+=item -h
+
+=item --help
+
+Print out a brief summary of the options.
+
+=item -k I<list>
+
+=item --keys=I<list>
+
+=item --keylist=I<list>
+
+The I<list> specifies one or more space separated Shell style patterns (with
+[xyz], ?, *, {a,bc,def}).  Remember to protect these from your Shell by
+quoting.  These are matched against the keys.  Each pattern may be preceded
+with an exclamtion mark (C<!>) or a caret (C<^>) to exclude the matched keys
+from those selected before instead of adding them to the selection.  If the
+first pattern starts with an exclamtion mark, it operates on all keys.
+
+    --keys='COMMAND CWD'	# How was this built and where (relative to file).
+
+=item -q
+
+=item --quiet
+
+Don't list file and key names.  Repeat to also omit warnings.
+
+=item -t
+
+=item --traverse
+
+Also output the same information for each file in SORTED_DEPS (recursively if
+repeated).
+
+=item -V
+
+=item --version
+
+Print out the version number.
+
+=back
+
+=head1 EXAMPLES
+
+Each L<build check method|makepp_build_check> documents how to see what they
+base their decision on.  Finding the paths of the dependencies is the same in
+all cases, so it is shown here.  If you build to a different directory,
+finding the path of the inputs requires a translation.  E.g.:
+
+    mppi -k'CWD SORTED_DEPS' obj/b.o
+    obj/b.o:
+    CWD=../src
+    SORTED_DEPS=
+ 	b.c
+	inc/b.h
+ 	/usr/bin/gcc
+
+CWD is the directory relative to file, from where it was built.  That
+directory is the one from where all relative paths in SORTED_DEPS start.  This
+means that under the same directory we have inputs F<src/b.c> and
+F<src/inc/b.h> and an output F<obj/b.o>.  From the viewpoint of F<b.o>, the
+inputs are F<../src/b.c> and F<../src/inc/b.h>.  It does not matter that we
+gave a relative path for F<b.o>, the information shown would be the same, had
+we first changed to F<obj>.
+
+=head1 ENVIRONMENT
+
+Makeppinfo looks at the following environment variable:
+
+=over 4
+
+=item $MAKEPPINFOFLAGS
+
+Any flags in this environment variable are interpreted as command line options
+before any explicit options.  Quotes are interpreted like in makefiles.
+
+=back
+
+=head1 AUTHOR
+
+Daniel Pfeiffer (occitan@esperanto.org)

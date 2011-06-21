@@ -1,7 +1,7 @@
-# $Id: Makefile.pm,v 1.145 2011/01/16 17:08:25 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.149 2011/06/21 20:21:18 pfeiffer Exp $
 package Mpp::Makefile;
 
-use Mpp::Glob qw(wildcard_action needed_wildcard_action);
+use Mpp::Glob qw(wildcard_do);
 use Mpp::Event qw(wait_for);
 use Mpp::Text qw(max_index_ignoring_quotes index_ignoring_quotes split_on_whitespace split_on_colon
 		 unquote unquote_split_on_whitespace requote hash_neq);
@@ -145,7 +145,7 @@ sub expand_text {
 				# Store the accumulated words.
 				# Put in the original punctuation.
 	@cur_words = '';
-      } elsif (/\G([^\$\s,:;{[()\]}=#`"'@]+)/gc) {  # Text of a word?
+      } elsif (/\G([^\$\01\s,:;{[()\]}=#`"'@]+)/gc) {  # Text of a word?
 	$_ .= $1 for @cur_words; # Append to each word fragment we are holding.
       } else {			# Must be a dollar sign.
 	++pos;			# Skip it.
@@ -230,7 +230,7 @@ sub expand_text {
 #    will see is 'patsubst %.o, %.c, stuff'.
 # c) The makefile line number (for error messages only).
 #
-sub expand_expression  {
+sub expand_expression {
   my( $self, $expr, $makefile_line ) = @_; # Name the arguments.
   return expand_text $self, substr( $expr, length $1 ), $makefile_line
     if $expr =~ /^(\s+)/;	# It begins with whitespace.  This is just a
@@ -367,7 +367,7 @@ sub expand_variable {
 				# or 1-char symbols like '$(11)' or '$@' that conflict with perl variables?
 				# The call fn may eval more than got passed.  These can't be per target or global.
       if( ref $Mpp::Subs::perl_unfriendly_symbols{$var} ) {
-	$result = eval { &{$Mpp::Subs::perl_unfriendly_symbols{$var}}() };
+	$result = eval { &{$Mpp::Subs::perl_unfriendly_symbols{$var}}( undef, $self, $makefile_line ) };
 	$@ and die "$makefile_line: $@\n";
 	if( 2 == length $var ) { # Variants like $(@D) or $(@F)
 	  if( 'D' eq substr $var, 1 ) {
@@ -674,7 +674,7 @@ sub load {
   delete @this_ENV{'A__z',	# Typesets can vary.
 		   'MAKEPP_SOCKET', # Get rid of our special variable.
 				# (This gets put back into the environment
-				# later by Rule::execute, but we don't want
+				# later by Mpp::Rule::execute, but we don't want
 				# it here when we're making comparisons.)
 		   'SHLVL',	# This variable gets incremented by the
 				# shell and can cause unnecessary makefile
@@ -930,14 +930,11 @@ sub load {
     my $sub = shift @Mpp::Subs::defer_include;
     &$sub( splice @Mpp::Subs::defer_include, 0, 3 );
   }
-  warn 'setting VPATH in `' . absolute_filename( $minfo ) . "' does not have any special effect\n"
-    if defined ${"$self->{PACKAGE}::VPATH"} && length ${"$self->{PACKAGE}::VPATH"};
-
   if( my $fh = $self->{CWD}{DUMP_MAKEFILE} ) {
     # Dump the final variables too.
     print $fh "\n#Variables...\n#####\n";
-    for my $var (keys %{$self->{PACKAGE} . '::'}) {
-      my $val = ${$self->{PACKAGE} . "::$var"};
+    for my $var (keys %$mpackage) {
+      my $val = ${$mpackage.$var};
       if(defined($val) && !ref($val)) {
         $val =~ s/\n/\n /g;
         print $fh "$var=$val\n";
@@ -957,14 +954,14 @@ sub load {
 #
 sub initialize {
   my $self = $_[0];
-  unless(exists $self->{INITIALIZED}) {
+  unless($self->{INITIALIZED}) {
   #
   # Fetch the values of exported variables so we can quickly change the
   # environment when we have to execute a rule.  When the export statement was
   # seen, we put the names of the variables into a hash with a null value;
   # now replace that null value with the actual value.
   #
-    local $self->{INITIALIZED}; # Don't go into deep recursion if expanding an export
+    local $self->{INITIALIZED} = 1; # Don't go into deep recursion if expanding an export
     for my $var (keys %{$self->{EXPORTS}}) {
       $self->{EXPORTS}{$var} = expand_variable $self, $var, absolute_filename( $self->{MAKEFILE} ) . ':0';
 				# We don't know the line here, but provide one, in case perl code gets assigned.
@@ -1100,9 +1097,13 @@ sub assign {
 
   }
 
-  $makepp_simple_concatenation_seen = 1
-    if $value && $name eq 'makepp_simple_concatenation'; # don't set if empty or literal 0
-
+  if( $value ) {
+    if( $name eq 'makepp_simple_concatenation' ) { # don't set if empty or literal 0
+      $makepp_simple_concatenation_seen = 1;
+    } elsif( $name eq 'VPATH' ){
+      Mpp::Subs::s_vpath "% $value", $self, $makefile_line;
+    }
+  }
 }
 
 #
@@ -1159,12 +1160,10 @@ sub grok_assignment {
 				# to expand the wildcard.
 				# Can't just &cd; because for some reason Perl
 				# up to 5.6.2 has clobbered @_.
-    wildcard_action unquote_split_on_whitespace( $targets ),
-      sub {			# This subroutine is called for every file
-				# that matches the wildcard.
-	local $private = $_[0];	# Prior PRIVATE_VARS for +=, and for storing new value.
-	assign $self, $var_name, $type, $var_value, $override, $makefile_line, undef, $private;
-      };
+    wildcard_do {		# This block is called for every file that matches the wildcard.
+      local $private = $_[0];	# Prior PRIVATE_VARS for +=, and for storing new value.
+      assign $self, $var_name, $type, $var_value, $override, $makefile_line, undef, $private;
+    } unquote_split_on_whitespace $targets;
   } else {
 #
 # Not a target-specific assignment:
@@ -1174,7 +1173,7 @@ sub grok_assignment {
     } elsif( !$c_preprocess && $var_name =~ s/^global\s+// ) {
       s_global $var_name, $self, $makefile_line;
     } elsif( $var_name =~ s/^define\s+// ) {
-      die "Trailing cruft after define statement at `$makefile_line'\n" if length $var_value;
+      die "Trailing cruft \"$var_value\" after define statement at `$makefile_line'\n" if length $var_value;
       s_define $var_name, $self, $makefile_line, $type, $override;
       return $self;
     } elsif( $var_name =~ /[\s:#]/ ) { # More than one word on the LHS
@@ -1350,19 +1349,19 @@ sub grok_rule {
       $build_check and die "$makefile_line: multiple :build_check clauses\n";
       my $name = expand_text $self, $1, $makefile_line;
       $build_check = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" || # Try to load the method.
-	eval "use BuildCheck::$name; \$BuildCheck::${name}::$name"; # TODO: provisional
+	eval "use BuildCheck::$name; warn qq!$makefile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name";
       defined $build_check or
         die "$makefile_line: invalid build_check method $name\n";
     } elsif ($after_colon[-1] =~ /^\s*signature\s+(.*?)\s*$/) { # Specify signature class?
       $signature and die "$makefile_line: multiple :signature clauses\n";
       my $name = expand_text $self, $1, $makefile_line;
       $signature = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
-	eval "use Signature::$name; \$Signature::${name}::$name"; # TODO: provisional
+	eval "use Signature::$name; warn qq!$makefile_line: name Signature::$name is deprecated, rename to Mpp::Signature::$name\n!; \$Signature::${name}::$name";
       unless( defined $signature ) {
 # For backward compatibility, accept build check methods as a name to
 # :signature as well.
         $build_check = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
-	  eval "use BuildCheck::$name; \$BuildCheck::${name}::$name"; # TODO: provisional
+	  eval "use BuildCheck::$name; warn qq!$makefile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name";
         if( defined $build_check ) {
 	  warn "$makefile_line: requesting build check method $name via :signature is deprecated.\n";
         } else {
@@ -1427,7 +1426,8 @@ sub grok_rule {
     }
     pop @after_colon;
   }
-
+  $build_check ||= $self->{DEFAULT_BUILD_CHECK_METHOD};
+  $signature ||= $self->{DEFAULT_SIGNATURE_METHOD};
 #
 # Now process the pieces of the rule.  We recognize several different kinds
 # of rules:
@@ -1443,7 +1443,7 @@ sub grok_rule {
 # most powerful.  (Note that additional dependencies, possibly depending on
 # $<, may be added to the fourth form.)
 #
-  my $expanded_target_string = eval { expand_text($self, $target_string, $makefile_line) };
+  my $expanded_target_string = eval { expand_text $self, $target_string, $makefile_line };
   $expanded_target_string = $target_string if $@; # In case $(foreach) is there
 				# Expand the target string now.	 We reexpand
 				# it later so that it works properly if it
@@ -1456,7 +1456,7 @@ sub grok_rule {
 				# One of the old suffix rules?
     $expanded_target_string = $target_string = "%.$2";
 				# Convert it to a new-style pattern rule.
-    $after_colon[0] = "%.$1 $after_colon[0]";
+    substr $after_colon[0], 0, 0, "%.$1 ";
   }
 
 #
@@ -1469,8 +1469,8 @@ sub grok_rule {
   if (@after_colon == 2) {
     $foreach and die "$makefile_line: :foreach and GNU static pattern rule are incompatible\n";
     $foreach = $target_string;
-    $after_colon[1] =~ /%/ && $after_colon[0] =~ /%/ or
-      die "$makefile_line: no pattern in static pattern rule\n";
+    $after_colon[0] =~ /%/ or die "$makefile_line: no pattern in static pattern rule\n";
+				# Don't check for last chance, because we have finite set of targets
     (@after_colon) = "\$(filesubst $after_colon[0], $after_colon[1], \$(foreach))";
     $target_string = '$(foreach)';
   }
@@ -1491,19 +1491,14 @@ sub grok_rule {
   if( $target_pattern ) { # Pattern rule?
     # find the first element of @deps that contains a pattern character, '%'
     for my $dep ( @deps ) {
-      if( index_ignoring_quotes( $dep, '%' ) < 0 ) { ++$pattern_dep }
-      else { last }
+      last if index_ignoring_quotes( $dep, '%' ) >= 0;
+      ++$pattern_dep;
     }
     if ($pattern_dep < @deps) {  # does such an element exist?
       unless ($foreach) { # No foreach explicitly specified?
         $foreach = $deps[$pattern_dep]; # Add one, making wildcard from first pattern dep.
-        if( expand_variable( $self, 'makepp_percent_subdirs', $makefile_line ) ) {
-          # % searches subdirs?
-          $foreach =~ s@^%@**/*@ or # Convert leading % to **/*.
-            $foreach =~ tr/%/*/; # Convert nested % to just a *.
-        } else {
-          $foreach =~ tr/%/*/;	# Convert percent to a wildcard.
-        }
+	expand_variable( $self, 'makepp_percent_subdirs', $makefile_line ) && $foreach =~ s@^%@**/*@ or
+	  $foreach =~ tr/%/*/;	# Convert percent to a wildcard.
       }
     } else {
       die "$makefile_line: target has % wildcard but no % dependencies. This is currently\nnot supported, unless '--last-chance-rules' or ':last_chance' is specified.\n" unless $Mpp::last_chance_rules || $last_chance_rule;
@@ -1552,7 +1547,7 @@ sub grok_rule {
       }
       $include = "\$(filesubst $deps[$pattern_dep], $include, \$(foreach))"
 	if $include && index_ignoring_quotes( $include, '%' ) >= 0;
-      $deps[$pattern_dep] = '$(foreach)';	# This had better match the wildcard specified
+      $deps[$pattern_dep] = '$(foreach)'; # This had better match the wildcard specified
 				# in the foreach clause.  I don't know of
 				# any way to check that.
       $after_colon[0] = "@deps";
@@ -1560,12 +1555,8 @@ sub grok_rule {
     &cd;			# Make sure we're in the correct directory,
 				# or everything will be all messed up.
 
-    wildcard_action unquote_split_on_whitespace( expand_text( $self, $foreach, $makefile_line )),
-    sub {
-#
-# This subroutine is called once for each file that matches the foreach clause.
-#
-      my ($finfo, $was_wildcard_flag) = @_;
+    wildcard_do { # This block is called once for each file that matches the foreach clause.
+      my( $finfo, $plain ) = @_;
 				# Get the arguments.
 
       return if exists $finfo->{PATTERN_RULES} # Don't keep on applying same rule.
@@ -1573,10 +1564,9 @@ sub grok_rule {
       # Note, we could say 3 < grep ... to allow a certain depth of rules
       # applied to their own output, e.g. '%a: %' to produce *aaa, but doing
       # it here would only apply to files discovered after the rule.
-      # Additionally set_rule via wildcard_action would have to push to
-      # WILDCARD_ROUTINES before looping over existing files.  That can't
-      # currently be done because then we'd have the same rule twice, giving a
-      # warning.
+      # Additionally set_rule via wildcard_do would have to push to
+      # WILDCARD_DO before looping over existing files.  That can't currently
+      # be done because then we'd have the same rule twice, giving a warning.
 
       local $Mpp::implicitly_load_makefiles = 0
 	if $Mpp::implicitly_load_makefiles && $self->{RECURSIVE_MAKE};
@@ -1584,25 +1574,15 @@ sub grok_rule {
 				# is an invocation of recursive make in this
 				# file.	 (This is not passed to the wildcard.)
 
-      my $rule = new Mpp::Rule($target_string, $after_colon[0], $action, $self, $makefile_line_dir);
+      my $rule = new Mpp::Rule( $target_string, $after_colon[0], $action, $self, $makefile_line_dir );
       $rule->{MULTIPLE_RULES_OK} = 1 if $multiple_rules_ok;
       $rule->{DISPATCH} = $dispatch if $dispatch;
       $rule->{ENV_DEPENDENCY_STRING} = $env_dep_str if $env_dep_str;
 				# Make the rule.
       local $Mpp::Subs::rule = $rule; # Put it so $(foreach) can properly expand.
-      $self->{DEFAULT_SIGNATURE_METHOD} and
-	$rule->set_signature_method_default($self->{DEFAULT_SIGNATURE_METHOD});
-				# Get the signature method from the signature
-				# statement.
-      $self->{DEFAULT_BUILD_CHECK_METHOD} and
-        $rule->set_build_check_method_default($self->{DEFAULT_BUILD_CHECK_METHOD});
-      $signature and $rule->set_signature_method($signature);
-				# Override that with the method from the
-				# :signature clause, if any.
       $build_check and $rule->set_build_check_method($build_check);
-                                # Set the build check method too.
+      $signature and $rule->set_signature_method($signature);
       $have_build_cache and $rule->set_build_cache($build_cache);
-                                # If we have a build cache, set it too.
       $lexer and $rule->{LEXER} = $lexer;
       $parser and $rule->{PARSER} = $parser;
       defined($conditional_scanning) and
@@ -1610,8 +1590,7 @@ sub grok_rule {
       $rule->{FOREACH} = $finfo; # Remember what to expand $(FOREACH) as.
       $rule->{PATTERN_RULES} = exists $finfo->{PATTERN_RULES} ?
 	[$makefile_line_dir, @{$finfo->{PATTERN_RULES}}] : [$makefile_line_dir]
-	if $was_wildcard_flag;	# Mark it as a pattern rule if it was actually
-				# done with a wildcard.
+	unless $plain;		# Mark it as a pattern rule if it was done with a wildcard.
 
       my @targets = split_on_whitespace(expand_text($self, $target_string, $makefile_line));
 				# Get the targets for this rule.
@@ -1621,7 +1600,7 @@ sub grok_rule {
 	Mpp::File::set_rule $tinfo, $rule; # Update its rule.  This will be ignored if
 				# it is overriding something we shouldn't
 				# override.
-	$was_wildcard_flag or	# If there was no wildcard involved, this is
+	$plain and		# If there was no wildcard involved, this is
 				# a candidate for the first target in the file.
 	  $self->{FIRST_TARGET} ||= $tinfo;
 				# Remember what the first target is, in case
@@ -1629,7 +1608,7 @@ sub grok_rule {
 				# line.
       }
       &$handle_include( $rule, $include ) if $include;
-    };				# End subroutine called on every file that
+    } unquote_split_on_whitespace expand_text $self, $foreach, $makefile_line; # End block called on every file that
 				# matches the wildcard.
   } elsif(!defined $foreach) {	# it's not a foreach rule
 #
@@ -1675,19 +1654,12 @@ sub grok_rule {
 
       my $generate_rule = sub {
 	my ($tstring) = @_;
-	my $rule = new Mpp::Rule($tstring, $after_colon[0], $action, $self, $makefile_line_dir);
+	my $rule = new Mpp::Rule( $tstring, $after_colon[0], $action, $self, $makefile_line_dir );
         $rule->{MULTIPLE_RULES_OK} = 1 if $multiple_rules_ok;
         $rule->{DISPATCH} = $dispatch if $dispatch;
         $rule->{ENV_DEPENDENCY_STRING} = $env_dep_str if $env_dep_str;
-
-	$self->{DEFAULT_SIGNATURE_METHOD} and
-	  $rule->set_signature_method_default($self->{DEFAULT_SIGNATURE_METHOD});
-				# Get the signature method from the signature
-				# statement.
-        $self->{DEFAULT_BUILD_CHECK_METHOD} and
-          $rule->set_build_check_method_default($self->{DEFAULT_BUILD_CHECK_METHOD});
+	$build_check and $rule->set_build_check_method($build_check);
 	$signature and $rule->set_signature_method($signature);
-        $build_check and $rule->set_build_check_method($build_check);
         $have_build_cache and $rule->set_build_cache($build_cache);
 	$lexer and $rule->{LEXER} = $lexer;
 	$parser and $rule->{PARSER} = $parser;
@@ -1719,50 +1691,46 @@ sub grok_rule {
 	# just a single rule that we can generate now.
       	if(index_ignoring_quotes($tstring, '%') >= 0) {
 	  die "Can't use :last_chance and :include together\n" if $include; # TODO: figure out how to handle %.d
-	  my ($pct_re, $pct_glob) = expand_variable( $self, 'makepp_percent_subdirs', $makefile_line ) ?
-	    ('.*', '**/*') :
-	    ('[^/]*', '*');
-	  my @wild_targets;
+	  my $subdirs = expand_variable $self, 'makepp_percent_subdirs', $makefile_line;
+	  my $pct_re = $subdirs ? '.*' : '[^/]*';
+	  my( @wild_targets, @pattern_re );
 	  foreach (split_on_whitespace($tstring)) {
 	    if( index_ignoring_quotes($_, '%') >= 0 ) {
-	      push @wild_targets, unquote;
+	      my $wild_target = unquote;
+	      my $re = quotemeta $wild_target;
+	      if( $subdirs ) { $wild_target =~ s!%!**/*!g } else { $wild_target =~ tr!%!*! }
+	      push @wild_targets, $wild_target;
+	      $re =~ s|\\%|($pct_re)|;
+	      push @pattern_re, qr/^$re$/;
 	    } else {
 	      warn "$makefile_line: Because this is a :last_chance rule, it might not get found for non-pattern targets (e.g. \"$_\")." unless exists file_info($_, $self->{CWD})->{IS_TEMP} || $warned_non_wild++;
 	    }
 	  }
 	  ++$Mpp::File::n_last_chance_rules; # Turn off an optimization
 	  # Register the globs for making rules on demand.
-	  needed_wildcard_action map {
-	    my $x = $_; $x =~ s/%/$pct_glob/g; $x
-	  } @wild_targets,
-	  sub {
-	    my ($finfo) = @_;
-	    my $rel_fname = $finfo->relative_filename($self->{CWD});
+	  wildcard_do {
+	    my( $finfo ) = @_;
+	    my $rel_fname = relative_filename $finfo, $self->{CWD};
 	    # Look for the first target pattern that matches.
-	    my $found;
-	    TARGET: for my $pattern (@wild_targets) {
-	      my $re = quotemeta($pattern);
-	      $re =~ s|\\%|($pct_re)| or die "makepp internal error: Where did the percent go?";
-	      if(my @matches = ($rel_fname =~ /^$re$/)) {
-	      	# Use the matched subexpressions from the matching target
+	    for my $re (@pattern_re) {
+	      my @matches;
+	      if( @matches = $rel_fname =~ $re or Mpp::File::is_or_will_be_dir $finfo and @matches = "$rel_fname/" =~ $re ) {
+		# Use the matched subexpressions from the matching target
 		# pattern to determine the actual target list for this instance
 		# of the rule, and generate it.
-		&$generate_rule(
-		  Mpp::Text::join_with_protection(
-		    map {
-		      my @m = @matches;
-		      $_ = unquote;
-		      s/\%/@m ? shift(@m) : die "$makefile_line: Not enough wildcards in target `$pattern' (matching filename `$rel_fname') to resolve other target `$_'.\n"/eg;
-		      $_
-		    } split_on_whitespace($tstring)
-		  )
-		);
-		++$found;
-		last TARGET;
+		&$generate_rule( Mpp::Text::join_with_protection
+				 map {
+				   my $i = -1;
+				   $_ = unquote;
+				   s/\%/exists $matches[++$i] ? $matches[$i] : die "$makefile_line: Not enough wildcards in target `$re' (matching filename `$rel_fname') to resolve other target `$_'.\n"/eg;
+				   $_;
+				 } split_on_whitespace $tstring
+				)->{PATTERN_STEM} = $matches[0];
+		return;
 	      }
 	    }
-	    $found or die "makepp internal error: no matching target patterns";
-	  };
+	    die "$makefile_line: $rel_fname makepp internal error: no matching target patterns\n";
+	  } \1, @wild_targets;
 	} elsif( $include ) {
 	  &$handle_include( &$generate_rule( $tstring ), $include );
 	} else {
@@ -1798,9 +1766,7 @@ sub grok_rule {
 	Mpp::File::set_additional_dependencies($tinfo, $after_colon[0], $self, $makefile_line);
 	$self->{FIRST_TARGET} ||= $tinfo;
 				# Remember what the first target is, in case
-				# no target was specified on the command
-				# line.
-
+				# no target was specified on the command line.
       }
     }
   }				# End if not a pattern rule.
@@ -1847,7 +1813,9 @@ sub read_makefile {
 				# which get put in sometimes on windows.
   }
 
-  unless( $c_preprocess ) {
+  if( $c_preprocess ) {
+    $makepp_simple_concatenation_seen ||= expand_variable $self, 'makepp_simple_concatenation', 'init';
+  } else {
     if( $makefile_contents =~ /\A# Makefile\.in generated by automake/ ) {
       require Mpp::Fixer::Automake; # Load the Automake fixing stuff.
       Mpp::Fixer::Automake::fix( $makefile_contents, $minfo );
@@ -2026,11 +1994,10 @@ sub read_makefile_line {
 }
 sub _read_makefile_line_1 {
   return shift @hold_lines
-    if @hold_lines;	# Was anything unread?
+    if @hold_lines;		# Was anything unread?
 
-  ++$makefile_lineno;	# Keep the line counter accurate.
-  length($makefile_contents) == 0 and return undef;
-				# End of file.
+  length $makefile_contents or return undef; # End of file.
+  ++$makefile_lineno;		# Keep the line counter accurate.
   $makefile_contents =~ s/^(.*\n?)//;
 				# Strip off the next line.  (Using pos() and
 				# /\G/gc doesn't work, apparently because the
@@ -2044,20 +2011,14 @@ sub _read_makefile_line_1 {
   sub dump_line {
     my $line = $_[0];
     my $fh = $makefile->{CWD}{DUMP_MAKEFILE};
-    if($fh && defined($line) &&
+    if($fh && defined $line && $line ne "\n" &&
       ($makefile_lineno != $last_lineno ||
        $makefile_name ne $last_name)
     ) {
-      if($makefile_lineno != $last_lineno+1) {
-        if( $makefile_lineno > $last_lineno && $makefile_name eq $last_name ) {
-	  for(1..($makefile_lineno - $last_lineno - 1)) {
-	    print $fh "\n";
-	  }
-        } else {
-	  print $fh "# $makefile_lineno " .
-	    "\"$makefile_name\"\n";
-	}
-      }
+      print $fh ($makefile_lineno > $last_lineno && $makefile_name eq $last_name) ?
+	"\n" x ($makefile_lineno - $last_lineno - 1) :
+	"# $makefile_lineno \"$makefile_name\"\n"
+	  if $makefile_lineno != $last_lineno+1;
       print $fh $line;
       $last_lineno = $makefile_lineno;
       $last_name = $makefile_name;

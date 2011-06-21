@@ -1,4 +1,4 @@
-# $Id: makepp_builtin_rules.mk,v 1.28 2011/01/16 17:09:07 pfeiffer Exp $
+# $Id: makepp_builtin_rules.mk,v 1.29 2011/05/07 11:12:33 pfeiffer Exp $
 # Please do NOT use this as an example of how to write a makefile.  This is
 # NOT A typical makefile.
 #
@@ -57,10 +57,10 @@ ifntrue $(makepp_no_builtin_linker)
   # and a "may have to type" list for others like "alias".
   #
   $(basename $(foreach))$(_EXE_SUFFIX): $(infer_objects $(foreach), *$(_OBJ_SUFFIX))
-	:foreach $(wildcard $( bg break case cd chdir continue do done echo elif else \
-		esac eval exec exit export fg fi for getopts hash if jobs kill login \
-		newgrp pwd read readonly return set shift stop suspend test then \
-		times trap type ulimit umask unset until wait while)$(_OBJ_SUFFIX))
+	:foreach $(wildcard $(addsuffix $(_OBJ_SUFFIX),bg break case cd chdir continue \
+		do done echo elif else esac eval exec exit export fg fi for getopts hash \
+		if jobs kill login newgrp pwd read readonly return set shift stop suspend \
+		test then times trap type ulimit umask unset until wait while))
 	$(infer_linker $(inputs)) $(inputs) $(LDLIBS) $(LDFLAGS) $(LIBS) $(_OUTPUT)
 	noecho makeperl {{
 	  warn "On Unix, to run a program called `$(basename $(foreach))', you usually must type\n" .
@@ -77,10 +77,10 @@ endif
 # C++ compilation:
 #
 iftrue $(makepp_percent_subdirs)
-$(basename $(foreach))$(_OBJ_SUFFIX) : $(foreach) : foreach **/*.$(_CPP_SUFFIXES)
+$(basename $(foreach))$(_OBJ_SUFFIX) : $(foreach) : foreach $(addprefix **/*.,$(_CPP_SUFFIXES))
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) $(_OUTPUT)
 else
-$(basename $(foreach))$(_OBJ_SUFFIX) : $(foreach) : foreach *.$(_CPP_SUFFIXES)
+$(basename $(foreach))$(_OBJ_SUFFIX) : $(foreach) : foreach $(addprefix *.,$(_CPP_SUFFIXES))
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) $(_OUTPUT)
 endif
 

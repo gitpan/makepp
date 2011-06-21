@@ -1,8 +1,73 @@
-2011-04-11  Daniel Pfeiffer  <occitan@esperanto.org>
+2011-06-21  pfeiffer  <occitan@esperanto.org>
 
-	* Mpp/Makefile.pm (setup_environment): Since exporting MAKEFLAGS, we are sure to have EXPORTS.
+Snapshot makepp-1.50.110621.tgz, version 1.50-110621:8-0605:1-0507:2 on sourceforge & CPAN.
 
-	* Mpp/Subs.pm (f_call): Correctly handle $0, $1, ... as normal variables.  $(macro arg1,arg2) is now equivalent to $(call macro,arg1,arg2) if $(macro) is defined.  Thanks to Clemens Hintze for these ideas.
+	* Mpp/Makefile.pm (expand_text): Also handle new args separator in
+	opposite case (thanks to T. Helms).
+
+	* Mpp/Glob.pm (wildcard_do): Replaces wildcard_action and
+	needed_wildcard_action.  If wildcard ends with slash, apply only
+	to dirs (needed by Linux kernel).  Extra arg to block only if not
+	a wildcard.
+
+	* Mpp/File.pm (path_file_info): Mark names with trailing slash as dir.
+
+	* Mpp/Rule.pm (set_{build_check,signature}_method_default):
+	Eliminate almost useless functions.
+
+	* Mpp/Recursive.pm
+	* recursive_makepp: Move MAKEPP_IGNORE_OPTS to makepp, as it
+	caused loading this before $depth initialized.  Fix $depth for
+	--hybrid.
+
+2011-06-05  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/File.pm (read_directory): Use the possibly newly created DIRCONTENTS, to not lose our changes.
+
+	* Mpp/Makefile.pm
+	* Mpp/Repository.pm
+	* Mpp/Subs.pm: Emulate VPATH and vpath
+
+2011-05-20  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Recursive.pm
+	* install.pl: Try to have $(MAKE) without space when installed.
+
+	* pod/makepp_compatibility.pod: Add 5.14.0.
+
+2011-05-07  Daniel Pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm (expand_variable): Pass lineno to $&, ...
+
+	* Mpp/Subs.pm ($&, ...): Warn with lineno.
+
+	* Mpp/Text.pm (format_exec_args): Pass comment sign to shell.
+
+	* makepp (build_target_done): Say when there is no rule, instead of complaining about phony.
+
+	* Mpp/Glob.pm (zglob_fileinfo): Commas are no longer evil.
+
+	* makepp_builtin_rules.mk: Don't use rc-substitution, which might be off.
+
+	* pod/makepp_compatibility.pod: Add V5.12.3
+
+2011-04-17  Daniel Pfeiffer  <occitan@esperanto.org>
+
+Snapshot makepp-1.50.110417.tgz, version 1.50-110417:8-0123:1-0116:8 on sourceforge & CPAN.
+
+	* Mpp/Makefile.pm: More efficient check for makepp_simple_concatenation.
+	(setup_environment): Since exporting MAKEFLAGS, we are sure to have EXPORTS.
+	(expand_expression): Pass f_ arg as string or ref.
+
+	* Mpp/Subs.pm (arg, args): New functions.
+	(f_*): Take a reference to expand allowing correct comma-splitting.
+	(f_call): Correctly handle $0, $1, ... as normal variables.
+	$(macro arg1,arg2) is now equivalent to $(call macro,arg1,arg2) if
+	$(macro) is defined.  Thanks to Clemens Hintze for these ideas.
+
+	* makeppinfo,
+	* makeppreplay,
+	* Mpp.pm: Move common use statement to Mpp.
 
 2011-01-23  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -12,7 +77,7 @@
 
 	* pod/makepp_build_check.pod:
 	* makeppinfo: Improve makeppinfo and its doc, expecially for
-	understanding build check methods.
+	understanding build check methods.  Also pair up ENV_DEPS & ENV_VALS.
 
 2011-01-16  Daniel Pfeiffer  <occitan@esperanto.org>
 

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.194 2011/01/16 16:59:29 pfeiffer Exp $
+# $Id: makepp,v 1.197 2011/06/21 20:20:36 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -875,6 +875,8 @@ sub build_target_done {
 	  my $mfile = $rule->{MAKEFILE} || $tinfo->{'..'}{MAKEINFO};
 	  if( $mfile && $mfile->expand_variable( 'makepp_require_phony', $rule->source )) {
 	    $implicit_phony++;	# DefaultRule has no MAKEFILE.
+	  } elsif( UNIVERSAL::isa $rule, 'Mpp::DefaultRule' ) {
+	    warn 'There is no rule to build inexistant ' . absolute_filename( $tinfo ) . "\n";
 	  } elsif( $n_phony_messages++ ) { # Give a shorter message on other instances.
 	    warn 'Target ' . absolute_filename( $tinfo ) . " is probably also phony.\n";
 	  } else {
@@ -993,9 +995,37 @@ for executing the command.
 =cut
 
 my @do_build;
-
 our @ignore_opts;
-require Mpp::Recursive if $ENV{MAKEPP_IGNORE_OPTS};
+if( $ENV{MAKEPP_IGNORE_OPTS} ) {
+  my( @lx, @l, @sx, @s );
+  for my $opt( split ' ', $ENV{MAKEPP_IGNORE_OPTS} ) {
+    if( $opt =~ /^--(.+)=/ ) {
+      push @lx, $1;
+    } elsif( $opt =~ /^--(.+)/ ) {
+      push @l, $1;
+    } elsif( $opt =~ /^-(.)./ ) {
+      push @sx, $1;
+    } elsif( $opt =~ /^-(.)/ ) {
+      push @s, $1;
+    } else {
+      die "\$MAKEPP_IGNORE_OPTS: '$opt' not understood\n";
+    }
+  }
+  my $nop;
+  local $" = '';
+  if( @lx || @sx ) {
+    my $lx = @lx ? join '|', @lx : 'DUMMY';
+    $lx = qr/$lx/;
+    my $sx = @sx > 1 ? qr/[@sx]/ : $sx[0];
+    push @ignore_opts, [$sx, $lx, \$nop, 1];
+  }
+  if( @l || @s ) {
+    my $l = @l ? join '|', @l : 'DUMMY';
+    $l = qr/$l/;
+    my $s = @s > 1 ? qr/[@s]/ : $s[0];
+    push @ignore_opts, [$s, $l, \$nop];
+  }
+}
 
 sub parse_command_line(\%@) {
   local $_;			# Don't mess up caller's $_.
@@ -1309,7 +1339,7 @@ perform eval {
     [undef, qr/build[-_]?check(?:[-_]?method)?/, \$build_check_method_name, 1, sub {
        $default_build_check_method =
 	 eval "use Mpp::BuildCheck::$build_check_method_name; \$Mpp::BuildCheck::$build_check_method_name\::$build_check_method_name" ||
-	   eval "use BuildCheck::$build_check_method_name; \$BuildCheck::${build_check_method_name}::$build_check_method_name" or
+	   eval "use BuildCheck::$build_check_method_name; warn qq!--build-check-method: name BuildCheck::$build_check_method_name is deprecated, rename to Mpp::BuildCheck::$build_check_method_name\n!; \$BuildCheck::${build_check_method_name}::$build_check_method_name" or
 				# Load the method.
 	 die "$progname: invalid build check method $build_check_method_name\n";
      }],
@@ -1376,7 +1406,7 @@ perform eval {
 
     ['m', qr/signature(?:[-_]?method)?/, \$tmp, 1, sub {
        my $signature = eval "use Mpp::Signature::$tmp; \$Mpp::Signature::${tmp}::$tmp" ||
-	 eval "use Signature::$tmp; \$Signature::${tmp}::$tmp"; # TODO: provisional
+	 eval "use Signature::$tmp; warn qq!--signature-method: name Signature::$tmp is deprecated, rename to Mpp::Signature::$tmp\n!; \$Signature::${tmp}::$tmp";
        if( defined $signature ) {
 	 $sigmethod_name = $tmp;
 	 $default_signature = $signature;
@@ -1384,7 +1414,7 @@ perform eval {
 	 # Build check methods and signature methods used to be the same thing,
 	 # so to avoid breaking things, accept build check methods here too.
 	 $default_build_check_method = eval "use Mpp::BuildCheck::$tmp; \$Mpp::BuildCheck::${tmp}::$tmp" ||
-	   eval "use BuildCheck::$tmp; \$BuildCheck::${tmp}::$tmp"; # TODO: provisional
+	   eval "use BuildCheck::$tmp; warn qq!--signature-method: name BuildCheck::$tmp is deprecated, rename to Mpp::BuildCheck::$tmp\n!; \$BuildCheck::${tmp}::$tmp";
 	 if( defined $default_build_check_method ) {
 	   $build_check_method_name = $tmp;
 	   warn "requesting build check method $tmp via --signature-method is deprecated.\n";
