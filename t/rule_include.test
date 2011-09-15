@@ -17,7 +17,7 @@ makepp;
 ###	49	644	1265379162	1304620873	RootMakeppfile
 ifdef CHECK_COMPILER
   makeperl {{
-    POSIX::_exit '$(notdir $(CC))' !~ /\b(?:g|icc|xlc|cl)/;
+    POSIX::_exit '$(notdir $(CC))' !~ /\b(?:g|icc|xlc|cl(?!ang))/;
   }}
 endif
 

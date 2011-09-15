@@ -189,8 +189,8 @@ uc.out: uniq.in
 	&uc -v $(input) -o $(output)
 
 preprocess.out: preprocess.test
-	&preprocess -v v4=foobar -h\\%hash preprocess.test -o preprocess.out
-	&preprocess -va v2=xyz preprocess.test -o >>preprocess.out
+	&preprocess -v v4=foobar e== -h\\%hash preprocess.test -o preprocess.out
+	&preprocess -va v2=xyz e== preprocess.test -o >>preprocess.out
 ###	13	644	1141068683	1140901286	mymodule.pm
 package mymodule;
 require Exporter;
@@ -226,7 +226,7 @@ This tests links and symbolic links, among other things.  If your file system
 doesn't support either of these, you can try running this test with a
 workaround that consists in setting the environment variable MAKEPP_LN_CP to
 1, 2 or 3.  If you want to use the &ln builtin later on, always set it.
-###	22	644	1153676973	1181388272	preprocess.test
+###	22	644	1153676973	1313824017	preprocess.test
 
 # empty & comment
 $()
@@ -243,7 +243,7 @@ define v3
 long var
 enddef
 $()v4 = 1
-show aa = $(aa); v1 = $(v1); v2 = $(v2); v3 = $(v3); v4 = $(v4)
+show aa $e $(aa); v1 $e $(v1); v2 $e $(v2); v3 $e $(v3); v4 $e $(v4)
 
 $()include plain text
 ifeq $(v1),5

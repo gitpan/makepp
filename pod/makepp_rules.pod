@@ -2,13 +2,13 @@
 
 makepp_rules -- How to tell makepp to build something
 
-=for vc $Id: makepp_rules.pod,v 1.32 2010/11/17 21:35:52 pfeiffer Exp $
+=for vc $Id: makepp_rules.pod,v 1.33 2011/06/23 15:39:49 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
-=for genindex '$str =~ s/^://; $str =~ s/^(?!\w)/&/' '(?:[-@&]|:?\w+)' makepp_rules.pod
+=for genindex '(?:[-@&]|:?\w+)' makepp_rules.pod
 
-B<&:>E<nbsp>L<&|/_>,
+B<?:>E<nbsp>L<&|/_>,
   L<-|/ignore_error>,
   L<@|/noecho>,E<nbsp>
 B<B:>E<nbsp>L<:build_cache|/build_cache_path_to_build_cache>,

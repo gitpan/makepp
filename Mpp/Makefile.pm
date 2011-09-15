@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.149 2011/06/21 20:21:18 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.153 2011/09/15 21:08:07 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_do);
@@ -230,6 +230,7 @@ sub expand_text {
 #    will see is 'patsubst %.o, %.c, stuff'.
 # c) The makefile line number (for error messages only).
 #
+our $s_define;
 sub expand_expression {
   my( $self, $expr, $makefile_line ) = @_; # Name the arguments.
   return expand_text $self, substr( $expr, length $1 ), $makefile_line
@@ -240,9 +241,10 @@ sub expand_expression {
   my $expanded = $expr =~ /^&?[-.\w]*\$/ # Need to expand to see what it is.
     and $expr = expand_text $self, $expr, $makefile_line;
   my $result;
+
   if( $expr =~ /^([-.\w]+)\s+(.*)/s ) {
-				# Does it begin with a leading word,
-				# so it must be a function?
+				# Does it begin with a leading word?  So it should be a function.
+				# But might be a perverse gmake var with spaces.
     my( $rtn, $rest_of_line ) = ($1, $2);
     my $orig = $rtn;
     my $code = $rtn =~ tr/-/_/ && *{"$self->{PACKAGE}::f_$rtn"}{CODE} ||
@@ -262,53 +264,54 @@ sub expand_expression {
 				# Call the function.
       };
       die $@ if $@;
+      goto done;
     } elsif( expand_variable( $self, $orig, $makefile_line, 2 )) {
       $result = Mpp::Subs::f_call $expanded ? "$orig,$rest_of_line" : \"$rtn,$rest_of_line",
 	$self, $makefile_line;
-    } else {
-      die "$makefile_line: unknown function $orig\n";
-    }
-  } else {
-    $expr = expand_text $self, $expr, $makefile_line unless $expanded;
-    if( $expr =~ s/^&(?=.)// ) { # & alone is a silly variable
-      my( $cmd, @args ) = unquote_split_on_whitespace $expr;
-      local $Mpp::Subs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
-      local *OSTDOUT;		# TODO: convert to my $fh, when discontinuing 5.6.
-      open OSTDOUT, ">&STDOUT" or die;
-      my $temp = f_mktemp '', $self;
-      open STDOUT, '>', $temp or die; # open '+>' screws up from 5.8.0 to 5.8.7 on some OS
-      eval {
-	local $_;
-	if( defined &{$self->{PACKAGE} . "::c_$cmd"} ) { # Function from makefile?
-	  local $0 = $cmd;
-	  &{$self->{PACKAGE} . "::c_$0"}( @args );
-	} elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
-	  local $0 = $cmd;
-	  &{"Mpp::Cmds::c_$0"}( @args );
-	} else {
-	  run $cmd, @args;
-	}
-      };
-      open STDOUT, ">&OSTDOUT";
-      die $@ if $@;
-      open my $fh, '<', $temp or die;
-      local $/;
-      $result = <$fh>;
-      $result =~ s/\r?\n/ /g # Get rid of newlines.
-	unless $Mpp::Subs::s_define;
-      $result =~ s/\s+$//;	# Strip out trailing whitespace.
-    } elsif( $expr =~ /^([^\s:#=]+):([^=]+)=([^=]+)$/ ) {
-				# Substitution reference (e.g., 'x:%.o=%.c')?
-      my $from = (0 <= index $2, '%') ? $2 : "%$2"; # Use the full GNU make style
-      my $to = (0 <= index $3, '%') ? $3 : "%$3";
-      $result = join ' ',
-	Mpp::Text::pattern_substitution $from, $to,
-	    split_on_whitespace expand_variable( $self, $1, $makefile_line );
-    } else {			# Must be a vanilla variable to expand.
-      $result = expand_variable( $self, $expr, $makefile_line );
+      goto done;
     }
   }
 
+  $expr = expand_text $self, $expr, $makefile_line unless $expanded;
+  if( $expr =~ s/^&(?=.)// ) { # & alone is a silly variable
+    my( $cmd, @args ) = unquote_split_on_whitespace $expr;
+    local $Mpp::Subs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
+    local *OSTDOUT;		# TODO: convert to my $fh, when discontinuing 5.6.
+    open OSTDOUT, ">&STDOUT" or die;
+    my $temp = f_mktemp '', $self;
+    open STDOUT, '>', $temp or die; # open '+>' screws up from 5.8.0 to 5.8.7 on some OS
+    eval {
+      local $_;
+      if( defined &{$self->{PACKAGE} . "::c_$cmd"} ) { # Function from makefile?
+	local $0 = $cmd;
+	&{$self->{PACKAGE} . "::c_$0"}( @args );
+      } elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
+	local $0 = $cmd;
+	&{"Mpp::Cmds::c_$0"}( @args );
+      } else {
+	run $cmd, @args;
+      }
+    };
+    open STDOUT, ">&OSTDOUT";
+    die $@ if $@;
+    open my $fh, '<', $temp or die;
+    local $/;
+    $result = <$fh>;
+    $result =~ s/\r?\n/ /g # Get rid of newlines.
+      unless $s_define;
+    $result =~ s/\s+$//;	# Strip out trailing whitespace.
+  } elsif( $expr =~ /^([^:#=]+):([^=]+)=([^=]+)$/ ) {
+				# Substitution reference (e.g., 'x:%.o=%.c')?
+    my $from = (0 <= index $2, '%') ? $2 : "%$2"; # Use the full GNU make style
+    my $to = (0 <= index $3, '%') ? $3 : "%$3";
+    $result = join ' ',
+      Mpp::Text::pattern_substitution $from, $to,
+	  split_on_whitespace expand_variable( $self, $1, $makefile_line );
+  } else {			# Must be a vanilla variable to expand.
+    $result = expand_variable( $self, $expr, $makefile_line );
+  }
+
+ done:
   if( !defined $result ) {
     warn "expression `$expr' expanded to an undefined value at `$makefile_line'.\n";
     '';
@@ -475,8 +478,7 @@ sub find_makefile_in {
 				# This can be important if this is the first time
 				# we've seen this directory.
 
-  local $Mpp::implicitly_load_makefiles = 0;
-				# Don't let this trigger a makefile load.
+  local $Mpp::implicitly_load_makefiles; # Don't let this trigger a makefile load.
 
   for( @root_makefiles, qw(Makeppfile Makeppfile.mk), $_[1] ? () : qw(makefile Makefile) ) {
     my $trial_makefileinfo = file_info $_, $dir;
@@ -501,7 +503,7 @@ sub implicitly_load {
   exists $dirinfo->{MAKEINFO} and return;
 				# Already tried to load something.
   Mpp::File::is_writable( $dirinfo ) ||	# Directory already exists?
-    !exists $dirinfo->{EXISTS} && is_or_will_be_dir( $dirinfo ) &&
+    !exists $dirinfo->{xEXISTS} && is_or_will_be_dir( $dirinfo ) &&
     exists $dirinfo->{ALTERNATE_VERSIONS}
     or return;			# If the directory isn't writable, don't
 				# try to load from it.	(Directories from
@@ -513,7 +515,7 @@ sub implicitly_load {
 # loading.
 #
   for (my $pdirinfo = $dirinfo; $pdirinfo; $pdirinfo = $pdirinfo->{'..'} || '') {
-    $pdirinfo->{NO_IMPLICIT_LOAD} and return;
+    exists $pdirinfo->{xNO_IMPLICIT_LOAD} and return;
   }
 
   eval { load($dirinfo, $dirinfo,
@@ -713,6 +715,7 @@ sub load {
   if( grep { $_ eq $minfo->{NAME} } @root_makefiles ) {
     find_root_makefile_upwards $mdinfo->{'..'};
     die "makepp: Must not have nested directories with a RootMakeppfile\n" if $mdinfo->{'..'}{ROOT};
+    undef $mdinfo->{'..'}{xABSOLUTE}; # Don't use relative pathes when going higher.
     $mdinfo->{ROOT} = $mdinfo;	# Nothing else to do as we're just loading it.
   } elsif( exists $mdinfo->{ROOT} ) { # Already checked for root makefile.  Else we
 				# must be in a different tree, where we also
@@ -954,7 +957,7 @@ sub load {
 #
 sub initialize {
   my $self = $_[0];
-  unless($self->{INITIALIZED}) {
+  unless($self->{INITIALIZED}) { # after 5.6: exists $rule->{xINITIALIZED}
   #
   # Fetch the values of exported variables so we can quickly change the
   # environment when we have to execute a rule.  When the export statement was
@@ -1042,7 +1045,7 @@ sub assign {
 
   } elsif( $type == ord ':' ) { # Immediate evaluation?
 
-    $$varref = expand_text( $self, $value, $makefile_line );
+    $$varref = expand_text $self, $value, $makefile_line;
 
   } elsif( $type == ord '+' ) { # Append?
 
@@ -1072,7 +1075,7 @@ sub assign {
       $$varref = '';
       $reexpand = 1;
     } elsif( length $$varref ) {
-      $$varref = (defined $sep ? $sep : ' ') . $$varref;
+      substr $$varref, 0, 0, defined $sep ? $sep : ' ';
     }
     $$varref = ($reexpand ?
       $value : # Was it a regular =?
@@ -1116,20 +1119,42 @@ sub assign {
 # Returns true if this is actually an assignment, false otherwise.
 #
 sub grok_assignment {
-  my( $self, $makefile_line ) = @_; # Name the arguments.
-  my $var_name = substr $_, 0, $_[2];
-  my $var_value = substr $_, $_[2] + 1;
+  my( $self, $makefile_line, undef, $keyword ) = @_; # Name the arguments.
+  my $var_name = $_[2] ? substr $_, 0, $_[2] : $_;
 
-  $var_name =~ s/([+&;:?!])$//;
-  my $type = !$1 ? 0 : ord $1;
+  my $type = $var_name =~ s/([+&;:?!])$// ? ord $1 : 0;
 				# Pull off the character before the equals
 				# sign if it's part of the assignment token.
 
-  $var_name = expand_text($self, $var_name, $makefile_line);
+
+  $var_name = expand_text $self, $var_name, $makefile_line;
 				# Make sure we can handle indirect assignments
 				# like x$(var:y=z) = value.
   $var_name =~ s/^\s+//;	# Strip leading/trailing whitespace.
   $var_name =~ s/\s+$//;
+
+  if( $keyword->{export} || $keyword->{global} ) {
+    for my $var_name ( $_[2] ? $var_name : split /\s+/, $var_name ) {
+      if( $keyword->{export} ) {
+	undef $self->{EXPORTS}{$var_name};
+      } else {
+	$Mpp::Makefile::global ||= {};
+	my $reexpandref = $self->{VAR_REEXPAND};
+	(my $reexpand, ${"Mpp::global::$var_name"} ) = expand_variable $self, $var_name, $makefile_line, 1;
+	if( defined ${"Mpp::global::$var_name"} ) { # Maybe turning a local to global.
+	  undef ${"$self->{PACKAGE}::$var_name"};
+	  delete $reexpandref->{$var_name} if $reexpandref;
+	} else {
+	  ${"Mpp::global::$var_name"} = '';	# Make it at least exist globally.
+	}
+	$Mpp::Makefile::global->{VAR_REEXPAND}{$var_name} = 1 if $reexpand;
+	delete $self->{VAR_REEXPAND} if $reexpandref && !%$reexpandref;
+      }
+    }
+    return unless defined $_[2];
+  }
+
+  my $var_value = substr $_, $_[2] + 1;
   $var_value =~ s/^\s+//;
   $var_value =~ s/\s+$//;
 
@@ -1148,13 +1173,12 @@ sub grok_assignment {
 #
     $var_name = $list[1];
     $var_name =~ s/^\s+//;	# Strip leading whitespace (again).
+    $keyword->{override} = 1 if $var_name =~ s/^override\s+//;
   }
-
-  my $override = $var_name =~ s/^override\s+//;
 
   if( @list ) {			# It's a target-specific assignment.
     my $targets = $list[0];	# Get the targets for which this variable
-				# applies.o
+				# applies.
     $targets =~ tr/%/*/;	# Convert % wildcard to normal filename wildcard.
     cd( $self );		# Make sure we're in the right directory
 				# to expand the wildcard.
@@ -1162,26 +1186,10 @@ sub grok_assignment {
 				# up to 5.6.2 has clobbered @_.
     wildcard_do {		# This block is called for every file that matches the wildcard.
       local $private = $_[0];	# Prior PRIVATE_VARS for +=, and for storing new value.
-      assign $self, $var_name, $type, $var_value, $override, $makefile_line, undef, $private;
+      assign $self, $var_name, $type, $var_value, $keyword->{override}, $makefile_line, undef, $private;
     } unquote_split_on_whitespace $targets;
-  } else {
-#
-# Not a target-specific assignment:
-#
-    if( $var_name =~ s/^export\s+// ) {
-      s_export $var_name, $self, $makefile_line;
-    } elsif( !$c_preprocess && $var_name =~ s/^global\s+// ) {
-      s_global $var_name, $self, $makefile_line;
-    } elsif( $var_name =~ s/^define\s+// ) {
-      die "Trailing cruft \"$var_value\" after define statement at `$makefile_line'\n" if length $var_value;
-      s_define $var_name, $self, $makefile_line, $type, $override;
-      return $self;
-    } elsif( $var_name =~ /[\s:#]/ ) { # More than one word on the LHS
-				# implies it's not an assignment.
-      return undef;
-    }
-
-    assign $self, $var_name, $type, $var_value, $override, $makefile_line;
+  } else {			# Not a target-specific assignment
+    assign $self, $var_name, $type, $var_value, $keyword->{override}, $makefile_line, $keyword->{define} && "\n";
   }
 
   $self;			# Return a true value.
@@ -1197,11 +1205,13 @@ sub grok_assignment {
 # f) Any other : modifiers that were present on the line after the
 #    dependency string.
 #
+our $skipping;
 sub grok_rule {
-  my ($self, $makefile_line, $makefile_line_dir, $is_double_colon, $target_string, @after_colon) = @_;
+  my ($self, $makefile_line, $is_double_colon, $target_string, @after_colon) = @_;
 				# Name the arguments.
+  my $makefile_line_dir = $makefile_line . $makefile_directory;
 
-  local $Mpp::implicitly_load_makefiles = 0 if $self->{RECURSIVE_MAKE};
+  local $Mpp::implicitly_load_makefiles if exists $self->{xRECURSIVE_MAKE};
 				# Turn off implicit makefile loading if there
 				# is an invocation of recursive make in this
 				# file.	 (This is not passed to the wildcard
@@ -1214,16 +1224,15 @@ sub grok_rule {
   my $last_line_was_blank;
   my $action = '';		# No actions seen yet.
 #
-# Unfortunately, due to some bozo design, the first line of a rule
-# may be on the same line as the dependencies if it is separated by
-# a semicolon, like this:
+# The first line of a rule may be on the same line as the dependencies if it
+# is separated by a semicolon, like this:
 #
 # x.o: x.c; @echo this is a stupid syntax
 #	$(CC) $< -o $@
 #
   my $idx = index_ignoring_quotes $after_colon[-1], ';';
-  if ($idx >= 0) {		# Do we have this abhorrent syntax?
-    $action = substr($after_colon[-1], $idx+1);
+  if ($idx >= 0) {
+    $action = substr $after_colon[-1], $idx+1;
     substr( $after_colon[-1], $idx ) = '';
     $action =~ s/^\s+//;	# Strip out any leading space.	If the action
   }				# is entirely blank (as happens in some
@@ -1317,6 +1326,7 @@ sub grok_rule {
   }
 
   unshift @hold_lines, $_ if $_; # We read too far, so put this line back.
+  return if $skipping;
 
 #
 # Pull off the : modifiers.
@@ -1479,7 +1489,7 @@ sub grok_rule {
 				# At this point, the only thing we haven't
 				# interpreted after the colon should be the
 				# dependency string.
-  my @deps = split_on_whitespace($after_colon[0]); # Separate the dependencies.
+  my @deps = split_on_whitespace $after_colon[0]; # Separate the dependencies.
 #
 # Handle GNU make's regular pattern rules.  We convert a rule like
 #   %.o: %.c
@@ -1568,14 +1578,14 @@ sub grok_rule {
       # WILDCARD_DO before looping over existing files.  That can't currently
       # be done because then we'd have the same rule twice, giving a warning.
 
-      local $Mpp::implicitly_load_makefiles = 0
-	if $Mpp::implicitly_load_makefiles && $self->{RECURSIVE_MAKE};
+      local $Mpp::implicitly_load_makefiles
+	if $Mpp::implicitly_load_makefiles && exists $self->{xRECURSIVE_MAKE};
 				# Turn off implicit makefile loading if there
 				# is an invocation of recursive make in this
 				# file.	 (This is not passed to the wildcard.)
 
       my $rule = new Mpp::Rule( $target_string, $after_colon[0], $action, $self, $makefile_line_dir );
-      $rule->{MULTIPLE_RULES_OK} = 1 if $multiple_rules_ok;
+      undef $rule->{xMULTIPLE_RULES_OK} if $multiple_rules_ok;
       $rule->{DISPATCH} = $dispatch if $dispatch;
       $rule->{ENV_DEPENDENCY_STRING} = $env_dep_str if $env_dep_str;
 				# Make the rule.
@@ -1598,8 +1608,7 @@ sub grok_rule {
       foreach (@targets) {
 	my $tinfo = file_info unquote(), $self->{CWD}; # Access the target object.
 	Mpp::File::set_rule $tinfo, $rule; # Update its rule.  This will be ignored if
-				# it is overriding something we shouldn't
-				# override.
+				# it is overriding something we shouldn't override.
 	$plain and		# If there was no wildcard involved, this is
 				# a candidate for the first target in the file.
 	  $self->{FIRST_TARGET} ||= $tinfo;
@@ -1655,7 +1664,7 @@ sub grok_rule {
       my $generate_rule = sub {
 	my ($tstring) = @_;
 	my $rule = new Mpp::Rule( $tstring, $after_colon[0], $action, $self, $makefile_line_dir );
-        $rule->{MULTIPLE_RULES_OK} = 1 if $multiple_rules_ok;
+        undef $rule->{xMULTIPLE_RULES_OK} if $multiple_rules_ok;
         $rule->{DISPATCH} = $dispatch if $dispatch;
         $rule->{ENV_DEPENDENCY_STRING} = $env_dep_str if $env_dep_str;
 	$build_check and $rule->set_build_check_method($build_check);
@@ -1703,7 +1712,7 @@ sub grok_rule {
 	      $re =~ s|\\%|($pct_re)|;
 	      push @pattern_re, qr/^$re$/;
 	    } else {
-	      warn "$makefile_line: Because this is a :last_chance rule, it might not get found for non-pattern targets (e.g. \"$_\")." unless exists file_info($_, $self->{CWD})->{IS_TEMP} || $warned_non_wild++;
+	      warn "$makefile_line: Because this is a :last_chance rule, it might not get found for non-pattern targets (e.g. \"$_\")." unless exists file_info($_, $self->{CWD})->{xTEMP} || $warned_non_wild++;
 	    }
 	  }
 	  ++$Mpp::File::n_last_chance_rules; # Turn off an optimization
@@ -1747,7 +1756,7 @@ sub grok_rule {
 	return if exists $ignored_targets{$targets[0]};
 	if( $targets[0] eq '.PHONY' ) {
 				# Mark other targets as phony?
-	  undef file_info( unquote(), $self->{CWD} )->{IS_PHONY} # Mark as phony.
+	  undef file_info( unquote(), $self->{CWD} )->{xPHONY} # Mark as phony.
 	    for split_on_whitespace expand_text $self, $after_colon[0], $makefile_line;
 	  return;
 	}
@@ -1770,6 +1779,38 @@ sub grok_rule {
       }
     }
   }				# End if not a pattern rule.
+}
+
+#
+# Read a block either optionally indented {{ to }} or single braced.
+# The latter must finish on the same line or at the very beginning of
+# a following line.  Or upto the regexp given as 2nd arg
+#
+sub read_block {
+  my( $name, $code, $re ) = @_;		# Name the arguments.
+  $re = $re ? qr/\s*$re\s*(?:)/ : ($code =~ /\{(\{?)/) && ($1 ? qr/\s*\}\}/ : qr/\}/);
+				# {{ is stronger than } at EOL
+  if( $_[2] or $re ? $code !~ /\}\s*$/ : 1 ) { # Code is not entirely inline?
+    $code .= "\n";		# Put the newline in that got removed.
+    my $line;
+    my $lineno = $makefile_lineno;
+    while (defined($line = defined wantarray ? &read_makefile_line : &_read_makefile_line_1 )) {
+				# Get the next line.
+      $re ||= ($line =~ /^\s*\{\{/s) ? qr/\s*\}\}/ : ($line =~ /^\{/s) ? qr/\}/ : undef;
+				# Give {{ a chance on 2nd line.
+      my $end = $_[2] ? $line =~ s/^$re\s*(.*)//s : $re ? $line =~ /^$re\s*(.*)/s : undef;
+      $code .= $line if defined wantarray;
+      if( $end ) {		# Stop at a brace at the left margin or re.
+	warn "trailing cruft `" . substr( $1, 0, -1 ) . "' at `$makefile_name:$makefile_lineno'\n"
+	  if $1 !~ /^$|^#/;
+	last;
+      }
+    }
+    unless( $re && defined $line ) {
+      die "$makefile_name:$lineno: " . ($re ? 'end' : 'beginning {') . " of `$name' statement not found\n"
+    }
+  }
+  $code;
 }
 
 #
@@ -1815,115 +1856,49 @@ sub read_makefile {
 
   if( $c_preprocess ) {
     $makepp_simple_concatenation_seen ||= expand_variable $self, 'makepp_simple_concatenation', 'init';
-  } else {
-    if( $makefile_contents =~ /\A# Makefile\.in generated by automake/ ) {
-      require Mpp::Fixer::Automake; # Load the Automake fixing stuff.
-      Mpp::Fixer::Automake::fix( $makefile_contents, $minfo );
+  } elsif( $makefile_contents =~ /\A# Makefile\.in generated by automake/ ) {
+    require Mpp::Fixer::Automake; # Load the Automake fixing stuff.
+    Mpp::Fixer::Automake::fix( $makefile_contents, $minfo );
                                 # Clean out the crap that Automake puts in for
                                 # dependency tracking and recursive make.
-    } elsif( $makefile_contents =~ /\A# CMAKE generated file: DO NOT EDIT!/ ) {
-      require Mpp::Fixer::CMake; # Load the CMake fixing stuff.
-      Mpp::Fixer::CMake::fix( $makefile_contents, $minfo );
+  } elsif( $makefile_contents =~ /\A# CMAKE generated file: DO NOT EDIT!/ ) {
+    require Mpp::Fixer::CMake;	# Load the CMake fixing stuff.
+    Mpp::Fixer::CMake::fix( $makefile_contents, $minfo );
                                 # Clean out the crap that CMake puts in for
                                 # dependency tracking and recursive make.
-    } elsif( $makefile_contents =~ /^[^#]+\$[({]MAKE[})]/m ) {
-      Mpp::log LOAD_REC => $minfo
-	if $Mpp::log_level;
-      $self->{RECURSIVE_MAKE} = 1;
+  } elsif( $makefile_contents =~ /^[^#]+\$[({]MAKE[})]/m ) {
+    Mpp::log LOAD_REC => $minfo
+      if $Mpp::log_level;
+    undef $self->{xRECURSIVE_MAKE};
 				# If there's a recursive invocation of make,
 				# remember this so we can turn off implicit
 				# makefile loading.  We have to know this
 				# before we process any rules or anything
 				# else from the makefile.
-    }
   }
 
   local $makefile_lineno = 0;	# We're on the first line.
 
   local @hold_lines;		# Nothing in the hold area yet.
 
-  local $last_conditional_start;
-				# Don't mess up error messages from parent
-				# makefile.
+  local $last_conditional_start; # Don't mess up error messages from parent makefile.
 
  makefile_line:
   while (defined($_ = read_makefile_line_stripped())) { # Read a line at a time.
     next if /^\s*$/;		# Skip blank lines.
 
-    my $makefile_line = $makefile_name . ":$makefile_lineno";
+    my $makefile_line = "$makefile_name:$makefile_lineno";
 				# The line name to use for error messages.
 
-    if( $c_preprocess < 2 ) {
-      my $equals = /=/ ? index_ignoring_quotes $_, '=' : 0;
-				# Search for the equals of an assignment.
-				# We use index_ignoring_quotes to skip over
-				# equals signs that happen to be in quotes or
-				# inside other make expressions.
-
-      next if
-	$equals > 0 &&		# If it's a real assignment, then we're done.
-	grok_assignment $self, $makefile_line, $equals;
-    }
-
-    if( $c_preprocess ) {
-#
-# Do the actual work of the &preprocess command.
-#
-      no strict 'refs';
-      my $count = grep { /::s_/ && *{$_}{CODE} } values %{"$self->{PACKAGE}::"};
-      if( $self->{RE_COUNT} != $count ) { # Statement count changed.
-	$self->{RE_COUNT} = $count;
-	$self->{RE} = join '|', grep {
-	  if( s/^s_// ) {
-	    s/_/[-_]/g;
-	    1;
-	  }
-	} keys %{"$self->{PACKAGE}::"};
-	$self->{RE} = qr/$self->{RE}/;
-      }
-      if( !/^\s*($self->{RE})\b\s*(.*)/ ) {
-	$_ = expand_text( $self, $_, $makefile_line );
-	local $ARGV = $makefile_name;
-	local $. = $makefile_lineno;
-	&Mpp::Cmds::print;
-	next;
-      } elsif( $1 eq 'include' or my $optional = ($1 eq '-include' || $1 eq '_include') ) {
-				# Do our own, since standard statement tries to build.
-	for( split_on_whitespace expand_text $self, $2, $makefile_line ) {
-	  my $finfo = file_info unquote(), $self->{CWD};
-	  next if $optional && !file_exists $finfo;
-	  read_makefile( $self, $finfo );
-	}
-	next;
-      }
-    } else {
-#
-# It's not an assignment. Check for a rule of some sort.  Basically, we just
-# look for a colon, but this is somewhat tricky because there may be extra
-# colons inside quotes or variable expansions.
-#
-      my @pieces = split_on_colon($_);
-      if( @pieces > 1 ) { # Was there a colon somewhere?
-	grok_rule( $self, $makefile_line, $makefile_line . $makefile_directory,
-		    substr($_, length($pieces[0]), 2) eq '::', # Double colon rule.
-		    @pieces );
-	next;
-      }
-    }
-
-#
-# It's not a rule, either.  Check for a command or a statement, like
-# 'include xyz.mk'.
-#
-    if( /^\s*(-?)\s*&(\w+)\s*(.*)/ ) { # Command at beginning of line?
+    if( /^\s*(-?)\s*&(\w+)\s*(.*)/ && !$c_preprocess ) { # &Command at beginning of line?
       my( $ignore_error, $cmd, @args ) = ($1, $2, $3);
       @args = unquote_split_on_whitespace expand_text( $self, $args[0], $makefile_line ) if @args;
       local $Mpp::Subs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
       eval {
-	if( defined &{$self->{PACKAGE} . "::c_$cmd"} ) { # Function from makefile?
+	if( defined &{$self->{PACKAGE} . "::c_$cmd"} ) { # Command from makefile?
 	  local $0 = $cmd;
 	  &{$self->{PACKAGE} . "::c_$0"}( @args );
-	} elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin Function?
+	} elsif( defined &{"Mpp::Cmds::c_$cmd"} ) { # Builtin command?
 	  local $0 = $cmd;
 	  &{"Mpp::Cmds::c_$0"}( @args );
 	} else {
@@ -1944,23 +1919,76 @@ sub read_makefile {
       next;
     }
 
-    if( /^\s*([-\w]+)(.*)/ ) {	# Statement at beginning of line?
+    my( $equal, $keyword ) = -1;
+    if( $c_preprocess < 2 ) {	# special assignment statement or modifier?
+      $keyword->{$1} = 1 while
+	$c_preprocess ? s/^\s*(define|export|override)\s+// : s/^\s*(define|export|global|override)\s+//;
+
+      die "$makefile_line: export and global can not currently be combined\n"
+	if $keyword->{export} && $keyword->{global};
+
+      $equal = /=/ ? index_ignoring_quotes $_, '=' : -1;
+      if( $keyword->{define} ) {
+	chomp;
+	if( $equal > 0 ) {
+	  die "$makefile_line: Trailing cruft after define statement\n" if $equal + 1 < length;
+	} else {
+	  $equal = length;
+	  $_ .= '=';
+	}
+	$_ = read_block( define => $_, qr/endd?ef/ );
+	s/[ \t]*\\\n[ \t]*/ /g;
+	local $s_define = 1;
+	grok_assignment $self, $makefile_line, $equal, $keyword;
+	next;
+      }
+    }
+
+    if( /^\s*([-\w]+)\s+(.*)/ ) { # Statement at beginning of line?
       my ($rtn, $rest_of_line) = ($1, $2);
       $rtn =~ tr/-/_/;		# Make routine names more perl friendly.
       substr $rtn, 0, 0, "$self->{PACKAGE}::s_";
-      if( defined &{$rtn} ) { # Function from makefile?
-	eval { &$rtn( $rest_of_line, $self, $makefile_line ) };
+      if( defined &$rtn ) {	# Function from makefile?
+	die "$makefile_line: export or override can not be combined with $rtn statement\n"
+	  if $keyword->{export} or $keyword->{override};
+	eval { &$rtn( $rest_of_line, $self, $makefile_line, $keyword ) };
 				# Try to call it as a subroutine.
-	$@ and die "$makefile_line: error handling $rtn statement\n$@\n";
-      }	else {
-	die "$makefile_line: unknown statement $rtn\n";
+	die "$makefile_line: error handling $rtn statement\n$@\n" if $@;
+	die "$makefile_line: $rtn statement doesn't handle ", join( ', ', keys %$keyword ), "\n"
+	  if keys %$keyword;
+	next;
       }
+    }
+
+    if( $equal >= 0 ) {
+      die "$makefile_line: no variable name in assignment\n" unless $equal;
+      grok_assignment $self, $makefile_line, $equal, $keyword;
+      next;
+    }
+    if( $keyword->{export} || $keyword->{global} ) {
+      grok_assignment $self, $makefile_line, undef, $keyword;
       next;
     }
 
-    if( /\$/ ) {
-	$_ = expand_text $self, $_, $makefile_line;
-	redo;
+    if( $c_preprocess ) {	# Do the actual work of the &preprocess command.
+      $_ = expand_text( $self, $_, $makefile_line );
+      local $ARGV = $makefile_name;
+      local $. = $makefile_lineno;
+      &Mpp::Cmds::print;
+      next;
+    }
+
+    my @pieces = split_on_colon $_;
+    if( @pieces > 1 ) {		# Was there a colon somewhere?
+      grok_rule $self, $makefile_line,
+	ord( ':' ) == ord( substr $_, length($pieces[0])+1 ), # Double colon rule.
+	@pieces;
+      next;
+    }
+
+    if( /\$/ ) {		# Not recognized, try again expanded
+      $_ = expand_text $self, $_, $makefile_line;
+      redo;
     }
 
     chomp;
@@ -1980,30 +2008,6 @@ sub register_parser {
   ${"$_[0]{PACKAGE}::parsers"}{$_[1]} = $_[2];
 }
 
-#
-# This subroutine reads a single line from the makefile fetched by
-# read_makefile.  It works along with @hold_lines so you can temporarily put
-# back lines if you've read too far.
-#
-sub read_makefile_line {
-  if( exists $makefile->{CWD}{DUMP_MAKEFILE} ) {
-    dump_line( &_read_makefile_line_1 );
-  } else {
-    goto &_read_makefile_line_1;
-  }
-}
-sub _read_makefile_line_1 {
-  return shift @hold_lines
-    if @hold_lines;		# Was anything unread?
-
-  length $makefile_contents or return undef; # End of file.
-  ++$makefile_lineno;		# Keep the line counter accurate.
-  $makefile_contents =~ s/^(.*\n?)//;
-				# Strip off the next line.  (Using pos() and
-				# /\G/gc doesn't work, apparently because the
-				# position gets lost when local() is executed.)
-  $1;				# Return the next line.
-}
 
 {
   my $last_lineno=0;
@@ -2026,6 +2030,31 @@ sub _read_makefile_line_1 {
     return $line;
   }
 }
+
+#
+# This subroutine reads a single line from the makefile fetched by
+# read_makefile.  It works along with @hold_lines so you can temporarily put
+# back lines if you've read too far.
+#
+sub read_makefile_line {
+  if( exists $makefile->{CWD}{DUMP_MAKEFILE} && !$skipping ) {
+    dump_line &_read_makefile_line_1;
+  } else {
+    goto &_read_makefile_line_1;
+  }
+}
+sub _read_makefile_line_1 {
+  return shift @hold_lines
+    if @hold_lines;		# Was anything unread?
+
+  length $makefile_contents or return undef; # End of file.
+  ++$makefile_lineno;		# Keep the line counter accurate.
+  $makefile_contents =~ s/^(.*\n?)//;
+				# Strip off the next line.  (Using pos() and
+				# /\G/gc doesn't work, apparently because the
+				# position gets lost when local() is executed.)
+  $1;				# Return the next line.
+}
 #
 # Read a line from this makefile, strip comments, and handle line
 # continuations ('\' at end of line) and GNU make style conditionals.
@@ -2036,7 +2065,7 @@ sub _read_makefile_line_1 {
 # If the second argument is true, structures like ifdef are ignored.
 #
 sub read_makefile_line_stripped {
-  if( exists $makefile->{CWD}{DUMP_MAKEFILE} ) {
+  if( exists $makefile->{CWD}{DUMP_MAKEFILE} && !$skipping ) {
     dump_line &_read_makefile_line_stripped_1;
   } else {
     goto &_read_makefile_line_stripped_1;
@@ -2160,11 +2189,11 @@ sub _read_makefile_line_stripped_1 {
   defined $line or return undef; # No point checking at end of file.
   if( -1 < index $line, '$[' ) {
     eval {
-      $expand_bracket++;
+      ++$expand_bracket;
       unshift_makefile_lines( expand_text $makefile, $line, $makefile_name . ':' . $makefile_lineno );
       $line = shift @hold_lines;
     };
-    $expand_bracket--;
+    --$expand_bracket;
     die $@ if $@;
   }
   return $line if $_[1];
@@ -2222,12 +2251,20 @@ sub _read_makefile_line_stripped_1 {
 				# We read one too much.
     goto &_read_makefile_line_stripped_1;
   } elsif( $line =~ /^\s*else\s*(?:if$if_re\b|#|$)/o ) { # Else clause for an if?
+    if( $skipping ) {
+      unshift @hold_lines, $line;
+      die "skip\n";
+    }
     skip_makefile_until_else_or_endif( 1 );
 				# If we're here, the condition must have been
 				# true, so we know the else part must be false.
 				# Skip until we see the endif.
     goto &_read_makefile_line_stripped_1; # Return the next line.
   } elsif ($line =~ /^\s*endif\s*(?:#|$)/) { # End of an if?
+    if( $skipping ) {
+      unshift @hold_lines, $line;
+      die "skip\n";
+    }
     goto &_read_makefile_line_stripped_1; # Return the next line.
   }
 
@@ -2243,15 +2280,10 @@ sub skip_makefile_until_else_or_endif {
   my $was_true = $_[0];
   my $endif_expected = 1;	# We return on the first endif, unless we see
 				# a nested if in the mean time.
-  my $re;
   for (;;) {
     my $line = &_read_makefile_line_1; # Read another line.
-    defined($line) or
+    defined $line or
       die "$makefile_name:$last_conditional_start: end of makefile inside conditional\n";
-    if ($re) {
-      next if $line !~ /$re/;
-      $re = 0;
-    }
     while( $line =~ s/\s*\\\s*$/ / ) {
       my $nextline = &_read_makefile_line_1; # Handle continuations, because
 				# we don't want to find an else inside an
@@ -2272,13 +2304,32 @@ sub skip_makefile_until_else_or_endif {
       return;
     } elsif ($line =~ /^\s*endif\s*(?:#|$)/) {
       return if --$endif_expected == 0;  # Found the last expected endif.
-    } elsif ($line =~ /^\s*(?:make)?(?:perl\s*\{|sub\s)/) {
+    } elsif ($line =~ /^\s*((?:make)?(?:perl|sub))\b/) {
       # an else in one of the following is not a makepp statement
-      Mpp::Subs::read_block $line;
-    } elsif ($line =~ /^\s*define\b/) {
-      $re = qr/^\s*endd?ef\s*$/;
-    } elsif ($line =~ /^\s*perl_begin\b/) {
-      $re = qr/^\s*perl_end\b/;
+      read_block $1, $line;
+    } elsif ($line =~ /^\s*(?:export\s+|global\s+|override\s+)*(define)\b/) {
+      read_block $1, $line, qr/endd?ef/;
+    } elsif ($line =~ /^\s*(perl[-_]begin)\b/) {
+      read_block $1, $line, qr/perl[-_]end/;
+    } else {
+      if ($line =~ /^\s*([-\w]+)/ ) {
+	my $rtn = $1;
+	$rtn =~ tr/-/_/;	# Make routine names more perl friendly.
+	substr $rtn, 0, 0, 'Mpp::Subs::s_';
+	next if defined &$rtn;	# Statement?
+      }
+      next if ($line =~ /=/ ? index_ignoring_quotes $line, '=' : -1) != -1; # assignment
+      my @pieces = split_on_colon $line;
+      if( @pieces > 1 ) {	# Was there a colon somewhere?
+	local $skipping = 1;
+	eval {
+	  grok_rule {}, "$makefile_name:$makefile_lineno",
+	    ord( ':' ) == ord( substr $line, length($pieces[0])+1 ), # Double colon rule.
+	    @pieces;		# Skip rule so we don't think an action starting
+				# with "perl" is a multiline statement.
+	};
+	die $@ if $@ && $@ ne "skip\n";
+      }
     }
   }
 }

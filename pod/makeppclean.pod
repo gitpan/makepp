@@ -2,7 +2,7 @@
 
 makeppclean -- Stand-alone cleanup script for makepp
 
-=for cvs $Id: makeppclean.pod,v 1.10 2010/12/10 22:05:54 pfeiffer Exp $
+=for cvs $Id: makeppclean.pod,v 1.11 2011/08/06 11:46:18 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -14,6 +14,8 @@ B<A:>E<nbsp>L<-A|/a_filename>,
   L<--arguments-file|/a_filename>,E<nbsp>
 B<B:>E<nbsp>L<-b|/b>,
   L<--build-cache-links|/b>,E<nbsp>
+B<D:>E<nbsp>L<-d|/d>,E<nbsp>
+B<E:>E<nbsp>L<--empty-directories|/d>,E<nbsp>
 B<H:>E<nbsp>L<-h|/_>,
   L<--help|/_>,E<nbsp>
 B<K:>E<nbsp>L<-k|/k>,
@@ -95,6 +97,15 @@ Read the file and parse it as possibly quoted whitespace- and/or newline-separat
 =item --only-build-cache-links
 
 Remove only links or files from a build cache.
+
+=item -d
+
+=item --empty-directories
+
+Remove directories that became empty after removing their content.  Since
+drectories are not usually created by rules, makepp does not keep track of
+which one it created.  Therefore this applies to those, where makepp created
+something, whether the directory was created manually or automatically.
 
 =item -?
 

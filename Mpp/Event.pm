@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: Event.pm,v 1.28 2010/11/19 20:59:31 pfeiffer Exp $
+# $Id: Event.pm,v 1.29 2011/07/01 19:56:41 pfeiffer Exp $
 
 package Mpp::Event;
 
@@ -535,7 +535,7 @@ sub start {
     local @Mpp::Subs::temp_files; # Might call f_mktemp, but _exit bypasses END
     $result = &$cmd();		# Call the subroutine.
     unlink $_ for @Mpp::Subs::temp_files;
-  } elsif( Mpp::is_windows ) {	# Fork is only emulated, hence we can't exec
+  } elsif( Mpp::is_windows > 0 ) { # Fork is only emulated, hence we can't exec
     system format_exec_args $cmd;
     $result = int( $? / 256 ) || 255 if $?;
   } else {

@@ -1,7 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	644	1151611756	1212336947	.makepprc
 over1=over1 over2=over2 over4=not4 'bar=not ok'
-###	300	644	1171960619	1298672637	RootMakeppfile
+###	301	644	1171960619	1314303287	RootMakeppfile
 #
 # This makefile tests variable setting and expansion as completely as we can.
 #
@@ -69,9 +69,10 @@ question_equal_test:
 P = a.o b.o c.o d.o
 Q = ax.o ay.o az.o
 A := a
+absurd	white space = ab
 patsubst_test:
 	&echo $(patsubst %.o, %.c, $(P)) -o $@
-	&echo ${P:.o=.c} -o>>$@
+	&echo ${P:.o=.c} $(absurd	white space) $(absurd	white space:b=z) -o>>$@
 	&echo $(patsubst a%.o, b%.c, $(Q)) -o>>$@
     ifeq $(&cut -d' ' -f0 .makepprc),over1=over1 # Builtin command as function
 	&echo $(Q:$(A)%.o=$(X)%.c) -o>>$@
@@ -453,9 +454,9 @@ a.o b.c c
 default automatic undefined automatic environment file
 ###	1	644	1067451880	1190053951	answers/n_files
 22 1 0
-###	4	644	1067451880	965337095	answers/patsubst_test
+###	4	644	1067451880	1314303733	answers/patsubst_test
 a.c b.c c.c d.c
-a.c b.c c.c d.c
+a.c b.c c.c d.c ab az
 bx.c by.c bz.c
 2x.c 2y.c 2z.c
 ###	1	644	1067451880	967520887	answers/question_equal_test

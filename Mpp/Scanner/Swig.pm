@@ -1,4 +1,4 @@
-# $Id: Swig.pm,v 1.5 2009/02/09 22:45:23 pfeiffer Exp $
+# $Id: Swig.pm,v 1.6 2011/07/01 19:59:34 pfeiffer Exp $
 
 =head1 NAME
 
@@ -30,17 +30,14 @@ our @ISA = qw/Mpp::Scanner::C/;
 #
 sub get_directive {
   my $self = $_[0];
-  if ($self->{IN_VERBATIM_BLOCK}) {
-    if (s/^\s*\%\}\s*//) {      # End of verbatim block?
-      $self->{IN_VERBATIM_BLOCK} = 0;
-    }
+  if( exists $self->{xIN_VERBATIM_BLOCK} ) {
+    delete $self->{xIN_VERBATIM_BLOCK}
+      if s/^\s*\%\}\s*//;	# End of verbatim block?
 
-    return undef;               # Don't let xscan_file process anything in a
-                                # verbatim block.
-  }
-
-  if (s/^\s*\%\{//) {           # Start of verbatim block?
-    $self->{IN_VERBATIM_BLOCK} = 1;
+    return undef;		# Don't let xscan_file process anything in a
+				# verbatim block.
+  } elsif( s/^\s*\%\{// ) {	# Start of verbatim block?
+    undef $self->{xIN_VERBATIM_BLOCK};
     return;
   }
 

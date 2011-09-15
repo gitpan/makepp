@@ -1,4 +1,4 @@
-# $Id: Mpp.pm,v 1.11 2011/04/17 21:37:03 pfeiffer Exp $
+# $Id: Mpp.pm,v 1.13 2011/08/06 11:47:42 pfeiffer Exp $
 
 =head1 NAME
 
@@ -15,7 +15,9 @@ package Mpp;
 use strict;
 use Config;
 
+our $progname;
 BEGIN {
+  $progname ||= 'makepp';		# Use a constant string, even for mpp, to make IDE parsing easy.
   eval "sub ARCHITECTURE() { '$Config{archname}' }"; # Get a tag for the architecture.
 }
 
@@ -145,8 +147,6 @@ my @signals_to_handle = is_windows > 0 && is_perl_5_6 ?
 
 my $invocation = join_with_protection($0, @ARGV);
 
-our $progname;
-
 for( qw(/usr/xpg4/bin/sh /sbin/xpg4/sh /bin/sh) ) {
   if( -x ) {
     $ENV{SHELL} = $_;		# Always use a hopefully Posix shell.
@@ -247,7 +247,7 @@ sub log($@) {
       }
     }
     push @close_fhs, $logfh;
-    printf $logfh "2\01%s\nVERSION\01%s\01%vd\01%s\01\n", $invocation, $Mpp::VERSION, $^V, ARCHITECTURE;
+    printf $logfh "3\01%s\nVERSION\01%s\01%vd\01%s\01\n", $invocation, $Mpp::VERSION, $^V, ARCHITECTURE;
 
     # If we're running with --traditional-recursive-make, then print the directory
     # when we're entering and exiting the program, because we may be running as
@@ -268,19 +268,19 @@ sub log($@) {
 	  $_;
 	} elsif( 'ARRAY' eq ref ) {
 	  join "\02", map {		# Array shall only contain objects.
-	    if( exists $_->{LOGGED} ) {	# Already defined
+	    if( exists $_->{xLOGGED} ) {	# Already defined
 	      int;			# The cheapest external representation of a ref.
 	    } elsif( !exists $_->{'..'} ) { # not a Mpp::File
 	      # TODO: These two liness are a reminder for when we store RULE_SOURCE per ref.
-	      #undef $_->{LOGGED};
+	      #undef $_->{xLOGGED};
 	      #int() . "\03" . $_->name;
 	      $_->name;
-	    } elsif( exists $_->{'..'}{LOGGED} ) { # Dir already defined
-	      undef $_->{LOGGED};
+	    } elsif( exists $_->{'..'}{xLOGGED} ) { # Dir already defined
+	      undef $_->{xLOGGED};
 	      int() . "\03$_->{NAME}\03" . int $_->{'..'};
 	    } else {
-	      undef $_->{LOGGED};
-	      undef $_->{'..'}{LOGGED};
+	      undef $_->{xLOGGED};
+	      undef $_->{'..'}{xLOGGED};
 	      int() . "\03$_->{NAME}\03" .
 		int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || absolute_filename $_->{'..'});
 	    }
@@ -288,19 +288,19 @@ sub log($@) {
 # The rest is a verbatim copy of the map block above.  This function is heavy
 # duty, and repeating code is 6% faster than calling it as a function, even
 # with &reuse_stack semantics.
-	} elsif( exists $_->{LOGGED} ) {	# Already defined
+	} elsif( exists $_->{xLOGGED} ) {	# Already defined
 	  int;			# The cheapest external representation of a ref.
 	} elsif( !exists $_->{'..'} ) { # not a Mpp::File
 	  # TODO: These two liness are a reminder for when we store RULE_SOURCE per ref.
-	  #undef $_->{LOGGED};
+	  #undef $_->{xLOGGED};
 	  #int() . "\03" . $_->name;
 	  $_->name;
-	} elsif( exists $_->{'..'}{LOGGED} ) { # Dir already defined
-	  undef $_->{LOGGED};
+	} elsif( exists $_->{'..'}{xLOGGED} ) { # Dir already defined
+	  undef $_->{xLOGGED};
 	  int() . "\03$_->{NAME}\03" . int $_->{'..'};
 	} else {
-	  undef $_->{LOGGED};
-	  undef $_->{'..'}{LOGGED};
+	  undef $_->{xLOGGED};
+	  undef $_->{'..'}{xLOGGED};
 	  int() . "\03$_->{NAME}\03" .
 	    int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || absolute_filename $_->{'..'});
 	}

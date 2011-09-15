@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.45 2010/11/19 20:59:31 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.46 2011/09/15 20:58:00 pfeiffer Exp $
 #
 # Possible improvements:
 #
@@ -114,13 +114,14 @@ BEGIN {
 }
 
 
+our $global;			# Build cache specified on command line or with global keyword.
+our $options_file = 'build_cache_options.pl';
+
 =head2 new Mpp::BuildCache("/path/to/cache");
 
 Opens an existing build cache.
 
 =cut
-
-our $options_file = 'build_cache_options.pl';
 
 sub new {
   my( $class, $build_cache_dir, $self ) = @_;

@@ -1,4 +1,4 @@
-# $Id: Cmds.pm,v 1.66 2010/09/29 22:19:53 pfeiffer Exp $
+# $Id: Cmds.pm,v 1.67 2011/08/27 16:25:22 pfeiffer Exp $
 
 =head1 NAME
 
@@ -554,24 +554,22 @@ sub c_preprocess {
   frame {
     # Functions need not be eliminated because they get explicitly invoked via $(...), whereas
     # any word at the beginning of line might be a statement, so import only the usefuls.
-    my $re = $assignment ?
-      qr/f_|s_(?:_?include|(?:make)?(?:perl|sub)|perl_begin|define|(?:un)?export)/ :
-      qr/f_|s_(?:_?include|(?:make)?(?:perl|sub)|perl_begin)/;
     my $cwd = $CWD_INFO;
+    local $Mpp::Makefile::c_preprocess = $assignment ? 1 : 2;
     for( @ARGV ) {
       perform {
-	local $Mpp::Makefile::c_preprocess = $assignment ? 1 : 2;
 	my $finfo = file_info $_, $cwd;
 	local $Mpp::Makefile::makefile = bless
 	  { MAKEFILE => $finfo,
 	    PACKAGE => 'preprocess_' . $package_seed++,
 	    CWD => $finfo->{'..'},
 	    COMMAND_LINE_VARS => $command_line_vars,
-	    ENVIRONMENT => $Mpp::Subs::rule->{MAKEFILE}{ENVIRONMENT},
-	    RE_COUNT => 0		# Force initial creation of statement RE
+	    ENVIRONMENT => $Mpp::Subs::rule->{MAKEFILE}{ENVIRONMENT}
 	   }, 'Mpp::Makefile';
 	chdir $finfo->{'..'};
-	eval "package $Mpp::Makefile::makefile->{PACKAGE}; use Mpp::Subs \$re";
+	eval "package $Mpp::Makefile::makefile->{PACKAGE}; use Mpp::Subs qr/f_|s_(?:_?include|(?:make)?(?:perl|sub)|perl_begin" .
+	    ($assignment ? '|unexport' : '') .
+	    ')/';
 	Mpp::Makefile::read_makefile( $Mpp::Makefile::makefile, $finfo ); 1;
       } "preprocess `$_'";
     }

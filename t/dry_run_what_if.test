@@ -43,7 +43,7 @@ $(phony all): allfiles
 allfiles: ab ac bc
 	&cat $^ -o $@
 
-a : e f : signature target_newer  # Make sure target_newer supports it too.
+a : e f : build_check target_newer  # Make sure target_newer supports it too.
 	&cat $^ -o $@
 
 b : g h

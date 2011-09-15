@@ -1,3 +1,60 @@
+2011-09-15  pfeiffer  <occitan@esperanto.org>
+
+	* makepp ($global_build_cache): Moved to $Mpp::BuildCache::global.
+	Let appropriate s_ subs handle some options.
+
+	* Mpp/Makefile.pm (read_makefile):
+	* Mpp/Subs.pm (s_build_cache): Keywords can get passed to s_ subs, this one understands: global.
+
+2011-09-08  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Subs.pm:
+	* Mpp/Makefile.pm (read_block): Handle all multiline statements and give better diagnostics when incomplete.
+
+2011-08-27  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Cmds.pm,
+	* Mpp/Makefile.pm,
+	* Mpp/Subs.pm: Turn around parsing of makefiles, allowing spaces in var names.
+	Turn define, export & global into internally processed keywords.
+
+2011-08-06  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Subs.pm: Recognize clang, icc & icl.  Optimize searching upwards for device boundary.
+
+	* makepp (makepprc): Optimize searching upwards for device boundary.
+
+	* Mpp/Lexer.pm: Check explicitly for sh -c vs. sh script -opt.
+
+	* makeppclean: New option -d, --empty-directories
+
+	* install.pl: Add rel-links.
+
+2011-07-01  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/File.pm (relative_filename): Use new dir attribute xABSOLUTE
+	to have other dirs than $root (e.g. c:, /cygdrive/c, $HOME/.. and
+	$(ROOT)/..) for preferring absolute filenames, to increase build
+	cache consistency.
+
+	* *: In various classes prefix undef/exists booleans with 'x':
+	xASSUME_NEW/ASSUME_CHANGED, xDELETABLE, xEXISTS,
+	xIN_REPOSITORY/DIR_IN_REPOSITORY, xLOGGED, xMAKEPPRC,
+	xMAKEPP_DELETABLE, xMULTIPLE_RULES_OK, xNO_GCC, xPHONY/IS_PHONY,
+	xPREFERRED, xRECURSIVE_MAKE, xSCANINFO_UNCACHEABLE, xTEMP/IS_TEMP,
+	xDELETABLE, xUPDATE_BUILD_INFOS/NEEDS_BUILD_UPDATE, xREFERENCED,
+	xNO_IMPLICIT_LOAD, xLOOKED_FOR_SUBDIRS, xIN_VERBATIM_BLOCK
+
+	* Mpp/Event.pm (start): Do real exec on cygwin and msys.
+
+	* makepplog (REMOVE): Also give the reason, which increased log version to 3.
+
+2011-06-23  pfeiffer  <occitan@esperanto.org>
+
+	* pod/makepp_index.pod: New overall index.
+
+	* pod/makepp_compatibility.pod: Add 5.12.4 and 5.14.1.
+
 2011-06-21  pfeiffer  <occitan@esperanto.org>
 
 Snapshot makepp-1.50.110621.tgz, version 1.50-110621:8-0605:1-0507:2 on sourceforge & CPAN.

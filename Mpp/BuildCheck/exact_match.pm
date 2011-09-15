@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.36 2010/11/19 20:59:31 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.37 2011/07/01 19:59:34 pfeiffer Exp $
 use strict;
 package Mpp::BuildCheck::exact_match;
 
@@ -210,7 +210,7 @@ sub build_check {
     my $dep = $sorted_dependencies->[$depidx]; # Access the fileinfo.
     next if Mpp::File::assume_unchanged( $dep ); # Skip if this file is one of the ones we
 				# don't want to check at all.
-    if ($dep->{ASSUME_CHANGED}) { # Marked by --assume-new option?
+    if( exists $dep->{xASSUME_NEW} ) {
       Mpp::log BUILD_MARK_NEW => $tinfo, $dep
 	if $Mpp::log_level;
       return 1;
@@ -394,7 +394,7 @@ sub changed_dependencies {
     next if Mpp::File::assume_unchanged $dep; # Skip if we're not supposed to check this.
 
     my $old_sig = $old_deps{$dep}; # Get original signature.
-    !defined($old_sig) || $dep->{ASSUME_CHANGED} ||
+    !defined $old_sig || exists $dep->{xASSUME_NEW} ||
       $old_sig ne ($signature_method->signature($dep) || '') and
         push @changed_deps, $dep;
   }

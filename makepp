@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.197 2011/06/21 20:20:36 pfeiffer Exp $
+# $Id: makepp,v 1.200 2011/09/15 20:56:01 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -85,7 +85,7 @@ BEGIN {
   unshift @INC, $datadir;
 }
 
-our $progname = 'makepp';	# Use a constant string, even for mpp, to make IDE parsing easy.
+our $progname;
 
 use Mpp::Text;
 BEGIN { *MAKEPP = $Mpp::Text::N[1] } # Differentiate from makeppreplay
@@ -146,7 +146,6 @@ our $implicit_load_makeppfile_only = 0;
 				# Never implicitly load makefile and Makefile.
 our $force_rescan = 0;		# Don't use cached scanner results
 our $final_rule_only = 0;	# Unconditionally run only the top-level rules
-our $global_build_cache;	# Build cache specified on command line.
 our $nopopulate_bc = 0;		# Don't populate the build cache
 our $md5check_bc = 0;		# Check the MD5 signature of build cache files
 our $populate_bc_only = 0;	# Don't import from the build cache
@@ -209,7 +208,7 @@ sub build {
     return 1;
   }
   if( &Mpp::File::dont_build ) {
-    if( exists $_[0]{IS_PHONY} || &file_exists ) {
+    if( exists $_[0]{xPHONY} || &file_exists ) {
       Mpp::log BUILD_NOT => $oinfo
 	if $log_level;
     } elsif( &Mpp::File::dont_build == 2 ) { # Outside of ROOT
@@ -262,7 +261,7 @@ sub build {
   # processed, then just return as if the file were already built and hope
   # for the best.  (This is currently the best we can do with circular
   # dependencies.)
-  return undef if $rule->{SCANNING};
+  return undef if $rule->{SCANNING}; # after 5.6: exists $rule->{xSCANNING}
 
   # If the file still looks stale (now that we've tried to load its rule), and
   # we're not treating stale files as source files, then we need to error out
@@ -284,7 +283,7 @@ sub build {
 # routines activated by when_done.
 #
   local $implicitly_load_makefiles if $implicitly_load_makefiles &&
-    $rule->{MAKEFILE} && $rule->{MAKEFILE}{RECURSIVE_MAKE};
+    $rule->{MAKEFILE} && exists $rule->{MAKEFILE}{xRECURSIVE_MAKE};
 
   undef $oinfo->{BUILD_HANDLE}; # Indicate that we're trying to build.
 				# This will be replaced later by a real
@@ -303,7 +302,7 @@ sub build {
   # In --final-rule-only mode, ignore the dependencies and implicit targets
   # of the rule unless the target is phony.
   my $dont_scan = $final_rule_only && !UNIVERSAL::isa( $rule, 'Mpp::DefaultRule' ) &&
-    !exists $oinfo->{IS_PHONY};
+    !exists $oinfo->{xPHONY};
   warn 'Ignoring dependencies of ', &absolute_filename,
     " because --final-rule-only is specified\n"
     if $dont_scan;
@@ -359,7 +358,7 @@ sub build {
       $handle = when_done build( $dep ), $Mpp::Text::N[0], ERROR =>
 	$rm_stale_files ?
 	  sub {
-	    if( grep !(exists $_->{IS_PHONY} || file_exists $_), @$all_dependencies ) {
+	    if( grep !(exists $_->{xPHONY} || file_exists $_), @$all_dependencies ) {
 	      for my $finfo ( @$all_targets ) { # Not all deps exist: target is now stale.
 		Mpp::log DEL_STALE => $finfo
 		  if $log_level;
@@ -431,7 +430,7 @@ sub build_dependencies_done {
 				# commands, it's much narrower.)
     warn 'Target ', &absolute_filename, ' depends on temporary file ',
       absolute_filename( $dep ), "\n"
-      if exists $dep->{IS_TEMP};
+      if exists $dep->{xTEMP};
   }
 
 #
@@ -478,9 +477,9 @@ sub build_dependencies_done {
 				# Remember not to overstep sandbox
       }
       next target_loop if $rebuild_needed
-	or exists $target->{IS_TEMP};
+	or exists $target->{xTEMP};
 				# Temporary targets don't have to be up-to-date
-      if( exists $target->{IS_PHONY} ) { # If this is a phony target, then we always rebuild.
+      if( exists $target->{xPHONY} ) { # If this is a phony target, then we always rebuild.
 	$rebuild_needed = 1;
 	Mpp::log BUILD_PHONY => $target
 	  if $log_level;
@@ -496,17 +495,14 @@ sub build_dependencies_done {
 # command or the targets are erroneous, and we don't want to scatter
 # junk directories around.
 #
-      if( exists $target->{'..'}{DIR_IN_REPOSITORY} &&
-	  !file_exists( $target->{'..'} )) {
+      Mpp::File::mkdir $target->{'..'} # Make it with parents.
+	if exists $target->{'..'}{xIN_REPOSITORY} && !file_exists $target->{'..'};
 
-	Mpp::File::mkdir( $target->{'..'} ); # Make it with parents.
-      }
-
-      my $is_src_file = UNIVERSAL::isa $rule, 'Mpp::DefaultRule';
       if( $build_check_method->build_check( $target, $all_dependencies,
 					    $command_string, $build_cwd,
 					    $sig_method, $env )) { # Need to rebuild?
 	if( exists $target->{ALTERNATE_VERSIONS} ) { # Possibly copy from repository?
+	  my $is_src_file = UNIVERSAL::isa $rule, 'Mpp::DefaultRule';
 	  for( @{$target->{ALTERNATE_VERSIONS}} ) {
 	    if( $rm_stale_files && $is_src_file && Mpp::File::was_built_by_makepp $_  ) {
 	      Mpp::log REP_SKIP => $_
@@ -615,9 +611,9 @@ sub build_dependencies_done {
       foreach my $tinfo (@$all_targets) {
         ++$tinfo->{BUILDING} if $Mpp::virtual_sandbox_flag;
 	if( grep $_, Mpp::File::build_info_string $tinfo, qw'FROM_REPOSITORY LINKED_TO_CACHE' or
-	    !exists $tinfo->{IS_PHONY} && Mpp::File::check_for_change( $tinfo ), exists $tinfo->{EXISTS} &&
-	    !Mpp::File::is_writable_owner $tinfo ) { # Compiler can't write?
-	  Mpp::log REMOVE => $tinfo
+	    !exists $tinfo->{xPHONY} && Mpp::File::check_for_change( $tinfo ), exists $tinfo->{xEXISTS} &&
+	    (my $nw = !Mpp::File::is_writable_owner $tinfo) ) { # Compiler can't write?
+	  Mpp::log REMOVE => $tinfo, $nw ? 'not writable' : 'repository or build cache import'
 	    if $log_level;
 	  Mpp::File::unlink $tinfo; # If it's from a repository, get rid of it.
 				# It might be a bogus file from the past.
@@ -665,7 +661,7 @@ sub build_dependencies_done {
   # weren't touched by the command.  We can leverage the code that detects
   # when we need to retouch a file (also TBD) to accomplish this.
 	foreach my $tinfo (@$all_targets) {
-	  next if exists $tinfo->{IS_PHONY}; # Skip phony targets.
+	  next if exists $tinfo->{xPHONY}; # Skip phony targets.
 	  may_have_changed $tinfo;	# Invalidate cached info.
  				# We don't really need to blow away BUILD_INFO,
 				# because we called clear_build_info earlier,
@@ -717,7 +713,7 @@ sub build_dependencies_done {
   if( UNIVERSAL::isa $build_check_method, 'Mpp::BuildCheck::exact_match' ) {
     $rule->cache_scaninfo([
       grep {
-	!exists $_->{IS_PHONY} &&
+	!exists $_->{xPHONY} &&
 	(Mpp::File::build_info_string($_, 'CWD') || '') eq
 	  relative_filename( $build_cwd, $_->{'..'} )
       } @$all_targets
@@ -787,7 +783,7 @@ sub build_target_done {
     }
 
     foreach my $tinfo (@$all_targets) {
-      next if exists $tinfo->{IS_PHONY}; # Skip phony targets.
+      next if exists $tinfo->{xPHONY}; # Skip phony targets.
       if( $include ) {			 # Do this for all targets, as we don't know which one was in the :include .d
 	$uniq{int()} = $_ for $rule->expand_additional_deps( $tinfo );
       }
@@ -871,7 +867,7 @@ sub build_target_done {
 	      };
 	    }
 	  }
-	} elsif( !exists $tinfo->{IS_TEMP} ) {
+	} elsif( !exists $tinfo->{xTEMP} ) {
 	  my $mfile = $rule->{MAKEFILE} || $tinfo->{'..'}{MAKEINFO};
 	  if( $mfile && $mfile->expand_variable( 'makepp_require_phony', $rule->source )) {
 	    $implicit_phony++;	# DefaultRule has no MAKEFILE.
@@ -890,16 +886,15 @@ sub build_target_done {
   or you could also declare it as phony like this:
     .PHONY: ', relative_filename( $tinfo, $build_cwd ), "\n";
 	  }
-	  undef $tinfo->{IS_PHONY};
+	  undef $tinfo->{xPHONY};
 	  $tinfo->{SIGNATURE} = 9e99; # Give it a very recent time to
 				# force rebuilding of everything that depends
 				# on it even if -m target_newer is in effect.
 	}
       }
-      $dry_run and $tinfo->{ASSUME_CHANGED} = 1;
-				# If this is a dry run, the file didn't
-				# actually change, but force any command that
-				# depends on it to execute.
+      undef $tinfo->{xASSUME_NEW} if $dry_run; # If this is a dry run, the file
+				# didn't actually change, but force any command
+				# that depends on it to execute.
       undef $tinfo->{BUILD_HANDLE} unless $is_recursive_make;
 				# No need to keep the handle around since
 				# the build was successful.  Just leave a
@@ -910,7 +905,7 @@ sub build_target_done {
     my $real = ref($rule) ne 'Mpp::DefaultRule';
 				# Don't count targets for which there was no rule.
     for( @$all_targets ) {
-      if( exists $_->{IS_PHONY} ) { ++$Mpp::n_phony_targets_built }
+      if( exists $_->{xPHONY} ) { ++$Mpp::n_phony_targets_built }
       elsif( $real ) { ++$Mpp::n_files_changed }
     }
   };
@@ -946,30 +941,16 @@ sub maybe_stop {
 
 # Find .makepprc upwards and add content to @ARGV
 sub makepprc {
-  my $cwd_devid;		# Remember what device this is mounted on
-				# so we can avoid crossing file system boundaries.
-
-  for( my $dirinfo = $CWD_INFO;
-       $dirinfo &&
-       (stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
-	 ($cwd_devid ||= (stat_array $CWD_INFO)->[Mpp::File::STAT_DEV]);
-				# Don't cross device boundaries.  This is
-				# intended to avoid trouble with automounters
-				# or dead network file systems.
-       $dirinfo = $dirinfo->{'..'} ) { # Look in all directories above us.
-    my $finfo = file_info '.makepprc', $dirinfo;
-    return if exists $finfo->{MAKEPPRC}; # Already read?
-    next unless file_exists $finfo;
-    return unless $finfo->{LSTAT}[Mpp::File::STAT_SIZE]; # Empty file is test dir boundary.
-    open my $fh, absolute_filename $finfo or die "$0: cannot open `.makepprc'--$!\n";
-    local $/;
-    unshift @ARGV, $dirinfo == $CWD_INFO ?
-      unquote_split_on_whitespace <$fh> :
-      ('-C', $dirinfo, unquote_split_on_whitespace( <$fh> ), '-C', $CWD_INFO);
-    close $fh;
-    undef $finfo->{MAKEPPRC};	# Mark as read
-    return;
-  }
+  my $finfo = Mpp::Subs::f_find_first_upwards '.makepprc', { CWD => $CWD_INFO }, 'startup', \1;
+  return if !$finfo or exists $finfo->{xMAKEPPRC}; # Already read?
+  return unless $finfo->{LSTAT}[Mpp::File::STAT_SIZE]; # Empty file is test dir boundary.
+  open my $fh, absolute_filename $finfo or die "$0: cannot open `.makepprc'--$!\n";
+  local $/;
+  unshift @ARGV, $finfo->{'..'} == $CWD_INFO ?
+    unquote_split_on_whitespace <$fh> :
+    ('-C', $finfo->{'..'}, unquote_split_on_whitespace( <$fh> ), '-C', $CWD_INFO);
+  close $fh;
+  undef $finfo->{xMAKEPPRC};	# Mark as read
 }
 
 =head2 parse_command_line
@@ -1138,20 +1119,10 @@ sub parse_command_line(\%@) {
 
       ['r', qr/no[-_]?builtin[-_]?rules/, \$command_line_vars{makepp_no_builtin}],
 				# Pretend this was given as a variable.
-      [qw(R repository), \$tmp, 1, sub {
-	 require Mpp::Repository;
-	 if( $tmp =~ /^([^=]+)=(.*)/s ) { # Is it of the format dir=repository-dir?
-	   Mpp::Repository::load( file_info($2), file_info $1 );
-				# Load the given files into the repository.
-	 } else {		# It must be just a single directory.
-	   Mpp::Repository::load( file_info($tmp), $CWD_INFO );
-				# Load it into the current directory.
-	 }
-       }],
+      [qw(R repository), \$tmp, 1, sub { Mpp::Subs::s_repository $tmp }],
 
       ['W', qr/(?:what[-_]?if|assume[-_]?new|new[-_]?file)/, \$tmp, 1, sub {
-	 file_info( $tmp )->{ASSUME_CHANGED} = 1;
-				# Pretend this file has changed.
+	 undef file_info( $tmp )->{xASSUME_NEW}; # Pretend this file has changed.
        }],
 
       @Mpp::common_opts;
@@ -1330,11 +1301,7 @@ perform eval {
   my $tmp;
   parse_command_line %global_ENV,
     ['b', qr/build[-_]?cache/, \$tmp, 1, sub {
-       eval { require Mpp::BuildCache }; # Load the build cache stuff now.
-       # TODO: how would the require fail and why doesn't the module end with "1;"?
-       $@ and die "$progname: build cache mechanism not available:\n$@\n";
-       $global_build_cache = new Mpp::BuildCache( $tmp );
-				# Open up the build cache.
+       Mpp::Subs::s_build_cache $tmp, undef, undef, {global => 1};
      }],
     [undef, qr/build[-_]?check(?:[-_]?method)?/, \$build_check_method_name, 1, sub {
        $default_build_check_method =

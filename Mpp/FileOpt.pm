@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.110 2011/06/21 20:20:54 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.111 2011/07/01 19:59:34 pfeiffer Exp $
 
 =head1 NAME
 
@@ -143,8 +143,8 @@ check the cache, instead providing it to its potential caller.
 my %warned_stale;
 sub exists_or_can_be_built_norecurse {
   my ($finfo, $phony, $stale) = @_;
-  return exists $finfo->{IS_PHONY} && $phony ? $finfo : 0
-    if $phony || exists $finfo->{IS_PHONY};
+  return exists $finfo->{xPHONY} && $phony ? $finfo : 0
+    if $phony || exists $finfo->{xPHONY};
 				# Never return phony targets unless requested.
 
   # lstat and stat calls over NFS take a long time, so if we do the lstat and
@@ -155,7 +155,7 @@ sub exists_or_can_be_built_norecurse {
   if( &is_symbolic_link ) {
     &dont_build or
       $finfo->{BUILD_INFO} ||= &load_build_info_file; # blow away bogus repository links
-  } elsif( exists $finfo->{EXISTS} &&
+  } elsif( exists $finfo->{xEXISTS} &&
       !&have_read_permission) { # File exists, but can't be read, and
 				# isn't a broken symbolic link?
     return $finfo->{EXISTS_OR_CAN_BE_BUILT} = 0;
@@ -163,7 +163,7 @@ sub exists_or_can_be_built_norecurse {
 				# to inhibit imports from repositories.
   }
 
-  if( exists $finfo->{EXISTS} ) { # We know it exists?
+  if( exists $finfo->{xEXISTS} ) { # We know it exists?
     # If we think it's a stale file when this is called, then just pretend
     # it isn't there, but don't remove it because we might find out later
     # that there is a rule for it.
@@ -187,7 +187,7 @@ sub exists_or_can_be_built {
 
   if( &dont_build ) {
     &lstat_array;
-    return unless exists $finfo->{EXISTS};
+    return unless exists $finfo->{xEXISTS};
   }
   &is_or_will_be_dir if $Mpp::File::directory_first_reference_hook;
   my $result = ($phony || !exists $finfo->{EXISTS_OR_CAN_BE_BUILT}) ?
@@ -207,7 +207,7 @@ sub exists_or_can_be_built {
 				# by indicating that files with extra
 				# dependencies are buildable, even if there
 				# isn't an actual rule for them.
-    get_rule( $finfo, $no_last_chance ) && (!exists $finfo->{IS_PHONY} xor $phony) ||
+    get_rule( $finfo, $no_last_chance ) && (!exists $finfo->{xPHONY} xor $phony) ||
     !$already_loaded_makefile && &exists_or_can_be_built_norecurse;
 				# Rule for building it (possibly undef'ed if
 				# it was already built)? Note that even if it
@@ -226,14 +226,14 @@ sub exists_or_can_be_built_or_remove {
   my $finfo = $_[0];
   if( &dont_build ) {
     &lstat_array;
-    return unless exists $finfo->{EXISTS};
+    return unless exists $finfo->{xEXISTS};
   }
   $warned_stale{int $finfo} = $finfo if $Mpp::rm_stale_files; # Avoid redundant warning
   my $result = &exists_or_can_be_built;
   return $result if $result || !$Mpp::rm_stale_files;
-  if( exists $finfo->{EXISTS} || &signature ) {
+  if( exists $finfo->{xEXISTS} || &signature ) {
     unless( &was_built_by_makepp ) {
-      die '`' . &absolute_filename . "' is both a source file and a phony target\n" if exists $finfo->{IS_PHONY};
+      die '`' . &absolute_filename . "' is both a source file and a phony target\n" if exists $finfo->{xPHONY};
       return unless &have_read_permission; # Hidden from mpp.
     }
     Mpp::log DEL_STALE => $finfo
@@ -284,7 +284,7 @@ sub exists_or_can_be_built_or_remove {
 #     next if $finfo->{RULE};	# Don't delete something with a rule.
 #     next if $finfo->{DIRCONTENTS}; # Don't delete directories.
 #     next if $finfo->{ALTERNATE_VERSIONS}; # Don't delete repository info.
-#     next if exists $finfo->{IS_PHONY};
+#     next if exists $finfo->{xPHONY};
 #     next if $finfo->{ADDITIONAL_DEPENDENCIES}; # Don't forget info about
 #				# extra dependencies, either.
 #     next if $finfo->{TRIGGERED_WILD}; # We can't delete it if reading it back
@@ -393,7 +393,7 @@ sub set_build_info_string {
     }
   }
   if( $update ) {
-    undef $finfo->{NEEDS_BUILD_UPDATE};
+    undef $finfo->{xUPDATE_BUILD_INFOS};
 				# Remember that we haven't updated this
 				# file yet.
     push @build_infos_to_update, $finfo;
@@ -411,7 +411,7 @@ set_build_info_string, it's already handled for you.
 =cut
 
 sub mark_build_info_for_update {
-  undef $_[0]{NEEDS_BUILD_UPDATE}; # Remember that we haven't updated this file yet.
+  undef $_[0]{xUPDATE_BUILD_INFOS}; # Remember to update
   push @build_infos_to_update, $_[0];
 }
 
@@ -434,7 +434,7 @@ sub clear_build_info {
 
   CORE::unlink &build_info_fname; # Get rid of bogus file.
   # TBD: What to do if it's still there (e.g. no directory write privilege)?
-  delete $_[0]{NEEDS_BUILD_UPDATE}; # No need to update at the moment.
+  delete $_[0]{xUPDATE_BUILD_INFOS}; # No need to update at the moment.
 }
 
 =head2 set_rule
@@ -508,7 +508,7 @@ sub set_rule {
 
   my $rule_is_builtin = ($rule->source =~ /\bmakepp_builtin_rules\.mk:/);
 
-  exists $finfo->{IS_PHONY} &&	# If we know this is a phony target, don't
+  exists $finfo->{xPHONY} &&	# If we know this is a phony target, don't
     $rule_is_builtin and	# ever let a builtin rule attempt to build it.
       return;
 
@@ -582,8 +582,8 @@ sub set_rule {
 	} else {
 	  warn 'conflicting rules `', $rule->source, "' and `", $oldrule->source, "' for target ",
 	    &absolute_filename, "\n"
-	      unless exists($rule->{MULTIPLE_RULES_OK}) &&
-		exists($oldrule->{MULTIPLE_RULES_OK}) &&
+	      unless exists($rule->{xMULTIPLE_RULES_OK}) &&
+		exists($oldrule->{xMULTIPLE_RULES_OK}) &&
 		$rule->{COMMAND_STRING} eq $oldrule->{COMMAND_STRING};
 	  # It's not safe to suppress this warning solely because the
 	  # command string is the same, because it might expand differently
@@ -601,13 +601,13 @@ sub set_rule {
 #  $Mpp::log_level and
 #    Mpp::print_log(0, $rule, ' applies to target ', $finfo);
 
-  undef $finfo->{IS_PHONY}	# Hack to get past above restriction for xyz -> xyz.exe
+  undef $finfo->{xPHONY}	# Hack to get past above restriction for xyz -> xyz.exe
     if Mpp::is_windows && $rule_is_builtin && delete $finfo->{_IS_EXE_PHONY_};
 
   if( exists $finfo->{BUILD_HANDLE} && UNIVERSAL::isa $finfo->{RULE}, 'Mpp::Rule' ) {
     warn 'I became aware of the rule `', $rule->source,
       "' for target ", &absolute_filename, " after I had already tried to build it\n"
-      unless $rule_is_builtin || exists $rule->{MULTIPLE_RULES_OK} || UNIVERSAL::isa $rule, 'Mpp::DefaultRule';
+      unless $rule_is_builtin || exists $rule->{xMULTIPLE_RULES_OK} || UNIVERSAL::isa $rule, 'Mpp::DefaultRule';
   }
 
   $finfo->{RULE} = $rule;	# Store the new rule.
@@ -695,11 +695,11 @@ sub write_build_info_file {
 
 sub update_build_infos {
   foreach my $finfo (@build_infos_to_update) {
-    next unless exists $finfo->{NEEDS_BUILD_UPDATE};
+    next unless exists $finfo->{xUPDATE_BUILD_INFOS};
 				# Skip if we already updated it.  If two
 				# build info strings for the same file are
 				# changed, it can get on the list twice.
-    delete $finfo->{NEEDS_BUILD_UPDATE}; # Do not update it again.
+    delete $finfo->{xUPDATE_BUILD_INFOS}; # Do not update it again.
     if( !in_sandbox( $finfo ) || ($Mpp::virtual_sandbox_flag && !$finfo->{BUILDING}) ) {
       # If we cached some info about a file outside of our sandbox, then
       # don't flush the info, but don't write it either, because then we could
@@ -778,7 +778,7 @@ rule for it is to get it from a repository.
 # is_stale( $finfo )
 # Note that load_build_info_file may need to track changes to is_stale.
 sub is_stale {
-  (exists $_[0]{IS_PHONY} ||
+  (exists $_[0]{xPHONY} ||
    !exists($_[0]{RULE}) && !$_[0]{ADDITIONAL_DEPENDENCIES}
   ) && !&dont_build && &was_built_by_makepp &&
     (defined &Mpp::Repository::no_valid_alt_versions ? &Mpp::Repository::no_valid_alt_versions : 1);

@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	11	644	1067451876	965496277	Makefile
+###	11	644	1067451876	965496277	RootMakeppfile
 #
 # A simple makefile that tests the "include" statement.
 #

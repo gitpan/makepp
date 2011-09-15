@@ -1,4 +1,4 @@
-# $Id: Glob.pm,v 1.39 2011/06/21 20:20:54 pfeiffer Exp $
+# $Id: Glob.pm,v 1.40 2011/07/01 19:59:34 pfeiffer Exp $
 
 package Mpp::Glob;
 
@@ -173,7 +173,7 @@ sub zglob_fileinfo {
 				# specified.
       for( @candidate_dirs ) { # Look for the file in each of the possible directories.
 	$_->{READDIR} or Mpp::File::read_directory( $_ ); # Load the list of filenames.
-				# This also correctly sets the EXISTS flag
+				# This also correctly sets the xEXISTS flag
 	# Sometimes DIRCONTENTS changes inside this loop, which messes up
 	# the 'each' operator.  The fix is to make a static copy:
 	my %dircontents = %{$_->{DIRCONTENTS}};
@@ -235,8 +235,8 @@ sub find_all_subdirs {
 # become directories.)	We make sure that all real directories have a
 # DIRCONTENTS hash (even if it's empty).
 #
-  unless( exists $dirinfo->{LOOKED_FOR_SUBDIRS} ) {
-    undef $dirinfo->{LOOKED_FOR_SUBDIRS};
+  unless( exists $dirinfo->{xLOOKED_FOR_SUBDIRS} ) {
+    undef $dirinfo->{xLOOKED_FOR_SUBDIRS};
 				# Don't do this again, because we may have
 				# to stat a lot of files.
     if( &is_dir ) {		# Don't even try to do this if this directory

@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.46 2010/09/18 09:58:17 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.47 2011/06/23 15:34:21 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -18,7 +18,8 @@ B<C:>E<nbsp>L<&cat|/cat_option_filename>,
 B<D:>E<nbsp>L<I<date>|/date>,E<nbsp>
 B<E:>E<nbsp>L<&echo|/echo_option_string>,
   L<&expr|/expr_option_perlcode>,E<nbsp>
-B<F:>E<nbsp>L<I<false>|/false>,E<nbsp>
+B<F:>E<nbsp>L<I<false>|/false>,
+  L<I<fmt>|/fmt>,E<nbsp>
 B<G:>E<nbsp>L<&grep|/grep_option_perlcode_filename>,E<nbsp>
 B<H:>E<nbsp>L<I<head>|/head>,E<nbsp>
 B<I:>E<nbsp>L<&install|/install_option_sourcefile_destfile>,E<nbsp>
@@ -497,6 +498,24 @@ Do not add a newline after the output.
 
 Not very constructive and thus not built in, but
 L<C<&expr>|/expr_option_perlcode> with no argument or C<0> is comparable.
+
+
+
+=item fmt
+
+Not built in, but mentioned here since perl provides a related functionality.
+However I had problems using the C<format> declaration in a makefile.  What
+does work is the underlying C<formline> function.  E.g to transform a csv file
+consisting of names and prices to a tabular format:
+
+    sub csv2txt {
+      formline "\@<<<<<<<<<<<<<<< ^###########.##\n", split ',';
+      $_ = $^A;
+      $^A = '';
+    }
+ 
+    %.txt: %.csv
+ 	&sed &csv2txt $(input) -o $(output)
 
 
 

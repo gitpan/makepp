@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppclean,v 1.19 2010/12/10 22:05:54 pfeiffer Exp $
+# $Id: makeppclean,v 1.21 2011/08/06 11:46:18 pfeiffer Exp $
 
 package Mpp;
 
@@ -108,7 +108,7 @@ my @deletable;			# Files must be first remembered for deletion,
 				# because if we deleted them right away, and
 				# then later found a symlink to one, that might
 				# no longer have a checkable build info.
-my @deletable_dirs;
+my( $dirs, @deletable_dirs );
 my( $logs, $meta );		# delete only logs or metafiles under .makepp
 
 sub deletable {
@@ -132,8 +132,8 @@ sub remove_if_built_file {
       ++$n_files_removed;
       push @deletable, &relative_filename, &Mpp::File::build_info_fname;
     }
-    unless( exists $_[0]{'..'}{MAKEPP_DELETABLE} ) { # Remember to check .makepp later.
-      undef $_[0]{'..'}{MAKEPP_DELETABLE};
+    unless( exists $_[0]{'..'}{xMAKEPP_DELETABLE} ) { # Remember to check .makepp later.
+      undef $_[0]{'..'}{xMAKEPP_DELETABLE};
       my $makepp = file_info $Mpp::File::build_info_subdir, $_[0]{'..'};
       unshift @deletable_dirs, $makepp if is_dir $makepp;
     }
@@ -142,16 +142,18 @@ sub remove_if_built_file {
 
 my $keep_src_info;
 sub remove_contents_if_built {
-  my( $finfo ) = @_;
+  my( $dinfo ) = @_;
   &Mpp::File::read_directory;
-  for my $name (keys %{$finfo->{DIRCONTENTS}}) {
-    my $file = $finfo->{DIRCONTENTS}{$name};
+  my $has_build_info;
+  for my $name (keys %{$dinfo->{DIRCONTENTS}}) {
+    my $finfo = $dinfo->{DIRCONTENTS}{$name};
     if( $name eq $Mpp::File::build_info_subdir ) {
-     if( $meta ) {
-       ++$n_files_removed;
-     } elsif( $logs and is_dir $file ) {
-	Mpp::File::read_directory $file;
-	for my $rm ( @{$file->{DIRCONTENTS}}{grep /log(?!.*\.mk$)/s, keys %{$file->{DIRCONTENTS}}} ) {
+      $has_build_info = 1;
+      if( $meta ) {
+	++$n_files_removed;
+      } elsif( $logs and is_dir $finfo ) {
+	Mpp::File::read_directory $finfo;
+	for my $rm ( @{$finfo->{DIRCONTENTS}}{grep /^log(?!.*\.mk$)/s, keys %{$finfo->{DIRCONTENTS}}} ) {
 	  print_log "Removing ", $rm;
 	  ++$n_files_removed;
 	  push @deletable, relative_filename $rm;
@@ -159,17 +161,18 @@ sub remove_contents_if_built {
       }
       next;
     }
-    remove_if_built_file $file if @info_strings;
-    remove_contents_if_built( $file ) if $recurse and is_dir $file;
+    remove_if_built_file $finfo if @info_strings;
+    remove_contents_if_built( $finfo ) if $recurse and is_dir $finfo;
   }
+  unshift @deletable_dirs, $dinfo if $dirs && $has_build_info;
   unless( $keep_src_info ) { # Remember to check .makepp later.
-    my $makepp = file_info $Mpp::File::build_info_subdir, $finfo;
+    my $makepp = file_info $Mpp::File::build_info_subdir, $dinfo;
     if( is_dir $makepp ) {
-      unless( exists $finfo->{MAKEPP_DELETABLE} ) {
-	undef $finfo->{MAKEPP_DELETABLE};
+      unless( exists $dinfo->{xMAKEPP_DELETABLE} ) {
+	undef $dinfo->{xMAKEPP_DELETABLE};
 	unshift @deletable_dirs, $makepp;
       }
-      undef $makepp->{DELETABLE}; # Delete unconditionally.
+      undef $makepp->{xDELETABLE}; # Delete unconditionally.
     }
   }
 }
@@ -178,6 +181,8 @@ perform {
   Mpp::Text::getopts
     ['b', qr/(?:only[-_]?)?(?:build[-_]?)?cache[-_]?(?:link|file)s/, undef, 0,
      sub { push @info_strings, 'LINKED_TO_CACHE' }],
+
+    ['d', qr/(?:ampty[-_]?)?director(?:ies|y)/, \$dirs],
 
     ['k', qr/(?:keep|leave)[-_]?src[-_]?info/, \$keep_src_info],
 
@@ -214,7 +219,7 @@ perform {
   }
   unlink @deletable;	# Perform the bulk of the work.
   for( @deletable_dirs ) {
-    unless( exists $_->{DELETABLE} ) {	# Must check if empty.
+    unless( exists $_->{xDELETABLE} ) { # Must check if empty.
       $_->{DIRCONTENTS} = {};	# Maybe lots deleted w/o telling Mpp::File.
       Mpp::File::read_directory $_; # Check what is still left.
       delete $_->{DIRCONTENTS}{$Mpp::File::build_info_subdir};
@@ -236,6 +241,8 @@ makepp are removed.  'path ...' defaults to '.'.  Valid options are:
     newline-separated options.
 -b, --build-cache-links, --only-build-cache-links
     Remove only links or files from a build cache.
+-d, --empty-directories
+    Remove directories that became empty after removing their content.
 -?, -h, --help
     Print out a brief summary of the options.
 -k, --keep-src-info, --leave-src-info

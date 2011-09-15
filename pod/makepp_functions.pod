@@ -2,7 +2,7 @@
 
 makepp_functions -- Functions in makepp
 
-=for vc $Id: makepp_functions.pod,v 1.42 2011/05/07 11:08:30 pfeiffer Exp $
+=for vc $Id: makepp_functions.pod,v 1.44 2011/08/06 11:47:53 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -564,10 +564,15 @@ junk from the path:
     FNAME := $(DIR)/../otherdir/$(SUBDIR)/files
     X := $(relative_filename $(FNAME))
 
-Each result is guaranteed to contain a slash, so that you can use it as an
+If I<slash> is true (usually C<1>) the returned filenames are guaranteed to
+contain a slash by prepending C<./> if necessary, so that you can use it as an
 executable name without worrying about the command search path overriding the
-directory location.  If I<slash> is true (usually C<1>) the returned filenames
-are guaranteed to contain a slash by prepending C<./> if necessary.
+directory location.
+
+If the path goes by the root directory, the parent of either your home
+directory or the C<$(ROOT)> of your build system, or on Windows a drive's root
+(depending on the environment, this also happens for F</cygwin/c> or F</c>),
+an absolute path will be returned instead.
 
 =item relative_to I<file1 file2 file3[, directory]>
 

@@ -2,7 +2,7 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.65 2011/06/05 20:35:22 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.69 2011/09/15 21:08:07 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -12,17 +12,42 @@ makepp_release_notes -- Major changes in each version of makepp
 
 =item *
 
+The keyword C<global> can precede the C<build_cache> statement and the
+C<define> statement which now also allows C<export>.  Therefore s_ subs now
+get a 4th parameter, a hash reference with the encountered keywords as keys.
+
+=item *
+
+Makefiles are now parsed with the same priority as in gmake.  Hence C<include
+:> or C<include => are now statements (no space: still rule or assignment.)  This
+means that C<perl { qualified::name }> no longer mysteriously dissapears (it
+used to be a useless rule.)  Now variable names may contain whitespace.  This
+means that C<&preprocess --assignment> will treat just about any equal sign as
+an assignment (replace them with C<$E> from the funny assignment C<E==>.)
+
+=item *
+
+If you have a federated build cache over several disks, and some of them are
+preferred, you must edit their build_cache_options.pl and change PREFERRED to
+xPREFERRED.  (This reflects a general change in names where we now prefix by
+'x' all xATTRIBUTES which are are true iff they exist).
+
+=item *
+
 The C<VPATH> variable and C<vpath> statement are now emulated.
 
 =item *
 
-Makefile functions may now get their 1st parameter as a string reference.  In
-that case you are responsible for expanding your arguments.  Use the accessor
-functions C<&arg> or C<args> described in L<makepp
+Makefile functions (C<sub f_...>) may now get their 1st parameter as a string
+reference.  In that case you are responsible for expanding your arguments.
+Use the accessor functions C<&arg> or C<args> described in L<makepp
 extensions|makepp_extending>.  Until you get round to updating your functions,
 you can turn this off by setting C<$Mpp::Makefile::legacy_functions = 1>
 either in your makefile (one per build system is enough, as it's a perl
-variable) or patch it into your new makepp installation.
+variable) or patch it into your new makepp installation.  If you want your
+updated functions to work with both your old and this new makepp, use C<ref
+$_[0] ? &arg : $_[0]> or C<ref $_[0] ? args(...) : $_[0]> in the transition
+phase.
 
 Within C<$(call)>, the special variables C<$0, $1, ..., $(11), ...> are now
 expanded like any other make variable.  This causes slight differences to the

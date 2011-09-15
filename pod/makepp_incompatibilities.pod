@@ -2,7 +2,7 @@
 
 makepp_incompatibilities -- Incompatibilities between makepp and GNU make
 
-=for vc $Id: makepp_incompatibilities.pod,v 1.30 2011/06/05 20:35:22 pfeiffer Exp $
+=for vc $Id: makepp_incompatibilities.pod,v 1.31 2011/08/27 16:25:23 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -350,22 +350,6 @@ There is no SCCS support.
 Leading and trailing whitespace in variable assignments is ignored (even if
 the whitespace is followed by a comment).  For more details on whitespace
 handling incompatibilities, see L<makepp_variables/Whitespace in variables>.
-
-=item *
-
-Whitespace in variable names is not supported.  Neither is beginning a
-variable name with a numeral.  Words with spaces after them (and no colon on
-the line) are pre- or user-defined statements like
-
-    export VAR := value		# Not a rule colon
-    override global VAR = value
-    repository dir=otherdir
-
-and spaces in expressions delimit a pre- or user-defined function like
-
-    $(basename filenames)
-    $(dir filenames)
-    $(firstword words)
 
 =item *
 

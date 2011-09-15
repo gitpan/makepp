@@ -1,4 +1,4 @@
-# $Id: CMake.pm,v 1.1 2011/01/16 16:59:12 pfeiffer Exp $
+# $Id: CMake.pm,v 1.2 2011/08/06 11:43:31 pfeiffer Exp $
 
 =head1 NAME
 
@@ -39,7 +39,7 @@ sub fix {
     split /\n(?![\t])/, $_[0];
   if( $is_root ) {
     $ROOT->{ROOT} = $ROOT;
-    $_[1]{'..'}{NO_IMPLICIT_LOAD} = 1;
+    undef $_[1]{'..'}{xNO_IMPLICIT_LOAD};
     $_[0] .= '
 prebuild cmake_check_build_system
 include CMakeFiles/Makefile2

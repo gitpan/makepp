@@ -1,4 +1,4 @@
-# $Id: Recursive.pm,v 1.14 2011/06/21 20:21:10 pfeiffer Exp $
+# $Id: Recursive.pm,v 1.15 2011/08/06 11:46:38 pfeiffer Exp $
 
 =head1 NAME
 
@@ -63,9 +63,8 @@ sub setup_socket {
 			  Type => eval 'use IO::Socket; SOCK_STREAM',
 			  Listen => 2) or
 				# Make the socket.
-    die "$progname: can't create socket $socket_name\n";
-  chmod 0600, $socket_name;
-				# Don't let other people access it.
+    die "can't create socket $socket_name--$!\n";
+  chmod 0600, $socket_name;	# Don't let other people access it.
   read_wait $socket, \&connection;
 }
 

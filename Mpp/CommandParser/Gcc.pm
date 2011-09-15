@@ -1,4 +1,4 @@
-# $Id: Gcc.pm,v 1.34 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: Gcc.pm,v 1.35 2011/07/01 19:59:34 pfeiffer Exp $
 
 =head1 NAME
 
@@ -33,7 +33,7 @@ sub new {
 
 sub new_no_gcc {
   my $self = &new;
-  undef $self->{NO_GCC};
+  undef $self->{xNO_GCC};
   $self;
 }
 
@@ -228,10 +228,10 @@ sub xset_preproc_vars {
   my $used_cpp;
 
   my $traditional = grep { $_ eq '-traditional' } @$command;
-  my $no_gcc = exists $self->{NO_GCC} || grep { $_ eq '-no-gcc' } @$command;
+  my $no_gcc = exists $self->{xNO_GCC} || grep { $_ eq '-no-gcc' } @$command;
 #very basic setup any compiler/OS
   my $cmd;
-  unless( exists $self->{NO_GCC} ) {
+  unless( exists $self->{xNO_GCC} ) {
 #use preprocessor
     my @command = @$command;
     splice(@command, 1, 0, '-E', '-dM', '-x', $cplusplus ? 'c++' : 'c', '/dev/null');
@@ -272,7 +272,7 @@ sub xset_preproc_vars {
     _set_def $self, __GNUC__ => 1 unless $no_gcc;
     _set_def $self, __cplusplus => 1 if $cplusplus;
   }
-  unless( exists $self->{NO_GCC} ) {
+  unless( exists $self->{xNO_GCC} ) {
     my %copy = %{$self->{SCANNER}{VARS}};
     $var_cache{$cmd} = \%copy;
   }

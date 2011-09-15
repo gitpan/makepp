@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.43 2011/04/17 21:37:55 pfeiffer Exp $
+# $Id: makepplog,v 1.44 2011/07/01 19:56:15 pfeiffer Exp $
 
 package Mpp;
 
@@ -70,7 +70,7 @@ my %log_msg =
   PARSE_SHELL => 'Parser shell %s command %s for rule %s',
   PARSE_SKIP_WORD => 'Parser skip_word from %s to %s for rule %s',
   PREBUILD => 'Pre-building %s from %s',
-  REMOVE => 'Removing target %s before running its rule',
+  REMOVE => 'Removing target %s before running its rule, because %s',
 
   REP_CHECK => 'Check repository file %s',
   REP_EXISTING => '... using existing symbolic link',
@@ -121,18 +121,19 @@ my %log_msg =
 # same symbol (other than a superficial formulation change) occurs, the old
 # text must be copied from %log_msg to $obsolete_msg[<log version before
 # incrementing>], before changing it above.
-my @obsolete_msg;
-$obsolete_msg[0] =
- {
-  INCL => 'Including %s',
-  INCL_BY => '%s included by %s'
- };
-$obsolete_msg[1] =
- {
-  N_FILES => '%d files updated and %d targets failed',
+my @obsolete_msg =
+  ({				# V0
+    INCL => 'Including %s',
+    INCL_BY => '%s included by %s'
+   },
+   {				# V1
+    N_FILES => '%d files updated and %d targets failed',
 
-  SCAN_RULE => 'Scanning rule for %s because %s',
- };
+    SCAN_RULE => 'Scanning rule for %s because %s'
+   },
+   {				# V2
+    REMOVE => 'Removing target %s before running its rule'
+   });
 
 
 

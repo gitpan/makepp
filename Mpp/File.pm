@@ -1,4 +1,4 @@
-# $Id: File.pm,v 1.98 2011/06/21 20:21:02 pfeiffer Exp $
+# $Id: File.pm,v 1.100 2011/08/06 11:47:53 pfeiffer Exp $
 
 package Mpp::File;
 require Exporter;
@@ -190,11 +190,9 @@ BEGIN {
 # Set this (probably locally) to attempt to avoid lstat calls by reading the
 # directory first if the cached directory listing might be stale.  This may
 # or may not speed things up.
-our( $read_dir_before_lstat, $root, $CWD_INFO );
+our $read_dir_before_lstat;
 my $epoch = 2; # Counter that determines whether dir listings are up-to-date.
 our $empty_array = [];		# Only have one, instead of a new one each time
-my @ids_for_check;
-
 our $directory_first_reference_hook; # This coderef is called on the first call to
 				# exists_or_can_be_built with any file within
 				# a given directory, with that directory's
@@ -207,23 +205,60 @@ our $directory_first_reference_hook; # This coderef is called on the first call 
 # every directory that we stat, we store the device and inode number so we
 # won't be confused by symbolic links with directories.
 #
-$root = bless { NAME => '',
-		FULLNAME => '',
-		DIRCONTENTS => {},
-		EXISTS => undef
-	       };
+our $root = bless {
+  NAME => '',
+  FULLNAME => '',
+  DIRCONTENTS => {},
+  xEXISTS => undef,
+  xABSOLUTE => undef
+};
+
+our $CWD_INFO = path_file_info( cwd . '/' ); # Store the current directory so we can handle relative file names.
+
+if( Mpp::is_windows ) { # Make /cygdrive/c, /c and c: like roots for absolute filenames.
+  my $dinfo = $CWD_INFO;
+  while( $dinfo != $root ) {
+    if( Mpp::is_windows == -1 && $dinfo->{FULLNAME} =~ /^\/cygdrive\/(.)$/ ||
+	Mpp::is_windows == -2 && $dinfo->{FULLNAME} =~ /^\/(.)$/ ) {
+      undef $dinfo->{xABSOLUTE};
+      undef path_file_info( "$1:/" )->{xABSOLUTE};
+      last;
+    } elsif( $dinfo->{FULLNAME} =~ /^.:$/ ) {
+      undef $dinfo->{xABSOLUTE};
+      last;
+    }
+    $dinfo = $dinfo->{'..'};
+  }
+}
+
+
+#
+# One unfortunate complication with the way we scan for include files in
+# makepp is that when the user switches to root to do the 'make install',
+# a different set of directories is now readable.  This may cause directories
+# which used to be non-writable to become writable, which means that makepp
+# will scan them for include files.  This means that the list of dependencies
+# may change, and therefore recompilation may be forced.  We try to get around
+# this with a special purpose hack where if we're running as root, we
+# actually do the check with the UID and GID of whoever owns the directory.
+#
+my @ids_for_check = (stat absolute_filename( $CWD_INFO ))[4, 5]
+  if AS_ROOT;			# Use the IDs of whoever owns the current directory.
+
 
 #
 # Here are all the possible keys that can be contained in a Mpp::File
-# structure.  Of course, not all Mpp::File structures will have all of these
-# fields.  As usual in OOP, these fields should not be explicitly accessed
-# except by member functions; this documentation is provided as internals
-# documentation of the Mpp::File class.
+# structure.  Not all Mpp::File structures will have all of these fields.  As
+# usual in OOP, these fields should not be explicitly accessed except by
+# member functions; however this class is so heavily used that we sometimes
+# bypass that.  Do not accidentally autovivify these fields!
+#
+# Keys that start with lowercase x are true iff they exist even though undef.
 #
 # Key		Meaning
 # ..		A reference to the Mpp::File of the parent directory whose
 #		DIRCONTENTS field contains this file.
-# BUILD_HANDLE	A Fork::Process handle for the process that is currently
+# BUILD_HANDLE	An Mpp::Event handle for the process that is currently
 #		building or has already built this file.
 # BUILD_INFO	If build information has been loaded, this hash contains the
 #		key/value pairs.  See build_info_string() and
@@ -240,16 +275,16 @@ $root = bless { NAME => '',
 #		mark_as_directory().  This is so the wildcard routines are
 #		reliably informed that a new directory exists.	See the
 #		documentation for Mpp::Glob::wildcard_do for details.
-# EXISTS	Exists iff we know the file exists (either because we lstatted it,
+# xEXISTS	Exists iff we know the file exists (either because we lstatted it,
 #		or because its name was in the directory).
-# IS_PHONY	Exists iff this has been tagged as a phony target.
+# xPHONY	Exists iff this has been tagged as a phony target.
 # LINK_DEREF	Exists iff this is a soft link.  False if we have not dereferenced
 #		it, else the cached value of the symbolic link.
 # LSTAT		A reference to the array returned by lstat.
 # NAME		The name of the file (without any directories).
 # PUBLISHED	True if we've alerted any waiting wildcard subroutines that
-#		this file exists.
-# READDIR	Nonzero if we've tried to read this directory.
+#		this file exists.  2 for stale.
+# READDIR	Nonzero (the epoch) if we've tried to read this directory.
 # ALTERNATE_VERSIONS
 #		For files that can be imported from a repository, this field
 #		contains a reference to the Mpp::File structs for the file in
@@ -390,10 +425,10 @@ and undef if it doesn't.
 =cut
 
 sub file_exists {
-  exists $_[0]{EXISTS} or	# See if we already know whether it exists.
+  exists $_[0]{xEXISTS} or	# See if we already know whether it exists.
     &lstat_array;		# Stat it to see if it exists.	This will set
-				# the EXISTS flag.
-  exists $_[0]{EXISTS} ? $_[0] : undef;
+				# the xEXISTS flag.
+  exists $_[0]{xEXISTS} ? $_[0] : undef;
 }
 
 =head2 file_info
@@ -487,11 +522,11 @@ sub path_file_info {
       }
       if( -e $share or $share =~ $self_unc ) { # False alarm, e.g. //bin/ls
 				# or //myhost/c$/ different notation for c:/ -- $ problematic
-	substr $file, 0, 0, -e _ ? "$1/" : "$1:/";
+	substr $file, 0, 0, -e _ ? "$1/" : Mpp::is_windows == -1 ? "cygdrive/$1/" : "$1:/";
 	$dinfo = $root;
       } else {
 	$dinfo = $root->{DIRCONTENTS}{$share} ||=
-	  bless { NAME => $share, '..' => $root };
+	  bless { NAME => $share, '..' => $root, xABSOLUTE => undef };
 	unless( exists $dinfo->{DIRCONTENTS} ) {
 	  mark_as_directory($dinfo); # Let the wildcard routines know that we
 				# discovered a new directory.
@@ -605,8 +640,8 @@ sub is_or_will_be_dir {
   if( $directory_first_reference_hook ) {
     $dinfo=$dinfo->{'..'} unless $result;
     my $changed;
-    while( $dinfo && !$dinfo->{REFERENCED} ) {
-      $dinfo->{REFERENCED} = 1;
+    while( $dinfo && !exists $dinfo->{xREFERENCED} ) {
+      undef $dinfo->{xREFERENCED};
       # TBD: Maybe we ought to call these in reverse order?
       &$directory_first_reference_hook( $dinfo );
       $changed = 1;
@@ -781,7 +816,7 @@ sub lstat_array {
       $fileinfo->{'..'} and
 	($fileinfo->{'..'}{READDIR} || 0) != $epoch and
 	read_directory( $fileinfo->{'..'} );
-      exists $fileinfo->{EXISTS} or
+      exists $fileinfo->{xEXISTS} or
 	return $fileinfo->{LSTAT} = $empty_array;
     }
     if( lstat &absolute_filename_nolink ) { # Restat the file, and cache the info.
@@ -804,8 +839,8 @@ sub lstat_array {
 	    &mark_as_directory;	# Tell the wildcard system about it.
 	}
       }
-      until( exists $fileinfo->{EXISTS} ) {
-	undef $fileinfo->{EXISTS};
+      until( exists $fileinfo->{xEXISTS} ) {
+	undef $fileinfo->{xEXISTS};
 	publish( $fileinfo );	# If we now know the file exists but we didn't
 				# use to know that, activate any waiting
 				# subroutines.
@@ -834,8 +869,8 @@ sub may_have_changed {
   # re-read it before we bypass any lstat's.
   $finfo->{'..'}{READDIR} &&= $epoch-1;
 
-  delete @{$finfo}{qw(LINK_DEREF LSTAT EXISTS IS_READABLE HAVE_READ_PERMISSION
-		      BUILD_INFO NEEDS_BUILD_UPDATE IS_WRITABLE)};
+  delete @{$finfo}{qw(LINK_DEREF LSTAT xEXISTS IS_READABLE HAVE_READ_PERMISSION
+		      BUILD_INFO xUPDATE_BUILD_INFOS IS_WRITABLE)};
 }
 
 =head2 check_for_change
@@ -854,7 +889,7 @@ sub check_for_change {
   my $finfo = $_[0];
 
   my $sig_date_size;
-  !exists $finfo->{IS_PHONY} && $finfo->{LSTAT} and
+  !exists $finfo->{xPHONY} && $finfo->{LSTAT} and
     $sig_date_size = &signature; # Get the current signature.  Don't
 				# get it if the info isn't already cached.
   $sig_date_size ||= $finfo->{BUILD_INFO}{SIGNATURE};
@@ -867,13 +902,13 @@ sub check_for_change {
   # re-read it before we bypass any lstat's.
   $finfo->{'..'}{READDIR} &&= $epoch-1;
 
-  delete @{$finfo}{qw(LINK_DEREF LSTAT EXISTS IS_READABLE HAVE_READ_PERMISSION IS_WRITABLE)};
+  delete @{$finfo}{qw(LINK_DEREF LSTAT xEXISTS IS_READABLE HAVE_READ_PERMISSION IS_WRITABLE)};
   if (($sig_date_size || '') ne (&signature || '')) {
 				# Get the signature again.  If it hasn't
 				# changed, then don't dump the build info.
     warn '`'.&absolute_filename."' changed without my knowledge\n".
       "but you got lucky this time because its signature changed\n" if $sig_date_size;
-    delete @{$finfo}{qw(BUILD_INFO NEEDS_BUILD_UPDATE)};
+    delete @{$finfo}{qw(BUILD_INFO xUPDATE_BUILD_INFOS)};
   }
 }
 
@@ -942,17 +977,17 @@ sub read_directory {
 				# Get the file info structure, or make
 				# one if there isn't one available.
     delete $previous_files{$_};
-    unless( exists $finfo->{EXISTS} ) {
+    unless( exists $finfo->{xEXISTS} ) {
       delete @{$finfo}{qw(LINK_DEREF IS_READABLE LSTAT HAVE_READ_PERMISSION IS_WRITABLE)};
 				# Should never have anything to delete.
-      undef $finfo->{EXISTS};	# Remember that this file exists.
+      undef $finfo->{xEXISTS};	# Remember that this file exists.
     }
     publish($finfo);		# Activate any wildcard routines.
   }
 
   for my $fname ( keys %previous_files ) {	# Forget what we knew about newly inexistant files.
     ($dircontents->{$fname}{LSTAT} || 0) == $empty_array or
-      delete @{$dircontents->{$fname}}{qw(LINK_DEREF EXISTS IS_READABLE LSTAT HAVE_READ_PERMISSION IS_WRITABLE)};
+      delete @{$dircontents->{$fname}}{qw(LINK_DEREF xEXISTS IS_READABLE LSTAT HAVE_READ_PERMISSION IS_WRITABLE)};
   }
 
   delete dereference( $dirinfo )->{LSTAT};
@@ -997,21 +1032,16 @@ sub relative_filename {
 				# Optimize for the special case where the
 				# file is in the given directory.
 
-  my( @dirs, $abs );		# Profit from all upwards paths being cached.
+  my @dirs;			# Profit from all upwards paths being cached.
   until( $dir == $fdir || exists $dir->{int $fdir} ) { # So we meet at common root.
+    return $_[2] ? 999 + @dirs : &absolute_filename
+      if exists $fdir->{xABSOLUTE};
     unshift @dirs, $fdir;
-    if( $fdir == $root || Mpp::is_windows && $fdir->{NAME} =~ /\// ) {
-      $abs = 1;
-      last;
-    } else {
-      $fdir = $fdir->{'..'};
-    }
+    $fdir = $fdir->{'..'};
   }
 
   if( $_[2] ) {
-    ($abs ? 999 : (my $copy = $dir->{int $fdir}) =~ tr!/!!d) + @dirs;
-  } elsif( $abs ) {
-    &absolute_filename;
+    (($dir = $dir->{int $fdir}) =~ tr!/!!d) + @dirs;
   } elsif( exists $finfo->{DIRCONTENTS} ) {
     $dir->{int $orig_fdir} = join '/', $dir == $fdir ? () : $dir->{int $fdir}, map $_->{NAME}, @dirs;
   } else {
@@ -1078,7 +1108,7 @@ sub unlink {
   my $fileinfo = $_[0];		# Get the Mpp::File struct.
 
   CORE::unlink &absolute_filename_nolink; # Delete the file.
-  delete @{$_[0]}{qw(EXISTS LSTAT SIGNATURE LINK_DEREF HAVE_READ_PERMISSION IS_READABLE)};
+  delete @{$_[0]}{qw(xEXISTS LSTAT SIGNATURE LINK_DEREF HAVE_READ_PERMISSION IS_READABLE)};
 				# Mark the file as non-existent.  Don't
 				# delete the fileinfo struct because it
 				# might contain make build info or other stuff.
@@ -1104,7 +1134,7 @@ sub mark_as_directory {
 				# We cache the absolute filename for all
 				# directories for performance reasons.
   my $parent = '..';		# Ensure we cache all upwards paths.
-  for( my $pinfo = $_[0]{'..'}; $pinfo != $root; $pinfo = $pinfo->{'..'} ) {
+  for( my $pinfo = $_[0]{'..'}; !exists $pinfo->{xABSOLUTE}; $pinfo = $pinfo->{'..'} ) {
     $_[0]{int $pinfo} = $parent;
     $parent .= '/..';
   }
@@ -1128,7 +1158,7 @@ sub mark_as_directory {
 # but a rule for the file was learned.
 #
 sub publish {
-  return if exists $_[0]{IS_PHONY} # Don't do anything if it's a phony target.
+  return if exists $_[0]{xPHONY} # Don't do anything if it's a phony target.
     or exists $_[0]{PUBLISHED} && $_[0]{PUBLISHED} > ($_[1] || 0);
 				# Don't do anything if we already published
 				# this file.
@@ -1162,24 +1192,9 @@ sub publish {
     undef $leaf;
   }
 }
-
-$CWD_INFO = file_info cwd;	# Store the current directory so we can handle relative file names.
-
-#
-# One unfortunate complication with the way we scan for include files in
-# makepp is that when the user switches to root to do the 'make install',
-# a different set of directories is now readable.  This may cause directories
-# which used to be non-writable to become writable, which means that makepp
-# will scan them for include files.  This means that the list of dependencies
-# may change, and therefore recompilation may be forced.  We try to get around
-# this with a special purpose hack where if we're running as root, we
-# actually do the check with the UID and GID of whoever owns the directory.
-#
-@ids_for_check = (stat absolute_filename $CWD_INFO)[4, 5]
-  if AS_ROOT;			# Use the IDs of whoever owns the current directory.
-
 $ENV{HOME} ||= (Mpp::is_windows > 0 ? $ENV{USERPROFILE} : eval { (getpwuid $>)[7] }) || '.';
-dereference file_info $ENV{HOME}; # Make sure we notice a symbolic name for the home directory.
+# Make sure we notice a symbolic name for the home directory, and switch to absolute name when going above it
+undef dereference( file_info "$ENV{HOME}/" )->{'..'}{xABSOLUTE};
 
 1;
 

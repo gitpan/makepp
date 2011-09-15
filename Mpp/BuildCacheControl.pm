@@ -1,4 +1,4 @@
-# $Id: BuildCacheControl.pm,v 1.28 2010/09/29 22:19:53 pfeiffer Exp $
+# $Id: BuildCacheControl.pm,v 1.29 2011/07/01 19:59:34 pfeiffer Exp $
 
 =head1 NAME
 
@@ -47,7 +47,7 @@ This is set to a list of one or more Mpp::BuildCache objects.  These have more
 attributes than the same objects in makepp:
 
     ..		The Mpp::File of the build cache directory.
-    PREFERRED	This is a preferred build cache if this key exists.
+    xPREFERRED	This is a preferred build cache iff this key exists.
 
 =head3 $preferred
 
@@ -88,11 +88,11 @@ sub group(@) {
     if( @tmp > 1 ) {		# Was already grouped
       push @list, @{$tmp[0]{GROUP}} if exists $tmp[0]{GROUP};
 				# Superset, in case GROUP got out of sync.
-      $preferred++, undef $tmp[1]{PREFERRED} if exists $tmp[0]{PREFERRED};
+      ++$preferred, undef $tmp[1]{xPREFERRED} if exists $tmp[0]{xPREFERRED};
     }
   }
   @group = sort {
-    (exists $b->{PREFERRED} || 0) <=> (exists $a->{PREFERRED} || 0)
+    (exists $b->{xPREFERRED} || 0) <=> (exists $a->{xPREFERRED} || 0)
     or $a->{DIRNAME} cmp $b->{DIRNAME};
   } map defined() ? $_->{BC} : (), values %bc;
   die "$0: no group members were readable\n" unless @group;
@@ -524,7 +524,7 @@ sub c_create {
       }
       if( $extend || @ARGV > 1 ) {
 	$_ = { DIRNAME => $_, '..' => file_info $_ };
-	undef $_->{PREFERRED} if $preferred;
+	undef $_->{xPREFERRED} if $preferred;
       } else {
 	$_ = { DIRNAME => $_ };
       }
@@ -539,7 +539,7 @@ sub c_create {
 	  (Mpp::Subs::f_sort # f_sort eliminates dups, which come from re-adding a lost group member.
 	    join ' ', @unreachable, map { $_->{'..'} == $self ? () : absolute_filename $_->{'..'} } @ARGV ) .
 	  ')]';
-	$str .= ', PREFERRED => undef' if exists $_->{PREFERRED};
+	$str .= ', xPREFERRED => undef' if exists $_->{xPREFERRED};
 	$str .= " },\n{ ";
       } else {
 	$str = '{ ';

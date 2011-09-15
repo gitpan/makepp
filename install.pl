@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.101 2011/06/05 20:35:22 pfeiffer Exp $
+# $Id: install.pl,v 1.103 2011/08/06 11:48:02 pfeiffer Exp $
 #
 
 package Mpp;
@@ -78,7 +78,7 @@ if ($datadir !~ /^\//) {	# Make a relative path absolute.
   $setdatadir = "\$datadir = '$datadir';";
 }
 
-# prior installation may not have supported .makepp/*.mk files
+# deprecated prior installation may not have supported .makepp/*.mk files
 -r "$datadir/FileInfo_makepp.pm" and
   (stat "$datadir/FileInfo_makepp.pm")[9] < 1102710870 || # check-in time
   do {
@@ -208,7 +208,7 @@ our $explicit_perl = '';
 {
   local $SIG{__WARN__}= sub {};
   $explicit_perl = "Mpp::PERL . ' ' ."
-    if system "$bindir/makeppinfo"; # zero if executable, ouptputs nothing
+    if $destdir || system "$bindir/makeppinfo"; # zero if executable, ouptputs nothing
 }
 
 substitute_file( 'Mpp/Recursive.pm', $datadir, 0644 );
@@ -331,6 +331,7 @@ sub highlight_variables() {
 }
 
 if ($htmldir_val ne 'none') {
+  my $libpods = join ':', map { /(makepp.+)\.pod/ ? $1 : () } @pods;
   my( %nolink, %link );
   my %alias = (makepp => 'Overview',
 	       build_check => 'Build Check Methods',
@@ -358,13 +359,14 @@ if ($htmldir_val ne 'none') {
   }
   # Put these first/last alphabetically:
   my %order = ('makepp.html' => 0,
-	    'makepp_release_notes.html' => 1,
-	    'makepp_tutorial.html' => 2,
-	    'makepp_tutorial_compilation.html' => 3,
-	    'makepp_cookbook.html' => 4,
-	    'makepp_faq.html' => 5,
-	    'makepp_speedup.html' => 6,
-	    'perl_performance.html' => 7,
+	    'makepp_index.html' => 1,
+	    'makepp_release_notes.html' => 2,
+	    'makepp_tutorial.html' => 3,
+	    'makepp_tutorial_compilation.html' => 4,
+	    'makepp_cookbook.html' => 5,
+	    'makepp_faq.html' => 6,
+	    'makepp_speedup.html' => 7,
+	    'perl_performance.html' => 8,
 	    'makeppbuiltin.html' => '~0',
 	    'makeppclean.html' => '~1',
 	    'makeppgraph.html' => '~2',
@@ -375,6 +377,14 @@ if ($htmldir_val ne 'none') {
   my @links =
       sort { (exists $order{$a} ? $order{$a} : $nolink{$a}) cmp (exists $order{$b} ? $order{$b} : $nolink{$b}) }
       keys %link;
+  my( %prev, %next, $prev );
+  for( @links ) {
+    if( $prev ) {
+      $prev{$_} = $prev;
+      $next{$prev} = $_;
+    }
+    $prev = $_;
+  }
   # Separate menu into 3 sections
   $nolink{$_} = "<hr />$nolink{$_}", $link{$_} = "<hr />$link{$_}" for
       qw(makepp_build_algorithm.html makeppbuiltin.html);
@@ -401,12 +411,13 @@ if ($htmldir_val ne 'none') {
     if( fork ) {		# separate pod2html, or they append numbers to same name in different files
       wait;
     } else {
-      Pod::Html::pod2html qw'--libpods=makepp_functions:makepp_rules:makepp_statements:makepp_variables:makepp_signatures:makepp_build_cache
-			   --podpath=. --podroot=. --htmlroot=. --css=makepp.css --infile', $_, '--outfile', $tmp;
+      Pod::Html::pod2html qw'--podpath=. --htmlroot=. --css=makepp.css --libpods', $libpods,
+	'--infile', $_, '--outfile', $tmp;
       exit;
     }
     open my( $tmpfile ), $tmp;
     s/pod$/html/;
+    my $file = $_;
     my $img = '<img src="makepp.gif" width="142" height="160" title="makepp" border="0">';
     $img = "<a href='" . ($home ? '/' : '.') . "'>$img</a>" if $home || length() > 11;
     my $nav = "<table id='Nav'><tr><th>$img<th></tr><tr><th></th></tr>
@@ -455,8 +466,14 @@ if ($htmldir_val ne 'none') {
 	  s!<ul>\s+<ul>!<ul>!;
 	}
 	$_ = "<link rel='icon' href='url.png' type='image/png' />
+<link rel='top' href='http://makepp.sourceforge.net/' />
+<link rel='index' href='makepp_index.html' />
+<link rel='contents' href='.' />
+<link rel='help' href='http://sourceforge.net/projects/makepp/support' />
 <meta name='keywords' content='makepp, make++, Make, build tool, repository, cache, Perl, Make alternative, Make replacement, Make enhancement, Make improvement, Make substitute, dmake, gmake, GNU Make, nmake, pmake, easymake, imake, jmake, maketool, mmake, omake, ppmake, PVM gmake, shake, SMake, ant, maven, cook, jam, Cons, SCons, cc -M, gcc -MM, g++ -MM, makedepend, makedep, mkdep, CCache, Compilercache, cachecc1, Make::Cache, automake' />
 </head><body>$nav<h1>$title</h1>\n<p><b>$_</p>$index";
+	substr $_, 0, 0, "<link rel='next' href='$next{$file}' />\n" if $next{$file};
+	substr $_, 0, 0, "<link rel='prev' href='$prev{$file}' />\n" if $prev{$file};
       } elsif( s/<pre>\n// ) {
 	$pre = 1;
       } elsif( $pre ) {
@@ -600,7 +617,7 @@ if ($htmldir_val ne 'none') {
 #
 # Figure out whether we need to do anything about Digest::MD5.
 #
-eval "use Digest::MD5";		# See if it's already installed.
+eval "use Digest::MD5";		# See if it's already installed.  Was not with 5.6.
 if ($@) {
   print "\nIt looks like you don't have the perl module Digest::MD5 installed.
 Makepp likes to have Digest::MD5 installed because it is a better technique

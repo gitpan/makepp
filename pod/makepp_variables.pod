@@ -2,20 +2,20 @@
 
 makepp_variables -- How to use variables in makepp
 
-=for vc $Id: makepp_variables.pod,v 1.40 2011/06/05 20:35:22 pfeiffer Exp $
+=for vc $Id: makepp_variables.pod,v 1.44 2011/09/15 21:08:07 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
-=for genindex '$str =~ s/^(?=.=)/=/; $str =~ s/^_(\w+)/$1z/' '\S+' makepp_variables.pod
+=for genindex '\S+' makepp_variables.pod
 
-B<$:>E<nbsp>L<$*|/stem>,
+B<?:>E<nbsp>L<$*|/stem>,
   L<$+|/sorted_dependencies>,
   L<$/|/__>,
+  L<$E<lt>|/dependency>,
   L<$?|/changed_dependencies>,
   L<$@|/output>,
-  L<$E<lt>|/dependency>,
-  L<$^|/dependencies>,E<nbsp>
-B<=:>E<nbsp>L<=|/_>,
+  L<$^|/dependencies>,
+  L<=|/_>,
   L<!=|/__>,
   L<&=|/__>,
   L<+=|/__>,
@@ -267,9 +267,12 @@ after the statement, i.e. the value starts on the next line.
     third line of variable's value
     endef
 
-    override define VARIABLE +=	# Operator is not optional with override
+    override define VARIABLE
     ...
     enddef
+
+Keywords before C<define> can be combinations of either one of C<export> or
+C<global> and C<override>.
 
 If you need a variable's value to contain newlines, you must use the C<define>
 statement as shown (or you can assign the value directly in perl).  (C<endef>

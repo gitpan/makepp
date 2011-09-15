@@ -1,4 +1,4 @@
-# $Id: Repository.pm,v 1.7 2011/06/05 20:35:22 pfeiffer Exp $
+# $Id: Repository.pm,v 1.9 2011/09/15 20:59:26 pfeiffer Exp $
 
 =head1 NAME
 
@@ -20,7 +20,7 @@ sub symlink {
   CORE::symlink relative_filename( $_[1], $_[0]{'..'} ),
 		&absolute_filename_nolink
     or die 'error linking ' . absolute_filename( $_[1] ) . ' to ' . &absolute_filename . "--$!\n";
-  undef $_[0]{EXISTS};		# We know this file exists now.
+  undef $_[0]{xEXISTS};		# We know this file exists now.
 }
 
 #
@@ -80,7 +80,7 @@ sub load_recurse {
 				# not to try to incorporate anything from
 				# the repository.
   } else {                      # Local directory does not exist?
-    undef $destdirinfo->{DIR_IN_REPOSITORY}; # Remember by placeholder that it did exist
+    undef $destdirinfo->{xIN_REPOSITORY}; # Remember by placeholder that it did exist
                                 # in some repository, so it should spring into existence as needed.
   }
 
@@ -217,7 +217,7 @@ sub Mpp::Repository::get {
   my %build_info = %$binfo;	# Make a copy of everything.
   $build_info{FROM_REPOSITORY} = relative_filename( $src_finfo, $dest_finfo->{'..'} );
 				# Remember that we got it from a repository.
-  undef $dest_finfo->{NEEDS_BUILD_UPDATE}; # Remember to update the build info.
+  undef $dest_finfo->{xUPDATE_BUILD_INFOS}; # Remember to update the build info.
   $dest_finfo->{BUILD_INFO} = \%build_info;
   push @build_infos_to_update, $dest_finfo;
 				# Update it soon.
@@ -259,7 +259,7 @@ sub Mpp::Repository::get {
 				# of which we have a different version locally.
       $build_info{SYMLINK} = readlink absolute_filename $src_finfo;
       if( CORE::symlink $build_info{SYMLINK}, &absolute_filename ) {
-	undef $dest_finfo->{EXISTS}; # We know this file exists now.
+	undef $dest_finfo->{xEXISTS}; # We know this file exists now.
       } else {
 	$@ = "$!";
       }
@@ -280,7 +280,7 @@ sub Mpp::Repository::get {
   # NOTE: This has to happen *after* the file exists (or else the build info
   # won't be saved), but *before* calling may_have_changed (which erases the
   # build info). Bad things could happen if it were possible for
-  # update_build_infos to be called after NEEDS_BUILD_UPDATE is set, but
+  # update_build_infos to be called after xUPDATE_BUILD_INFOS is set, but
   # before now.
   &update_build_infos;		# Update it now.  This way, the file is marked
 				# as coming from a repository even if the
@@ -311,17 +311,17 @@ no warnings 'redefine';
 
 sub Mpp::Subs::s_repository {
   #my( $text_line, $makefile, $makefile_line ) = @_; # Name the arguments.
-
-  foreach my $rdir ( split ' ', $_[1]->expand_text( $_[0], $_[2] )) {
+  my $cwd = $_[1] ? $_[1]{CWD} : $CWD_INFO;
+  foreach my $rdir ( $_[1] ? split ' ', $_[1]->expand_text( $_[0], $_[2] ) : $_[0] ) {
 				# Get a list of repository directories.
     if( $rdir =~ /^([^=]+)=(.*)/ ) { # Destination directory specified?
-      my $rinfo = file_info $2, $_[1]{CWD};
-      my $dst_info = file_info $1, $_[1]{CWD};
+      my $rinfo = file_info $2, $cwd;
+      my $dst_info = file_info $1, $cwd;
       Mpp::Repository::load $rinfo, $dst_info;
     } else {
-      my $rinfo = file_info $rdir, $_[1]{CWD};
+      my $rinfo = file_info $rdir, $cwd;
 				# Get the fileinfo structure.
-      Mpp::Repository::load $rinfo, $_[1]{CWD};
+      Mpp::Repository::load $rinfo, $cwd;
 				# Load all the files.
     }
   }

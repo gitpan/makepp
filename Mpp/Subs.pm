@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.185 2011/06/21 20:20:36 pfeiffer Exp $
+# $Id: Subs.pm,v 1.190 2011/09/15 21:08:07 pfeiffer Exp $
 
 =head1 NAME
 
@@ -195,28 +195,31 @@ our %parsers =
    time		=> \&p_skip_word,
 
    # All the C/C++ compilers we have run into so far:
-   cc		=> \&p_c_compilation,
-  'c++'		=> \&p_c_compilation,
-   CC		=> \&p_c_compilation,
-   cxx		=> \&p_c_compilation,
+   aCC		=> \&p_c_compilation, # HP C++.
+   bcc32	=> \&p_c_compilation, # Borland C++
    c89		=> \&p_c_compilation,
    c99		=> \&p_c_compilation,
-   pcc		=> \&p_c_compilation,
-   kcc		=> \&p_c_compilation, # KAI C++.
+   cc		=> \&p_c_compilation,
+   CC		=> \&p_c_compilation,
    ccppc	=> \&p_c_compilation, # Green Hills compilers.
+   clang	=> \&p_c_compilation, # LLVM
+   cl		=> \&p_c_compilation, # MS Visual C/C++
+  'c++'		=> \&p_c_compilation,
+   cpp		=> \&p_c_compilation, # The C/C++ preprocessor.
    cxppc	=> \&p_c_compilation,
-   aCC		=> \&p_c_compilation, # HP C++.
+   cxx		=> \&p_c_compilation,
+   icc		=> \&p_c_compilation, # Intel
+   icl		=> \&p_c_compilation, # Intel?
    ingcc	=> \&p_c_compilation, # Ingres wrapper
+   insure	=> \&p_c_compilation, # Parasoft Insure++
+   kcc		=> \&p_c_compilation, # KAI C++.
    lsbcc	=> \&p_c_compilation, # LSB wrapper around cc.
   'lsbc++'	=> \&p_c_compilation,
+   pcc		=> \&p_c_compilation,
+   xlC		=> \&p_c_compilation,
    xlc		=> \&p_c_compilation, # AIX
    xlc_r	=> \&p_c_compilation,
-   xlC		=> \&p_c_compilation,
    xlC_r	=> \&p_c_compilation,
-   cpp		=> \&p_c_compilation, # The C/C++ preprocessor.
-   cl		=> \&p_c_compilation, # MS Visual C/C++
-   bcc32	=> \&p_c_compilation, # Borland C++
-   insure	=> \&p_c_compilation, # Parasoft Insure++
 
    vcs		=> \&p_vcs_compilation,
 
@@ -236,9 +239,6 @@ our %parsers =
 @parsers{ map "$_.exe", keys %parsers } = values %parsers
   if Mpp::is_windows;
 
-
-# True while we are within a define statement.
-our $s_define;
 
 #
 # An internal subroutine that converts Mpp::File structures to printable
@@ -531,9 +531,9 @@ sub f_find_program {
 	my( $exists_exe, $finfo_exe );
 	$exists_exe = Mpp::File::exists_or_can_be_built $finfo_exe = Mpp::File::path_file_info "$name.exe", $mkfile->{CWD}
 	  if !$exists ||
-	    $_[3] && $Mpp::File::stat_exe_separate ? !exists $finfo->{EXISTS} : !open my $fh, '<', absolute_filename $finfo;
+	    $_[3] && $Mpp::File::stat_exe_separate ? !exists $finfo->{xEXISTS} : !open my $fh, '<', absolute_filename $finfo;
 				# Check for exe, but don't bother returning it, unless full path wanted.
-				# If stat has .exe magic, EXISTS is meaningless.
+				# If stat has .exe magic, xEXISTS is meaningless.
 	return $_[3] ? absolute_filename( $finfo_exe ) : $name if $exists_exe;
       }
       return $_[3] ? absolute_filename( $finfo ) : $name if $exists;
@@ -555,7 +555,7 @@ sub f_find_program {
 	my( $exists_exe, $finfo_exe );
 	$exists_exe = Mpp::File::exists_or_can_be_built $finfo_exe = file_info( "$name.exe", $dir ), undef, undef, 1
 	  if !$exists ||
-	    $_[3] && $Mpp::File::stat_exe_separate ? !exists $finfo->{EXISTS} : !open my $fh, '<', absolute_filename $finfo;
+	    $_[3] && $Mpp::File::stat_exe_separate ? !exists $finfo->{xEXISTS} : !open my $fh, '<', absolute_filename $finfo;
 				# Check for exe, but don't bother returning it, unless full path wanted.
 	return $_[3] ? absolute_filename( $finfo_exe ) : $name if $exists_exe;
       }
@@ -603,35 +603,28 @@ sub f_findfile {
 # its behavior, when given multiple filenames, it attempts to find all
 # the requested files
 #
-# $(find_first_upwards ...) is similar, but reverses the order of the loop.
-# It looks for any of the named files at one directory-level, before going
-# to "..", where it then also looks for any of the filenames. It returns the
-# first file that it finds.
 sub f_find_upwards {
   my $cwd = $_[1] && $_[1]{CWD};
-
   my @ret_names;
-
   my $cwd_devid;		# Remember what device this is mounted on
 				# so we can avoid crossing file system boundaries.
-
   for( split_on_whitespace &arg ) {
     $_ = unquote;
     my $found;
-    for( my $dirinfo = $cwd;
-	 $dirinfo &&
-	 (stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
-	   ($cwd_devid ||= (stat_array $cwd)->[Mpp::File::STAT_DEV]);
-				# Don't cross device boundaries.  This is
-				# intended to avoid trouble with automounters
-				# or dead network file systems.
-	 $dirinfo = $dirinfo->{'..'} ) { # Look in all directories above us.
+    my $dirinfo = $cwd;
+    while( 1 ) {
       my $finfo = file_info $_, $dirinfo;
       if( Mpp::File::exists_or_can_be_built $finfo ) { # Found file in the path?
 	$found = 1;
 	push @ret_names, relative_filename $finfo, $cwd;
 	last;			# done searching
       }
+      last unless $dirinfo = $dirinfo->{'..'}; # Look in all directories above us.
+      last if (stat_array $dirinfo)->[Mpp::File::STAT_DEV] !=
+	($cwd_devid ||= (stat_array $cwd)->[Mpp::File::STAT_DEV]);
+				# Don't cross device boundaries.  This is
+				# intended to avoid trouble with automounters
+				# or dead network file systems.
     }
     $found or die "find_upwards: cannot find file $_\n";
   }
@@ -639,27 +632,36 @@ sub f_find_upwards {
   join ' ', @ret_names;
 }
 
+#
+# $(find_first_upwards ...) is similar, but reverses the order of the loop.
+# It looks for any of the named files at one directory-level, before going
+# to "..", where it then also looks for any of the filenames. It returns the
+# first file that it finds.  With a 4th true arg, returns a Mpp::File instead.
+# If the 4th arg is a ref, only returns files that already exist.
+#
 sub f_find_first_upwards {
   my @fnames = unquote_split_on_whitespace &arg;
   my $cwd = $_[1] && $_[1]{CWD};
 
   my $cwd_devid;		# Remember what device this is mounted on
 				# so we can avoid crossing file system boundaries.
-
-  for( my $dirinfo = $cwd;
-       $dirinfo &&
-       (stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
-	 ($cwd_devid ||= (stat_array $cwd)->[Mpp::File::STAT_DEV]);
+  my $dirinfo = $cwd;
+  while( 1 ) {
+    for( @fnames ) {
+      my $finfo = file_info $_, $dirinfo;
+      return $_[3] ? $finfo : relative_filename $finfo, $cwd
+	if ref $_[3] ?
+	  file_exists $finfo :
+	  Mpp::File::exists_or_can_be_built $finfo; # Found file in the path?
+    }
+    last unless $dirinfo = $dirinfo->{'..'}; # Look in all directories above us.
+    last if (stat_array $dirinfo)->[Mpp::File::STAT_DEV] !=
+      ($cwd_devid ||= (stat_array $cwd)->[Mpp::File::STAT_DEV]);
 				# Don't cross device boundaries.  This is
 				# intended to avoid trouble with automounters
 				# or dead network file systems.
-       $dirinfo = $dirinfo->{'..'} ) { # Look in all directories above us.
-    for( @fnames ) {
-      my $finfo = file_info $_, $dirinfo;
-      return relative_filename $finfo, $cwd
-	if Mpp::File::exists_or_can_be_built $finfo; # Found file in the path?
-    }
   }
+  return if $_[3];
   die "find_first_upwards cannot find any of the requested files: @fnames\n";
 }
 
@@ -1098,7 +1100,7 @@ sub f_perl {
 #
 sub f_phony {
   my $text = &arg;
-  undef file_info( unquote(), $_[1]{CWD} )->{IS_PHONY}
+  undef file_info( unquote(), $_[1]{CWD} )->{xPHONY}
     for split_on_whitespace $text;
   $text;			# Just return our argument.
 }
@@ -1186,7 +1188,7 @@ sub f_shell {
       close INHANDLE;		# Don't read from the handle any more.
       close STDOUT;
       open(STDOUT,'>&OUTHANDLE') || die "can't redirect stdout--$!\n";
-      exec(format_exec_args($str));
+      exec format_exec_args $str;
       die "exec $str failed--$!\n";
     }, ERROR => sub {
       warn "shell command `$str' returned `$_[0]' at `$mkfile_line'\n";
@@ -1208,7 +1210,7 @@ sub f_shell {
     close INHANDLE;
   }
   $shell_output =~ s/\r?\n/ /g	# Get rid of newlines.
-    unless $s_define;
+    unless $Mpp::Makefile::s_define;
   $shell_output =~ s/\s+$//s;	# Strip out trailing whitespace.
   $shell_output;
 }
@@ -1254,7 +1256,7 @@ sub f_suffix {
 #
 sub f_temporary {
   my $text = &arg;
-  file_info( unquote(), $_[1]{CWD} )->{IS_TEMP} = 1
+  undef file_info( unquote(), $_[1]{CWD} )->{xTEMP}
     for split_on_whitespace $text;
   $text;			# Just return our argument.
 }
@@ -1483,22 +1485,24 @@ sub f_MAKE {
 # Define a build cache for this makefile.
 #
 sub s_build_cache {#_
-  my ($arg, $mkfile, $mkfile_line) = @_;
+  my ($fname, $mkfile, $mkfile_line) = @_;
+  my $var = delete $_[3]{global} ? \$Mpp::BuildCache::global : \$mkfile->{BUILD_CACHE};
 
-  my $build_cache_fname = $mkfile->expand_text($arg, $mkfile_line);
-  $build_cache_fname =~ s/^\s+//;
-  $build_cache_fname =~ s/\s+$//; # Strip whitespace.
+  $fname = $mkfile->expand_text( $fname, $mkfile_line )
+    if $mkfile;
+  $fname =~ s/^\s+//;
+  $fname =~ s/\s+$//; # Strip whitespace.
 
-  if ($build_cache_fname eq 'none') { # Turn off build cache?
-    $mkfile->{BUILD_CACHE} = undef;
+  if ($fname eq 'none') { # Turn off build cache?
+    undef $$var;
   } else {
-    $build_cache_fname = absolute_filename( file_info( $build_cache_fname, $mkfile->{CWD} ));
-				  # Make sure we work even if cwd is wrong.
+    $fname = absolute_filename file_info $fname, $mkfile->{CWD}
+      if $mkfile;		# Make sure we work even if cwd is wrong.
 
-    eval { require Mpp::BuildCache };	# Load the build cache mechanism.
-    $mkfile->{BUILD_CACHE} and
-      die "You cannot define multiple build caches for a makefile.\n";
-    $mkfile->{BUILD_CACHE} = new Mpp::BuildCache($build_cache_fname);
+    require Mpp::BuildCache;	# Load the build cache mechanism.
+    warn $mkfile_line ? "$mkfile_line: " : '', "Setting another build cache.\n"
+      if $$var;
+    $$var = new Mpp::BuildCache( $fname );
   }
 }
 
@@ -1531,89 +1535,16 @@ sub s_no_implicit_load {
   my $cwd = $rule ? $rule->build_cwd : $mkfile->{CWD};
 				# Get the default directory.
 
-  local $Mpp::implicitly_load_makefiles = 0;
-				# Temporarily turn off makefile loading for
-				# the expansion of this wildcard.
+  local $Mpp::implicitly_load_makefiles; # Temporarily turn off makefile
+				# loading for the expansion of this wildcard.
 
   my @dirs = map zglob_fileinfo($_, $cwd),
     split ' ', $mkfile->expand_text($text_line, $mkfile_line);
 				# Get a list of things matching the wildcard.
   foreach my $dir (@dirs) {
-    is_or_will_be_dir $dir and $dir->{NO_IMPLICIT_LOAD} = 1;
+    undef $dir->{xNO_IMPLICIT_LOAD} if is_or_will_be_dir $dir;
 				# Tag them so they don't load later.
   }
-}
-
-#
-# Define statement.
-# 5 args means we're called from Mpp::Makefile::grok_assignment, because the new form was used:
-# define var +=		# or := etc.
-#
-sub s_define {#__
-  my( $varname, $mkfile, $mkfile_line, $type, $override ) = @_; # Name the arguments.
-
-  if( @_ < 5 ) {	      # If not called from Mpp::Makefile::grok_assignment.
-#
-# Parse the rest of the statement line.	 There should be a single word
-# which is the name of the variable to define.
-#
-    $varname = $mkfile->expand_text( $varname, $mkfile_line );
-				# Get the name of the variable being defined.
-    $varname =~ s/^\s+//;	# Strip leading and trailing whitespace.
-    $varname =~ s/\s+$//;
-    $varname =~ /[\s:\#]/ and
-      die "illegal variable \"$varname\" at $mkfile_line\n";
-  }
-
-#
-# Read the remaining lines in.	Note that statements are executed while we're
-# in the middle of reading the makefile, so we can grab the next line easily.
-#
-  my $var_value = '';
-  local $_;
-  local $s_define = 1;
-  # GNU make only unites backslashed lines and looks for endef
-  while( defined( $_ = Mpp::Makefile::read_makefile_line_stripped( 1, 1 ))) {
-    /^\s*endd?ef\s*(?:$|#)/ and last;	# End of definition.
-    $var_value .= $_;
-  }
-  chomp $var_value;
-  Mpp::Makefile::assign( $mkfile, $varname, $type || 0, $var_value, $override, $mkfile_line, "\n" );
-}
-
-#
-# Export statement.  If it contains an assignment that is handled by
-# Mpp::Makefile::grok_assignment, which calls this only to mark it for export.
-#
-sub s_export {#__
-  #my ($text_line, $mkfile, $mkfile_line) = @_; # Name the arguments.
-
-  undef $_[1]{EXPORTS}{$_} for
-    split ' ', &arg;
-				# Mark these variables for export.  We'll
-				# fill out their values later.
-}
-
-#
-# Global statement.  If it contains an assignment that is handled by
-# Mpp::Makefile::grok_assignment.
-#
-sub s_global {#__
-  $Mpp::Makefile::global ||= {};
-  my $reexpandref = $_[1] && $_[1]{VAR_REEXPAND};
-  for( split ' ', &arg) {
-				# Mark these variables for export.  We'll
-				# fill out their values later.
-    (my $reexpand, ${"Mpp::global::$_"} ) = $_[1]->expand_variable( $_, $_[2], 1 );
-    if( defined ${"Mpp::global::$_"} ) { # Maybe turning a local to global.
-      undef ${"$_[1]{PACKAGE}::$_"};
-      delete $reexpandref->{$_} if $reexpandref;
-    } else {
-      ${"Mpp::global::$_"} = '';	# Make it at least exist globally.
-    }
-    $Mpp::Makefile::global->{VAR_REEXPAND}{$_} = 1 if $reexpand;
-  }
-  delete $_[1]{VAR_REEXPAND} if $reexpandref && !%$reexpandref;
 }
 
 #
@@ -1621,61 +1552,47 @@ sub s_global {#__
 #
 our( $defer_include, @defer_include ); # gmake cludge
 sub s_include {#__
-  my( undef, $mkfile, $mkfile_line, $ignore ) = @_;
+  my( undef, $mkfile, $mkfile_line, $keyword ) = @_;
 				# Name the arguments.
   if( $defer_include ) {
-    push @defer_include, $ignore ? \&s__include : \&s_include, @_[0..2];
+    push @defer_include, $keyword->{ignore} ? \&s__include : \&s_include, @_[0..2];
     return;
   }
 
-  my @files = split ' ', $mkfile->expand_text( $_[0], $mkfile_line );
-				# Get a list of files.
-  my $cwd_devid;		# Remember what device this is mounted on
-				# so we can avoid crossing file system boundaries.
-
-  foreach my $file (@files) {
-    my $file_makepp = "$file.makepp"; # Search for special makepp versions of
-                                # files as well.
-    my $finfo;
-    for( my $dirinfo = $mkfile->{CWD};
-	 $dirinfo &&
-	 (stat_array $dirinfo)->[Mpp::File::STAT_DEV] ==
-	   ($cwd_devid ||= (stat_array $mkfile->{CWD})->[Mpp::File::STAT_DEV]);
-	 $dirinfo = $dirinfo->{'..'} ) { # Look in all directories above us.
-      $finfo = file_info $file_makepp, $dirinfo;
-      unless( Mpp::File::exists_or_can_be_built $finfo ) {
-        $finfo = file_info $file, $dirinfo;
-	next unless Mpp::File::exists_or_can_be_built $finfo;
-      }
-      wait_for prebuild( $finfo, $mkfile, $mkfile_line ) and
-				# Build it if necessary, or link
-				# it from a repository.
+  for my $file ( split ' ', $mkfile->expand_text( $_[0], $mkfile_line )) { # Get a list of files.
+    my $finfo = f_find_first_upwards $Mpp::Makefile::c_preprocess ? $file : "$file.makepp $file",
+      $mkfile, $mkfile_line, 1;	# Search for special makepp versions of files as well.
+    if( $Mpp::Makefile::c_preprocess ) {
+      eval { $mkfile->read_makefile($finfo) };
+      die $@ if
+	$@ and $keyword->{ignore} ? !/^can't read makefile/ : 1;
+    } else {
+      $finfo and
+	wait_for prebuild( $finfo, $mkfile, $mkfile_line ) and
+				# Build it if necessary, or link it from a repository.
 	die "can't build " . absolute_filename( $finfo ) . ", needed at $mkfile_line\n";
 				# Quit if the build failed.
-      last;
-    }
-
 #
 # If it wasn't found anywhere in the directory tree, search the standard
 # include files supplied with makepp.  We don't try to build these files or
 # link them from a repository.
 #
-    unless( file_exists( $finfo )) { # Not found anywhere in directory tree?
-      foreach (@{$mkfile->{INCLUDE_PATH}}) {
-	$finfo = file_info($file, $_); # See if it's here.
-	last if file_exists( $finfo );
+      unless( $finfo ) { # Not found anywhere in directory tree?
+	foreach (@{$mkfile->{INCLUDE_PATH}}) {
+	  $finfo = file_info($file, $_); # See if it's here.
+	  last if file_exists $finfo;
+	}
+	unless( file_exists $finfo ) {
+	  next if $keyword->{ignore};
+	  die "makepp: can't find include file `$file'\n";
+	}
       }
-      unless( file_exists $finfo ) {
-	next if $ignore;
-	die "makepp: can't find include file `$file'\n";
-      }
-    }
 
-    Mpp::log LOAD_INCL => $finfo, $mkfile_line
-      if $Mpp::log_level;
-    $mkfile->read_makefile($finfo); # Read the file.
+      Mpp::log LOAD_INCL => $finfo, $mkfile_line
+	if $Mpp::log_level;
+      $mkfile->read_makefile($finfo); # Read the file.
+    }
   }
-  '';
 }
 
 #
@@ -1683,7 +1600,7 @@ sub s_include {#__
 # doesn't die with an error message if the file doesn't exist.
 #
 sub s__include {#_
-  s_include @_[0..2], 1;#__
+  s_include @_[0..2], {ignore => 1};#__
 }
 
 #
@@ -1754,34 +1671,12 @@ sub s_load_makefile {#_
 }
 
 #
-# Read a block either optionally indented {{ to }} or single braced.
-# The latter must finish on the same line or at the very beginning of
-# a following line.
-#
-sub read_block($) {
-  my $code = $_[0];		# Name the arguments.
-  my $re = ($code =~ /\{\{/) && qr/^\s*\}\}/;
-				# {{ is stronger than } at EOL
-  if ($re || $code !~ /\}\s*$/) { # Code is not entirely inline?
-    $code .= "\n";		# Put the newline in that got removed.
-    my $line;
-    while (defined($line = &Mpp::Makefile::read_makefile_line)) { # Get the next line.
-      $code .= $line;
-      $re ||= ($line =~ /^\s*\{\{/s) ? qr/^\s*\}\}/ : qr/^\}/;
-				# Give {{ a chance on 2nd line.
-      last if $line =~ /$re/s;	# Stop at a brace at the left margin.
-    }
-  }
-  $code;
-}
-
-#
 # This function allows the user to do something in the makefile like:
 # makeperl {
 #   ... perl code
 # }
 #
-sub s_makeperl { s_perl( @_, 1 ) }
+sub s_makeperl { s_perl( @_[0..2], {make => 1} ) }
 
 #
 # This function allows the user to do something in the makefile like:
@@ -1789,16 +1684,16 @@ sub s_makeperl { s_perl( @_, 1 ) }
 #   ... perl code
 # }
 #
-sub s_makesub { s_sub( @_, 1 ) }
+sub s_makesub { s_sub( @_[0..2], {make => 1} ) }
 
 #
 # Begin a whole block of perl { } code.
 #
 sub s_perl {#__
-  my ($perl_code, $mkfile, $mkfile_line, $expand) = @_;
+  my ($perl_code, $mkfile, $mkfile_line, $keyword) = @_;
 				# Name the arguments.
-  $perl_code = read_block $perl_code;
-  $perl_code = $mkfile->expand_text($perl_code, $mkfile_line) if defined $expand;
+  $perl_code = Mpp::Makefile::read_block( $keyword->{make} ? 'makeperl' : 'perl', $perl_code );
+  $perl_code = $mkfile->expand_text($perl_code, $mkfile_line) if $keyword->{make};
   $mkfile->cd;		# Make sure we're in the correct directory
 				# because some perl code will expect this.
   eval_or_die $perl_code, $mkfile, $mkfile_line;
@@ -1809,21 +1704,18 @@ sub s_perl {#__
 # Begin a whole block of perl code.
 #
 sub s_perl_begin {#_
-  my ($junk, $mkfile, $mkfile_line) = @_;
+  my ($perl_code, $mkfile, $mkfile_line) = @_;
 				# Name the arguments.
-  my $perl_code = "\n";		# To get line numbers right in messages
-  my $line;
-  while (defined($line = &Mpp::Makefile::read_makefile_line)) { # Get the next line.
-    last if $line =~ /^\s*perl_end\b/; # Found the terminator?
-    $perl_code .= $line;
-  }
-  $mkfile->cd;		# Make sure we're in the correct directory
+  warn "$mkfile_line: trailing cruft after statement: `$perl_code'\n"
+    if $perl_code;
+  $perl_code = Mpp::Makefile::read_block( perl_begin => $perl_code, qr/perl[-_]end/ );
+  $mkfile->cd;			# Make sure we're in the correct directory
 				# because some perl code will expect this.
   eval_or_die $perl_code, $mkfile, $mkfile_line;
 }
 
 #
-# Built targets immediately.
+# Build targets immediately.
 # Useful when the list of targets depends on files that might be generated.
 #
 sub s_prebuild {#__
@@ -1832,7 +1724,7 @@ sub s_prebuild {#__
 
   &Mpp::maybe_stop;
   for my $target (@words) {
-    my $finfo = file_info($target, $mkfile->{CWD});
+    my $finfo = file_info $target, $mkfile->{CWD};
     # TBD: If prebuild returns undef, then that could mean that the file
     # didn't need to be built, but it could also means that there was a
     # dependency loop. We ought to generate an error in the latter case.
@@ -2005,10 +1897,9 @@ sub s_signature {#__
 # }
 #
 sub s_sub {#__
-  my ($subr_text, $mkfile, $mkfile_line, $expand) = @_;
-				# Name the arguments.
-  $subr_text = read_block $subr_text;
-  $subr_text = $mkfile->expand_text($subr_text, $mkfile_line) if defined $expand;
+  my ($subr_text, $mkfile, $mkfile_line, $keyword) = @_; # Name the arguments.
+  $subr_text = Mpp::Makefile::read_block( $keyword->{make} ? 'makesub' : 'sub', $subr_text );
+  $subr_text = $mkfile->expand_text($subr_text, $mkfile_line) if defined $keyword->{make};
   eval_or_die "sub $subr_text", $mkfile, $mkfile_line;
 }
 
@@ -2016,12 +1907,9 @@ sub s_sub {#__
 # Don't export a variable to child processes.
 #
 sub s_unexport {#__
-  my ($text_line, $mkfile, $mkfile_line) = @_;
-				# Name the arguments.
-  return unless $mkfile->{EXPORTS};
-
+  my ($text_line, $mkfile, $mkfile_line) = @_; # Name the arguments.
   delete @{$mkfile->{EXPORTS}}{split ' ', $mkfile->expand_text($text_line, $mkfile_line)}
-				# Look at each variable listed.
+    if $mkfile->{EXPORTS};	# Look at each variable listed.
 }
 
 

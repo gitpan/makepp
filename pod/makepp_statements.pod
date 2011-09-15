@@ -2,7 +2,7 @@
 
 makepp_statements -- Various statements in a makefile
 
-=for vc $Id: makepp_statements.pod,v 1.38 2011/06/05 20:35:22 pfeiffer Exp $
+=for vc $Id: makepp_statements.pod,v 1.40 2011/09/15 21:08:07 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -24,7 +24,8 @@ B<I:>E<nbsp>L<ifdef|/ifdef_variable>,
   L<ifperl|/ifperl_perlcode>,
   L<ifsys|/ifsys_wildcard>,
   L<iftrue|/iftrue_expression>,
-  L<include|/include_makefile>,E<nbsp>
+  L<include|/include_makefile>,
+  L<_include|/include_makefile2>,E<nbsp>
 B<L:>E<nbsp>L<load_makefile|/load_makefile_some_directory_somewhere_makefile>,E<nbsp>
 B<M:>E<nbsp>L<make|/prebuild_target>,
   L<makeperl|/perl_perlcode>,
@@ -265,14 +266,17 @@ inside such a statement.
 
 =item define X<endef> X<define> X<enddef>
 
-    define VARIABLE
+=item {export|global|override}* define
+
+    define VARIABLE [assignment-operator]
     variable value line 1
     variable value line 2
     endef
 
 Defines $(VARIABLE)'s value to be all the lines between the C<define>
 statement and the C<endef> statement.  See L<setting
-variables|makepp_variables/Setting variables inside a makefile>.
+variables|makepp_variables/Setting variables inside a makefile>.  The keywords
+C<export> and C<global> may not be given at the same time.
 
 =item perl_begin X<perl_begin> X<perl_end>
 
@@ -514,6 +518,11 @@ L<makepp_build_cache/How to manage a build cache> for how to make it in the
 first place.  A C<build_cache> statement in a makefile overrides the
 C<--build-cache> command line option for rules in the makefile, but it may be
 overridden by the C<:build_cache> rule modifier on a per-rule basis.
+
+The keyword C<global> may precede this statement with the same effect as the
+command line option, i.e. the build cache applies in every makefile.  This
+should best be given in a F<RootMakeppfile> to be certain it is seen early
+enough.
 
 Specify C<none> instead of a path to a directory if you want to disable
 the build cache for all rules in this makefile.
@@ -795,7 +804,7 @@ For more information about signature methods, see L<makepp_signatures>.
 
 Fetch all files matching pattern from each given directory.  Pattern may
 contain at most one C<%> wildcard.  This uses the transparent repository
-mechanism (unlike gmakem which rewrites filenames), but it does not recurse
+mechanism (unlike gmake which rewrites filenames), but it does not recurse
 into subdirectories.
 
 =back

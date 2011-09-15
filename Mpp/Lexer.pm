@@ -1,4 +1,4 @@
-# $Id: Lexer.pm,v 1.46 2010/12/10 22:08:15 pfeiffer Exp $
+# $Id: Lexer.pm,v 1.47 2011/08/06 11:46:27 pfeiffer Exp $
 
 =head1 NAME
 
@@ -355,8 +355,14 @@ sub find_command_parser {
 	$parser = 0 unless UNIVERSAL::isa $parser, 'Mpp::CommandParser';
 				# This is assumed to mean that calling the parser already did the scanning.
       } elsif( $parser ) {	# p_skip_word or p_shell
-	shift @rest while @rest && $rest[0] =~ /^["'\\]?-/; # skip options
+	my $_c;
+	$_c ||= $1, shift @rest while @rest && $rest[0] =~ /^["'\\]?[-+](c)?/; # skip options
 	if( $parser == &Mpp::Subs::p_shell ) {
+	  unless( $_c || $firstword !~ /sh/ ) { # Calling sh script ..., optional because we might have an option arg.
+	    add_optional_dependency( $dir, file_info( $dir, $rule->makefile->{CWD} ), $rule, $rest[0] );
+	    $$found = 1;
+	    return 0;
+	  }
 	  unshift @actions, defined $from_rule ? \1 : undef, # special marker to not propagate parser into subcommand
 	      undef, undef, join ' ', ($dir eq '.' ? () : "cd $dir;"), map unquote, @rest;
 				# just 1 arg for "sh -c cmd", but handle "sh script arg..." or "eval cmd1\; cmd2"

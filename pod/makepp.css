@@ -1,52 +1,52 @@
 /*
 ** Style sheet for makepp
 ** Daniel Pfeiffer <occitan@esperanto.org>
-** $Id: makepp.css,v 1.9 2010/08/22 18:33:13 pfeiffer Exp $
+** $Id: makepp.css,v 1.10 2011/08/06 11:47:22 pfeiffer Exp $
 */
 
-BODY {
+body {
   background-color: white;
   color: black;
 }
 
-TABLE#Nav {
+table#Nav {
   float: right;
 }
 
-TABLE#Nav TH {
+table#Nav th {
   font-size: 70%;
 }
 
-TABLE#Nav TD {
+table#Nav td {
   font-size: 70%;
   margin: 10px;
   padding: 10px;
   background: url(pre.png) repeat-y;
 }
 
-H1, H2, H3, .makepp {
+h1, h2, h3, .makepp {
   color: #0090e0;
 }
 
-B {
+b {
   color: #222;
 }
 
-A B, H1 B, H2 B, H3 B {
+a b, h1 b, h2 b, h3 b {
   color: inherit;
 }
 
-PRE {
+pre {
   background: url(pre.png) repeat-y;
   padding: 10px 10px 10px;
 }
 
-HR {
+hr {
   width: 33%;
-  text-align: left;
+  margin-right: 67%;
 }
 
-DT {
+dt {
   font-weight: bold;
 }
 
@@ -57,6 +57,6 @@ DT {
   vertical-align: text-bottom;
 }
 
-ADDRESS {
+address {
   text-align: right;
 }
