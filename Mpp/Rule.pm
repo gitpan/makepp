@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.114 2011/09/15 21:00:06 pfeiffer Exp $
+# $Id: Rule.pm,v 1.117 2011/11/07 21:25:00 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -10,6 +10,7 @@ use Mpp::Text;
 use Mpp::BuildCheck::exact_match;
 use Mpp::Lexer;
 use Mpp::Cmds;
+use Mpp::Scanner;
 
 our $unsafe;			# Perl code was performed, that might leave files open or chdir.
 
@@ -19,7 +20,7 @@ Rule -- Stores information about a build rule
 
 =head1 USAGE
 
-  my $rule = new Rule "targets", "dependencies",
+  my $rule = new Mpp::Rule "targets", "dependencies",
     "command"[, $makefile, $makefile_line];
 
 =head1 DESCRIPTION
@@ -36,16 +37,12 @@ This does not actually place the rule into the Mpp::File hierarchy.
 
 sub new {
   #my ($class, $targets, $dependencies, $command, $makefile, $source_line, $build_check_method, $signature_method) = @_;
-  my @extra = (BUILD_CHECK_METHOD => $_[6]) if $_[6];
-  push @extra, (SIGNATURE_METHOD => $_[7]) if $_[7];
-
   bless { TARGET_STRING => $_[1],
 	  DEPENDENCY_STRING => $_[2],
 	  COMMAND_STRING => $_[3],
 	  MAKEFILE => $_[4],
 	  LOAD_IDX => $_[4]{LOAD_IDX},
-	  RULE_SOURCE => $_[5],
-	  @extra
+	  RULE_SOURCE => $_[5]
 	}, $_[0];
 				# Make the rule object.
 }
@@ -243,7 +240,7 @@ sub find_all_targets_dependencies {
 
   for my $dep ( @explicit_dependencies, values %all_dependencies ) {
     Mpp::File::mark_build_info_for_update $dep
-	if $dep->{BUILD_INFO} && delete $dep->{BUILD_INFO}{RESCAN};
+      if $dep->{BUILD_INFO} && delete $dep->{BUILD_INFO}{RESCAN};
 				# From mppr -- we're done with this now.
   }
 
@@ -464,22 +461,24 @@ sub add_implicit_env_dependency {
 
 =head2 set_signature_class
 
-   $rule->set_signature_class($name)
+   $rule->set_signature_class($name, $implicit, $method)
 
-Like set_signature_method_default, except that it takes a class name
-instead of an object, and it caches how the signature method was set by a
-command parser.
+Look up and cache the signature method.  If $implicit don't replace a previously
+set one (when reading meta data).  If $method is given, skip look up.
 
 =cut
 
 sub set_signature_class {
-  my ($self, $name) = @_;
-  my $signature = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
-    eval "use Signature::$name; warn qq!$self->{RULE_SOURCE}: name Signature::$name is deprecated, rename to Mpp::Signature::$name\n!; \$Signature::${name}::$name"
-    or die "invalid signature class $name\n";
-  $self->{SIG_METHOD_NAME} ||= $name;
-  $self->{SIGNATURE_METHOD} ||= $signature;
-  $signature;
+  my( $self, $name, $implicit, $method, $override ) = @_;
+  unless( $self->{SIG_METHOD_NAME} && $self->{SIG_METHOD_OVERRIDE} && $implicit ) {
+    $method = Mpp::Signature::get $name, $self->{RULE_SOURCE}
+      or die "$self->{RULE_SOURCE}: invalid signature class $name\n";
+    $self->{SIG_METHOD_NAME} = $name;
+    $self->{SIG_METHOD_IMPLICIT} = 1 if $implicit;
+    $self->{SIGNATURE_METHOD} = $method;
+    $self->{SIG_METHOD_OVERRIDE} = 1 if $override; # remember this against later implicit value
+  }
+  $method;
 }
 
 =head2 mark_scaninfo_uncacheable
@@ -510,7 +509,7 @@ $rule, in order to save memory.
 =cut
 
 sub clear_scaninfo_ {
-  delete @{$_[0]}{qw(SIG_METHOD_NAME INCLUDE_PATHS INCLUDE_PATHS_REL INCLUDE_SFXS
+  delete @{$_[0]}{qw(SIG_METHOD_NAME SIG_METHOD_IMPLICIT INCLUDE_PATHS INCLUDE_PATHS_REL INCLUDE_SFXS
     META_DEPS IMPLICIT_DEPS IMPLICIT_TARGETS IMPLICIT_ENV_DEPS)};
 }
 sub cache_scaninfo {
@@ -541,7 +540,8 @@ sub cache_scaninfo {
     my @implicits = 'IMPLICIT_TARGETS';
     push @implicits, 'IMPLICIT_ENV_DEPS' if %{$self->{IMPLICIT_ENV_DEPS} || {}};
     for my $tinfo (@$targets) {
-      save_build_info_( $self, $tinfo, 'SIG_METHOD_NAME', sub {$_[0] || ''} );
+      save_build_info_( $self, $tinfo, 'SIG_METHOD_NAME' );
+      save_build_info_( $self, $tinfo, 'SIG_METHOD_IMPLICIT' );
       save_build_info_tag_( $self, $tinfo, 'INCLUDE_PATHS', \&join1_ );
       save_build_info_tag_( $self, $tinfo, 'INCLUDE_SFXS', \&join1_ );
       save_build_info_tag_( $self, $tinfo, 'META_DEPS', \&join_dir_ );
@@ -555,25 +555,25 @@ sub cache_scaninfo {
   &clear_scaninfo_;
 }
 sub join1_ {
-  join("\01", map { defined($_) ? $_ : '' } @{$_[0]});
+  join "\01", map { defined($_) ? $_ : '' } @{$_[0]};
 }
 sub join_dir_ {
   my $hashref = $_[0] || {};
   my @result;
-  if($hashref->{''}) {
-    push(@result, sort keys %{$hashref->{''}});
-  }
+  push @result, sort keys %{$hashref->{''}}
+    if $hashref->{''};
   for my $dir (sort keys %$hashref) {
     if( $dir ne '' and my @keys = keys %{$hashref->{$dir}} ) {
       push @result, $dir, sort @keys;
     }
   }
-  join("\01", @result);
+  join "\01", @result;
 }
 sub save_build_info_ {
   my ($self, $tinfo, $key, $sub) = @_;
   my $value = $self->{$key} if exists $self->{$key};
-  Mpp::File::set_build_info_string $tinfo,$key, &$sub($value);
+  Mpp::File::set_build_info_string $tinfo,$key, $sub ? &$sub($value) : $value
+    if $value || $sub;
 }
 sub save_build_info_tag_ {
   my ($self, $tinfo, $key, $sub) = @_;
@@ -583,9 +583,9 @@ sub save_build_info_tag_ {
       my @result;
       for(sort keys %$hashref) {
 	my $item=&$sub($hashref->{$_});
-	push(@result, join1_([$_, $item])) if $item ne '';
+	push @result, join1_ [$_, $item] if $item ne '';
       }
-      join("\02", @result);
+      join "\02", @result;
     }
   );
 }
@@ -604,59 +604,65 @@ Otherwise, 0 is returned.
 
 =cut
 
-require Mpp::Scanner;
 sub load_scaninfo_single {
-  my (
-    $self, $tinfo_version, $tinfo, $command_string, $explicit_dependencies
-  ) = @_;
+  my( $self, $tinfo_version, $tinfo, $command_string, $explicit_dependencies ) = @_;
 
   # Fetch the info, or give up
-  my( $build_cwd_name, $sig_method, $include_paths, $include_sfxs, $meta_deps,
-      $implicit_deps, $implicit_targets, $implicit_env_deps, $command, $rescan ) =
+  my( $cwd, $sig_method_name, $sig_method_implicit, $include_paths, $include_sfxs, $meta_deps, $implicit_deps,
+      $implicit_targets, $implicit_env_deps, $command, $rescan ) =
     Mpp::File::build_info_string $tinfo_version,
-      qw(CWD SIG_METHOD_NAME INCLUDE_PATHS INCLUDE_SFXS META_DEPS IMPLICIT_DEPS
+      qw(CWD SIG_METHOD_NAME SIG_METHOD_IMPLICIT INCLUDE_PATHS INCLUDE_SFXS META_DEPS IMPLICIT_DEPS
 	 IMPLICIT_TARGETS IMPLICIT_ENV_DEPS COMMAND RESCAN);
   return $rescan == 1 ? 'signed by makeppreplay' : 'built by makeppreplay' if $rescan;
-  $include_sfxs ||= '';
-  $implicit_env_deps ||= '';
 
-  return 'info not cached' unless defined($build_cwd_name) &&
-    defined($include_paths) &&
-    defined($meta_deps) && defined($implicit_deps) &&
-    defined($implicit_targets);
+  return 'info not cached' unless defined $cwd &&
+    defined $include_paths &&
+    defined $meta_deps && defined $implicit_deps &&
+    defined $implicit_targets;
 
   # If the CWD changed, then we have to rescan in order to make sure that
   # path names in the scaninfo are relative to the correct directory.
-  my $build_cwd = file_info($build_cwd_name, $tinfo->{'..'});
-  return 'the build directory changed' unless $build_cwd == $self->build_cwd;
+  $cwd = file_info $cwd, $tinfo->{'..'};
+  return 'the build directory changed' unless $cwd == $self->build_cwd;
 
   # Early out for command changed. This is redundant, but it saves a lot of
   # work if it fails, especially because loading the cached dependencies might
   # entail building metadepedencies.
   return 'the build command changed' if $command_string ne $command;
 
-  my $saved_signature_method = $self->{SIGNATURE_METHOD};
-  $self->set_signature_class($sig_method)
-    if $sig_method;
+  my $name = $self->{SIG_METHOD_NAME} || '';
+  if( $name ? $self->{SIG_METHOD_OVERRIDE} : !$sig_method_implicit ) {
+    # This will make files look like changed (even if they are not).
+    return 'signature method changed' if ($sig_method_name||'') ne $name;
+  }
+  my @sig_info;
+  if( $sig_method_name && $sig_method_implicit ) {
+    @sig_info = @$self{qw(SIG_METHOD_NAME SIG_METHOD_IMPLICIT SIGNATURE_METHOD)};
+    local $self->{RULE_SOURCE} = $tinfo_version->{NAME};
+    eval { set_signature_class $self, $sig_method_name, 1 };
+    if( $@ ) {			# Newer mpp may have stored unknown method
+	warn $@;
+	return 'build info signature';
+    }
+  }
 
   # Trump up a dummy scanner object to help us look for files.
   my $scanner = Mpp::Scanner->new($self, '.');
 
   for( split /\02/, $include_paths ) {
     my( $tag, @path ) = split /\01/, $_, -1;
-    Mpp::Scanner::add_include_dir( $scanner, $tag, $_ eq '' ? undef : $_)
+    Mpp::Scanner::add_include_dir $scanner, $tag, $_ eq '' ? undef : $_
       for @path;
   }
-  for( split /\02/, $include_sfxs ) {
+  for( split /\02/, $include_sfxs || '' ) {
     my( $tag, @sfxs ) = split /\01/, $_, -1;
-    Mpp::Scanner::add_include_suffix_list( $scanner, $tag, \@sfxs );
+    Mpp::Scanner::add_include_suffix_list $scanner, $tag, \@sfxs;
   }
 
   # Replay the implicit environmental dependencies.
   my %saved_explicit_env_deps = %{$self->{ENV_DEPENDENCIES}};
-  for(split(/\01/, $implicit_env_deps)) {
-    $self->add_implicit_env_dependency($_);
-  }
+  $self->add_implicit_env_dependency($_)
+    for split /\01/, $implicit_env_deps || '';
 
   # Save the existing list of dependencies.
   my %saved_all_dependencies = %{$self->{ALL_DEPENDENCIES}};
@@ -673,29 +679,27 @@ sub load_scaninfo_single {
       }
       my( $tag, @incs ) = split /\01/, $_, -1;
       die unless defined $tag;
-      Mpp::Scanner::get_tagname( $scanner, $tag) if $tag ne ''; # make it a valid tag
+      Mpp::Scanner::get_tagname $scanner, $tag if $tag ne ''; # make it a valid tag
 
       # TBD: Ideally, we should remember which tags are marked should_find
-      # instead of assuming that 'sys' & 'lib' aren't and all others are, but
-      # this will generate the correct warnings most of the time, and it's not
-      # the end of the world if it doesn't:
-      Mpp::Scanner::should_find( $scanner, $tag ) if $tag ne 'sys' && $tag ne 'lib';
+      # instead of assuming that those containing 'sys' & 'lib' aren't and all
+      # others are, but this will generate the correct warnings most of the
+      # time, and it's not the end of the world if it doesn't:
+      Mpp::Scanner::should_find $scanner, $tag if $tag !~ /sys|lib/;
 
-      my $dir = $build_cwd;
+      my $dir = $cwd;
       for my $item (@incs) {
-	if($item =~ s@/$@@) {
-	  $dir = file_info($item, $build_cwd);
-	}
-	else {
+	if( $item =~ s@/$@@ ) {
+	  $dir = file_info $item, $cwd;
+	} else {
 	  my $finfo;
 	  if($tag ne '') {
-	    $finfo = Mpp::Scanner::find( $scanner, undef, $tag, $item, $dir);
+	    $finfo = Mpp::Scanner::find $scanner, undef, $tag, $item, $dir;
 	    add_any_dependency_if_exists_( $self, $key,
-	      $tag, relative_filename($dir,$build_cwd), $item, $finfo, $tinfo
+	      $tag, relative_filename($dir,$cwd), $item, $finfo, $tinfo
 	    ) or $cant_build_deps=1;
-	  }
-	  else {
-	    $finfo = file_info($item, $build_cwd);
+	  } else {
+	    $finfo = file_info $item, $cwd;
 	    add_any_dependency_if_exists_( $self, $key,
 	      undef, undef, $item, $finfo, $tinfo
 	    ) or $cant_build_deps=1;
@@ -719,7 +723,7 @@ sub load_scaninfo_single {
     my $rebuild_needed = $self->build_check_method->build_check(
       $tinfo_version,
       $self->sorted_dependencies([values %{$self->{ALL_DEPENDENCIES}}]),
-      $command_string, $build_cwd, $self->signature_method,
+      $command_string, $cwd, $self->signature_method,
       $self->{ENV_DEPENDENCIES}
     );
     $flush_scaninfo ||= $rebuild_needed;
@@ -729,7 +733,7 @@ sub load_scaninfo_single {
       # The target is out of date only with respect to dependencies.  If
       # none of them are meta dependencies, then we don't need to re-scan.
       my @outdated = $self->build_check_method->changed_dependencies(
-	$tinfo_version, $self->signature_method, $build_cwd,
+	$tinfo_version, $self->signature_method, $cwd,
 	values %{$self->{ALL_DEPENDENCIES}}
       );
 
@@ -744,7 +748,8 @@ sub load_scaninfo_single {
 
   if($flush_scaninfo) {
     # Reverse the side effects of this method:
-    $self->{SIGNATURE_METHOD} = $saved_signature_method;
+    @$self{qw(SIG_METHOD_NAME SIG_METHOD_IMPLICIT SIGNATURE_METHOD)} = @sig_info
+      if @sig_info;
     %{$self->{ALL_DEPENDENCIES}} = %saved_all_dependencies;
     %{$self->{ENV_DEPENDENCIES}} = %saved_explicit_env_deps;
     &clear_scaninfo_;
@@ -762,10 +767,10 @@ sub load_scaninfo_single {
   0;
 }
 sub load_scaninfo {
+  return '--force_rescan option specified' if $Mpp::force_rescan;
+
   my $self = shift;		# Modify stack to pass on below
   my ($tinfo) = @_;
-
-  return '--force_rescan option specified' if $Mpp::force_rescan;
 
   Mpp::log SCAN_INFO => $tinfo
     if $Mpp::log_level;
@@ -1235,7 +1240,7 @@ Gets the build check method for this particular rule.
 
 =cut
 
-sub build_check_method { $_[0]{BUILD_CHECK_METHOD} || $Mpp::default_build_check_method }
+sub build_check_method { $_[0]{BUILD_CHECK_METHOD} || $Mpp::BuildCheck::default }
 
 =head2 set_build_check_method
 
@@ -1260,19 +1265,7 @@ details).
 
 =cut
 
-sub signature_method { $_[0]{SIGNATURE_METHOD} || $Mpp::default_signature }
-
-=head2 set_signature_method
-
-  $rule->set_signature_method($sigmethod);
-
-Sets the signature method to use for this particular rule.
-
-=cut
-
-sub set_signature_method {
-  $_[0]{SIGNATURE_METHOD} = $_[1];
-}
+sub signature_method { $_[0]{SIGNATURE_METHOD} || $Mpp::Signature::signature }
 
 =head2 $rule->lexer
 
@@ -1333,11 +1326,17 @@ sub add_env_dependency {
   my ($rule, $var_name) = @_;
   return if $rule->{ENV_DEPENDENCIES}{$var_name};
   if( my( $name, $val ) = $var_name =~ /^(.+) in (\S+)$/) {
-    for( split /:/, $rule->{MAKEFILE}->get_env( $val ) || '' ) {
-      next unless $_;
-      return $rule->{ENV_DEPENDENCIES}{$var_name} = $_
-	if Mpp::File::exists_or_can_be_built
-	  file_info $name, file_info $_, $rule->{MAKEFILE}{CWD};
+    if( $val eq 'PATH' ) {
+      my $found = Mpp::Subs::f_find_program( $name, $rule->{MAKEFILE}, $rule->{SOURCE}, 1 );
+print $found," XX\n";
+      return $rule->{ENV_DEPENDENCIES}{$var_name} = Mpp::Subs::f_dir_noslash( $found, $rule->{MAKEFILE}, $rule->{SOURCE} )
+	if $found;
+    } else {
+      for( split /:/, $rule->{MAKEFILE}->get_env( $val ) || '' ) {
+	next unless $_;
+	return $rule->{ENV_DEPENDENCIES}{$var_name} = $_
+	  if Mpp::File::exists_or_can_be_built file_info $name, file_info $_, $rule->{MAKEFILE}{CWD};
+      }
     }
     return $rule->{ENV_DEPENDENCIES}{$var_name} = '';
   }

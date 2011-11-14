@@ -1,4 +1,4 @@
-# $Id: BuildCheck.pm,v 1.8 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: BuildCheck.pm,v 1.9 2011/10/30 20:57:09 pfeiffer Exp $
 package Mpp::BuildCheck;
 
 =head1 NAME
@@ -79,8 +79,6 @@ The build_check subroutine should pay attention to the ASSUME_CHANGED and
 ASSUME_UNCHANGED members of the Mpp::File structure.  Implemented by classes
 which inherit from this.
 
-=cut
-
 =head2 build_check_from_build_info($build_info_hash, \@all_dependencies,
                                    $build_command, $build_cwd,
                                    $signature_method, \%env)
@@ -99,8 +97,6 @@ entry or a fileinfo describing a file in the repository, you should access the
 build info by calling
 C<<$bc_entry->build_info_string("BUILD_INFO_ENTRY_NAME")>>.  You should not call
 any other methods of the object.  Implemented by classes which inherit from this.
-
-=cut
 
 =head2 changed_dependencies
 

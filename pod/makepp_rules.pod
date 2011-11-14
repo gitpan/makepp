@@ -2,7 +2,7 @@
 
 makepp_rules -- How to tell makepp to build something
 
-=for vc $Id: makepp_rules.pod,v 1.33 2011/06/23 15:39:49 pfeiffer Exp $
+=for vc $Id: makepp_rules.pod,v 1.34 2011/10/30 20:57:44 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -631,11 +631,11 @@ as to whether the queueing system is used at all.
 Rule varies depending on compiler:
 
     %.o : %.c
- 	: include %.d : signature c_compilation_md5
+ 	: include %.d : signature C
  	gcc -MD -c ...
  
     %.o : %.c
- 	: include %.u : signature c_compilation_md5 # IBM uses a different suffix
+ 	: include %.u : signature C # IBM uses a different suffix
  	xlc -M -c ...
  
     sub dependify {		# Turn Microsoft's chatter into useful format
@@ -643,7 +643,7 @@ Rule varies depending on compiler:
  	s/(Note: including file: *)?(.+?)\r?\n/$1 ? "'$2' " : "'".f_output()."': "/e;
     }
     %.o : %.c
- 	: include %.d : signature c_compilation_md5
+ 	: include %.d : signature C
  	cl -showIncludes -c ... >$(stem).d
  	&sed &dependify -o +<$(stem).d
 
@@ -753,7 +753,7 @@ function name.
 This tells makepp what algorithm to use to determine if the dependencies have
 changed.  See L<makepp_signatures> for more details.  Signature methods which
 are included with the makepp distribution are are C<plain>, C<md5>,
-C<c_compilation_md5>, and C<shared_object>.  This overrides any signature
+C<C> or C<c_compilation_md5>, and C<shared_object>.  This overrides any signature
 method specified with the C<-m> or C<--signature-method> command line options,
 or with the C<signature> statement.
 

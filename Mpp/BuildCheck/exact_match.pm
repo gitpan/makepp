@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.37 2011/07/01 19:59:34 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.38 2011/09/29 04:04:51 pfeiffer Exp $
 use strict;
 package Mpp::BuildCheck::exact_match;
 
@@ -75,7 +75,11 @@ argument list.  See F<Mpp/BuildCheck/architecture_independent.pm> for an example
 
 my $arch_warning = 0;
 
-our $exact_match = bless [];	# Make the singleton object with options.
+
+$Mpp::BuildCheck::default =	# Default to requiring an exact match for
+				# building.  This gets overridden when
+				# we are trying to build a makefile, however.
+  our $exact_match = bless [];	# Make the singleton object with options.
 
 #
 # See documentation in Mpp/Signature.pm for details of the arguments and

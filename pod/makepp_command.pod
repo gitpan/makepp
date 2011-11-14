@@ -2,7 +2,7 @@
 
 makepp_command -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.52 2011/01/16 16:59:29 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.53 2011/10/30 20:57:44 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -166,7 +166,7 @@ advantage of the build cache by default.
 =item --build-check-method=I<method>
 
 The name of a build check method to use to decide whether files need to
-be rebuilt.  See L<makepp_build_check> for information on build check
+be rebuilt.  Possible values are C<target_newer>, C<exact_match>,   See L<makepp_build_check> for information on build check
 methods.
 
 =item -C I<directory>
@@ -472,13 +472,12 @@ log file is called F<.makepp/log>.
 
 =item --signature-method=I<method>
 
-Specifies the default signature method to use for rules which do not
-have the C<:signature> modifier in makefiles which do not have a
-C<signature> statement.  Possible values are C<target_newer>,
-C<exact_match>, C<md5>, and C<c_compilation_md5>.  This option has no
-effect on the signature method for C/C++ compilation; you must use the
-C<signature> statement or the C<:signature> rule modifier to affect
-that.  For more details, see L<makepp_signatures>.
+Specifies the default signature method to use for rules which do not have the
+C<:signature> modifier in makefiles which do not have a C<signature>
+statement.  Possible values are C<md5> and C<C> or C<c_compilation_md5>.
+However, this option has no effect on the signature method for C/C++
+compilation; you must use the C<signature> statement or the C<:signature> rule
+modifier to affect that.  For more details, see L<makepp_signatures>.
 
 =item --md5-bc
 

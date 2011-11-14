@@ -1,5 +1,20 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	42	644	1103319650	1294995295	Makeppfile
+###	14	755	1317765475	1317766928	makepp_test_script.pl
+makepp;
+
+n_files 'n_files_1';
+for( qw(t-db2.sqc t-proc.pc) ) {
+  open my $fh, '>>', $_ or die $!;
+  print $fh '/* unimportant change */';
+  close $fh;
+}
+
+if( no_md5 ) {
+  rename 'answers/n_files_1', 'answers/n_files';
+} else {
+  makepp qw(t-db2.c t-proc.c);
+}
+###	37	644	1103319650	1319890767	Makeppfile
 #
 # Alas all embedded SQL/C precompilers vary wildly in how they work.  Test a few very different types.
 #
@@ -21,31 +36,22 @@ bin/$(foreach) bin/$(foreach).bat: :foreach db2 foo gpre proc
        @&chmod 755 $(output)
        @&echo '@echo ok >t-$(foreach).c' -o $(output 2)
 
-x%.c: %.sc
-	bin$/apre $(input)
-	&mv $(stem).c $(output)	# Fake compiler can't handle filenames, be different from alternate above
-
 export DB2INCLUDE=inc:sysinc
 x%.c: %.sqc
 	bin$/db2 "prep $(input) bindfile"
-	&mv $(stem).c $(output)
+	&mv $(stem).c $(output)	# Fake compiler can't handle filenames, be different from alternate above
 
 x%.c: %.pc
 	bin$/proc config=proc.cfg MODE=ANSI iname=$(input)
 	&mv $(stem).c $(output)
 
-$(foreach): :foreach apre.sc apre1.h inc/apre2.h \
-	db2.sqx inc/db2a.sqc sysinc/db2b.h \
+$(foreach): :foreach db2.sqx inc/db2a.sqc sysinc/db2b.h \
 	foo.ec gpre.exx \
 	proc.pc empty/proc1.h sysinc/proc2.h inc/proc3.h
-  &touch $(output)
+  &echo $(map $(output), tr+./++d; $_ = "int $_ = 1;") -o $(output)
 
 proc.cfg:
     &echo 'include=(empty,inc)' -o $(output)
-###	3	644	1103319458	1294602411	t-apre.sc
-EXEC SQL OPTION (INCLUDE=./inc);
-EXEC SQL INCLUDE apre1.h;
-EXEC SQL INCLUDE apre2;
 ###	3	644	1103319458	1294864859	t-db2.sqc
 EXEC SQL INCLUDE SQLCA;
 EXEC SQL INCLUDE db2a;
@@ -56,5 +62,7 @@ EXEC SQL INCLUDE PROC1;
 #include <proc2.h>
 $INCLUDE 'proc3.h';
 ###	D	755	1103319665	1103319662	answers/
-###	1	644	1067451878	1190053833	answers/n_files
+###	1	644	1067451878	1190053833	answers/n_files_1
 20 1 0
+###	1	644	1317765460	1317765460	answers/n_files
+0 0 0

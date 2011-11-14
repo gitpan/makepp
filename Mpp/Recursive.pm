@@ -1,4 +1,4 @@
-# $Id: Recursive.pm,v 1.15 2011/08/06 11:46:38 pfeiffer Exp $
+# $Id: Recursive.pm,v 1.17 2011/10/30 20:56:46 pfeiffer Exp $
 
 =head1 NAME
 
@@ -164,7 +164,8 @@ sub Mpp::Subs::f_MAKE {
   if( defined $traditional ) { # Do it the bozo way?
     $_[1]{EXPORTS}{_MAKEPPFLAGS} = $_MAKEPPFLAGS ||= join_with_protection
       defined $hybrid ? '--hybrid' : '--traditional',
-      $Mpp::build_check_method_name ne 'exact_match' ? "--buildcheck=$Mpp::build_check_method_name" : (),
+      $Mpp::BuildCheck::default == $Mpp::BuildCheck::exact_match::exact_match ? () :
+	"--buildcheck=".((ref $Mpp::BuildCheck::default)=~/BuildCheck::(.+)/)[0],
       $Mpp::Subs::defer_include ? '--deferinclude' : (),
       $Mpp::final_rule_only ? '--finalruleonly' : (),
       $Mpp::gullible ? '--gullible' : (),
@@ -173,7 +174,7 @@ sub Mpp::Subs::f_MAKE {
       $Mpp::no_path_executable_dependencies ? '--nopathexedep' : (),
       $Mpp::remake_makefiles ? () : '--noremakemakefiles',
       $Mpp::rm_stale_files ? '--rmstalefiles' : (),
-      $Mpp::sigmethod_name ? "-m$Mpp::sigmethod_name" : (),
+      $Mpp::Signature::default_name ? "-m$Mpp::Signature::default_name" : (),
 
       map { /^makepp_/ ? "$_=$Mpp::Makefile::global_command_line_vars->{$_}" : () }
 	keys %$Mpp::Makefile::global_command_line_vars;

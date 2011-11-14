@@ -1,4 +1,4 @@
-# $Id: c_compilation_md5.pm,v 1.25 2011/04/17 21:37:41 pfeiffer Exp $
+# $Id: c_compilation_md5.pm,v 1.26 2011/10/30 20:57:17 pfeiffer Exp $
 use strict;
 package Mpp::Signature::c_compilation_md5;
 
@@ -58,14 +58,14 @@ our $c_compilation_md5 = bless \@ISA; # Make the singleton object.
 # Things that can be overridden by a derived class:
 sub build_info_key { 'C_MD5_SUM' }
 sub important_comment_keywords { qw// }
-sub excludes_file { is_object_or_library_name( $_[1]->{NAME} ) }
-sub recognizes_file { is_cpp_source_name( $_[1]->{NAME} ) }
+sub excludes_file { is_object_or_library_name $_[1]->{NAME} }
+sub recognizes_file { is_cpp_source_name $_[1]->{NAME} }
 
 sub signature {
   my $self = shift;		# Trade stack modification for &calls below
   my $finfo = $_[0];
 
-  if( &file_exists ) {		    # Does file exist yet?
+  if( &file_exists ) {		# Does file exist yet?
     if( !Mpp::File::is_writable( $finfo->{'..'} ) || # Dir not writable--don't bother.
 	$self->excludes_file( $finfo )) { # Looks like some kind of a binary file?
       &Mpp::File::signature;    # Use the normal signature method.

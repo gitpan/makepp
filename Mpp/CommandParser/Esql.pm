@@ -1,4 +1,4 @@
-# $Id: Esql.pm,v 1.19 2011/01/23 22:52:15 pfeiffer Exp $
+# $Id: Esql.pm,v 1.21 2011/11/07 21:24:53 pfeiffer Exp $
 
 =head1 NAME
 
@@ -55,6 +55,10 @@ for an argument that does not have a suffix.
 
 =cut
 
+my %info_string = (user => 'INCLUDES',
+		   usersys => 'INCLUDES',
+		   sys => 'SYSTEM_INCLUDES');
+
 my $suffix_re = qr/\.ec$/;	# most common case
 my %suffix_re =
  (apre => qr/\.sc$/,
@@ -66,8 +70,7 @@ my %suffixes =
  (gpre => [qw(.e .exx)]);
 
 my $inc_suffixes = [qw(/ .h)];	# standard case
-my %inc_suffixes =
- (db2 => [qw(/ .sqC .sqx .sqc .hpp .h)]);
+my $db2_inc_suffixes = [qw(/ .sqC .sqx .sqc .hpp .h)];
 
 *factory = \&Mpp::Subs::p_esql_compilation;
 
@@ -76,6 +79,12 @@ sub new {
   require Mpp::Scanner::Esqlc;
   $self->{SCANNER} = new Mpp::Scanner::Esqlc($self->rule, $self->dir);
   $self;
+}
+
+sub set_default_signature_method {
+  # Use the MD5 signature checking when we can.
+  $Mpp::has_md5_signatures and
+    $_[0]->rule->set_signature_class( 'C.([eps]c|ex*|dcl|sq[Ccx])', 1 );
 }
 
 sub parse_arg {
@@ -87,6 +96,7 @@ sub parse_arg {
 	my $sys = $1;
 	for( /^\((.+)\)$/ ? split( ',', $1 ) : $_ ) {
 	  $scanner->add_include_dir( user => $_ );
+	  $scanner->add_include_dir( usersys => $_ );
 	  $scanner->add_include_dir( sys => $_ ) if $sys;
 	}
       } elsif( s/^iname=//i ) {
@@ -129,12 +139,18 @@ sub parse_opt {
   }
 }
 
+sub tags {
+  my $scanner = $_[0]{SCANNER};
+  $scanner->should_find( 'user' );
+  $scanner->info_string( \%info_string );
+  $scanner->add_include_suffix_list( usersys => $_[1] ? $db2_inc_suffixes : $inc_suffixes );
+}
 sub xparse_command {
   my $scanner = $_[0]{SCANNER};
   my( $cmd ) = Mpp::is_windows ? $_[1][0] =~ /(\w+)(?:\.exe)?$/ : $_[1][0] =~ /(\w+)$/;
-  $scanner->add_include_suffix_list( user => $inc_suffixes{$cmd} || $inc_suffixes );
 
   if( $cmd eq 'db2' ) {		# Special case this unusual syntax
+    $_[0]->tags( 1 );
     my $file = $_[1][1];
     return 0 if $file !~ s/^pre(?:compile|p)\s*//i; # other subcommand
     if( $file ) {
@@ -144,8 +160,10 @@ sub xparse_command {
     }
     for( split ':', $ENV{DB2INCLUDE} || '' ) {
       $scanner->add_include_dir( user => $_ );
+      $scanner->add_include_dir( usersys => $_ );
       $scanner->add_include_dir( sys => $_ );
     }
+    $_[0]->set_default_signature_method;
     return $scanner->scan_file( $_[0], c => $file ) || undef;
   }
 

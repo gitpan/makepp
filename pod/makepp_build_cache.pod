@@ -2,7 +2,7 @@
 
 makepp_build_cache -- How to set up and use build caches
 
-=for vc $Id: makepp_build_cache.pod,v 1.24 2010/09/29 22:06:41 pfeiffer Exp $
+=for vc $Id: makepp_build_cache.pod,v 1.25 2011/09/29 04:04:51 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -285,8 +285,12 @@ Specify the build cache in your makefiles with a line like this:
     BUILD_CACHE := /path/to/build_cache
     build_cache $(BUILD_CACHE)
 
-You have to put this in all makefiles that use a build cache (or in a
-common include file that all the makefiles use).
+You have to put this in all makefiles that use a build cache (or in a common
+include file that all the makefiles use).  Or put this into your
+F<RootMakeppfile>:
+
+    BUILD_CACHE := /path/to/build_cache
+    global build_cache $(BUILD_CACHE)
 
 On a multiuser machine you might set up one build cache per home disk to take
 advantage of links.  You might find it more convenient to use a statement like

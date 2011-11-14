@@ -2,7 +2,7 @@
 
 makepp_functions -- Functions in makepp
 
-=for vc $Id: makepp_functions.pod,v 1.44 2011/08/06 11:47:53 pfeiffer Exp $
+=for vc $Id: makepp_functions.pod,v 1.45 2011/09/19 06:18:35 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -694,6 +694,20 @@ equivalent:
     discussion = The $0 turned into $1 $2.
     direct = $(discussion an,argument)
     called = $(call discussion,an,argument)
+
+It might seem debatable whether C<$[call]> should also expand the macro's
+C<$[]> expressions, or whether a function should always do the same thing, no
+matter how it is called.  The latter was chosen, because with normal make
+syntax it would be impossble to get C<$[1], $[2]...> into a variable (they'd
+get replaced by nothing, before the assignment even takes place.)  Hence, if
+you have a macro for defining a rule, you want expressions like C<$(output)>
+to be seen when the rule gets parsed, so you must protect them from C<call>:
+
+    define myrule
+ 	$2: $1
+ 	    mycommand $$(input) -o $$(output)
+    endef
+    $[myrule myinput,myoutput]
 
 =item filter I<patterns, words>
 

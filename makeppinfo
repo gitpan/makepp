@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppinfo,v 1.12 2011/04/17 21:37:03 pfeiffer Exp $
+# $Id: makeppinfo,v 1.15 2011/10/30 20:57:03 pfeiffer Exp $
 
 package Mpp;
 
@@ -56,8 +56,10 @@ use Mpp::Utils;
 use Mpp::File;
 use Mpp::FileOpt;
 
-my( $force, $keylist, $quiet, $traverse, @keys_not, @keys );
+my( $decode_date, $force, $keylist, $quiet, $traverse, @keys_not, @keys );
 Mpp::Text::getopts
+  ['d', qr/(?:decode[-_]?)?dates?/, \$decode_date],
+
   [qw'f force', \$force],
 
   ['k', qr/key(?:s|list)/, \$keylist, 1],
@@ -87,10 +89,8 @@ sub merge($@) {
   if( exists $build_info->{$key1} && exists $build_info->{$key2} ) {
     my @list1 = split /\cA/, delete $build_info->{$key1};
     my @list2 = split /\cA/, delete $build_info->{$key2};
-    push @ARGV, map file_info( $_, $cwd ), @list2
-      if $traverse;
     $build_info->{"$key1 $key2"} = join "\n", '',
-      map sprintf( "%-22s %s", $_, shift @list2 ), @list1;
+      map sprintf( $decode_date ? "%-44s %s" : "%-22s %s", $_, shift @list2 ), @list1;
   }
 }
 
@@ -117,9 +117,12 @@ while( @ARGV ) {
       if $exists;
     next unless $force;
   }
-
   $cwd = file_info $build_info->{CWD}, exists $finfo->{DIRCONTENTS} ? $finfo : $finfo->{'..'}
     if $traverse && exists $build_info->{CWD};
+
+  push @ARGV, map file_info( $_, $cwd ), split /\cA/, $build_info->{SORTED_DEPS}
+    if $traverse && $build_info->{SORTED_DEPS};
+
   if( $keylist ) {
     my %want;
     for my $re ( split ' ', $keylist ) {
@@ -152,6 +155,15 @@ while( @ARGV ) {
       $build_info->{$key} .= "\n\t$_" for @list;
     } else {
       $build_info->{$key} =~ s/\n/\n\t/g;
+      $build_info->{$key} .= ' -- ' .
+	(file_exists( $finfo ) ? 'now is ' . Mpp::File::signature( $finfo ) : 'file deleted')
+	if $force && $key eq 'invalidated_SIGNATURE';
+    }
+    if( $decode_date ) {
+      $build_info->{$key} =~ s((\b(\d{9,}),\d+)(?: {22})?){
+	my( $sec, $min, $hour, $mday, $mon, $year ) = localtime $2;
+	sprintf "(%d-%02d-%02d %02d:%02d:%02d) %s", $year+1900, $mon+1, $mday, $hour, $min, $sec, $1;
+      }eg;
     }
     if( $quiet ) {
       $build_info->{$key} =~ s/\A\n//;
@@ -174,6 +186,9 @@ Valid options are:
 -A filename, --args-file=filename, --arguments-file=filename
     Read the file and parse it as possibly quoted whitespace- and/or
     newline-separated options.
+-d, --dates, --decode-dates
+    In the simple signatures prepend the 1st number, the raw date-time, with
+    its human readable form in parentheses.
 -f, --force
     Display info even when it is invalid because of inexistent or modified
     file.
@@ -181,7 +196,7 @@ Valid options are:
     Print out a brief summary of the options.
 -k list, --keys=list, --keylist=list
     The list specifies one or more space separated Shell style patterns
-    (with [xyz], ?, , {a,bc,def}).
+    (with [xyz], ?, *, {a,bc,def}).
 -q, --quiet
     Don't list file and key names.
 -t, --traverse

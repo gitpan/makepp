@@ -1,4 +1,4 @@
-# $Id: Gcc.pm,v 1.35 2011/07/01 19:59:34 pfeiffer Exp $
+# $Id: Gcc.pm,v 1.37 2011/10/30 20:57:53 pfeiffer Exp $
 
 =head1 NAME
 
@@ -42,7 +42,7 @@ sub set_default_signature_method {
 
   # Use the MD5 signature checking when we can.
   $Mpp::has_md5_signatures and
-    $self->rule->set_signature_class( $leave_comments ? 'md5' : 'c_compilation_md5' );
+    $self->rule->set_signature_class( $leave_comments ? 'md5' : 'C', 1 );
 }
 
 # The subclass can override these. Don't start doing any actual scanning here,
@@ -52,7 +52,7 @@ sub parse_arg {
   #my( undef, $arg, undef, $files ) = @_;
 
   push @{$_[3]}, $_[1]
-    if Mpp::Text::is_cpp_source_name $_[1];
+    if is_cpp_source_name $_[1];
 }
 
 
@@ -69,15 +69,19 @@ my %info_string = (user => 'INCLUDES',
 		   sys => 'SYSTEM_INCLUDES',
 		   lib => 'LIBS');
 my @suffix_list = qw(.la .so .sa .a .sl);
-sub xparse_command {
-  my( $self, $command, $setenv ) = @_;
-
-  my $dir=$self->dir;
-  my $scanner=$self->{SCANNER};
-
+sub tags {
+  my $scanner = $_[0]{SCANNER};
   $scanner->should_find( 'user' );
   $scanner->info_string( \%info_string );
   $scanner->add_include_suffix_list( lib => \@suffix_list );
+}
+sub xparse_command {
+  my( $self, $command, $setenv ) = @_;
+
+  my $dir = $self->dir;
+  my $scanner = $self->{SCANNER};
+
+  $self->tags;
 
   my @prefiles;
   my @files;
@@ -95,6 +99,8 @@ sub xparse_command {
   my( $cmd, @words ) = @$command;
   $cmd =~ s@.*/@@ || Mpp::is_windows > 1 && $cmd =~ s/.*\\//;
   push (@cpp_cmd, $cmd);
+  $cmd =~ s!.*/!!;
+  my $icc = $cmd =~ /^ic[cl](?:\.exe)?$/;
   local $_;
   while( defined( $_ = shift @words )) {
     if( !s/^-// ) {
@@ -155,6 +161,7 @@ sub xparse_command {
     } elsif( s/^U// ) {
       $_ ||= shift @words;
       $scanner->set_var( $_, undef );
+    } elsif( $icc && /^op(?:t-|enmp)/ ) {
     } elsif( s/^o// ) {
       $self->add_target( $_ || shift @words );
     } else {

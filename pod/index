@@ -316,6 +316,9 @@ MAKEPPGRAPHFLAGS $MAKEPPGRAPHFLAGS	makeppgraph	L<C<$MAKEPPGRAPHFLAGS>|makeppgrap
 A -A	makeppinfo	L<C<-A>|makeppinfo/a_filename>
 ARGSFILE --args-file	makeppinfo	L<C<--args-file>|makeppinfo/a_filename>
 ARGUMENTSFILE --arguments-file	makeppinfo	L<C<--arguments-file>|makeppinfo/a_filename>
+D -d	makeppinfo	L<C<-d>|makeppinfo/d>
+DATES --dates	makeppinfo	L<C<--dates>|makeppinfo/d>
+DECODEDATES --decode-dates	makeppinfo	L<C<--decode-dates>|makeppinfo/d>
 F -f	makeppinfo	L<C<-f>|makeppinfo/f>
 FORCE --force	makeppinfo	L<C<--force>|makeppinfo/f>
 ? -?	makeppinfo	L<C<-?>|makeppinfo/_>
@@ -424,8 +427,9 @@ DONTREAD --dont-read	Sandboxes	L<C<--dont-read>|makepp_sandboxes/dont_read_path>
 DOREAD --do-read	Sandboxes	L<C<--do-read>|makepp_sandboxes/dont_read_path>
 VIRTUALSANDBOX --virtual-sandbox	Sandboxes	L<C<--virtual-sandbox>|makepp_sandboxes/virtual_sandbox>
 PLAIN plain	Signatures	L<C<plain>|makepp_signatures/plain>
+C C	Signatures	L<C<C>|makepp_signatures/c>
+CCOMPILATIONMD5 c~compilation~md5	Signatures	L<C<c_compilation_md5>|makepp_signatures/c>
 MD5 md5	Signatures	L<C<md5>|makepp_signatures/md5>
-CCOMPILATIONMD5 c~compilation~md5	Signatures	L<C<c_compilation_md5>|makepp_signatures/c_compilation_md5>
 SHAREDOBJECT shared~object	Signatures	L<C<shared_object>|makepp_signatures/shared_object>
 IFEQ ifeq	Statements	L<C<ifeq>|makepp_statements/ifeq_string1_string2>
 IFNEQ ifneq	Statements	L<C<ifneq>|makepp_statements/ifeq_string1_string2>

@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.103 2011/08/06 11:48:02 pfeiffer Exp $
+# $Id: install.pl,v 1.104 2011/11/07 21:27:09 pfeiffer Exp $
 #
 
 package Mpp;
@@ -198,7 +198,7 @@ foreach $module (qw(../Mpp
 		    Scanner/Verilog
 
 		    Signature Signature/c_compilation_md5 Signature/md5
-		    Signature/shared_object Signature/verilog_simulation_md5
+		    Signature/shared_object
 		    Signature/verilog_synthesis_md5)) {
   copy("Mpp/$module.pm", "$datadir/Mpp/$module.pm");
   chmod 0644, "$datadir/Mpp/$module.pm";

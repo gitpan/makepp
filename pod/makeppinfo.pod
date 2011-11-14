@@ -2,7 +2,7 @@
 
 makeppinfo -- What makepp knows about files
 
-=for vc $Id: makeppinfo.pod,v 1.8 2011/01/23 22:44:27 pfeiffer Exp $
+=for vc $Id: makeppinfo.pod,v 1.11 2011/10/30 20:57:44 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -12,6 +12,9 @@ B<?:>E<nbsp>L<-?|/_>,E<nbsp>
 B<A:>E<nbsp>L<-A|/a_filename>,
   L<--args-file|/a_filename>,
   L<--arguments-file|/a_filename>,E<nbsp>
+B<D:>E<nbsp>L<-d|/d>,
+  L<--dates|/d>,
+  L<--decode-dates|/d>,E<nbsp>
 B<F:>E<nbsp>L<-f|/f>,
   L<--force|/f>,E<nbsp>
 B<H:>E<nbsp>L<-h|/_>,
@@ -44,7 +47,7 @@ If both C<DEP_SIGS> and C<SORTED_DEPS> get displayed, they are merged into a
 two column table (in this order which gives a better layout).  Each dependency
 has a C<SIGNATURE> which is only C<timestamp,size>, used only to check if the
 file must be rescanned.  The interesting information is stored in some other
-key.  The C<md5> signature in C<MD5_SUM>, the smart C<c_compilation_md5>
+key.  The C<md5> signature in C<MD5_SUM>, the smart C<C> or C<c_compilation_md5>
 signature in C<C_MD5_SUM>, C<shared_object> in C<SHARED_OBJECT> and
 C<verilog_synthesis_md5> in C<V_MD5_SUM>.
 
@@ -54,7 +57,13 @@ the current build_signature of that file.  If the signatures and everything
 else matches, that is the basis for getting a file from (one of) your
 L<repositories|makepp_repositories> or L<build cache|makepp_build_cache> if it
 is found there.  The details depend on the applicable L<build check
-method|makepp_build_check>,
+method|makepp_build_check>.
+
+You will encounter two kinds of signatures: simple ones consist of two comma
+separated numbers, which are the timestamp in file system format (seconds
+since 1970) and the size.  For some files makepp will additionally have the
+relevant smart signature which is a base64 encoded (letters, digits, slash and
+plus) MD5 sum of the plain or digested file contents.
 
 This command is partially a makepp debug tool.  The list of keys varies
 depending on which scanner, build check and signature was used.  To fully
@@ -73,11 +82,23 @@ Valid options are:
 
 Read the file and parse it as possibly quoted whitespace- and/or newline-separated options.
 
+=item -d
+
+=item --dates
+
+=item --decode-dates
+
+In the simple signatures prepend the 1st number, the raw date-time, with its
+human readable form in parentheses.
+
 =item -f
 
 =item --force
 
 Display info even when it is invalid because of inexistent or modified file.
+In this case the key C<SIGNATURE> is replaced by C<invalidated_SIGNATURE> and
+the value indicates in parentheses that the file was deleted or what signature
+the file now has.
 
 =item -?
 
@@ -102,6 +123,9 @@ first pattern starts with an exclamtion mark, it operates on all keys.
 
     --keys='COMMAND CWD'	# How was this built and where (relative to file).
 
+If you want only filenames (useful with C<-t|--traverse>) select an unknown
+key like "none".?????
+
 =item -q
 
 =item --quiet
@@ -125,11 +149,15 @@ Print out the version number.
 
 =head1 EXAMPLES
 
+=head2 General
+
 Each L<build check method|makepp_build_check> documents how to see what they
 base their decision on.  Finding the paths of the dependencies is the same in
 all cases, so it is shown here.  If you build to a different directory,
-finding the path of the inputs requires a translation.  E.g.:
+finding the path of the inputs requires a translation relative to CWD.
+E.g. either short or long form:
 
+    makeppinfo --keys='CWD SORTED_DEPS' obj/b.o
     mppi -k'CWD SORTED_DEPS' obj/b.o
     obj/b.o:
     CWD=../src
@@ -145,6 +173,37 @@ F<src/inc/b.h> and an output F<obj/b.o>.  From the viewpoint of F<b.o>, the
 inputs are F<../src/b.c> and F<../src/inc/b.h>.  It does not matter that we
 gave a relative path for F<b.o>, the information shown would be the same, had
 we first changed to F<obj>.
+
+=head2 The reason for a rebuild
+
+In some cases makepp may be repeatedly rebuilding a seemingly up to date file.
+If C<makepplog> does not help here, this command gives you the exact state of
+affairs:
+
+    makeppinfo --traverse somefile
+    mppi -t somefile
+
+When this reproducibly happens, issue this command before and after, and
+compare the outputs.  The things that differ are the reason of the rebuild.
+
+=head2 Proving Consistency
+
+Sometimes you will change your Makefiles and wonder if they still do the same
+thing.  Here's a command that tells you exactly how makepp built F<somefile>:
+
+    makeppinfo --traverse --traverse --keys='CWD COMMAND' somefile
+    mppi -ttk'CWD SORTED_DEPS' somefile
+
+This will recursively traverse over all dependencies of F<somefile> and tell
+you in which directory it issued which command.  By running this after the old
+and after the new build and comparing the outputs, you can see what changed.
+
+The same works for testing a new version of makepp, though some older versions
+would handle whitespace in command continuation lines differently, and there
+was a bug in sort order, which can make the files come out in a different
+order.  If this is the case for you, use C<diff -b> and/or sort the outputs.
+The latter messes them up, but since each command is different the output
+should remain technically equivalent after sorting.
 
 =head1 ENVIRONMENT
 

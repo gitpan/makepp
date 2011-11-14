@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.200 2011/09/15 20:56:01 pfeiffer Exp $
+# $Id: makepp,v 1.202 2011/10/30 20:56:46 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -130,13 +130,6 @@ our $n_phony_messages = 0;	# Number of times we've had to warn about
 #
 # Default settings for various command line options:
 #
-our $build_check_method_name = 'exact_match';
-our $default_build_check_method = $Mpp::BuildCheck::exact_match::exact_match;
-				# Default to requiring an exact match for
-				# building.  This gets overridden when
-				# we are trying to build a makefile, however.
-our $default_signature = $Mpp::Signature::signature;
-				# Default signature is file time + size.
 our $environment_override = 0;	# Variables in environment do not override
 				# variables in the makefile by default.
 our $implicitly_load_makefiles = 1; # Load a makefile from every directory
@@ -165,7 +158,6 @@ our @makepp_include_path = file_info( $datadir, $original_cwd );
 				# include files supplied with makepp.
 our $remake_makefiles = 1;	# Default to making the makefiles automatically.
 our $gullible = 0;		# Trust actions not to touch non-targets
-our $sigmethod_name = '';	# No -m option seen yet.
 our $stop_on_race = 0;		# Stop if a race is detected.
 our $last_chance_rules;		# Flag allowing target pattern only rules for gmake compatibility.
 
@@ -653,8 +645,7 @@ sub build_dependencies_done {
 	print_error "Failed to build target", (@$all_targets>1 ? 's' : ''),
 	  map( ' `'.absolute_filename( $_ )."'", @$all_targets ), " [$_[0]]";
 	Mpp::log RULE_FAILED => $rule
-	  if $log_level;
-				# Sometimes it's hard to tell where the problem
+	  if $log_level;	# Sometimes it's hard to tell where the problem
 				# was if -k was specified unless we mark it
 				# in the log file.
   # TBD: We don't need to invalidate the build info of targets that we know
@@ -1301,14 +1292,10 @@ perform eval {
   my $tmp;
   parse_command_line %global_ENV,
     ['b', qr/build[-_]?cache/, \$tmp, 1, sub {
-       Mpp::Subs::s_build_cache $tmp, undef, undef, {global => 1};
+       Mpp::Subs::s_build_cache $tmp, undef, $progname, {global => 1};
      }],
-    [undef, qr/build[-_]?check(?:[-_]?method)?/, \$build_check_method_name, 1, sub {
-       $default_build_check_method =
-	 eval "use Mpp::BuildCheck::$build_check_method_name; \$Mpp::BuildCheck::$build_check_method_name\::$build_check_method_name" ||
-	   eval "use BuildCheck::$build_check_method_name; warn qq!--build-check-method: name BuildCheck::$build_check_method_name is deprecated, rename to Mpp::BuildCheck::$build_check_method_name\n!; \$BuildCheck::${build_check_method_name}::$build_check_method_name" or
-				# Load the method.
-	 die "$progname: invalid build check method $build_check_method_name\n";
+    [undef, qr/build[-_]?check(?:[-_]?method)?/, \$tmp, 1, sub {
+       Mpp::Subs::s_build_check $tmp, undef, $progname, {global => 1};
      }],
 
     [undef, qr/defer[-_]?include/, \$Mpp::Subs::defer_include],
@@ -1372,23 +1359,11 @@ perform eval {
     [undef, qr/last[-_]?chance[-_]?rules/, \$last_chance_rules],
 
     ['m', qr/signature(?:[-_]?method)?/, \$tmp, 1, sub {
-       my $signature = eval "use Mpp::Signature::$tmp; \$Mpp::Signature::${tmp}::$tmp" ||
-	 eval "use Signature::$tmp; warn qq!--signature-method: name Signature::$tmp is deprecated, rename to Mpp::Signature::$tmp\n!; \$Signature::${tmp}::$tmp";
-       if( defined $signature ) {
-	 $sigmethod_name = $tmp;
-	 $default_signature = $signature;
-       } else {
-	 # Build check methods and signature methods used to be the same thing,
-	 # so to avoid breaking things, accept build check methods here too.
-	 $default_build_check_method = eval "use Mpp::BuildCheck::$tmp; \$Mpp::BuildCheck::${tmp}::$tmp" ||
-	   eval "use BuildCheck::$tmp; warn qq!--signature-method: name BuildCheck::$tmp is deprecated, rename to Mpp::BuildCheck::$tmp\n!; \$BuildCheck::${tmp}::$tmp";
-	 if( defined $default_build_check_method ) {
-	   $build_check_method_name = $tmp;
-	   warn "requesting build check method $tmp via --signature-method is deprecated.\n";
-	 } else {
-	   die "invalid signature class $tmp\n";
-	 }
-       }
+       Mpp::Subs::s_signature $tmp, undef, $progname, {global => 1};
+     }],
+
+    [undef, qr/override[-_]?signature(?:[-_]?method)?/, \$tmp, 1, sub {
+       Mpp::Subs::s_signature $tmp, undef, $progname, {global => 1, override => 1};
      }],
 
     [undef, qr/md5[-_]?(?:check[-_]?)?bc/, \$md5check_bc],
@@ -1423,7 +1398,7 @@ perform eval {
 };
 
 # The following option descriptions are generated like this:
-# pod2text -oi0 pod/makepp_command.pod | perl -ne 's/.\ch//g; next if 1.../Valid options are|^OPTIONS$/; if( /^-/ ) { chop; if( $opt ) { $opt .= ", $_" } else { $opt = $_ }} elsif( $opt ) { tr/*//d; if( s/\.(?!\w).*/./ ) { print "$opt\n$_"; $opt = "" } else { chop; $opt .= "\n$_" }}'
+# pod2text -oi0 pod/makepp_command.pod | perl -ne 's/.\ch//g; next if 1.../Valid options are|^OPTIONS$/; if( /^-/ ) { chop; if( $opt ) { $opt .= ", $_" } else { $opt = $_ }} elsif( $opt ) { tr/*//d && s/\?, , \{/?, *, {/; if( s/\.(?!\w).*/./ ) { print "$opt\n$_"; $opt = "" } else { chop; $opt .= "\n$_" }}'
 __DATA__
 Usage: makepp [-options] [VAR=value] targets
 

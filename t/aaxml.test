@@ -1,0 +1,44 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	1	755	1321222152	1321222152	is_relevant.pl
+use XML::Parser; !no_md5
+###	11	755	1321222152	1321222152	makepp_test_script.pl
+#
+# A simple test of recursive make.
+#
+# Run the test twice.  We had some obscure bugs where recursive make
+# didn't work the second time around, which this should catch correctly.
+#
+makepp;
+n_files 'n_files_0';
+rename 'b.xml', 'a.xml';
+makepp;
+1;
+###	11	644	1321222152	1321222152	RootMakeppfile
+override signature xml		# Just test that override is accepted
+
+.PHONY: all
+
+all: a1.xml a2.xml
+
+a1.xml: a.xml
+	&cp $< $@
+
+a2.xml: a.xml :signature xml-space
+	&cp $< $@
+###	8	644	1321222152	1321222152	a.xml
+<?xml version="1.0"?>
+<makepp abbr='mpp'  is="a">
+  great tool
+  <for> compiling &amp; linking</for>
+  <because> it provides
+    <reliability></reliability>
+  </because>
+</makepp>
+###	2	644	1321222152	1321222152	b.xml
+<makepp	is='a' abbr="mpp"> <!--hopefully well documented--><![CDATA[ great tool ]]>
+<for> compiling &amp; linking</for><because> it provides <reliability/></because></makepp>
+###	D	755	1321222152	1321222152	answers
+###	1	644	1321222152	1321222152	answers/n_files
+1 1 0
+###	1	644	1321222152	1321222152	answers/n_files_0
+2 1 0

@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.153 2011/09/15 21:08:07 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.156 2011/10/30 20:57:44 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_do);
@@ -70,7 +70,7 @@ C<$makefile_line>.
 
 =cut
 
-my $expand_bracket;
+our $expand_bracket;
 my $makepp_simple_concatenation_seen; # Calculate only if set to a not-false value (even though a ref may end up false)
 sub expand_text {
   -1 < index $_[1], '$' or return $_[1]; # No variables ==> no substitution,
@@ -909,7 +909,7 @@ sub load {
     # we might fail to re-rebuild it, and either way we don't need to.
     if($minfo->{RULE}) {
       require Mpp::BuildCheck::target_newer; # Make sure the method is loaded.
-      local $Mpp::default_build_check_method = $Mpp::BuildCheck::target_newer::target_newer;
+      local $Mpp::BuildCheck::default = $Mpp::BuildCheck::target_newer::target_newer;
 				# Use the target_newer technique for rebuilding
 				# makefiles, since makefiles are often modified
 				# by programs like configure which aren't
@@ -1331,7 +1331,7 @@ sub grok_rule {
 #
 # Pull off the : modifiers.
 #
-  my( $foreach, $signature, $build_check, $build_cache, $have_build_cache );
+  my( $foreach, $signature, $signature_name, $signature_override, $build_check, $build_cache, $have_build_cache );
   my( $lexer, $parser );
   my $conditional_scanning;
   my $multiple_rules_ok;
@@ -1365,9 +1365,11 @@ sub grok_rule {
     } elsif ($after_colon[-1] =~ /^\s*signature\s+(.*?)\s*$/) { # Specify signature class?
       $signature and die "$makefile_line: multiple :signature clauses\n";
       my $name = expand_text $self, $1, $makefile_line;
-      $signature = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
-	eval "use Signature::$name; warn qq!$makefile_line: name Signature::$name is deprecated, rename to Mpp::Signature::$name\n!; \$Signature::${name}::$name";
-      unless( defined $signature ) {
+      $signature = Mpp::Signature::get( $name, $makefile_line );
+      if( defined $signature ) {
+	  $signature_name = $name;
+	  $signature_override = 1;
+      } else {
 # For backward compatibility, accept build check methods as a name to
 # :signature as well.
         $build_check = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
@@ -1437,7 +1439,12 @@ sub grok_rule {
     pop @after_colon;
   }
   $build_check ||= $self->{DEFAULT_BUILD_CHECK_METHOD};
-  $signature ||= $self->{DEFAULT_SIGNATURE_METHOD};
+
+  ($signature, $signature_name, $signature_override) = $self->{DEFAULT_SIGNATURE_METHOD} ?
+    @$self{qw(DEFAULT_SIGNATURE_METHOD DEFAULT_SIG_METHOD_NAME DEFAULT_SIG_OVERRIDE)} :
+    ($Mpp::Signature::default, $Mpp::Signature::default_name, $Mpp::Signature::override)
+    unless $signature;
+
 #
 # Now process the pieces of the rule.  We recognize several different kinds
 # of rules:
@@ -1591,7 +1598,7 @@ sub grok_rule {
 				# Make the rule.
       local $Mpp::Subs::rule = $rule; # Put it so $(foreach) can properly expand.
       $build_check and $rule->set_build_check_method($build_check);
-      $signature and $rule->set_signature_method($signature);
+      $signature and $rule->set_signature_class( $signature_name, 0, $signature, $signature_override );
       $have_build_cache and $rule->set_build_cache($build_cache);
       $lexer and $rule->{LEXER} = $lexer;
       $parser and $rule->{PARSER} = $parser;
@@ -1668,7 +1675,7 @@ sub grok_rule {
         $rule->{DISPATCH} = $dispatch if $dispatch;
         $rule->{ENV_DEPENDENCY_STRING} = $env_dep_str if $env_dep_str;
 	$build_check and $rule->set_build_check_method($build_check);
-	$signature and $rule->set_signature_method($signature);
+	$signature and $rule->set_signature_class( $signature_name, 0, $signature, $signature_override );
         $have_build_cache and $rule->set_build_cache($build_cache);
 	$lexer and $rule->{LEXER} = $lexer;
 	$parser and $rule->{PARSER} = $parser;
@@ -1787,14 +1794,14 @@ sub grok_rule {
 # a following line.  Or upto the regexp given as 2nd arg
 #
 sub read_block {
-  my( $name, $code, $re ) = @_;		# Name the arguments.
+  my( $name, $code, $re, $strip ) = @_;		# Name the arguments.
   $re = $re ? qr/\s*$re\s*(?:)/ : ($code =~ /\{(\{?)/) && ($1 ? qr/\s*\}\}/ : qr/\}/);
 				# {{ is stronger than } at EOL
   if( $_[2] or $re ? $code !~ /\}\s*$/ : 1 ) { # Code is not entirely inline?
     $code .= "\n";		# Put the newline in that got removed.
     my $line;
     my $lineno = $makefile_lineno;
-    while (defined($line = defined wantarray ? &read_makefile_line : &_read_makefile_line_1 )) {
+    while (defined($line = $strip ? read_makefile_line_stripped( 1, 1 ) : defined wantarray ? &read_makefile_line : &_read_makefile_line_1 )) {
 				# Get the next line.
       $re ||= ($line =~ /^\s*\{\{/s) ? qr/\s*\}\}/ : ($line =~ /^\{/s) ? qr/\}/ : undef;
 				# Give {{ a chance on 2nd line.
@@ -1936,7 +1943,7 @@ sub read_makefile {
 	  $equal = length;
 	  $_ .= '=';
 	}
-	$_ = read_block( define => $_, qr/endd?ef/ );
+	$_ = read_block( define => $_, qr/endd?ef/, 1 );
 	s/[ \t]*\\\n[ \t]*/ /g;
 	local $s_define = 1;
 	grok_assignment $self, $makefile_line, $equal, $keyword;
@@ -1949,8 +1956,6 @@ sub read_makefile {
       $rtn =~ tr/-/_/;		# Make routine names more perl friendly.
       substr $rtn, 0, 0, "$self->{PACKAGE}::s_";
       if( defined &$rtn ) {	# Function from makefile?
-	die "$makefile_line: export or override can not be combined with $rtn statement\n"
-	  if $keyword->{export} or $keyword->{override};
 	eval { &$rtn( $rest_of_line, $self, $makefile_line, $keyword ) };
 				# Try to call it as a subroutine.
 	die "$makefile_line: error handling $rtn statement\n$@\n" if $@;
@@ -2189,11 +2194,10 @@ sub _read_makefile_line_stripped_1 {
   defined $line or return undef; # No point checking at end of file.
   if( -1 < index $line, '$[' ) {
     eval {
-      ++$expand_bracket;
+      local $expand_bracket = 1;
       unshift_makefile_lines( expand_text $makefile, $line, $makefile_name . ':' . $makefile_lineno );
       $line = shift @hold_lines;
     };
-    --$expand_bracket;
     die $@ if $@;
   }
   return $line if $_[1];

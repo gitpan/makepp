@@ -22,7 +22,7 @@ close $in; close $out;
 ###	1	644	1119251973	1208342214	makeppextra.pm
 open STDOUT, '>>', 'raw';	# Doing this in run_tests can prevent raw from being deleted.
 ###	9	644	1163099047	1068849106	Makeppfile
-signature md5
+override signature md5
 
 $(phony default): y
 

@@ -1,4 +1,57 @@
+2011-11-07  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Signature.pm: C can now also be extended with filename regexps.
+
+	* Mpp/Rule.pm: Rescan on unknown sig method from build info instead of dying.
+
+	* Mpp/CommandParser/Vcs.pm: Replace verilog_simulation_md5 by simple sig spec C.v.
+
+2011-10-30  pfeiffer  <occitan@esperanto.org>
+
+Beware: this release has a more powerful signature syntax, which is not understood by older versions.
+So don't call an older mpp on things built with this version, which includes from build cache or a
+repository you built in.
+
+	* Mpp/Rule.pm (set_signature_class): Incorporates
+	set_signature_method.  Always store name and method together, so
+	mppr can pick it up from the build info and sign correctly.
+	(load_scaninfo_single): Rescan if sig method changed, because that
+	obsoletes old sigs.  Instead of exactly 'sys' & 'lib' to avoid
+	should_find, avoid it only if those strings are contained,
+	allowing various tags with this property.
+
+	* Mpp/CommandParser/Gcc.pm (tags): New overridable method.
+
+	* Mpp/Scanner/Esqlc.pm:
+	* Mpp/CommandParser/Esql.pm (usersys): New tag.
+
+	* Mpp/Makefile.pm:
+	* Mpp/Signature.pm (get): New signature function allows additional
+	suffixes and c_compilation_md5 can be called as C.
+
+	* makeppinfo: Fix undef warning.
+
+2011-09-29  pfeiffer  <occitan@esperanto.org>
+
+	* *: $Mpp::BuildCheck::default and $Mpp::Signature::default replace
+	default_build_check_method and default_signature.  Statements build_check and signature now
+	understand the keyword global.  Use them for option handling.
+
+	* Mpp/CommandParser/Gcc.pm: Handle some weird icc/icl options.
+
+	* makeppinfo: New option -d, --dates, --decode-dates.
+
+2011-09-19  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm:
+	* Mpp/Subs.pm (f_call): Expand macro normally even in $[call], because it can't easily contain $[1].
+
+	* makeppinfo: Now --traverse works even when SORTED_DEPS is not being displayed.  With --force
+	also show the current SIGNATURE.
+
 2011-09-15  pfeiffer  <occitan@esperanto.org>
+
+Snapshot makepp-1.50.110915.tgz, version 1.50-110915:6-0827:1-0806:6 on sourceforge & CPAN.
 
 	* makepp ($global_build_cache): Moved to $Mpp::BuildCache::global.
 	Let appropriate s_ subs handle some options.

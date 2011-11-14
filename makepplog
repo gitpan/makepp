@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.44 2011/07/01 19:56:15 pfeiffer Exp $
+# $Id: makepplog,v 1.45 2011/09/29 03:46:38 pfeiffer Exp $
 
 package Mpp;
 
@@ -429,7 +429,7 @@ Valid options are:
     built in makefiles with .
 -k list, --keys=list, --keylist=list
     The list specifies one or more space separated Shell style patterns
-    (with [xyz], ?, , {a,bc,def}).
+    (with [xyz], ?, *, {a,bc,def}).
 -K, --showkey
     This prefixes each output line with the internal name of the message
     key, for use with "--keys".

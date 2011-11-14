@@ -2,7 +2,7 @@
 
 makepp_statements -- Various statements in a makefile
 
-=for vc $Id: makepp_statements.pod,v 1.40 2011/09/15 21:08:07 pfeiffer Exp $
+=for vc $Id: makepp_statements.pod,v 1.42 2011/10/30 20:57:44 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -512,6 +512,8 @@ target caused makefiles to be autoloaded.
 
 =item build_cache I</path/to/build/cache>
 
+=item [global] build_cache I</path/to/build/cache>
+
 Specifies a path to a build cache.  See L<makepp_build_cache> for details.
 The build cache must already exist; see
 L<makepp_build_cache/How to manage a build cache> for how to make it in the
@@ -529,11 +531,22 @@ the build cache for all rules in this makefile.
 
 =item build_check I<build_check_method>
 
+=item [global] build_check I<build_check_method>
+
 Specifies the default build check method for all rules in this
 makefile.  See L<makepp_build_check> for details.  The C<build_check>
 statement overrides the C<--build-check-method> command line option for
 all rules in the makefile, but may be overridden by the C<:build_check>
 modifier on a per-rule basis.
+
+The keyword C<global> may precede this statement with the same effect as the
+command line option, i.e. the build check method applies in every makefile
+which does not specify its own.  This should best be given in a
+F<RootMakeppfile> to be certain it is seen early enough.
+
+Specify S<C<build_check default>> instead of a name if you want to return to
+the default.  With the keyword C<global> this means the C<exact_match> method,
+else this reverts the current makefile to not having its own specific method.
 
 =item export I<VAR ...>
 
@@ -785,7 +798,10 @@ Use the C<--force-rescan> command line option to ensure that this happens.
 
 =item signature I<name>
 
+=item [global] signature I<name>
+
     signature md5
+    signature C
     signature c_compilation_md5
     signature default
 
@@ -795,8 +811,15 @@ on the command line with C<-m> or C<--signature-method>, but does not
 override signature methods specified with the C<:signature> rule
 modifier.
 
-Specify S<C<signature default>> to return to makepp's default, either
-the builtin default or the default specified on the command line.
+The keyword C<global> may precede this statement with the same effect as the
+command line option, i.e. the signature method applies in every makefile which
+does not specify its own.  This should best be given in a F<RootMakeppfile> to
+be certain it is seen early enough.
+
+Specify S<C<signature default>> instead of a name if you want to return to the
+default.  With the keyword C<global> this means the simple modification time
+and file size method, else this reverts the current makefile to not having its
+own specific method.
 
 For more information about signature methods, see L<makepp_signatures>.
 

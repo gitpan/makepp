@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.111 2011/07/01 19:59:34 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.112 2011/09/29 03:51:28 pfeiffer Exp $
 
 =head1 NAME
 
@@ -841,7 +841,7 @@ sub build_info_fname { "$_[0]{'..'}{FULLNAME}/$build_info_subdir/$_[0]{NAME}.mk"
 sub grok_build_info_file {
   my( $fh ) = @_;
   my %build_info;
-  for( <$fh> ) {		# Read another line.  TODO: Why do some tests fail with 'while'?
+  for( <$fh> ) {		# Read another line, localizing $_ (while does not)
     return unless /(.+?)=(.*)/;	# Check the format.
     return \%build_info if $1 eq 'END';
     ($build_info{$1} = $2) =~

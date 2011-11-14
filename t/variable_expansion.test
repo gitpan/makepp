@@ -334,7 +334,7 @@ over_test: override over4 += 4more
 over_test:
 	&echo $(over1) : $(over2) : $(over3) : $(over4) -o $@
 ###	D	755	1171960696	1171960688	rc_off/
-###	58	644	1293060494	1293060494	rc_off/Makeppfile
+###	60	644	1293060494	1316312410	rc_off/Makeppfile
 #
 # Test substitution with rc-style substitution turned off.
 #
@@ -388,11 +388,13 @@ global_test:
 	&echo $(G_A1) : $(G_A2) : $(G_B1) : $(G_B2) : $(G_C1) : $(G_C2) -o $@
 	&echo $(G_0) : $(G_LATE1) : $(G_LATE2) -o >>$@
 
+ab = a b
 define bracket_rule =
-  bracket_test:
-	&echo $[ a b]$[[ 1 2]] -o $(output)
+  bracket_$1:
+	&echo $[ab]$[[ 1 2]] -o $$(output)
 enddef
-$[bracket_rule]
+ab = x y z			# make sure define did this
+$[bracket_rule test]
 ###	D	755	1171960696	1171960666	answers/
 ###	2	644	1151612515	1178277103	answers/bracket_test
 a b1 2

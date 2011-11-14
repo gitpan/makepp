@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.52 2011/05/07 11:10:55 pfeiffer Exp $
+# $Id: Text.pm,v 1.53 2011/10/30 20:57:33 pfeiffer Exp $
 
 =head1 NAME
 
@@ -726,7 +726,7 @@ sub _getopts_long($) {
 # day.
 #
 BEGIN {
-  $Mpp::datadir ||= (grep -f( "$_/Mpp.pm" ), @INC)[0] or
+  $Mpp::datadir ||= (grep -f( "$_/Mpp.pm" ) && -f( "$_/VERSION" ), @INC)[0] or
     die "Can't find our libraries in \@INC.\n";
   open my $fh, '<', "$Mpp::datadir/VERSION" or
     die "Can't read the file $Mpp::datadir/VERSION--$!.\nThis should be part of the standard distribution.\n";

@@ -1,4 +1,4 @@
-# $Id: Signature.pm,v 1.10 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: Signature.pm,v 1.13 2011/11/07 21:24:52 pfeiffer Exp $
 package Mpp::Signature;
 
 =head1 NAME
@@ -56,7 +56,44 @@ the file date concatenated with the file size.
 
 =cut
 
-our $signature = bless []; # Make the singleton object.
+our $signature = bless [];	# Make the singleton object.
+
+sub get {
+  my( $fullname, $mkfile_line ) = @_;
+  my( $name, $sep, $re ) = split /(\.\(?|\()/, $fullname, 2;
+  $name =~ tr/-/_/;
+  $name = 'c_compilation_md5' if $name eq 'C'; # Alias
+  my $sig = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
+    eval "use Signature::$name; warn qq!$mkfile_line: name Signature::$name is deprecated, rename to Mpp::Signature::$name\n!; \$Signature::${name}::$name";
+  if( defined $re ) {
+    die "$mkfile_line: Can't add suffixes to inexistent signature $name\n" unless $sig;
+    die "$mkfile_line: Signature $name doesn't support adding suffixes\n" unless UNIVERSAL::can( $sig, 'recognizes_file' );
+
+    my $class = ref( $sig ) . '::_'; # Make an unlikely-to-exist subclass name.
+    unless( keys %{$class.'::'} ) {
+      my $super = $sig;
+      @{$class.'::ISA'} = ref $sig;
+      *{$class.'::recognizes_file'} = sub {
+	($_[0][1] ? Mpp::File::absolute_filename $_[1] : $_[1]{NAME}) =~ $_[0][0] or
+	    $super->recognizes_file( $_[1] );
+      };
+    }
+
+    if( $sep eq '.' ) {
+      my $orig = $re;
+      $re = quotemeta $re;
+      $re =~ s/\\,/|/g and $re = "(?:$re)";
+      $sig = ${$class."::$orig"} ||= bless [qr/\.$re$/], $class;
+    } else {
+      $re =~ s/\)$// or die "$mkfile_line: No final parenthesis in $fullname\n";
+      $sep eq '.(' && $re =~ /\|/ and $re = "(?:$re)";
+      $sig = ${$class."::$re"} ||=
+	bless $sep eq '.(' ? [qr/\.$re$/] : [qr/$re/, $re =~ /\//], $class;
+    }
+  }
+  $sig;
+}
+
 
 sub signature {
   return $_[1]->signature;

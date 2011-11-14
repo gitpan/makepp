@@ -1,4 +1,4 @@
-# $Id: Esqlc.pm,v 1.11 2011/01/16 17:10:41 pfeiffer Exp $
+# $Id: Esqlc.pm,v 1.12 2011/10/30 20:58:00 pfeiffer Exp $
 
 =head1 NAME
 
@@ -10,7 +10,7 @@ Scans a C file for C<EXEC SQL INCLUDE>s, C<$include>s and C<#include>s.
 
 Tags are:
 
-=over 6
+=over
 
 =item user
 
@@ -21,6 +21,12 @@ directive.
 
 File scanned due to an EXEC SQL INCLUDE E<lt>filenameE<lt>, EXEC SQL INCLUDE
 filename or $INCLUDE E<lt>filenameE<lt> directive.
+=over 6
+
+=item usersys
+
+An EXEC SQL INCLUDE IDENTIFIER statement with neither <> nor quotes.  This
+gets extended with suffixes like F<.h> if needed.
 
 =item sql
 
@@ -44,6 +50,7 @@ sub get_directive {
     my $sys = $1;
     for( $2 ? split( ',', $2 ) : $3 ) {
       $_[0]->add_include_dir( user => $_ );
+      $_[0]->add_include_dir( usersys => $_ );
       $_[0]->add_include_dir( sys => $_ ) if $sys;
     }
     return;
@@ -62,7 +69,7 @@ sub other_directive {
   $_ = $self->expand_macros($_) if $conditional;
   $$scanworthy = 1;
   if( s/^(<)(.+?)>\s*;?\s*$// or s/^(['"]?)(.+?)\1\s*;?\s*$// ) {
-    $tag = ($1 eq '<') ? 'sys' : 'user';
+    $tag = $1 eq '<' ? 'sys' : $1 ? 'user' : 'usersys';
     my $file = $1 ? $2 : lc $2; # downcase unquoted file
     $self->include( $cp, $tag, $file, $finfo )
       or undef;

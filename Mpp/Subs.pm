@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.190 2011/09/15 21:08:07 pfeiffer Exp $
+# $Id: Subs.pm,v 1.193 2011/10/30 20:57:44 pfeiffer Exp $
 
 =head1 NAME
 
@@ -394,6 +394,7 @@ sub f_call {
   my @args= args $_[0], $_[1], $_[2], ~0, 1, 1;
   local @perl_unfriendly_symbols{0..($#args>$call_args ? $#args : $call_args)} = @args; # assign to $0, $1, $2...
   local $call_args = $#args;
+  local $Mpp::Makefile::expand_bracket;
   $_[1]->expand_variable( $args[0], $_[2] );
 }
 
@@ -1500,7 +1501,7 @@ sub s_build_cache {#_
       if $mkfile;		# Make sure we work even if cwd is wrong.
 
     require Mpp::BuildCache;	# Load the build cache mechanism.
-    warn $mkfile_line ? "$mkfile_line: " : '', "Setting another build cache.\n"
+    warn "$mkfile_line: Setting another build cache.\n"
       if $$var;
     $$var = new Mpp::BuildCache( $fname );
   }
@@ -1510,17 +1511,23 @@ sub s_build_cache {#_
 # Build_check statement.
 #
 sub s_build_check {#_
-  my( undef, $mkfile, $mkfile_line ) = @_;
-  my $name = $mkfile->expand_text( $_[0], $mkfile_line );
+  my( $name, $mkfile, $mkfile_line ) = @_;
+  my $global = delete $_[3]{global};
+  my $var = $global ? \$Mpp::BuildCheck::default : \$mkfile->{DEFAULT_BUILD_CHECK_METHOD};
+
+  $name = $mkfile->expand_text( $name, $mkfile_line )
+    if $mkfile;
   $name =~ s/^\s*(\w+)\s*$/$1/ or
     die "$mkfile_line: invalid build_check statement\n";
-  if( $name eq 'default' ) {	# Return to the default method?
-    delete $mkfile->{DEFAULT_BUILD_CHECK_METHOD};
-    return;
+  if( $name ne 'default' ) {
+    $$var = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
+      eval "use BuildCheck::$name; warn qq!$mkfile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name"
+      or die "$mkfile_line: invalid build_check method $name\n";
+  } elsif( $global ) {		# Return to the default method?
+    $$var = $Mpp::BuildCheck::exact_match::exact_match;
+  } else {
+    undef $$var;
   }
-  $mkfile->{DEFAULT_BUILD_CHECK_METHOD} = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
-    eval "use BuildCheck::$name; warn qq!$mkfile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name"
-    or die "$mkfile_line: invalid build_check method $name\n";
 }
 
 #
@@ -1737,9 +1744,7 @@ sub prebuild {
   my $myrule = Mpp::File::get_rule( $finfo );
   Mpp::log PREBUILD => $finfo, $mkfile_line
     if $Mpp::log_level;
-  if($myrule && !UNIVERSAL::isa($myrule, 'Mpp::DefaultRule') &&
-    !exists($finfo->{BUILD_HANDLE})
-  ) {
+  if( $myrule ) {
     # If the file to be built is governed by the present Makefile, then
     # just initialize the Mpp::Makefile and build it based on what we know so far,
     # because then the file will *always* be built with the same limited
@@ -1750,10 +1755,11 @@ sub prebuild {
     # which Makefiles were loaded. Note that this warning isn't guaranteed to
     # show up when it's called for, because targets that are built via direct
     # calls to Mpp::build() don't undergo this check.
-    unless($myrule->makefile == $mkfile || $myrule->makefile->{INITIALIZED}) {
-      warn 'Attempting to build ' . absolute_filename( $finfo ) .
-	" before its makefile is completely loaded\n";
-    }
+    warn 'Attempting to build ' . absolute_filename( $finfo ) . " before its makefile is completely loaded\n"
+      unless ref( $myrule ) eq 'Mpp::DefaultRule' ||
+	exists $finfo->{BUILD_HANDLE} ||
+	$myrule->makefile == $mkfile ||
+	$myrule->makefile->{INITIALIZED};
   }
   Mpp::build($finfo);
 }
@@ -1861,32 +1867,46 @@ sub s_runtime {#__
 }
 
 #
-# Set the default signature method for all rules in this makefile:
+# Set the default signature method for all rules in this makefile or globally:
 #
 sub s_signature {#__
-  my( undef, $mkfile, $mkfile_line ) = @_;
-  my $name = $mkfile->expand_text( $_[0], $mkfile_line );
-  $name =~ s/^\s*(\w+)\s*$/$1/ or
-    die "$mkfile_line: invalid signature statement\n";
-  if( $name eq 'default' ) {	# Return to the default method?
-    delete $mkfile->{DEFAULT_SIGNATURE_METHOD}; # Get rid of any previous stored signature method.
-    return;
-  }
-  $mkfile->{DEFAULT_SIGNATURE_METHOD} = eval "use Mpp::Signature::$name; \$Mpp::Signature::${name}::$name" ||
-    eval "use Signature::$name; warn qq!$mkfile_line: name Signature::$name is deprecated, rename to Mpp::Signature::$name\n!; \$Signature::${name}::$name";
-  unless( defined $mkfile->{DEFAULT_SIGNATURE_METHOD} ) {
+  my( $name, $mkfile, $mkfile_line ) = @_;
+  my $global = delete $_[3]{global};
+  my $override = delete $_[3]{override};
+  my $var = $global ? \$Mpp::Signature::default : \$mkfile->{DEFAULT_SIGNATURE_METHOD};
+  my $name_var = $global ? \$Mpp::Signature::default_name : \$mkfile->{DEFAULT_SIG_METHOD_NAME};
+  my $override_var = $global ? \$Mpp::Signature::override : \$mkfile->{DEFAULT_SIG_OVERRIDE};
+  $name = $mkfile->expand_text( $name, $mkfile_line )
+    if $mkfile;
+  $name =~ s/^\s*(.*?)\s*$/$1/;
+  if( $name ne 'default' ) {
+    $$var = Mpp::Signature::get( $name, $mkfile_line );
+    if( defined $$var ) {
+      $$name_var = $name;
+      $$override_var = $override;
+    } else {
 #
 # The signature methods and build check methods used to be the same thing,
 # so for backward compatibility, see if this is actually a build check
 # method.
 #
-    $mkfile->{DEFAULT_BUILD_CHECK_METHOD} = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
-      eval "use BuildCheck::$name; warn qq!$mkfile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name";
-    if( defined $mkfile->{DEFAULT_BUILD_CHECK_METHOD} ) {
-      warn "$mkfile_line: requesting build check method $name via signature is deprecated.\n";
-    } else {
-      die "$mkfile_line: invalid signature method $name\n";
+      $var = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
+	eval "use BuildCheck::$name; warn qq!$mkfile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name";
+      if( defined $var ) {
+	warn "$mkfile_line: requesting build check method $name via signature is deprecated.\n";
+	if( $global ) {
+	  $Mpp::BuildCheck::default = $var;
+	} else {
+	  $mkfile->{DEFAULT_BUILD_CHECK_METHOD} = $var;
+	}
+      } else {
+	die "$mkfile_line: invalid signature method $name\n";
+      }
     }
+  } else {		# Return to the default method?
+    undef $$name_var;
+    undef $$var;
+    $$override_var = $override;
   }
 }
 
