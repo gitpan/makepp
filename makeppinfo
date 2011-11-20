@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppinfo,v 1.15 2011/10/30 20:57:03 pfeiffer Exp $
+# $Id: makeppinfo,v 1.16 2011/11/20 18:17:49 pfeiffer Exp $
 
 package Mpp;
 
@@ -83,7 +83,7 @@ for( $keylist ) {
   }
 }
 
-my( %seen, $no_warn, $cwd );
+my( %seen, $cwd );
 sub merge($@) {
   my( $build_info, $key1, $key2 ) = @_;
   if( exists $build_info->{$key1} && exists $build_info->{$key2} ) {
@@ -94,10 +94,10 @@ sub merge($@) {
   }
 }
 
+@ARGV = '.' unless @ARGV;
 while( @ARGV ) {
   my $finfo = shift;
-  if( ref $finfo ) {
-    $no_warn = 1;
+  if( ref $finfo ) {		# This means we looped around to found deps
     undef $traverse if $traverse && $traverse == 1;
   } else {
     $finfo = file_info $finfo;
@@ -109,9 +109,17 @@ while( @ARGV ) {
     warn 'makeppinfo: file `' . relative_filename( $finfo ) . "' not found\n";
     next unless $force;
   }
+  if( is_dir $finfo ) {
+    unshift @ARGV, grep -f, glob relative_filename( $finfo ) . '/*';
+    next;
+  }
 
-  my $build_info = Mpp::File::load_build_info_file $finfo
-    or next;
+  my $build_info = Mpp::File::load_build_info_file $finfo;
+  unless( $build_info ) {
+    warn 'makeppinfo: file `' . relative_filename( $finfo ) . "' not analyzed by mpp\n"
+      unless $quiet;
+    next;
+  }
   unless( $build_info->{SIGNATURE} ) {
     warn 'makeppinfo: file `' . relative_filename( $finfo ) . "' modified outside of mpp\n"
       if $exists;

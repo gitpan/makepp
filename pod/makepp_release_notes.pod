@@ -2,7 +2,7 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.72 2011/11/07 21:24:53 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.73 2011/11/20 18:18:46 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -12,13 +12,17 @@ makepp_release_notes -- Major changes in each version of makepp
 
 =item *
 
-The C<c_compilation_md5> signature can now also be invoked as C<C> (because
+The signature statement no longer overrides the method found by command
+parsers -- now you must provide the C<override> keyword if you want that.
+There are new signature methods C<xml> and C<xml-space>.  The
+C<c_compilation_md5> signature can now also be invoked as C<C> (because
 signatures pertain to files, not actions).  It (and its subclasses) can now
-easily be extended to other suffixes as in C<C.ipp,tpp> meaning that besides the
-built in suffixes it will also apply to files ending in F<.ipp> or F<.tpp>.
-Thanks to this embedded SQL/C now works reliably.  B<Beware: this is not
-understood by older versions.  So don't call an older mpp on things built with
-this version, which includes from build cache or a repository you built in.>
+easily be extended to other suffixes as in C<C.ipp,tpp> meaning that besides
+the built in suffixes it will also apply to files ending in F<.ipp> or
+F<.tpp>.  Thanks to this makeppreplay and embedded SQL/C now works more
+reliably.  B<Beware: this is not understood by older versions.  So don't call
+an older mpp on things built with this version, which includes from a
+repository you built in.>
 
 =item *
 

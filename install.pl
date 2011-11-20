@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.104 2011/11/07 21:27:09 pfeiffer Exp $
+# $Id: install.pl,v 1.105 2011/11/20 18:18:46 pfeiffer Exp $
 #
 
 package Mpp;
@@ -198,8 +198,8 @@ foreach $module (qw(../Mpp
 		    Scanner/Verilog
 
 		    Signature Signature/c_compilation_md5 Signature/md5
-		    Signature/shared_object
-		    Signature/verilog_synthesis_md5)) {
+		    Signature/shared_object Signature/verilog_synthesis_md5
+		    Signature/xml Signature/xml_space)) {
   copy("Mpp/$module.pm", "$datadir/Mpp/$module.pm");
   chmod 0644, "$datadir/Mpp/$module.pm";
 }
@@ -208,7 +208,7 @@ our $explicit_perl = '';
 {
   local $SIG{__WARN__}= sub {};
   $explicit_perl = "Mpp::PERL . ' ' ."
-    if $destdir || system "$bindir/makeppinfo"; # zero if executable, ouptputs nothing
+    if $destdir || system "$bindir/makeppinfo -qknone makepp"; # zero if executable, output nothing
 }
 
 substitute_file( 'Mpp/Recursive.pm', $datadir, 0644 );

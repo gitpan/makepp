@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.156 2011/10/30 20:57:44 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.157 2011/11/20 18:19:06 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_do);

@@ -2,7 +2,7 @@
 
 makepp_statements -- Various statements in a makefile
 
-=for vc $Id: makepp_statements.pod,v 1.42 2011/10/30 20:57:44 pfeiffer Exp $
+=for vc $Id: makepp_statements.pod,v 1.43 2011/11/20 18:19:06 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -798,28 +798,33 @@ Use the C<--force-rescan> command line option to ensure that this happens.
 
 =item signature I<name>
 
-=item [global] signature I<name>
+=item [global] [override] signature I<name>
 
     signature md5
     signature C
     signature c_compilation_md5
+    signature xml
+    signature xml-space
     signature default
 
-Overrides the default signature method for all rules following the
-C<signature> statement.  This overrides the signature method specified
-on the command line with C<-m> or C<--signature-method>, but does not
-override signature methods specified with the C<:signature> rule
-modifier.
+Sets the signature method for all rules following the C<signature> statement,
+for which no command parser chooses a method.  You can override this for
+individual rules with the C<:signature> rule modifier.
 
-The keyword C<global> may precede this statement with the same effect as the
-command line option, i.e. the signature method applies in every makefile which
-does not specify its own.  This should best be given in a F<RootMakeppfile> to
-be certain it is seen early enough.
+If you add the keyword C<override>, then this method will override even the
+the choice made by command parsers, but not those specified with the
+C<:signature> rule modifier.  If you add the keyword C<global>, the effect
+applies to all rules yet to be read, unless their makefile also has its own
+C<signature> statement.  This is equivalent to the C<--signature> command line
+option if given before any rule is read, e.g. in a F<RootMakeppfile> to be
+certain it is seen early enough.  Likewise the keywords C<global override> for
+this statement are equivalent to the C<--override-signature> command line
+option.
 
 Specify S<C<signature default>> instead of a name if you want to return to the
 default.  With the keyword C<global> this means the simple modification time
-and file size method, else this reverts the current makefile to not having its
-own specific method.
+and file size method.  Else this reverts the current makefile to not having its
+own specific method, using a global method if one was set.
 
 For more information about signature methods, see L<makepp_signatures>.
 

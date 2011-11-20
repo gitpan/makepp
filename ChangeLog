@@ -1,3 +1,18 @@
+2011-11-20  pfeiffer  <occitan@esperanto.org>
+
+Version 2.0rc1 makepp-2.0rc1.tgz, technically 1.50-111120:8-1107:3-1030:7 on sourceforge & CPAN.
+
+Beware: this release has a more powerful signature syntax, which is not understood by older versions.
+So don't call an older mpp on things built with this version, which includes from a repository you built in.
+
+	* Mpp/Rule.pm
+	* Mpp/Subs.pm: Statement signature now understands the keyword override.
+
+	* Mpp/Signature/xml_space.pm
+	* Mpp/Signature/xml.pm: New modules
+
+	* makeppinfo: Handle directories by showing every file and warn if no build info.
+
 2011-11-07  pfeiffer  <occitan@esperanto.org>
 
 	* Mpp/Signature.pm: C can now also be extended with filename regexps.
@@ -8,10 +23,6 @@
 
 2011-10-30  pfeiffer  <occitan@esperanto.org>
 
-Beware: this release has a more powerful signature syntax, which is not understood by older versions.
-So don't call an older mpp on things built with this version, which includes from build cache or a
-repository you built in.
-
 	* Mpp/Rule.pm (set_signature_class): Incorporates
 	set_signature_method.  Always store name and method together, so
 	mppr can pick it up from the build info and sign correctly.
@@ -20,10 +31,10 @@ repository you built in.
 	should_find, avoid it only if those strings are contained,
 	allowing various tags with this property.
 
-	* Mpp/CommandParser/Gcc.pm (tags): New overridable method.
-
 	* Mpp/Scanner/Esqlc.pm:
 	* Mpp/CommandParser/Esql.pm (usersys): New tag.
+
+	* Mpp/CommandParser/Gcc.pm (tags): New overridable method.
 
 	* Mpp/Makefile.pm:
 	* Mpp/Signature.pm (get): New signature function allows additional

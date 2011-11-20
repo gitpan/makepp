@@ -2,7 +2,7 @@
 
 makepp_command -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.53 2011/10/30 20:57:44 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.54 2011/11/20 18:19:06 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -82,7 +82,9 @@ B<N:>E<nbsp>L<-n|/n>,
   L<--no-warn|/no_warn>,E<nbsp>
 B<O:>E<nbsp>L<-o|/o_filename>,
   L<--old-file|/o_filename>,
-  L<--out-of-sandbox|/out_of_sandbox_filename>,E<nbsp>
+  L<--out-of-sandbox|/out_of_sandbox_filename>,
+  L<--override-signature|/override_signature_method>,
+  L<--override-signature-method|/override_signature_method>,E<nbsp>
 B<P:>E<nbsp>L<--populate-bc-only|/populate_bc_only>,
   L<--profile|/profile>,E<nbsp>
 B<Q:>E<nbsp>L<--quiet|/s>,E<nbsp>
@@ -474,10 +476,10 @@ log file is called F<.makepp/log>.
 
 Specifies the default signature method to use for rules which do not have the
 C<:signature> modifier in makefiles which do not have a C<signature>
-statement.  Possible values are C<md5> and C<C> or C<c_compilation_md5>.
-However, this option has no effect on the signature method for C/C++
-compilation; you must use the C<signature> statement or the C<:signature> rule
-modifier to affect that.  For more details, see L<makepp_signatures>.
+statement.  Does not override the choice made by command parsers, e.g. C/C++
+compilers.  Possible values are C<md5>, C<C> or C<c_compilation_md5>, C<xml>
+and C<xml-space>.  For more details, see L<makepp_signatures>.
+
 
 =item --md5-bc
 
@@ -662,6 +664,13 @@ file, though they might be rebuilt if some other dependency has also
 changed.  The file itself might or might not be rebuilt, depending on
 whether it is out of date with respect to its dependencies.  (To prevent
 that, use C<--dont-build>.)
+
+=item --override-signature=I<method>
+
+=item --override-signature-method=I<method>
+
+Same as C<--signature-method>, but even overrides the choice made by command
+parsers.
 
 =item --out-of-sandbox=I<filename>
 

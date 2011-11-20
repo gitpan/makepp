@@ -2,7 +2,7 @@
 
 makepp_compatibility -- Compatibility list for makepp
 
-=for vc $Id: makepp_compatibility.pod,v 1.30 2011/06/23 15:35:02 pfeiffer Exp $
+=for vc $Id: makepp_compatibility.pod,v 1.31 2011/11/20 18:20:51 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -37,58 +37,58 @@ list below.  The first two lines are special, based on the OS field being
 empty.  This is converted to html by install.pl and readable as is in other
 formats.  The 1st header line is currently not dynamic.
 
-		#||	5.6		#|||||||||			5.8						#|	5.10	#||||		5.12			#| 5.14		#
+		#||	5.6		#|||||||||			5.8						#|	5.10	#||||		5.12			#|| 5.14		#
 
-		# .0	| .1	| .2	# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	| .9	# .0	| .1	# .0	| .1	| .2	| .3	| .4	# .0	| .1	#
+		# .0	| .1	| .2	# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	| .9	# .0	| .1	# .0	| .1	| .2	| .3	| .4	# .0	| .1	| .2	#
 
- GNU/Linux (x86)# x	| x	| req	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	| x	| x	# x	| x	#
+ GNU/Linux (x86)# x	| x	| req	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	| x	| x	# x	| x	| x	#
 
- GNU/Linux (amd64)#	|	|	#	|	|	|	|	| x	|	|	|	| x	#	|	#	|	| x	| x	|	# x	|	#
+ GNU/Linux (amd64)#	|	|	#	|	|	|	|	| x	|	|	|	| x	#	|	#	|	| x	| x	|	# x	|	| x	#
 
- GNU/Linux (alpha)#	| x	|	#	|	|	|	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	#
+ GNU/Linux (alpha)#	| x	|	#	|	|	|	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	|	#
 
- GNU/Linux (S/390)#	|	| x	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	|	|	|	|	#	|	#
+ GNU/Linux (S/390)#	|	| x	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	|	|	|	|	#	|	|	#
 
- FreeBSD (x86)	#	| x	| x	#	|	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	| x	|	#	| x	#
+ FreeBSD (x86)	#	| x	| x	#	|	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	| x	|	#	| x	|	#
 
- NetBSD (x86)	#	|	|	#	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	| x	|	#	| x	#
+ NetBSD (x86)	#	|	|	#	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	| x	|	#	| x	| x	#
 
- NetBSD (alpha)	#	|	|	#	|	|	|	|	|	|	|	|	| x	# x	| x	#	|	|	|	|	#	|	#
+ NetBSD (alpha)	#	|	|	#	|	|	|	|	|	|	|	|	| x	# x	| x	#	|	|	|	|	#	|	|	#
 
- OpenBSD (x86)	#	|	|	# x	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	|	| x	# x	| x	#
-
-
- AIX (PPC)	#	|	|	#	| x	| x	|	|	|	|	| x	| x	|	#	|	#	|	|	|	|	#	|	#
-
- Darwin (x86)	# x	|	|	#	|	|	|	|	|	|	|	|	|	#	|	#	| x	|	|	|	#	| 	#
-
- Darwin (PPC)	# x	|	|	#	|	|	|	|	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	|	|	#	| 	#
-
- HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	#
-
- Irix		#	|	|	#	|	|	|	|	|	|	|	| x	|	#	|	#	|	|	|	|	#	|	#
-
- Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	#
-
- Solaris (Sparc)# x	| req	|	# x	| x	| x	| x	| x	| x	| x	| x	| x	| x	# x	|	# x	| x	|	|	|	#	| 	#
-
- Solaris (64bit)#	|	|	#	| x	|	|	|	|	|	|	| x	|	# x	|	#	|	|	|	|	#	|	#
-
- Solaris (x86)	#	| x	|	#	| x	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	|	| 	#	| 	#
+ OpenBSD (x86)	#	|	|	# x	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	|	| x	# x	| x	| x	#
 
 
- BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	|	# /	|	#	|	|	|	|	#	|	#
+ AIX (PPC)	#	|	|	#	| x	| x	|	|	|	|	| x	| x	|	#	|	#	|	|	|	|	#	|	|	#
 
- z/OS USS (S/390)#	|	|	#	|	|	|	|	|	|	|	| zOS	|	# /	|	#	|	|	|	|	#	|	#
+ Darwin (x86)	# x	|	|	#	|	|	|	|	|	|	|	|	|	#	|	#	| x	|	|	|	#	| 	| x	#
+
+ Darwin (PPC)	# x	|	|	#	|	|	|	|	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	|	|	#	| 	| 	#
+
+ HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	|	#
+
+ Irix		#	|	|	#	|	|	|	|	|	|	|	| x	|	#	|	#	|	|	|	|	#	|	|	#
+
+ Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	|	#
+
+ Solaris (Sparc)# x	| req	|	# x	| x	| x	| x	| x	| x	| x	| x	| x	| x	# x	|	# x	| x	|	|	|	#	| 	| 	#
+
+ Solaris (64bit)#	|	|	#	| x	|	|	|	|	|	|	| x	|	# x	|	#	|	|	|	|	#	|	|	#
+
+ Solaris (x86)	#	| x	|	#	| x	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	|	| 	#	| 	| 	#
 
 
- Cygwin (x86)	#	|	|	#	|	|	|	|	|	|	| Win	| x	|	# x	| x	#	|	|	|	|	#	|	#
+ BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	|	# /	|	#	|	|	|	|	#	|	|	#
 
- MinGW MSYS	#	| Win	|	#	|	|	|	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	#
+ z/OS USS (S/390)#	|	|	#	|	|	|	|	|	|	|	| zOS	|	# /	|	#	|	|	|	|	#	|	|	#
 
- Stawberry	#	|	|	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	| x	| x	| x	|	#	|	#
 
- ActiveState Win# Win	| Win	|	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	|	| x	|	# x	| 	#
+ Cygwin (x86)	#	|	|	#	|	|	|	|	|	|	| Win	| x	|	# x	| x	#	|	|	|	|	#	|	|	#
+
+ MinGW MSYS	#	| Win	|	#	|	|	|	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	|	#
+
+ Stawberry	#	|	|	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	| x	| x	| x	|	#	|	|	#
+
+ ActiveState Win# Win	| Win	|	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	|	| x	|	# x	| 	| 	#
 
 =for html </table>
 

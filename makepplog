@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.45 2011/09/29 03:46:38 pfeiffer Exp $
+# $Id: makepplog,v 1.46 2011/11/20 18:18:46 pfeiffer Exp $
 
 package Mpp;
 
@@ -38,6 +38,8 @@ my %log_msg =
 
   DEL_STALE => 'Removing stale generated file or symlink %s',
   DEPEND => ' Targets %s depend on %s',
+
+  ERROR => '%s has non-fatal error %s, %s',
 
   IFEQ => 'if(n)eq comparing %s with %s at %s',
   INCL => '%s includes %s',
@@ -109,6 +111,7 @@ my %log_msg =
 
   UP_TO_DATE => '%s is up to date',
   USE => ' Using rule %s',
+  USE_FAIL => 'Module %s not found',
 
   VERSION => 'Running %s with perl %s on %s',
  );

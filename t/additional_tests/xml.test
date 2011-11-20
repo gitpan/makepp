@@ -1,16 +1,19 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	755	1321222152	1321222152	is_relevant.pl
-use XML::Parser; !no_md5
-###	11	755	1321222152	1321222152	makepp_test_script.pl
-#
-# A simple test of recursive make.
-#
-# Run the test twice.  We had some obscure bugs where recursive make
-# didn't work the second time around, which this should catch correctly.
-#
+(eval 'use XML::Parser; 1' or eval 'use XML::LibXML; 1') && !no_md5
+###	14	755	1321222152	1321222152	makepp_test_script.pl
+# A simple test of xml signatures.
+
 makepp;
 n_files 'n_files_0';
-rename 'b.xml', 'a.xml';
+
+open my $fh, '>a.xml';
+printf $fh q@%c%c%c%s@, 0xEF, 0xBB, 0xBF, <<XML; # keep BOM out of file transfer's sight
+<makepp	is='a' abbr="mpp"> <!--hopefully well documented--><![CDATA[ great tool ]]>
+<for> compiling &amp; linking</for><because> it provides <reliability/></because></makepp>
+XML
+close $fh;
+
 makepp;
 1;
 ###	11	644	1321222152	1321222152	RootMakeppfile
@@ -34,9 +37,6 @@ a2.xml: a.xml :signature xml-space
     <reliability></reliability>
   </because>
 </makepp>
-###	2	644	1321222152	1321222152	b.xml
-<makepp	is='a' abbr="mpp"> <!--hopefully well documented--><![CDATA[ great tool ]]>
-<for> compiling &amp; linking</for><because> it provides <reliability/></because></makepp>
 ###	D	755	1321222152	1321222152	answers
 ###	1	644	1321222152	1321222152	answers/n_files
 1 1 0

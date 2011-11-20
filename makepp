@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.202 2011/10/30 20:56:46 pfeiffer Exp $
+# $Id: makepp,v 1.203 2011/11/20 18:19:06 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -1512,6 +1512,9 @@ Valid options are:
     Don't print any warning messages to stderr, only to log file.
 -o filename, --assume-old=filename, --old-file=filename
     Pretends that the specified file has not changed, even if it has.
+--override-signature=method, --override-signature-method=method
+    Same as "--signature-method", but even overrides the choice made by
+    command parsers.
 --out-of-sandbox=filename
     Generate an error rather than write files outside the "sandbox".
 --populate-bc-only

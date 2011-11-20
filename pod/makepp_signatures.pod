@@ -2,7 +2,7 @@
 
 makepp_signatures -- How makepp knows when files have changed
 
-=for vc $Id: makepp_signatures.pod,v 1.18 2011/11/07 21:24:53 pfeiffer Exp $
+=for vc $Id: makepp_signatures.pod,v 1.19 2011/11/20 18:18:46 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -12,7 +12,9 @@ B<C:>E<nbsp>L<C|/c>,
   L<c_compilation_md5|/c>,E<nbsp>
 B<M:>E<nbsp>L</md5>,E<nbsp>
 B<P:>E<nbsp>L</plain>,E<nbsp>
-B<S:>E<nbsp>L</shared_object>
+B<S:>E<nbsp>L</shared_object>,E<nbsp>
+B<X:>E<nbsp>L</xml>,
+  L<xml_space|/xml>
 
 Each file is associated with a I<signature>, which is a string that changes if
 the file has changed.  Makepp compares signatures to see whether it needs to
@@ -206,6 +208,33 @@ case you'd change the declaration, so you'd also need to change the callers.
 Note that this method only applies to files whose name looks like a shared
 library.  For all other files it falls back to C<c_compilation_md5>, which may
 in turn fall back to others.
+
+=item xml
+
+=item xml_space
+
+These are two similar methods which treat xml canonically and differ only in
+their handling of whitespace.  The first completely ignores it around tags and
+considers it like a single space elsewhere, making the signature immune to
+formatting changes.  The second respects any whitespace in the xml, which is
+necessary even if just a small part requires that, like a C<< <pre> >> section
+in an xhtml document.
+
+Common to both methods is that they sign the essence of each xml document.
+Presence or not of a BOM or C<< <?xml?> >> header is ignored.  Comments are
+ignored, as is whether text is protected as C<CDATA> or with entities.  Order
+and quoting style of attributes doesn't matter, nor does how you render empty
+tags.
+
+For any file which is not valid xml, or if the Expat based C<XML::Parser> or
+the C<XML::LibXML> parser is not installed, this falls back to method md5.  If
+you switch your perl installation from one of the parsers to the others,
+makepp will think the files are different as soon as their timestamp changes.
+This is because the result of either parser is logically equivalent, but they
+produce different signatures.  In the unlikely case that this is a problem,
+you can force use of only C<XML::LibXML> by setting in Perl:
+
+    $Mpp::Signature::xml::libxml = 1;
 
 =back
 

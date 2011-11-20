@@ -160,6 +160,8 @@ NOWARN --no-warn	Command	L<C<--no-warn>|makepp_command/no_warn>
 O -o	Command	L<C<-o>|makepp_command/o_filename>
 ASSUMEOLD --assume-old	Command	L<C<--assume-old>|makepp_command/o_filename>
 OLDFILE --old-file	Command	L<C<--old-file>|makepp_command/o_filename>
+OVERRIDESIGNATURE --override-signature	Command	L<C<--override-signature>|makepp_command/override_signature_method>
+OVERRIDESIGNATUREMETHOD --override-signature-method	Command	L<C<--override-signature-method>|makepp_command/override_signature_method>
 OUTOFSANDBOX --out-of-sandbox	Command	L<C<--out-of-sandbox>|makepp_command/out_of_sandbox_filename>
 POPULATEBCONLY --populate-bc-only	Command	L<C<--populate-bc-only>|makepp_command/populate_bc_only>
 PROFILE --profile	Command	L<C<--profile>|makepp_command/profile>
@@ -431,6 +433,8 @@ C C	Signatures	L<C<C>|makepp_signatures/c>
 CCOMPILATIONMD5 c~compilation~md5	Signatures	L<C<c_compilation_md5>|makepp_signatures/c>
 MD5 md5	Signatures	L<C<md5>|makepp_signatures/md5>
 SHAREDOBJECT shared~object	Signatures	L<C<shared_object>|makepp_signatures/shared_object>
+XML xml	Signatures	L<C<xml>|makepp_signatures/xml>
+XMLSPACE xml~space	Signatures	L<C<xml_space>|makepp_signatures/xml>
 IFEQ ifeq	Statements	L<C<ifeq>|makepp_statements/ifeq_string1_string2>
 IFNEQ ifneq	Statements	L<C<ifneq>|makepp_statements/ifeq_string1_string2>
 IFDEF ifdef	Statements	L<C<ifdef>|makepp_statements/ifdef_variable>
