@@ -2,7 +2,7 @@
 
 makepp_compatibility -- Compatibility list for makepp
 
-=for vc $Id: makepp_compatibility.pod,v 1.31 2011/11/20 18:20:51 pfeiffer Exp $
+=for vc $Id: makepp_compatibility.pod,v 1.32 2012/01/11 21:01:46 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -17,11 +17,6 @@ tested where, and whether it was successful.  We would like to hear of your
 results on other platforms too!
 
 =for html
-<style type="text/css">
-.good { white-space: nowrap; font-family: sans-serif; background-image: url(pre.png); background-repeat: repeat-y }
-.soso { white-space: nowrap; font-family: sans-serif; background-color: #c0d0ff }
-.bad  { white-space: nowrap; font-family: sans-serif; background-color: #ff4000 }
-</style>
 <ul>
 <li>successful: <b class="good">&nbsp;x&nbsp;</b></li>
 <li>mostly successful with footnote: <b class="soso">&nbsp;x<sup>*)</sup></b></li>

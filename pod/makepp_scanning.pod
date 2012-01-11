@@ -2,7 +2,7 @@
 
 makepp_scanning -- How makepp finds include files and other hidden dependencies
 
-=for vc $Id: makepp_scanning.pod,v 1.19 2011/01/16 17:10:41 pfeiffer Exp $
+=for vc $Id: makepp_scanning.pod,v 1.20 2012/01/11 21:01:47 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -166,7 +166,7 @@ path and EXEC SQL INCLUDE directives without a suffix get C<.h> appended.
 
 =head2 Swig (swig)
 
-Swig (Simplified Wrapper and Interface Generator, http://www.swig.org)
+Swig (Simplified Wrapper and Interface Generator, http://www.swig.org/)
 is a program that converts a C/C++ header file into the wrapper
 functions needed to make your code callable from a variety of other
 languages, such as perl, python, tcl, C#, ruby, ocaml, and probably some

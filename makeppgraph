@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppgraph,v 1.24 2010/09/29 22:19:53 pfeiffer Exp $
+# $Id: makeppgraph,v 1.25 2012/01/06 21:56:59 pfeiffer Exp $
 
 #TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
 
@@ -140,7 +140,9 @@ ul ul { border-left: 1px dotted #bbb; }
 ul { margin: 0; padding-left: 1em; }
 li { list-style: square; padding: 0; padding-top: 3px; }
 li.fold { list-style: disc; }
+li.fold > b { cursor: n-resize; }
 li.unfold { list-style: circle; }
+li.unfold > b { cursor: s-resize; }
 .flash { background-color: yellow; }
 /* Actually show and hide sublists */
 li.fold ul { display: block; }

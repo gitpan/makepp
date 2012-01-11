@@ -2,16 +2,16 @@
 
 makepp_speedup -- How to make makepp faster
 
-=for vc $Id: makepp_speedup.pod,v 1.11 2008/11/23 21:20:40 pfeiffer Exp $
+=for vc $Id: makepp_speedup.pod,v 1.13 2012/01/11 21:01:47 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
-So you think makepp is slow?  Did you check 1.50 which is noticeably faster?
-But granted, it's still slow, especially if you come from GNU make.  This is
-because it conscientiously checks all those things where gmake gives you a
-headache, ignoring lots of dependencies (the "I think I need to gmake clean to
-get rid of a mysterious bug" syndrome).  If you suspect some Perl code you
-added to your makefiles might be at fault, take a look at L<perl_performance>.
+So you think makepp is slow?  It has gotten noticeably faster, but granted,
+it's still slow, especially if you come from GNU make.  This is because it
+conscientiously checks all those things where gmake gives you a headache,
+ignoring lots of dependencies (the "I think I need to gmake clean to get rid
+of a mysterious bug" syndrome).  If you suspect some Perl code you added to
+your makefiles might be at fault, take a look at L<perl_performance>.
 
 But there are a few things you can do to squeeze out more speed.  Some of the
 things are labelled unsafe, in the sence that you're asking makepp not to
@@ -40,7 +40,7 @@ added.
 
 Tuning your Perl can also help, like not compiling it for 64 bits, which
 makepp doesn't need.  For example ActiveState's build
-(L<ftp://ftp.activestate.com/ActivePerl/>) of 5.8.7 for Linux is faster than
+(L<http://www.activestate.com/activeperl>) of 5.8.7 for Linux is faster than
 the Perl 5.8.7 that comes with SuSE Linux 10.0.
 
 =head3 Include as Little as Possible

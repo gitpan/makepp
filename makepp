@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.203 2011/11/20 18:19:06 pfeiffer Exp $
+# $Id: makepp,v 1.204 2011/11/25 21:36:39 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -163,25 +163,21 @@ our $last_chance_rules;		# Flag allowing target pattern only rules for gmake com
 
 
 
-=head2 build
+#   my $handle = build($objinfo);
 
-  my $handle = build($objinfo);
+# Starts building the specified object.  When build() returns, the object
+# may not have been built yet; build() returns a handle (see Mpp/Event.pm for
+# details) which you can wait on if you want to wait until the build is
+# actually done.  The usual idiom is
 
-Starts building the specified object.  When build() returns, the object
-may not have been built yet; build() returns a handle (see Mpp/Event.pm for
-details) which you can wait on if you want to wait until the build is
-actually done.	The usual idiom is
+#   wait_for build($objinfo);
 
-  wait_for build($objinfo);
+# If you do this, of course, you make it harder for makepp to build targets in
+# parallel because the makepp process will not spawn any other build requests
+# until this one is done.
 
-If you do this, of course, you make it harder for makepp to build targets in
-parallel because the makepp process will not spawn any other build requests
-until this one is done.
-
-When any targets are built, the global variable $n_files_changed is
-updated.
-
-=cut
+# When any targets are built, the global variable $n_files_changed is
+# updated.
 
 sub build {
   exists $_[0]{BUILD_HANDLE} and return $_[0]{BUILD_HANDLE};
@@ -944,27 +940,23 @@ sub makepprc {
   undef $finfo->{xMAKEPPRC};	# Mark as read
 }
 
-=head2 parse_command_line
+#   parse_command_line(@ARGV, \%environment_hash);
 
-  parse_command_line(@ARGV, \%environment_hash);
+# Parses and executes the given command line.  Loads whatever makefiles are
+# necessary and builds the appropriate targets, or at least starts off the
+# build.  (It doesn't wait until the build is finished.)  Returns a list of
+# build handles.
 
-Parses and executes the given command line.  Loads whatever makefiles are
-necessary and builds the appropriate targets, or at least starts off the
-build.	(It doesn't wait until the build is finished.)	Returns a list of
-build handles.
+# The environment must be provided as a reference to a hash.  Any rules which
+# are executed have the environment set to this value before the shell is
+# invoked.
 
-The environment must be provided as a reference to a hash.  Any rules which
-are executed have the environment set to this value before the shell is
-invoked.
+# This parser only accepts options which are valid during recursive makes or
+# from the load_makefile command.  There are other options which are handled
+# by the mainline makepp code which are not accepted here.
 
-This parser only accepts options which are valid during recursive makes or
-from the load_makefile command.	 There are other options which are handled
-by the mainline makepp code which are not accepted here.
-
-parse_command_line assumes that the current directory is the proper directory
-for executing the command.
-
-=cut
+# parse_command_line assumes that the current directory is the proper directory
+# for executing the command.
 
 my @do_build;
 our @ignore_opts;

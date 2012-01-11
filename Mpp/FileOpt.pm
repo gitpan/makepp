@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.112 2011/09/29 03:51:28 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.113 2011/12/04 12:38:22 pfeiffer Exp $
 
 =head1 NAME
 
@@ -506,10 +506,9 @@ sub set_rule {
     return;
   }
 
-  my $rule_is_builtin = ($rule->source =~ /\bmakepp_builtin_rules\.mk:/);
-
-  exists $finfo->{xPHONY} &&	# If we know this is a phony target, don't
-    $rule_is_builtin and	# ever let a builtin rule attempt to build it.
+  my $rule_is_builtin = ($rule->source =~ /\bmakepp_builtin_rules\.mk:/) and
+    exists $finfo->{xPHONY} and	# If we know this is a phony target, don't
+				# ever let a builtin rule attempt to build it.
       return;
 
   if( my $oldrule = $finfo->{RULE} ) {	# Is there a previous rule?

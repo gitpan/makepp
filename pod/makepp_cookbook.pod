@@ -2,15 +2,16 @@
 
 makepp_cookbook -- The best way to set up makefiles for various situations
 
-=for vc $Id: makepp_cookbook.pod,v 1.22 2010/12/10 22:03:50 pfeiffer Exp $
+=for vc $Id: makepp_cookbook.pod,v 1.24 2012/01/11 21:01:47 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
-I discovered that practically no one ever reads a manual for a make
-tool, because frankly no one really is interested in the make process
-itself--we are only interested in results.  So this cookbook was put
-together in hopes that people will be able to get what they need quickly
-from the examples without wading through the manual.
+I discovered that practically no one ever reads a manual for a make tool,
+because frankly no one really is interested in the make process itself--we are
+only interested in results.  So this cookbook was put together in hopes that
+people will be able to get what they need quickly from the examples without
+wading through the manual.  This shows howto type questions, whereas stumbling
+blocks will be found in the L<frequently asked questions|makepp_faq>.
 
 =head2 Building libraries
 
@@ -225,7 +226,7 @@ of F<.o> files included in the library.
 
 The process of building dynamic libraries is entirely system dependent.
 I would highly recommend using libtool to build a dynamic library (see
-L<http://www.gnu.org/software/libtool>), so you don't have to figure out
+L<http://www.gnu.org/software/libtool/>), so you don't have to figure out
 how to do it on your platform, and so that your makefile will continue
 to work even when you switch to a different OS.  See the libtool
 documentation for details.  Here's a sample Makefile:
@@ -852,6 +853,17 @@ The following makefile is exactly equivalent:
  			   # debug/program instead of program.
 
 =head2 Miscellaneous tips
+
+=head3 How do I build one part differently just once?
+
+Makepp makes this hard to do because the result is inconsistent with regard to
+the rules.  But there are situations where you may need this, e.g. to compile
+just one module with heavy debugging information.  You can achieve this in two
+steps by first building the dependency separately, and then excluding it from
+the link phase:
+
+    makepp DEBUG=3 buggy.o	      # Build it with other option.
+    makepp --dont-build=buggy.o buggy # Use it, despite "wrong" build option.
 
 =head3 How do I make sure my output directories exist?
 

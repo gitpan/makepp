@@ -1,3 +1,42 @@
+2012-01-11  pfeiffer  <occitan@esperanto.org>
+
+Version 2.0rc2 makepp-2.0rc2.tgz, technically 1.50-120111:3-0106:1-111204:2 on sourceforge & CPAN.
+
+	* makeppgraph (html): Use same folding cursors as new web site.
+
+	* Mpp/Lexer.pm (lex_rule): Don't fail if shell command not understood.
+
+	* Mpp/Makefile.pm (grok_rule): Singular $(ouptut) or $(target) also prevent legacy fallback.
+
+	* t/additional_tests/xml.test: Only run if parser is free of warnings.
+
+	* pod/*: Fixed broken links and cosmetic changes.
+
+	* pod/html/*: Valid compact xhtml, tabs as sprite, refactored, and fixed links.
+
+2012-01-06  pfeiffer  <occitan@esperanto.org>
+
+	* install.pl:
+	* pod/html/*: New doc and website design.  Thanks a lot to 조연희 (Jo Younhee) for the redesign of the camel at work logo with a hand crafted font!  And thanks to html-templates for the base artwork, which I modernized with the help of {less}.
+
+	* pod/*: Some cleanup.
+
+2011-12-04  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Subs.pm (make): Provide documented statement.
+
+	* t/additional_tests/xml.test: Only run if parser works.
+
+2011-11-25  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm
+	* Mpp/Text.pm
+	* Mpp/Subs.pm: Private extra parameter to filesubst, to handle $* correctly.
+
+	* makepp: Turn pod into comments as this hid makepp.pod.
+
+	* control: Create deb package.
+
 2011-11-20  pfeiffer  <occitan@esperanto.org>
 
 Version 2.0rc1 makepp-2.0rc1.tgz, technically 1.50-111120:8-1107:3-1030:7 on sourceforge & CPAN.

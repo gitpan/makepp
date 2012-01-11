@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.194 2011/11/20 18:19:06 pfeiffer Exp $
+# $Id: Subs.pm,v 1.196 2011/12/04 12:37:27 pfeiffer Exp $
 
 =head1 NAME
 
@@ -295,19 +295,19 @@ our %perl_unfriendly_symbols =
   );
 
 #
-# Obtain the single arg of a makefile function.
+# Obtain the single arg of a makefile f_function.
 # This utility takes the same 3 parameters as f_* functions, so call it as: &arg
 #
-# It gives you the expanded value of the callings function single arg, if the
+# It gives you the expanded value of the calling f_function's single arg, if the
 # first parameter is a ref to a string, else just the unexpanded string.
 # If the 2nd arg is false it also doesn't expand.
 #
-# If the function doesn't take an arg, there is no need to call this.
+# If the f_function doesn't take an arg, there is no need to call this.
 #
 sub arg { $_[1] && ref $_[0] ? $_[1]->expand_text( ${$_[0]}, $_[2] ) : $_[0] }
 
 #
-# Obtain multiple args of a makefile function.
+# Obtain multiple args of a makefile f_function.
 # This utility takes the same 3 parameters as arg
 #
 # Additional parameters:
@@ -421,8 +421,9 @@ sub f_error {
 # will work with filesubst but not with patsubst.
 #
 sub f_filesubst {
-  my( $src, $dest, $words ) = args $_[0], $_[1], $_[2], 3;
+  my( $src, $dest, $words, $set_stem ) = args $_[0], $_[1], $_[2], 4, 3;
 				# Get the patterns.
+  die "$_[2]: filesubst has extra argument `$set_stem'\n" if defined $set_stem && $set_stem ne '_';
   my $cwd = $_[1]{CWD};
 #
 # First we eat away at the directories on the source until we find the
@@ -454,9 +455,11 @@ sub f_filesubst {
 				# directory.
   }
 
-  join ' ', Mpp::Text::pattern_substitution( case_sensitive_filenames ? $src : lc $src,
+  local $Mpp::Text::set_stem = 1 if $set_stem;
+  join ' ', Mpp::Text::pattern_substitution
+    case_sensitive_filenames ? $src : lc $src,
 					    $dest,
-					    @words );
+    @words;
 }
 
 sub f_filter {
@@ -1739,12 +1742,12 @@ sub s_prebuild {#__
       die "failed to prebuild $target\n";
   }
 }
+*s_make = \&s_prebuild;
 sub prebuild {
   my ($finfo, $mkfile, $mkfile_line ) = @_;
-  my $myrule = Mpp::File::get_rule( $finfo );
   Mpp::log PREBUILD => $finfo, $mkfile_line
     if $Mpp::log_level;
-  if( $myrule ) {
+  if( my $myrule = Mpp::File::get_rule $finfo ) {
     # If the file to be built is governed by the present Makefile, then
     # just initialize the Mpp::Makefile and build it based on what we know so far,
     # because then the file will *always* be built with the same limited
@@ -1755,7 +1758,7 @@ sub prebuild {
     # which Makefiles were loaded. Note that this warning isn't guaranteed to
     # show up when it's called for, because targets that are built via direct
     # calls to Mpp::build() don't undergo this check.
-    warn 'Attempting to build ' . absolute_filename( $finfo ) . " before its makefile is completely loaded\n"
+    warn 'Attempting to build ' . &absolute_filename . " before its makefile is completely loaded\n"
       unless ref( $myrule ) eq 'Mpp::DefaultRule' ||
 	exists $finfo->{BUILD_HANDLE} ||
 	$myrule->makefile == $mkfile ||

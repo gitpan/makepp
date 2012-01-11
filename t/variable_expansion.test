@@ -1,7 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	644	1151611756	1212336947	.makepprc
 over1=over1 over2=over2 over4=not4 'bar=not ok'
-###	301	644	1171960619	1314303287	RootMakeppfile
+###	304	644	1171960619	1322085448	RootMakeppfile
 #
 # This makefile tests variable setting and expansion as completely as we can.
 #
@@ -11,7 +11,7 @@ over1=over1 over2=over2 over4=not4 'bar=not ok'
 targets := colon_equal_test patsubst_test rc_expansion shell_command \
 	misc_gnu_make_functions user_func question_equal_test rc_test \
 	filename_test define_test x y root_test global_test undef_test \
-	globalize/over_test map_test bracket_test
+	globalize/over_test map_test bracket_test Makepp
 
 ifeq $(mktemp) $(mktemp)
 or ifeq $(mktemp xy) $(mktemp xy)
@@ -295,6 +295,9 @@ y:
 	&echo "$(YYY)" -o $@
 
 
+M%: RootM%file			# file- or patsubst used to overwrite $*
+   &echo sh$* $(filesubst RootM%, t%, RootMakeppfile) -o M$*
+
 
 # This comes from former 2004_04_01_append_to_undef.test:
 B = YYY
@@ -415,6 +418,8 @@ another line
 ###	2	755	1149026136	1149015251	answers/global_test
 a A b A c A : a A b B c C : b A c A : b B c C : c A : c C
 C : late1 : late2
+###	1	644	1322084693	1322084693	answers/Makepp
+shakepp takeppfile
 ###	3	755	1171960541	1171960541	answers/map_test
 b-a$ c$ e-d$
 x-y z failed
@@ -455,7 +460,7 @@ number 1 number 2 number 3 number 4 number 5 number 6
 a.o b.c c
 default automatic undefined automatic environment file
 ###	1	644	1067451880	1190053951	answers/n_files
-22 1 0
+23 1 0
 ###	4	644	1067451880	1314303733	answers/patsubst_test
 a.c b.c c.c d.c
 a.c b.c c.c d.c ab az

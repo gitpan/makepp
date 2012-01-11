@@ -1,8 +1,8 @@
 =head1 NAME
 
-makepp_command -- Command line syntax for makepp
+makepp -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.54 2011/11/20 18:19:06 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.56 2012/01/11 21:01:46 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -522,7 +522,7 @@ For example, suppose that you generate a F<.h> file via some sort of
 preprocessor.  This can happen in a lot of different ways.  For concreteness,
 suppose you automatically generate a list of prototypes for functions defined
 in each C module (see L<http://cproto.sourceforge.net/> for how the C<cproto>
-application works or L<http://www.lemoda.net/cfunctions/> for the similar
+application works or L<http://www.lemoda.net/c/cfunctions/> for the similar
 cfunctions).
 
     prototypes.h : *.c

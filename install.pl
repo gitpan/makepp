@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.105 2011/11/20 18:18:46 pfeiffer Exp $
+# $Id: install.pl,v 1.106 2012/01/06 21:58:21 pfeiffer Exp $
 #
 
 package Mpp;
@@ -16,7 +16,7 @@ BEGIN {
   die "I need perl version 5.6 or newer.  If you have it installed somewhere
 already, run this installation procedure with that perl binary, e.g.,
 
-	perl5.8.6 install.pl
+	perl5.14.0 install.pl
 
 If you don't have a recent version of perl installed (what kind of system are
 you on?), get the latest from www.perl.com and install it.
@@ -25,6 +25,7 @@ you on?), get the latest from www.perl.com and install it.
 
 use Config;
 use File::Copy;
+use File::Path;
 use Mpp::Text ();
 use Mpp::File ();		# ensure HOME is set
 
@@ -136,7 +137,7 @@ if( $destdir ) {
   }
 }
 
-make_dir("$datadir/$_") for
+mkpath "$datadir/$_" for
   qw(Mpp Mpp/ActionParser Mpp/BuildCheck Mpp/CommandParser Mpp/Fixer Mpp/Scanner Mpp/Signature);
 
 our $useoldmodules = '';
@@ -159,7 +160,7 @@ if( $ENV{MAKEPP_INSTALL_OLD_MODULES} ) {
     $new = ($old =~ s/=(.+)//) ? $1 : $old;
     my $file = $old;
     if( $file =~ s!(.+)::!$1/! ) {
-      -d "$datadir/$1" or make_dir("$datadir/$1");
+      -d "$datadir/$1" or mkpath "$datadir/$1";
     }
     open my $fh, '>', "$datadir/$file.pm" or die "can't create $old.pm\n";
     print $fh "# generated backwards compatibility wrapper\nuse Mpp::$new;\n";
@@ -226,392 +227,37 @@ chdir 'pod';
 @pods = <*.pod>;
 
 #
+# Now massage and install the HTML pages.
+#
+if( $htmldir_val ne 'none' ) {
+  {
+    no warnings;
+    @Mpp::html::pods = @pods;
+    my $absre = is_windows ? qr/^\/|^[a-z]:/i : qr/^\//; # compensate chdir pod above
+    $Mpp::html::target_dir = $htmldir_val =~ $absre ? $htmldir_val : "../$htmldir_val";
+  }
+  require 'html/html.pl';		# fix what Pod::Html does
+  &Mpp::html::pods2html;
+}
+
+#
 # Install the man pages:
 #
-if ($mandir ne 'none') {
-  make_dir("$mandir/man1");
+if( $mandir ne 'none' ) {
+  mkpath "$mandir/man1";
+  require Pod::Man;
+  my %options = qw(errors pod
+		   center Makepp
+		   lax 1);
+  my $parser = Pod::Man->new( %options );
+  open STDERR, '>/tmp/null' if $] < 5.008; # warns about  E<>
+  { no warnings; *Pod::Man::cmd_head3 = \&Pod::Man::cmd_head2 if $] < 5.006_001 } # n/a
   foreach $file (@pods) {
     my $manfile = $file;
     $manfile =~ s/\.pod$/.1/;   # Get the name of the man file.
-    $manfile =~ s@^pod/@@;
-    system("pod2man $file > $mandir/man1/$manfile 2>/dev/null");
-                                # Ignore stderr because older versions of
-                                # pod2man (e.g., perl 5.006) don't understand
-                                # =head3.
+    $parser->parse_from_file( $file, "$mandir/man1/$manfile" );
     chmod 0644, "$mandir/man1/$manfile";
   }
-}
-
-#
-# Now massage and install the HTML pages.
-#
-use Pod::Html ();
-BEGIN {
-    *html_short_names = $Mpp::Text::N[$Pod::Html::VERSION < 1.0901 ? 0 : 1];
-    no warnings;
-    my %entity = qw(< lt > gt & amp);
-    *Pod::Html::process_pre = sub { # undo bad magic, should do all ours here
-	1 while ${$_[0]} =~ s/^([^\t\n]*)(\t+)/$1 . (' ' x (length($2) * 8 - length($1) % 8))/egm; # untabify
-	${$_[0]} =~ s/([<>&])/&$entity{$1};/g;
-    };
-}
-
-sub highlight_keywords() {
-  s!\G(\s*)((?:noecho\s+|ignore_error\s+|makeperl\s+|perl\s+|[-\@]|&amp;(?:cat|chmod|cp|mv|cut|echo|expr|printf|yes|grep|sed|(?:un)?install|ln|mkdir|perl|preprocess|rm|sort|template|touch|uniq)\b)+)!$1<b>$2</b>! or
-
-  s!\G((?:override )?(?:define|export|global)|override|ifn?def|makesub|sub)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<i>$3</i>! or
-  s!\G(register[_-](?:(?:command[_-])?parser|scanner)|signature)(&nbsp;| +)([-.\w]+)!<b>$1</b>$2<u>$3</u>! or
-  # repeat the above, because they may appear in C<> without argument
-  s!\G(\s*(?:and |or |else )?if(?:n?(?:def|eq|sys|true|xxx)|(?:make)?perl)|build[_-]cache|else|endd?[ei]f|export|global|fi|[_-]?include|load[_-]makefile|makeperl|no[_-]implicit[_-]load|override|perl(?:|[_-]begin|[_-]end)|repository|runtime|unexport|define|makesub|sub|register[_-](?:(?:command[_-])?parser|scanner)|signature|vpath)\b!<b>$1</b>! && s|xxx|<i>xxx</i>| or
-
-    # highlight assignment
-    s,\G\s*(?:([-.\w\s%*?\[\]]+?)(\s*:\s*))?((?:override\s+)?)([-.\w]+)(?= *(?:[:;+?!]|&amp;)?=),
-      ($1 ? "<u>$1</u>$2" : '') . ($3 ? "<b>$3</b>" : '') . "<i>$4</i>"
-    ,e or
-
-    # highlight rule targets -- EOL trickery to mostly not underline Perl or C++
-    $pre && !/define|export|global|override/ && s!\G(\s*)([^&\s].*?)(?=\s*:(?:$|.*?[^;{]\n))!$1<u>$2</u>!m;
-
-  # highlight rule options
-  s!(: *)(build_c(?:ache|heck)|(?:command[_-])?parser|foreach|include|scanner|signature)(&nbsp;| +)([-_/\w%.]+)!$1<b>$2</b>$3<u>$4</u>!g or
-  # repeat the above, because they may appear in C<> without argument
-  s!(: *)(build_c(?:ache|heck)|(?:command[_-])?parser|foreach|include|last_chance|quickscan|scanner|signature|smartscan)\b!$1<b>$2</b>!g;
-}
-
-sub highlight_variables() {
-  s((\$[\{\(]{1,2})([-\w]+)([\}\)]{0,2})){
-    my( $prefix, $name, $suffix ) = ($1, $2, $3);
-    $name = "<b>$name</b>" if
-      $name =~ /absolute[_-]filename|
-	add(?:pre|suf)fix|
-	basename|
-	call|
-	CURDIR|
-	dependenc(?:y|ies)|
-	dir(?:[_-]noslash)?|
-	error|
-	filesubst|
-	filter(?:[_-]out)?|
-	find(?:[_-](?:program|upwards)|file|string)|
-	first(?:[_-]available|word)|
-	foreach|
-	if|
-	infer[_-](?:linker|objects)|
-	inputs?|
-	join|
-	make(?:perl)?|
-	map|
-	mktemp|
-	notdir|
-	only[_-](?:generated|stale|(?:non)?targets)|
-	origin|
-	outputs?|
-	patsubst|
-	perl|
-	phony|
-	print|
-	PWD|
-	relative[_-](?:filename|to)|
-	shell|
-	sort(?:ed_dependencies|ed_inputs)?|
-	stem|
-	strip|
-	subst|
-	suffix|
-	targets?|
-	warning|
-	wildcard|
-	word(?:list|s)|
-	xargs/x;
-    $name =~ />(?:outputs?|stem|targets?)</ ?
-      "<u>$prefix<i>$name</i>$suffix</u>" :
-      "$prefix<i>$name</i>$suffix";
-  }eg;
-  s!(\$[\@%*])!<u>$1</u>!g;
-}
-
-if ($htmldir_val ne 'none') {
-  my $libpods = join ':', map { /(makepp.+)\.pod/ ? $1 : () } @pods;
-  my( %nolink, %link );
-  my %alias = (makepp => 'Overview',
-	       build_check => 'Build Check Methods',
-	       builtin => 'Builtin Rules',
-	       builtins => 'Builtin Commands',
-	       command => 'Command Options',
-	       faq => 'FAQ',
-	       tutorial_compilation => 'Compilation Tutorial',
-	       makeppbuiltin => 'makeppbuiltin',
-	       makeppclean => 'makeppclean',
-	       makeppgraph => 'makeppgraph',
-	       makeppinfo => 'makeppinfo',
-	       makepplog => 'makepplog',
-	       makeppreplay => 'makeppreplay');
-  for( @pods ) {
-    my $pod = $_;
-    (my $file = $_) =~ s/pod$/html/;
-    for( $pod ) {
-      s/^makepp_//; s/\.pod$//;
-      $alias{$_} ||= join ' ', map "\u$_", split '_';
-      $_ = $alias{$_};
-      $nolink{$file} = "<b>$_</b>";
-      $link{$file} = "<a href='" . ($file eq 'makepp.html' ? '.' : $file) . "'>$_</a>";
-    }
-  }
-  # Put these first/last alphabetically:
-  my %order = ('makepp.html' => 0,
-	    'makepp_index.html' => 1,
-	    'makepp_release_notes.html' => 2,
-	    'makepp_tutorial.html' => 3,
-	    'makepp_tutorial_compilation.html' => 4,
-	    'makepp_cookbook.html' => 5,
-	    'makepp_faq.html' => 6,
-	    'makepp_speedup.html' => 7,
-	    'perl_performance.html' => 8,
-	    'makeppbuiltin.html' => '~0',
-	    'makeppclean.html' => '~1',
-	    'makeppgraph.html' => '~2',
-	    'makeppinfo.html' => '~3',
-	    'makepplog.html' => '~4',
-	    'makeppreplay.html' => '~5');
-  my $home = ($htmldir_val =~ /\/[0-9.]+(?:\/|$)/);
-  my @links =
-      sort { (exists $order{$a} ? $order{$a} : $nolink{$a}) cmp (exists $order{$b} ? $order{$b} : $nolink{$b}) }
-      keys %link;
-  my( %prev, %next, $prev );
-  for( @links ) {
-    if( $prev ) {
-      $prev{$_} = $prev;
-      $next{$prev} = $_;
-    }
-    $prev = $_;
-  }
-  # Separate menu into 3 sections
-  $nolink{$_} = "<hr />$nolink{$_}", $link{$_} = "<hr />$link{$_}" for
-      qw(makepp_build_algorithm.html makeppbuiltin.html);
-  $link{'..'} = "<a href='..'>Home</a>", unshift @links, '..' if $home;
-
-  # Nuke the pod cache, because otherwise it doesn't get updated when new
-  # pages are added (on Perl 5.6.1, Pod::Html 1.03, i686-linux2.4)
-  unlink <pod2htm*~~ pod2htm?.tmp>;
-  my $tmp = '/tmp/makepp' . substr rand, 1;
-  make_dir($htmldir_val);
-  $htmldir_val =~ s!^([^/])!../$1!;
-  my $next_tall = '';
-  for( @pods ) {
-    my $has_commands_with_args = /makepp(?:_(?:builtins|command|extending|functions|statements)|builtin|graph|log)\.pod/;
-    my( $timestamp, $author ) = ('', '');
-    {
-      open my( $podfile ), $_;
-      for( 1..10 ) {		# Expect it in first 10 lines.
-	if( <$podfile> =~ m!\$Id: .+,v [0-9.]+ (\d{4})/(\d{2})/(\d{2}) ! ) {
-	  $timestamp = "$1-$2-$3";
-	}
-      }
-    }
-    if( fork ) {		# separate pod2html, or they append numbers to same name in different files
-      wait;
-    } else {
-      Pod::Html::pod2html qw'--podpath=. --htmlroot=. --css=makepp.css --libpods', $libpods,
-	'--infile', $_, '--outfile', $tmp;
-      exit;
-    }
-    open my( $tmpfile ), $tmp;
-    s/pod$/html/;
-    my $file = $_;
-    my $img = '<img src="makepp.gif" width="142" height="160" title="makepp" border="0">';
-    $img = "<a href='" . ($home ? '/' : '.') . "'>$img</a>" if $home || length() > 11;
-    my $nav = "<table id='Nav'><tr><th>$img<th></tr><tr><th></th></tr>
-  <tr><th>
-    <a href='http://sourceforge.net/projects/makepp/'>at
-    <img src='sflogo.png' width='88' height='31'
-	 border='0' align='middle' alt='SourceForge' /></a></th></tr>
-  <tr><th><form method='GET' action='http://google.com/search'>
-    <input type='hidden' name='as_sitesearch' value='makepp.sourceforge.net' />
-    <input type='text' name='as_q' size='14' /><br />
-    <button type='submit'><img src='google.png' width='16' height='16' align='middle' alt='Google'> Site Search</button>
-  </form></th></tr><tr><td>";
-    { # No link to self.
-      local $link{$_} = $nolink{$_};
-      $nav .= join '<br />', map $link{$_}, @links;
-    }
-    $nav .= '</td></tr></table>';
-    open my $outfile, ">$htmldir_val/$_" or die "can't create `$htmldir_val/$_'--$!";
-    chmod 0644, "$htmldir_val/$_";
-    s/\.html$//;
-    my $title = (s/^makepp(?:_|$)// ? 'Makepp ' : '') . $alias{$_ || 'makepp'};
-    my $index;
-    my %count;
-    while( <$tmpfile> ) {
-      s/<(\/?[\w\s]+)/<\L$1/g if $Pod::Html::VERSION < 1.04; # Perl 5.6
-      if( defined $unread ) {
-	$_ = $unread . $_;
-	undef $unread;
-      }
-      s/(<li><a href="#.+">.*<code>-)(\w\w)/$1-$2/; # it swallows one - :-(
-      if( /^<\/head>/../<h1>.*(?:DESCRIPTION|SYNOPSIS)/ ) {
-	if ( /<(?:\/?ul|li)>/ ) {
-	  # These are visible anyway when the index is.
-	  next if /NAME|DESCRIPTION|SYNOPSIS|AUTHOR/;
-	  $index .= $_;
-	}
-	# Such a line MUST be present in every POD.
-	next unless s!<p>(makepp\w*) -- (.+)!$2!;
-	# Paragraph maybe not complete, grab rest
-	$_ .= <$tmpfile> while ! s!</p>$!</b>!i;
-	for ( $index ) {
-	  # Rearrange the index, because we threw out some items, discard it if empty.
-	  s!<ul>\s+</ul>!!;
-	  m!<ul>\s+<ul>! &&
-	  s!</ul>\s+</ul>!</ul>! &&
-	  s!<ul>\s+<ul>!<ul>!;
-	}
-	$_ = "<link rel='icon' href='url.png' type='image/png' />
-<link rel='top' href='http://makepp.sourceforge.net/' />
-<link rel='index' href='makepp_index.html' />
-<link rel='contents' href='.' />
-<link rel='help' href='http://sourceforge.net/projects/makepp/support' />
-<meta name='keywords' content='makepp, make++, Make, build tool, repository, cache, Perl, Make alternative, Make replacement, Make enhancement, Make improvement, Make substitute, dmake, gmake, GNU Make, nmake, pmake, easymake, imake, jmake, maketool, mmake, omake, ppmake, PVM gmake, shake, SMake, ant, maven, cook, jam, Cons, SCons, cc -M, gcc -MM, g++ -MM, makedepend, makedep, mkdep, CCache, Compilercache, cachecc1, Make::Cache, automake' />
-</head><body>$nav<h1>$title</h1>\n<p><b>$_</p>$index";
-	substr $_, 0, 0, "<link rel='next' href='$next{$file}' />\n" if $next{$file};
-	substr $_, 0, 0, "<link rel='prev' href='$prev{$file}' />\n" if $prev{$file};
-      } elsif( s/<pre>\n// ) {
-	$pre = 1;
-      } elsif( $pre ) {
-
-	if( /^(.*#.*\|.*\|.*#.*\|.*\|.*)<\/pre>$/ ) { # Special case for compatibility table.
-
-	  my $row = $1;
-	  my @list = split /[#|]/, $row;
-	  s/^\s+//, s/\s+$// for @list;
-	  if( $list[0] ) {
-	    $_ = '<tr><th align="left">' . shift( @list ) . '</th>';
-	    for my $elem ( @list ) {
-	      if( $elem eq 'x' ) {
-		$_ .= '<th class="good">x</th>';
-	      } elsif( $elem eq '/' ) {
-		$_ .= '<th class="bad"><i>/</i></th>';
-	      } elsif( $elem ) {
-		$_ .= "<th class='soso'>x<a href='#\L$elem'><sup>*)</sup></a></th>";
-	      } else {
-		$_ .= '<th>&nbsp;</th>';
-	      }
-	    }
-	  } else {		# Heading line.
-	    shift @list;
-	    $_ = '<tr><th></th>';
-	    if( $list[0] ne '.0' ) {
-	      (undef, @list) = split /#/, $row;
-	      for my $elem ( @list ) {
-		my $span = $elem =~ tr/|//d + 1;
-		$elem =~ tr/ \t//d;
-		$_ .= "<th colspan='$span'>&nbsp;$elem&nbsp;</th>";
-	      }
-	    } else {
-	      for my $elem ( @list ) {
-		$_ .= "<th>&nbsp;$elem&nbsp;</th>";
-	      }
-	    }
-	  }
-	  $_ .= "</tr>\n";
-	  $pre = 0;
-
-	} else {
-
-	  # unindent initial whitespace which marks <pre> in pod
-	  s/^ {1,7}\t(\t*)(?!#)/$1    / or s/^    ?//;
-
-	  if( /^\s+$/ ) {
-	    $next_tall = '<sup class="tall">&nbsp;</sup>';
-	    next;
-	  } else {
-	    # don't grok comments
-	    $end = s/(#|# .*?)?((?:<\/pre>)?)$// ?
-		($1 ? "<span class='comment'>$1</span>$next_tall$2" : "$next_tall$2") :
-		$next_tall;
-	    $next_tall = '';
-	  }
-
-	  s!^([%\$]? ?)(makepp(?:builtin|clean|log|graph|replay|_build_cache_control)?)\b!$1<b>$2</b>!g or
-	  s!^([%\$]? ?)(mpp(?:[bclgr]c{0,2})?)\b!$1<b>$2</b>!g or
-				# g creates BOL \G for keywords
-	    highlight_keywords;
-	  highlight_variables;
-
-	  # put comment back in
-	  s/$/$end/ if $end;
-	  $_ = '<pre>' . $_, $pre++ if $pre == 1;
-	  $pre = 0 if m!</pre>!;
-
-	}
-      } elsif( /^<\/dd>$/ ) { # repair broken nested =over
-	$dd = 1;
-	next;
-      } elsif( $dd and /^<(?:d[dt]|\/dl)>/ ) {
-	$dd = 0;
-	if( !html_short_names ) {
-	  s!(<strong>-. )(.+?<)!$1<i>$2/i><! ||	# Repetitions of same don't get itemized.
-	    s!("item_[^"]*">--[^<=]*=)(.+?) ?<!$1<i>$2</i><! ||
-	      s!("item_[^"]*">[^ <,]* )(.+?) ?<!$1<i>$2</i><!
-		if $has_commands_with_args;		# italicize args
-	  s!"item_(\w+)[^"]*">(\1)!"$1">$2!i;	# fix =item anchor
-	  s!"item_(_2d\w+)">!"$1">! ||		# fix =item hexcode-anchor
-	    s! name="item_(_\w+?)(?:__[25][db].*?)?">!$seen{$1}++ ? '>' : " name='$1'>"!e;
-	  s!"item_(%[%\w]+)">!(my $i = $1) =~ tr/%/_/; "'$i'>"!e; # Perl 5.6
-	}
-      } elsif( ! s/<title>\w+/<title>$title/ ) {
-	s!([\s>]|^)([Mm]ake)pp([\s,.:])!$1<i><span class="makepp">$2</span>pp</i>$3!g;
-	s!("#_)(?=\w+">&amp;)!${1}26!g;		# fix builtins index link
-	s!<li></li>!<li>!;
-	if( !html_short_names ) {
-	  s!(<strong>-. )(.+?<)!$1<i>$2/i><! ||	# Repetitions of same don't get itemized.
-	    s!("item_[^"]*">--[^<=]*=)(.+?) ?<!$1<i>$2</i><! ||
-	      s!("item_[^"]*">[^ <,]* )(.+?) ?<!$1<i>$2</i><!
-		if $has_commands_with_args;		# italicize args
-	  s!"item_(\w+)[^"]*">(\1)!"$1">$2!i;	# fix =item anchor
-	  s!"item_(_2d\w+)">!"$1">! ||		# fix =item hexcode-anchor
-	    s! name="item_(_\w+?)(?:__[25][db].*?)?">!$seen{$1}++ ? '>' : " name='$1'>"!e;
-	  s!#item_(\w+)">!#$1">!g;		# fix =item link
-	  s!"item_(%[%\w]+)">!(my $i = $1) =~ tr/%/_/; "'$i'>"!e; # Perl 5.6
-	  s!#item_(%[%\w]+)">!(my $i = $1) =~ tr/%/_/; "#$i\">"!ge; # Perl 5.6
-	}
-	s!\./(\.html.+? in the (.+?) manpage<)!$2$1!g;		  # at least up to 5.8.5
-	highlight_keywords while /<code>/g;	# g creates "pseudo-BOL" \G for keywords
-	highlight_variables;
-	if ( /<h1.+AUTHOR/ ) {	# Put signature at bottom right.
-	  $_ = <$tmpfile>;
-	  /p>(.+?) (?:\(|&lt;)(<a href="mailto:.+?">)/i;
-	  $author = "$2$1</a>";
-	  $_ = '';
-	} elsif( $timestamp || $author and /<\/body>/ ) {
-	  if( $timestamp ) {
-	    if( $author ) {
-	      $author .= '<br />';
-	    } else {
-	      $author = '<hr />'; # In this case there was none.
-	    }
-	    $timestamp = "Last modified: $timestamp";
-	  }
-	  $_ = "<address>$author$timestamp</address>$_";
-	}
-      }
-				# uniquify =item labels (and simplify them)
-      no warnings 'uninitialized';
-      s!dt><strong><a name=['"](.+?)['"]!dt id="$1$count{$1}"! &&
-	++$count{$1} &&
-	s!</a></strong>!!;
-      s!\./\./makepp!makepp!g;
-      print $outfile $_;
-    }
-  }
-
-  unlink $tmp;
-
-  for( qw'google.png makepp.gif makepp.css pre.png sflogo.png url.png' ) {
-    copy $_, "$htmldir_val/$_";
-    chmod 0644, "$htmldir_val/$_";
-  }
-
-  symlink 'makepp.html', "$htmldir_val/index.html";
 }
 
 #
@@ -658,7 +304,7 @@ sub substitute_file {
 
   local *INFILE;
   open INFILE, $infile or die "$0: can't read file $infile--$!\n";
-  make_dir($outdir);
+  mkpath($outdir);
 
   open OUTFILE, "> $outdir/$infile" or die "$0: can't write to $outdir/$infile--$!\n";
 
@@ -700,22 +346,6 @@ sub substitute_file {
   }
 }
 
-#
-# Make sure a given directory exists.  Makes it and its parents if necessary.
-# Arguments: the name of the directory.
-#
-sub make_dir {
-  my $dirname = '';
-  foreach (split(/\//, $_[0])) {
-    if ($_ ne '') {		# Skip the top level / directory.
-      $dirname .= $_;		# Make the new directory name.
-      -d $dirname or
-	mkdir($dirname, 0755);
-    }
-    $dirname .= '/';
-  }
-}
-
 sub read_with_prompt {
   local $| = 1;			# Enable autoflush on STDOUT.
 
@@ -739,7 +369,7 @@ sub read_with_prompt {
       }
     }
   }
-  return $_;
+  $_;
 }
 __DATA__
 Dummy line for newline test.

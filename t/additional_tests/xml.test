@@ -1,6 +1,9 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	1	755	1321222152	1321222152	is_relevant.pl
-(eval 'use XML::Parser; 1' or eval 'use XML::LibXML; 1') && !no_md5
+###	4	755	1321222152	1325022022	is_relevant.pl
+my $warn;			# AS 5.14.0 has dirty XML::Parser.  Skip as warn means fail.
+local $SIG{__WARN__} = sub { $warn = 1 };
+(eval 'use XML::Parser; XML::Parser->new( Style => "Tree" )->parsefile( "a.xml" )' or
+ eval 'use XML::LibXML; XML::LibXML->load_xml( location => "a.xml" )') && !no_md5 && !$warn
 ###	14	755	1321222152	1321222152	makepp_test_script.pl
 # A simple test of xml signatures.
 
@@ -9,8 +12,8 @@ n_files 'n_files_0';
 
 open my $fh, '>a.xml';
 printf $fh q@%c%c%c%s@, 0xEF, 0xBB, 0xBF, <<XML; # keep BOM out of file transfer's sight
-<makepp	is='a' abbr="mpp"> <!--hopefully well documented--><![CDATA[ great tool ]]>
-<for> compiling &amp; linking</for><because> it provides <reliability/></because></makepp>
+<makepp	is='a' abbr="mpp"> <!--hopefully well documented-->great tool
+<for><![CDATA[ compiling & linking ]]></for><because> it provides <reliability/></because></makepp>
 XML
 close $fh;
 

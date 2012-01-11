@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.47 2011/06/23 15:34:21 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.48 2012/01/06 21:53:23 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -505,7 +505,7 @@ L<C<&expr>|/expr_option_perlcode> with no argument or C<0> is comparable.
 
 Not built in, but mentioned here since perl provides a related functionality.
 However I had problems using the C<format> declaration in a makefile.  What
-does work is the underlying C<formline> function.  E.g to transform a csv file
+does work is the underlying C<formline> function.  E.g. to transform a csv file
 consisting of names and prices to a tabular format:
 
     sub csv2txt {

@@ -707,7 +707,7 @@ t [label="makepp1.mk" fillcolor="#0090e0e0"]
 r -> t [style=dotted]
 s -> t [style=dotted]
 }
-###	160	644	1197628172	1197628478	answers/full.html
+###	162	644	1197628172	1324772167	answers/full.html
 <html>
 <meta name='generator' content='makeppgraph' />
 <style>
@@ -717,7 +717,9 @@ ul ul { border-left: 1px dotted #bbb; }
 ul { margin: 0; padding-left: 1em; }
 li { list-style: square; padding: 0; padding-top: 3px; }
 li.fold { list-style: disc; }
+li.fold > b { cursor: n-resize; }
 li.unfold { list-style: circle; }
+li.unfold > b { cursor: s-resize; }
 .flash { background-color: yellow; }
 /* Actually show and hide sublists */
 li.fold ul { display: block; }

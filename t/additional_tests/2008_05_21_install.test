@@ -3,16 +3,28 @@
 # When testing an already installed version, this test doesn't make sence.
 substr +($Mpp::makepp_dir = $makepp_path), -7, 7, '';
 -f "$Mpp::makepp_dir/install.pl";
-###	16	644	1164353916	1211381577	makepp_test_script.pl
+###	28	644	1164353916	1325834927	makepp_test_script.pl
 my $cwd = cwd;
+
+my $havepod = -d "$Mpp::makepp_dir/pod/"; # complete distro
+my $haveutf8 = $] > 5.008 && -$havepod; # no print wide char warning
 
 chdir $Mpp::makepp_dir;		# install.pl and config.pl are to be run here
 my $cmd = "$Mpp::makepp_dir/install.pl";
-system_intabort \$cmd, PERL, $cmd, "$cwd/instbin", "$cwd/instshare", ('none') x 3;
+system_intabort \$cmd, PERL, $cmd, "$cwd/instbin", "$cwd/instshare",
+    $havepod ? "$cwd/instman" : 'none',
+    $haveutf8 ? "$cwd/insthtml" : 'none',
+    'none';
+die if $havepod && ! -f "$cwd/instman/man1/makepp.1";
+die if $haveutf8 && ! -f "$cwd/insthtml/index.html";
 
 $cmd = "$Mpp::makepp_dir/config.pl";
-system_intabort \$cmd, PERL, $cmd, "--makefile=$cwd/config.mk", '-p', $cwd, '-hnone', '-mnone';
+system_intabort \$cmd, PERL, $cmd, "--makefile=$cwd/config.mk", '-p', $cwd,
+    $havepod ? "-m$cwd/confman" : '-mnone',
+    $haveutf8 ? "-h$cwd/confhtml" : '-hnone';
 makepp "-f$cwd/config.mk", '--dont-build=all', 'install';
+die if $havepod && ! -f "$cwd/confman/man1/makepp.1";
+die if $haveutf8 && ! -f "$cwd/confhtml/index.html";
 
 chdir $cwd;
 $cmd = is_windows < 1 ? 'bin/mpp' : 'bin\mpp';

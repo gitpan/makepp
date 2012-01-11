@@ -2,7 +2,7 @@
 
 makepp_signatures -- How makepp knows when files have changed
 
-=for vc $Id: makepp_signatures.pod,v 1.19 2011/11/20 18:18:46 pfeiffer Exp $
+=for vc $Id: makepp_signatures.pod,v 1.20 2012/01/11 21:01:47 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -40,8 +40,8 @@ the most appropriate standard one automatically.  However, you can change the
 signature method for an individual rule by using
 L<C<:signature>|makepp_rules/signature_signature_method> modifier on the rule
 which depends on the files you want to check, or for all rules in a makefile
-by using the L<C<signature>|makepp_statements/signature> statement, or for all
-makefiles at once using the L<C<-m> or
+by using the L<C<signature>|makepp_statements/signature_name> statement, or
+for all makefiles at once using the L<C<-m> or
 C<--signature-method>|makepp_command/m_method> command line option.
 
 =head2 Mpp::Signature methods included in the distribution

@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.157 2011/11/20 18:19:06 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.159 2012/01/11 21:01:12 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_do);
@@ -1480,15 +1480,15 @@ sub grok_rule {
 # Convert GNU make's static pattern rules into something we like better.
 # If the rule was
 #    a.o b.o c.o : %.o : %.c
-# then we treat it as if it were written:
-#    $(foreach) : $(patsubst %.o, %.c, $(foreach)) : foreach a.o b.o c.o
+# then we treat it as if it were written (_ is internal arg for this purpose):
+#    $(foreach) : $(filesubst %.o, %.c, $(foreach),_) : foreach a.o b.o c.o
 #
   if (@after_colon == 2) {
     $foreach and die "$makefile_line: :foreach and GNU static pattern rule are incompatible\n";
     $foreach = $target_string;
     $after_colon[0] =~ /%/ or die "$makefile_line: no pattern in static pattern rule\n";
 				# Don't check for last chance, because we have finite set of targets
-    (@after_colon) = "\$(filesubst $after_colon[0], $after_colon[1], \$(foreach))";
+    (@after_colon) = "\$(filesubst $after_colon[0], $after_colon[1], \$(foreach),_)";
     $target_string = '$(foreach)';
   }
 
@@ -1557,12 +1557,12 @@ sub grok_rule {
 #
     if( $target_pattern ) { # Pattern rule?
 
-      $target_string = "\$(filesubst $deps[$pattern_dep], $target_string, \$(foreach))";
+      $target_string = "\$(filesubst $deps[$pattern_dep], $target_string, \$(foreach),_)";
       for( @deps[$pattern_dep+1..$#deps] ) { # Handle any extra dependencies:
 	index_ignoring_quotes( $_, '%' ) >= 0 and
-	  $_ = "\$(filesubst $deps[$pattern_dep], $_, \$(foreach))";
+	  $_ = "\$(filesubst $deps[$pattern_dep], $_, \$(foreach),_)";
       }
-      $include = "\$(filesubst $deps[$pattern_dep], $include, \$(foreach))"
+      $include = "\$(filesubst $deps[$pattern_dep], $include, \$(foreach),_)"
 	if $include && index_ignoring_quotes( $include, '%' ) >= 0;
       $deps[$pattern_dep] = '$(foreach)'; # This had better match the wildcard specified
 				# in the foreach clause.  I don't know of
@@ -1662,7 +1662,7 @@ sub grok_rule {
 
       if (($is_double_colon ||	# Obsolete syntax?
 	   $action =~ /\$\@/) && # Does it include the old $@ target?
-	  $action !~ /\$([({])\1?(?:outputs|targets)\b/) {
+	  $action !~ /\$([({])\1?(?:outputs?|targets?)\b/) {
 				# And it doesn't include something that refers
 				# to all/many targets at once?
 	@target_exprs = @targets; # Apply rule independently to each target.

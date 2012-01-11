@@ -2,7 +2,7 @@
 
 makepp_variables -- How to use variables in makepp
 
-=for vc $Id: makepp_variables.pod,v 1.44 2011/09/15 21:08:07 pfeiffer Exp $
+=for vc $Id: makepp_variables.pod,v 1.45 2012/01/11 21:01:47 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -381,9 +381,7 @@ dependencies of a rule.  If a rule has more than one target,
 target-specific variable assignents are taken only from the I<first>
 target.  Also note that makepp's target-specific variables are slightly
 different from GNU make's in that they only apply to the rule for the
-one file mentioned, and not to any of its predecessors; see
-L<makepp_incompatibilities|makepp_incompatibilities/Target Specific Variables> for
-details.
+one file mentioned, and not to any of its predecessors.
 
 Wildcard expansion is performed on the target, so you can do something
 like this:

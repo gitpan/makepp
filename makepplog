@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.46 2011/11/20 18:18:46 pfeiffer Exp $
+# $Id: makepplog,v 1.47 2012/01/11 21:01:22 pfeiffer Exp $
 
 package Mpp;
 
@@ -47,6 +47,7 @@ my %log_msg =
   INFER_DEP => 'infer_objects adding %s to dependency list because of %s',
   INFER_SEED => 'infer_objects called with seed objects %s',
 
+  LEX_REDIRECT => 'Lexical analysis of I/O redirect failed for rule %s',
   LEX_RULE => 'Lexically analyzing rule for %s because %s',
   LOAD => 'Loading makefile %s with default directory %s',
   LOAD_AGAIN => 'Reloading makefile %s (because of %s) with default directory %s',

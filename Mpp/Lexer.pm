@@ -1,4 +1,4 @@
-# $Id: Lexer.pm,v 1.47 2011/08/06 11:46:27 pfeiffer Exp $
+# $Id: Lexer.pm,v 1.48 2012/01/11 21:01:21 pfeiffer Exp $
 
 =head1 NAME
 
@@ -193,8 +193,13 @@ sub lex_rule {
 	$command =~ s/\d$//;	# strip off "2" in "2> file"
 	next if $expr =~ /^\&/;	# Ignore ">&2" etc.
 	$expr =~ s/^\s*//;
-	my $file = unquote +(split_on_whitespace $expr)[0] or
-	  die "Undefined redirection in rule " . $rule->source . "\n";
+	my( $file ) = split_on_whitespace $expr;
+	unless( defined $file && length( $file = unquote $file )) {
+				# something weird like bash <(cmd) syntax?
+	  Mpp::log LEX_REDIRECT => $rule
+	    if $Mpp::log_level;
+	  next;
+	}
 	next if $file eq '/dev/null' or $file =~ m|[^-+=@%^\w:,./]|;
 	if( $is_in ) {
 	  add_optional_dependency( $dir, file_info( $dir, $rule->makefile->{CWD} ), $rule, $file );

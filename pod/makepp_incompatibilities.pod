@@ -2,14 +2,14 @@
 
 makepp_incompatibilities -- Incompatibilities between makepp and GNU make
 
-=for vc $Id: makepp_incompatibilities.pod,v 1.31 2011/08/27 16:25:23 pfeiffer Exp $
+=for vc $Id: makepp_incompatibilities.pod,v 1.32 2012/01/11 21:01:47 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 Makepp was designed to be as close as possible to GNU make
 (L<http://www.gnu.org/software/make/manual/make.html>).  Gnu autotools
 (L<http://www.gnu.org/software/automake/manual/automake.html>), CMake
-(L<http://www.cmake.org/>), Premake (L<http://industriousone.com/premake/> and
+(L<http://www.cmake.org/>), Premake (L<http://industriousone.com/premake> and
 see L<remark below|/Compatibility via the option:
 --traditional-recursive-make>) or handcrafted legacy build systems should be
 buildable with makepp.  This is so you can either migrate projects
@@ -19,7 +19,7 @@ from the reliabilty advantage for your development.
 
 However, because of the difference in L<philosophy|makepp_build_algorithm>,
 some of GNU make's or POSIX make's
-(L<http://www.opengroup.org/onlinepubs/009695399/utilities/make.html>)
+(L<http://pubs.opengroup.org/onlinepubs/009695399/utilities/make.html>)
 features cannot be supported.  A few have not been implemented because we
 haven't had time.  Most of the differences from GNU make are quite technical
 and only rarely cause problems.  Alas the workarounds for the short-comings of
@@ -555,6 +555,13 @@ as a command.  But when passing it as an unquoted parameter to a script (as
 the Perl 5.14.0 build system does), it will tear it apart into separate
 parameters, leading to confusion.  So as a parameter it is safer to quote it
 as C<'$(MAKE)'>. which doesn't break backward compatibility.
+
+=head2 Target-specific assignments don't propagate
+
+Makepp's target-specific variables are slightly different from GNU make's in
+that they only apply to the rule for the one file mentioned, and not to any of
+its predecessors; see
+L<Target-specific assignments|makepp_variables/target_specific_assignments>.
 
 =head1 Command line incompatibilities
 

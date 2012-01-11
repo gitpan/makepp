@@ -2,7 +2,7 @@
 
 makepp -- Compatible but improved replacement for make
 
-=for vc $Id: makepp.pod,v 1.32 2011/01/23 22:44:27 pfeiffer Exp $
+=for vc $Id: makepp.pod,v 1.34 2012/01/11 21:01:46 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -25,11 +25,9 @@ embedded SQL. Also its relationship to make is analogous to C++'s relationship
 to C: it is almost 100% backward compatible but adds a number of new features
 and much better ways to write makefiles.
 
-These pages describe the beta of upcoming Version 1.50.  It passes an
-extensive test-suite, and is used in several big projects.  Occasionally there
-may be a glitch with bleeding edge features, so be sure to keep a backup of
-the version that worked for you, before you update!  If you have any issues
-with the latest CVS version, holler, and we'll try to fix it quickly.
+Makepp passes an extensive test-suite, and is used in several big projects.
+If you have any issues with the latest CVS version, holler, and we'll try to
+fix it quickly.
 
 Makepp runs with any version of perl since 5.6.  I have seen it occasionally
 trip over a nasty bug in perl 5.6.0 on linux which causes makepp to spit out
@@ -42,10 +40,6 @@ makepp:
 
 =over 4
 
-=item L<Release Notes|makepp_release_notes>
-
-What changed with each release.
-
 =item L<Tutorial|makepp_tutorial>
 
 How to write a makefile.  This is mostly intended for someone with little or
@@ -55,9 +49,9 @@ no experience using any implementation of make.
 
 What the Unix compilation commands do.
 
-=item L<Cookbook|makepp_cookbook>
+=item L<Release Notes|makepp_release_notes>
 
-Quick answers to "How do I ...?" or "What's the best way to ...?"
+What changed with each release.
 
 =item L<Speedup|makepp_speedup>
 
@@ -67,8 +61,25 @@ Various tips for making makepp go much faster.
 
 Various tips for making perl (within your makefiles and elsewhere) go faster.
 
-=for html </dl><hr /><dl>
+=back
 
+=for html <hr/>
+
+=over
+
+=item L<Cookbook|makepp_cookbook>
+
+Quick answers to "How do I ...?" or "What's the best way to ...?"
+
+=item L<FAQ|makepp_faq>
+
+Quick answers to questions people have stumbled upon.
+
+=back
+
+=for html <hr/>
+
+=over
 
 =item L<Build Algorithm|makepp_build_algorithm>
 
@@ -86,16 +97,12 @@ How makepp decides when to build.
 
 =item L<Builtin Commands|makepp_builtins>
 
-Powerful, efficient commands available everwhere makepp 1.50 is.
+Powerful, efficient commands available everwhere makepp 2.0 or newer is.
 
 =item L<Builtin Rules|makepp_builtin>
 
 For very simple programs, you may not need a makefile at all!  These are the
 builtin rules that makepp knows about.
-
-=item L<Command Options|makepp_command>
-
-Command line syntax.
 
 =item L<Compatibility|makepp_compatibility>
 
@@ -122,6 +129,10 @@ central set of sources.
 
 Specifying rules to build files.
 
+=item L<Sandboxes|makepp_sandboxes>
+
+Using sandboxes to partition the build.
+
 =item L<Scanning|makepp_scanning>
 
 How makepp scans for dependencies like include files.
@@ -138,12 +149,15 @@ Additional directives to control makepp.
 
 Using variables to simplify rules.
 
-=item L<Sandboxes|makepp_sandboxes>
+=back
 
-Using sandboxes to partition the build.
+=for html <hr/>
 
+=over
 
-=for html </dl><hr /><dl>
+=item L<makepp, mpp|makepp_command>
+
+Command line syntax of the main utility.
 
 =item L<makeppclean, mppc|makeppclean>
 
@@ -164,6 +178,16 @@ A stand-alone utility to analyze dependencies and the reasons for a rebuild.
 =item L<makeppreplay, mppr|makeppreplay>
 
 A stand-alone utility to repeat things makepp has done, but much faster.
+
+=back
+
+=for html <hr/>
+
+=over
+
+=item L<Index|makepp_index>
+
+All keywords, functions and operators in makepp.
 
 =back
 

@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.53 2011/10/30 20:57:33 pfeiffer Exp $
+# $Id: Text.pm,v 1.54 2011/11/25 21:36:51 pfeiffer Exp $
 
 =head1 NAME
 
@@ -65,6 +65,7 @@ returns ('file1.o', 'file2.o').
 
 =cut
 
+our $set_stem;
 sub pattern_substitution {
   my ($src, $dest, @words) = @_; # Name the arguments.
   my $percent_pos = index $src, '%'; # Find the percent char.
@@ -83,8 +84,8 @@ sub pattern_substitution {
 				# Replace all occurences of % with the stem.
 				# Save the resulting word(s).  There may be
 				# more than one if $dest contains spaces.
-      $Mpp::Subs::rule->{PATTERN_STEM} = $pattern_stem
-	if defined $Mpp::Subs::rule; # Set it up so $* can return the stem.
+      $Mpp::Subs::rule->{PATTERN_STEM} ||= $pattern_stem
+	if defined $set_stem;	# Set it up so $* can return the stem.
     }
   }
 
