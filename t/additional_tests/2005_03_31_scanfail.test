@@ -1,4 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	1	644	1329052295	1329052295	is_relevant.pl
+have_cc
 ###	17	644	1159374480	1186006640	Makeppfile
 ifeq $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC))
   $(phony default): x.o

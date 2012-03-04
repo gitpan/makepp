@@ -27,9 +27,11 @@ makeppgraph ./makeppgraph.pod:
 html ./html:
 makepp_cookbook ./makepp_cookbook.pod:
 makepp_build_algorithm ./makepp_build_algorithm.pod:
+Html ./html/Pod/Html.pm:
 makepplog ./makepplog.pod:
 makepp_extending ./makepp_extending.pod:
 makeppclean ./makeppclean.pod:
 makepp_build_check ./makepp_build_check.pod:
 makeppreplay ./makeppreplay.pod:
 makepp_index ./makepp_index.pod:
+Pod ./html/Pod:

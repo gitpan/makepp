@@ -3,7 +3,7 @@
 makepp_repositories -- How to use repositories for variant builds, for
 maintaining a central set of sources, and other things
 
-=for vc $Id: makepp_repositories.pod,v 1.22 2011/06/05 20:35:22 pfeiffer Exp $
+=for vc $Id: makepp_repositories.pod,v 1.23 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -373,7 +373,7 @@ form):
 
 A repository is meant to be read-only while it is being used as a repository.
 Makepp will B<not> work properly if you change files in your repository during
-the course of a build.  Nightly builds may be ok for you, if noone else uses
+the course of a build.  Nightly builds may be ok for you, if no one else uses
 the repository at that time.  Before it starts the build, makepp gets a list
 of all the files that exist in the repository, and never updates its list,
 except for files it expects to appear.
@@ -426,7 +426,7 @@ prevent build mistakes, makepp refuses to link in a C<.la> file from a
 repository.  Hopefully in the future libtool will be better supported.
 
 Many hidden dependencies related to compilation are caught by the command line
-scanner.  If your compiler uses the common unix compilation flags (e.g.,
+scanner.  If your compiler uses the common Unix compilation flags (e.g.,
 C<-I>, C<-D>, etc.), then makepp will usually figure out where all your
 include files are.  You may have to be careful if you have any homegrown
 scripts that create files that makepp doesn't know about.  For correct builds,

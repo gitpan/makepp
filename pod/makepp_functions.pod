@@ -2,7 +2,7 @@
 
 makepp_functions -- Functions in makepp
 
-=for vc $Id: makepp_functions.pod,v 1.45 2011/09/19 06:18:35 pfeiffer Exp $
+=for vc $Id: makepp_functions.pod,v 1.47 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -75,7 +75,7 @@ Any expression of the format C<$(name)>, where C<name> is not the name of a
 variable, or S<C<$(name arg1 arg2 arg3)>> is interpreted as a function call.
 The name may contain letters, underscores, or hyphens; to avoid confusion, you
 may use hyphens or underscores interchangeably, since internally hyphens are
-converted to underscores.  Evaluating such an expression simply invokes a perl
+converted to underscores.  Evaluating such an expression simply invokes a Perl
 subroutine.  If C<name> is preceded by C<&> it runs the L<builtin
 command|makepp_builtins> or script of that name within the makepp process, and
 returns the standard output.  If the name does not name a function it is
@@ -86,12 +86,12 @@ the arguments contain these signs, either use the other, or double it as in
 C<$((name ...() ))>.  Doubling is also useful if you need the arguments to
 span several lines.  The newlines are then treated as spaces, except maybe in
 C<define>.  There is also the syntax C<$[name ...]> or C<$[[name ...]]>, which
-gets evalutated while reading the makefile, before grokking rules and other
+gets evaluated while reading the makefile, before grokking rules and other
 constructs.
 
 Makepp has a number of builtin functions which may be useful.  It supports
 almost all of GNU make's textual functions (see GNU make's documentation for
-details), and some of its own.  You can define perl subroutines to do whatever
+details), and some of its own.  You can define Perl subroutines to do whatever
 you like.  See the C<sub> statement and the section on L<extending
 makepp|makepp_extending> for more details.
 
@@ -214,7 +214,7 @@ you do not put one in your makefile:
     CXX = $(find_program g++ c++ pg++ cxx CC aCC)
 
 If none of the programs is found, S<C<$(find_program )>> returns the string
-not-found, and logs what ws not found.  This usually won't result in a
+not-found, and logs what was not found.  This usually won't result in a
 functional makefile, but it will tend to make for better error messages.  For
 example, if you do something like this:
 
@@ -319,7 +319,7 @@ $(TCL_LIB) so we get the appropriate Tcl library.
 =item infer_linker I<file1 file2 ...>
 
 Given a list of object files first build them if they have not been yet.  Then
-find whether they depend on a fortran, C++ or a C source and return the
+find whether they depend on a Fortran, C++ or a C source and return the
 corresponding compiler (which better knows how to link than C<ld>).
 
 =item infer_objects I<file1 file2 ..., pattern>
@@ -378,10 +378,10 @@ object files are implied.
 Returns an unpredictable temporary filename, which does not currently exist.
 No name pointing to the same file is returned twice, even with different
 relative paths, within one makepp run (except possibly with traditional
-recursive make, or if perl code running within a rule action calls
+recursive make, or if Perl code running within a rule action calls
 C<f_mktemp>).  At the end of the makepp run all files returned by this
 function are deleted, if they exist (again except for those returned by this
-function in perl code running within a rule).
+function in Perl code running within a rule).
 
 Any number of upper case C<X>s at the end of the argument are replaced by that
 many random letters and digits.  The more there are, the less likely this is
@@ -571,7 +571,7 @@ directory location.
 
 If the path goes by the root directory, the parent of either your home
 directory or the C<$(ROOT)> of your build system, or on Windows a drive's root
-(depending on the environment, this also happens for F</cygwin/c> or F</c>),
+(depending on the environment, this also happens for F</cygdrive/c> or F</c>),
 an absolute path will be returned instead.
 
 =item relative_to I<file1 file2 file3[, directory]>
@@ -609,8 +609,9 @@ A rule is not executed if only its temporary targets are out-of-date.
 
 Returns the sorted names of all files matching the given pattern which exist,
 or those files which do not yet exist but can be built based on the rules that
-makepp knows about at the point when it evaluates the expression.  Ignores
-files and directories that are not readable.
+makepp knows about at the point when it evaluates the expression.  In this
+last point it differs from L<rule input wildcards|makepp_rules/Wildcards>,
+which apply even to files created by rules found later.
 
 Makepp supports all the usual shell wildcards (C<*>, C<?>, and C<[]>).  It
 also has a wildcard C<**> which matches any number of intervening directories.
@@ -619,8 +620,8 @@ files in the entire source tree.  C<objects/**/*.o> matches all the F<.o>
 files contained anywhere in the subdirectory F<objects> or any of its
 subdirectories or any of their subdirectories.  The C<**> wildcard will not
 follow soft links to directories at any level, nor will it attempt to enter
-directories which exist but cannot be read.  Also files which exist but cannot
-be read will not be returned by S<C<$(wildcard )>>.
+directories which exist but cannot be read.  Also files and directories which
+exist but cannot be read will not be returned by S<C<$(wildcard )>>.
 
 =back
 
@@ -698,7 +699,7 @@ equivalent:
 It might seem debatable whether C<$[call]> should also expand the macro's
 C<$[]> expressions, or whether a function should always do the same thing, no
 matter how it is called.  The latter was chosen, because with normal make
-syntax it would be impossble to get C<$[1], $[2]...> into a variable (they'd
+syntax it would be impossible to get C<$[1], $[2]...> into a variable (they'd
 get replaced by nothing, before the assignment even takes place.)  Hence, if
 you have a macro for defining a rule, you want expressions like C<$(output)>
 to be seen when the rule gets parsed, so you must protect them from C<call>:
@@ -742,7 +743,7 @@ Return the first word.
 
 =item makemap I<words, perlcode>
 
-Similarly to perl's map, applies I<perlcode> to each word in turn and returns
+Similarly to Perl's map, applies I<perlcode> to each word in turn and returns
 the results.  The first variant is plain Perl code, while the second variant
 first passes the perlcode through Make-style variable expansion.  The words
 are expanded in both cases.
@@ -753,7 +754,7 @@ comma is a separator, any others are considered part of the I<perlcode>.
 
     # Switch words.  Double parens, to allow parens in perlcode, or use ${}:
     X = $((map $(VALUES), s/(.+)-(.+)/$2-$1/))
-    # You can use make expressions, but then you must use $$ for perl $:
+    # You can use make expressions, but then you must use $$ for Perl $:
     Y = $(makemap $(VALUES), tr/$(OLDCHARS)/$(NEWCHARS)/ or $$_ = 'failed')
     # You can eliminate candidates:
     Y = $(map $(VALUES), undef $_ if /no_good/)
@@ -992,7 +993,7 @@ C<makeppclean> is more efficient) to look something like this:
 This also has the side-effect that no command whatsoever is generated if the
 list happens to be empty.  But in this case it would be better to use the
 builtin C<&rm>, because the arguments to the builtin commands are only limited
-by perl's memory:
+by Perl's memory:
 
     $(phony clean):
  	&rm -f $(only_targets **/*)

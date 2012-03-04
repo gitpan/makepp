@@ -1,4 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	1	644	1329052295	1329052295	is_relevant.pl
+have_cc
 ###	32	644	1099447329	1231337820	makepp_test_script.pl
 makepp 'BUILD=1';
 

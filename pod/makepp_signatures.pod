@@ -2,7 +2,7 @@
 
 makepp_signatures -- How makepp knows when files have changed
 
-=for vc $Id: makepp_signatures.pod,v 1.20 2012/01/11 21:01:47 pfeiffer Exp $
+=for vc $Id: makepp_signatures.pod,v 1.21 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -228,7 +228,7 @@ tags.
 
 For any file which is not valid xml, or if the Expat based C<XML::Parser> or
 the C<XML::LibXML> parser is not installed, this falls back to method md5.  If
-you switch your perl installation from one of the parsers to the others,
+you switch your Perl installation from one of the parsers to the others,
 makepp will think the files are different as soon as their timestamp changes.
 This is because the result of either parser is logically equivalent, but they
 produce different signatures.  In the unlikely case that this is a problem,
@@ -292,7 +292,7 @@ filename-pattern, optionally per command.
 =head2 Custom methods
 
 You can, if you want, define your own methods for calculating file
-signatures and comparing them.  You will need to write a perl module to
+signatures and comparing them.  You will need to write a Perl module to
 do this.  Have a look at the comments in C<Mpp/Signature.pm> in the
 distribution, and also at the existing signature algorithms in
 C<Mpp/Signature/*.pm> for details.

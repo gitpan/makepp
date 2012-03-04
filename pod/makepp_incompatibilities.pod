@@ -2,7 +2,7 @@
 
 makepp_incompatibilities -- Incompatibilities between makepp and GNU make
 
-=for vc $Id: makepp_incompatibilities.pod,v 1.32 2012/01/11 21:01:47 pfeiffer Exp $
+=for vc $Id: makepp_incompatibilities.pod,v 1.35 2012/02/28 21:43:22 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -15,7 +15,7 @@ see L<remark below|/Compatibility via the option:
 buildable with makepp.  This is so you can either migrate projects
 effortlessly.  Or if you don't want to enjoy all of makepp's advantages
 (e.g. so others can still build your project with GNU make) while you profit
-from the reliabilty advantage for your development.
+from the reliability advantage for your development.
 
 However, because of the difference in L<philosophy|makepp_build_algorithm>,
 some of GNU make's or POSIX make's
@@ -87,7 +87,7 @@ on globally.
 =head2 Compatibility via the option: C<--no-warn>
 
 This one doesn't improve the result.  Makepp will give warning messages for
-many things which the traditional unix make accepts without flinching.  This
+many things which the traditional Unix make accepts without flinching.  This
 is because there are better ways to do them with makepp.  If these warnings
 annoy you, you can turn them off with this option.
 
@@ -257,7 +257,7 @@ on the command line or near the beginning of a makefile.
 
 Sometimes legacy recursive invocations pass options that makepp doesn't
 understand.  Hopefully the option is not important, but it prevents makepp
-from running.  With this environtment variable you can ask makepp to silently
+from running.  With this environment variable you can ask makepp to silently
 ignore certain options.  The value shall be a space separated list of options,
 which can come in 4 variants:
 
@@ -298,7 +298,7 @@ debug option with an argument:
 
 Makefiles that explicitly call make prevent makepp from building everything
 itself.  Alas Perl's own C<ExtUtils::MakeMaker> commits the second of the
-following two forms of this mistake upto version 6.56 (Perl 5.12.1):
+following two forms of this mistake up to version 6.56 (Perl 5.12.1):
 
     subdir:
  	cd subdir; make
@@ -308,7 +308,7 @@ following two forms of this mistake upto version 6.56 (Perl 5.12.1):
 =item *
 
 Setting the C<VPATH> variable to some value implicitly calls C<vpath % value>.
-C<vpath> statements are emulated with the L<repositoriy|makepp_repositories>
+C<vpath> statements are emulated with the L<repository|makepp_repositories>
 mechanism.  So, where gmake substitutes the path to the file found in the
 vpath, makepp will instead link it symbolically to where it is needed.  Thus
 makepp will provide an unmodified string, which is usually not a problem.
@@ -329,7 +329,7 @@ those for GNU make, though the variable names are largely compatible.  The
 builtin rules should successfully compile C/C++/Fortran programs, and in fact
 may be able to guess the proper libraries in some cases too.  Support for
 Modula-2 and RatFor and other rare languages is deliberately not present,
-because I kept running into problems with GNU make's rules when I accidently
+because I kept running into problems with GNU make's rules when I accidentally
 reused the extensions for those languages.
 
 =item *
@@ -549,7 +549,7 @@ it is expanded very early.
 =head2 C<$(MAKE)> may include spaces
 
 In an uninstalled makepp or if the platform doesn't seem to support starting a
-perl scipt by magic number or with C<--traditional-recursive-make> this
+Perl script by magic number or with C<--traditional-recursive-make> this
 variable will include at least one space.  That is not a problem when using it
 as a command.  But when passing it as an unquoted parameter to a script (as
 the Perl 5.14.0 build system does), it will tear it apart into separate
@@ -562,6 +562,20 @@ Makepp's target-specific variables are slightly different from GNU make's in
 that they only apply to the rule for the one file mentioned, and not to any of
 its predecessors; see
 L<Target-specific assignments|makepp_variables/target_specific_assignments>.
+
+=head2 Parentheses or braces don't nest
+
+Makepp ends expressions at the first matching parenthesis or brace.  Instead
+of this
+
+    $(somefunction ... ( ) ...)	# Gnu make style
+
+you must use either of these
+
+    ${somefunction ... ( ) ...}	# Gnu make compatible
+    $((somefunction ... ( ) ...)) # Makepp extension
+
+This will probably be fixed in version 2.1, maybe optionally.
 
 =head1 Command line incompatibilities
 

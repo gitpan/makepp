@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.48 2012/01/06 21:53:23 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.50 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -52,7 +52,7 @@ not a valid first character in Shell.  If no builtin command of that name can
 be found, this is also the syntax for calling an external script within the
 Perl instance performing the rule.  See L<C<run>|makepp_extending/run_script_arguments>.
 
-These commands, as well as your self defined ones and perl scripts can also be
+These commands, as well as your self defined ones and Perl scripts can also be
 called as a make function, returning the standard output.  The newlines are
 converted to spaces, except when evaluated within a C<define> statement.
 
@@ -140,7 +140,7 @@ Append to (not necessarily) existing file.
 Also open the file for input, allowing inplace editing.  With this option
 variant no input filenames need to be given.  But if you want to perform the
 builtin on more files, you must use C<-> as an input filename for this one.
-In fact the ouptut gets written to a temporary file which gets moved to
+In fact the output gets written to a temporary file which gets moved to
 filename at the end.
 
 =item |I<shellcommand>
@@ -225,13 +225,13 @@ commands:
     %.out: %.in Makeppfile
  	&grep &my_filter $(input) -o $(output)
 
-If you use perl functions or variables in your commands, makepp does not
+If you use Perl functions or variables in your commands, makepp does not
 recognize this as a dependency.  It is generally safer to tell makepp
 everything, so rules which use Perl elements should depend on the makefile or
 module providing those elements, as shown in the above example.
 
-On the other hand ingnorance may be desirable if you have a program that mixes
-programatic and configuration aspects in one file.  An example would be a WSDL
+On the other hand ignorance may be desirable if you have a program that mixes
+programmatic and configuration aspects in one file.  An example would be a WSDL
 file containing both a web service interface definition and an IP address.
 You could preprocess this file with the C<&template> command to patch in the
 configuration, but not let makepp notice.
@@ -432,7 +432,7 @@ Upcases the following letter.
 
 =item \U
 
-Upcases the rest, or upto the next C<\L> if found.
+Upcases the rest, or up to the next C<\L> if found.
 
 =item \xI<HH>, \x{I<HHHH>}
 
@@ -503,7 +503,7 @@ L<C<&expr>|/expr_option_perlcode> with no argument or C<0> is comparable.
 
 =item fmt
 
-Not built in, but mentioned here since perl provides a related functionality.
+Not built in, but mentioned here since Perl provides a related functionality.
 However I had problems using the C<format> declaration in a makefile.  What
 does work is the underlying C<formline> function.  E.g. to transform a csv file
 consisting of names and prices to a tabular format:
@@ -860,7 +860,7 @@ any statements you define within the file, are processed.  Empty and comment
 lines are eliminated.
 
 But, instead of learning build rules, it will output all remaining lines after
-C<$(...)> expression expansion.  To prevent statement from being recognizeded
+C<$(...)> expression expansion.  To prevent statement from being recognized
 as such, you can precede them with an empty expression C<$()>.  The same
 applies to lines you want to stay empty or which shall retain a leading
 comment sign.  Likewise, if a trailing backslash is not to join a line with
@@ -1062,7 +1062,7 @@ equivalent.
 This is a macro preprocessor, not quite as powerful as C<m4>, but covers more
 than is found in many makefiles.  See L<C<&preprocess>|/preprocess_option_variable_definition_filename> for a
 more powerful alternative.  Any normal text goes through unchanged.  It
-replaces all occurences of C<@macro@>, C<@macro(arg1,arg2...)@> or everything
+replaces all occurrences of C<@macro@>, C<@macro(arg1,arg2...)@> or everything
 between C<@@macro@@>, C<@@macro(arg1,arg2...)@@> and C<@@> with I<definition>.
 If there are args, they replace C<$1> through C<$9> or C<${I<number>}> in
 I<definition>.  One level of macro nesting is possible in that the args in
@@ -1081,7 +1081,7 @@ only takes effect if the macro was not defined, presumably on the command
 line.  You can also call C<@{ I<Perlcode> }@> or C<@@{ I<Perlcode> }@@ ... @@>
 in the file.  The Perl variable C<$ARGV> contains the name of the current
 input file.  If you call C<@macro { I<Perlcode> }@>, then you define a new
-macro, the body of which is a perl sub.  The arguments, if there are any, get
+macro, the body of which is a Perl sub.  The arguments, if there are any, get
 passed in as C<@_>.
 
     @m1=some definition@\

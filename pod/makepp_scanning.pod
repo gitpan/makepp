@@ -2,7 +2,7 @@
 
 makepp_scanning -- How makepp finds include files and other hidden dependencies
 
-=for vc $Id: makepp_scanning.pod,v 1.20 2012/01/11 21:01:47 pfeiffer Exp $
+=for vc $Id: makepp_scanning.pod,v 1.21 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -32,7 +32,7 @@ Actually there are three steps to what is historically known as scanning:
 =item 1.
 
 The rule action is split into lines (continuation lines count as one).  Each
-line (except builtins and perl blocks) is B<lexically analyzed> as one or more
+line (except builtins and Perl blocks) is B<lexically analyzed> as one or more
 Shell commands.  Redirections are recognized as inputs or outputs to this
 rule.  The first word of each command is looked up (with its directory part
 but, if not found, again without it) to find a parser for it.  These become
@@ -134,7 +134,7 @@ things like this:
     #endif
 
 because it doesn't know about preprocessor conditionals.  This is
-usually harmless; it might cause additional extra files to be labelled
+usually harmless; it might cause additional extra files to be labeled
 as dependencies (occasionally causing unnecessary rebuilds), or else it
 might cause makepp to warn that the include file was not found.  You can
 either ignore the warning messages, or put an empty file C<this.h> out
@@ -169,7 +169,7 @@ path and EXEC SQL INCLUDE directives without a suffix get C<.h> appended.
 Swig (Simplified Wrapper and Interface Generator, http://www.swig.org/)
 is a program that converts a C/C++ header file into the wrapper
 functions needed to make your code callable from a variety of other
-languages, such as perl, python, tcl, C#, ruby, ocaml, and probably some
+languages, such as Perl, Python, Tcl, C#, Ruby, OCaml, and probably some
 others that I don't know about.
 
 Makepp understands and parses the swig command line, looking for C<-I> and
@@ -205,7 +205,7 @@ Libtool is a very clever compilation system that greatly simplifies
 making shared libraries by hiding all the system-dependent details away
 in a shell script.  The only difficulty is that the library binary files
 are not actually stored in the same directory as the output
-file--libtool actuall creates a subdirectory, C<.libs>, which contains
+file--libtool actually creates a subdirectory, C<.libs>, which contains
 the real files.  This is ordinarily not a problem, but makepp has to
 know where the real binaries are if it is to link them in from a
 repository.  At the moment, libtool libraries (C<.la> files) are not
@@ -334,7 +334,7 @@ to be cached.
 =head2 Ad Hoc Scanner
 
 Often you will have just one or few files which contain dependency
-information.  You don't want to write this into a makefile reduntantly (since
+information.  You don't want to write this into a makefile redundantly (since
 redundancy later often leads to inconsistencies when one update gets
 forgotten).  But you also don't want to write a Mpp::Scanner?  As a workaround you
 can generate an include file on the fly.  For example Qt has F<.qrc> files

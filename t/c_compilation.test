@@ -1,9 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	7	755	1067451873	1190061330	makepp_test_script.pl
-#
-# This makefile depends on the existence of a C compiler.
-#
-
+###	1	644	1329052295	1329052295	is_relevant.pl
+have_cc
+###	3	755	1067451873	1329052311	makepp_test_script.pl
 makepp qw(--no_path_executable_dep compilation_test);
 cp 'n_files.win', 'answers/n_files' if is_windows;
 !system '.' . ($^O =~ /^MSWin/ ? '\\' : '/') . 'compilation_test >output';

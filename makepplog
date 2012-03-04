@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.47 2012/01/11 21:01:22 pfeiffer Exp $
+# $Id: makepplog,v 1.48 2012/02/07 22:26:15 pfeiffer Exp $
 
 package Mpp;
 
@@ -114,7 +114,7 @@ my %log_msg =
   USE => ' Using rule %s',
   USE_FAIL => 'Module %s not found',
 
-  VERSION => 'Running %s with perl %s on %s',
+  VERSION => 'Running %s with Perl %s on %s',
  );
 
 # This list contains a hashref for every logging version, which is the list

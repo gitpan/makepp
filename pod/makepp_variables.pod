@@ -2,7 +2,7 @@
 
 makepp_variables -- How to use variables in makepp
 
-=for vc $Id: makepp_variables.pod,v 1.45 2012/01/11 21:01:47 pfeiffer Exp $
+=for vc $Id: makepp_variables.pod,v 1.47 2012/02/28 21:41:18 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -198,6 +198,12 @@ once.  But with this operator you can even additionally not do it, if you
 currently don't need the value.  For values which are identical in several
 directories, you can optimize this further with C<global>, discussed below.
 
+However this is not intended as a clever way to force order of evaluation.  If
+a variable defined like this includes the value of another variable, and that
+other one has a target specific value, and the first expansion is for that
+target, then the target specific value will stick for all other contexts as
+well.  This is a bug and will hopefully be fixed in the future.
+
 =item +=
 
     VARIABLE += expr
@@ -275,7 +281,7 @@ Keywords before C<define> can be combinations of either one of C<export> or
 C<global> and C<override>.
 
 If you need a variable's value to contain newlines, you must use the C<define>
-statement as shown (or you can assign the value directly in perl).  (C<endef>
+statement as shown (or you can assign the value directly in Perl).  (C<endef>
 was chosen for compatibility with GNU make.  You may also use C<enddef>.)
 This is primarily useful for "canned command sequences", e.g., something like
 this:
@@ -300,7 +306,7 @@ delimeter too.  For example,
     COMPILE_C_PROGRAM = @echo "Compiling $(input)"; \
  	$(CC) $(CFLAGS) $(CPPFLAGS) $(INCLUDES) -c $(input) -o $(output)
 
-will have the same effect, except that the semicolon forces perl to pass it to
+will have the same effect, except that the semicolon forces Perl to pass it to
 the shell, instead of executing the command directly and more efficiently.
 You also have to put each builtin on a line of its own, meaning that you have
 to switch to the external echo in the semicolon case.
@@ -378,7 +384,7 @@ compilation options for only a few files.
 Target-specific variable assignments like this apply only to the actions
 of the rule; they are not in effect when evaluating the targets or the
 dependencies of a rule.  If a rule has more than one target,
-target-specific variable assignents are taken only from the I<first>
+target-specific variable assignments are taken only from the I<first>
 target.  Also note that makepp's target-specific variables are slightly
 different from GNU make's in that they only apply to the rule for the
 one file mentioned, and not to any of its predecessors.
@@ -441,7 +447,7 @@ A variable will give rc-style substitution only when there is more than one
 word in it.  With one word it is like traditional make.  Alas, when the
 variable is empty, there is a conflict.  Traditional makes simply expand it to
 the empty string.  But when you think of it as a list, you'd want
-C<-I$(DIRLIST)> to dissapear, not to give a lonely C<-I>.  The solution is to
+C<-I$(DIRLIST)> to disapear, not to give a lonely C<-I>.  The solution is to
 wrap it into a list that starts with a space: C<-I$( $(DIRLIST))> gives you
 exactly as many options, as there are words in the list.
 
@@ -520,12 +526,12 @@ When you do this, the variable C<T> contains C<-o> followed by a space.
 This kind of a technique to handle whitespace is not recommended.  If
 you need variables in your makefile to contain spaces, you should think
 seriously about what you're doing.  If you need to handle spaces, it is
-usually much better to put perl code into your makefile to take care of
+usually much better to put Perl code into your makefile to take care of
 it (using the C<perl_begin> or C<sub> statements), or to handle it in
 shell statements in the actions of rules.
 
 These cases typically come up when people attempt to use the same rules
-for different architectures which do not use typical unix command
+for different architectures which do not use typical Unix command
 syntax.  E.g., sometimes one sees things like this in makefiles:
 
     ifeq ($(ARCH),weirdarch)
@@ -540,7 +546,7 @@ syntax.  E.g., sometimes one sees things like this in makefiles:
 
 You can do this with makepp if you really want to, but you will probably
 find that your makefiles are substantially more readable if you have
-less complicated variable stubstitution, e.g.,
+less complicated variable substitution, e.g.,
 
     ifeq ($(ARCH),weirdarch)
       %.o : %.c
@@ -620,7 +626,7 @@ The first explicit dependency of the rule.  For example, in this rule
 
 C<$(input)> will be the name of the F<.c> file, regardless of what F<.h> files
 makepp discovers.  If you specify more than one dependency, you can get them
-by passing an index: C<$(input $(INDEX))> is the INDEXth depencency.
+by passing an index: C<$(input $(INDEX))> is the INDEXth dependency.
 
 =item dependencies
 
@@ -905,7 +911,7 @@ variable is empty.
 
 This variable is only respected if you C<export> it.  In that case it is the
 Shell which is used to execute not-builtin actions with some special character
-in it (plain ones being execed directly).  On Windows Strawberry or
+in it (plain ones being exec`ed directly).  On Windows Strawberry or
 ActiveState Perl, if you have a Unix-like Shell, you must instead set your
 SHELL variable to a value ending in C<sh> or C<sh.exe> B<before> calling
 makepp.
@@ -925,10 +931,10 @@ I<Default:> undefined
 
 =back
 
-=head2 Variables and perl
+=head2 Variables and Perl
 
-Variable values are stored as ordinary perl scalars, so you can access them
-directly from perl code if you need to do any complicated manipulations with
+Variable values are stored as ordinary Perl scalars, so you can access them
+directly from Perl code if you need to do any complicated manipulations with
 them; see L<makepp_extending> for details.
 
 Accessing global variables from Perl is achieved by prefixing them with the
@@ -950,11 +956,11 @@ value.
 
 For these reasons it is better to let makepp determine the correct value.  You
 can use the C<makeperl> variant, in which the variable has been evaluated
-before the perl code gets interpreted:
+before the Perl code gets interpreted:
 
     makeperl { $$current_value = '$(MAKEFILE_VAR)' }
 
-If you need a variable in makefile perl blocks this is achieved via the perl
+If you need a variable in makefile perl blocks this is achieved via the Perl
 variable C<$makefile> as follows:
 
     perl { $current_value = $makefile->expand_variable( 'MAKE_VAR' ) }

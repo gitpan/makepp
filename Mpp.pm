@@ -1,4 +1,4 @@
-# $Id: Mpp.pm,v 1.13 2011/08/06 11:47:42 pfeiffer Exp $
+# $Id: Mpp.pm,v 1.14 2012/03/04 13:56:35 pfeiffer Exp $
 
 =head1 NAME
 
@@ -205,7 +205,7 @@ simple fields contain ^C`s they are ref definitions of up to 4 fields:
 The I<refs> are numbers (hex on HP/UX with 64bit pointers) and the I<names>
 are to be remembered by makepplog for these numbers.  If a I<dir-name> is
 present, that is remembered for I<dir-ref>, else it has been given earlier.
-If a I<dir-ref> is given, that is prependended to I<name> with a slash and
+If a I<dir-ref> is given, that is prepended to I<name> with a slash and
 remembered for I<ref>.  Else if only I<name> is given that is remembered for
 I<ref> as is.  If I<ref> is alone, it has been given earlier.  Makepplog will
 output the remembered name for refs between quotes.
@@ -230,7 +230,7 @@ sub log($@) {
       (my $mppl = $0) =~ s/\w+$/makepplog/;
       -f $mppl or
 	substr $mppl, 0, 0, absolute_filename( $Mpp::original_cwd ) . '/';
-      open $logfh, '|' . PERL . " $mppl -pl-" or # Pass the mesages to makepplog for formatting.
+      open $logfh, '|' . PERL . " $mppl -pl-" or # Pass the messages to makepplog for formatting.
 	die "$progname: can't pipe to `makepplog' for verbose option--$!\n";
     } else {
       if( $logfile ) {
@@ -271,7 +271,7 @@ sub log($@) {
 	    if( exists $_->{xLOGGED} ) {	# Already defined
 	      int;			# The cheapest external representation of a ref.
 	    } elsif( !exists $_->{'..'} ) { # not a Mpp::File
-	      # TODO: These two liness are a reminder for when we store RULE_SOURCE per ref.
+	      # TODO: These two lines are a reminder for when we store RULE_SOURCE per ref.
 	      #undef $_->{xLOGGED};
 	      #int() . "\03" . $_->name;
 	      $_->name;
@@ -291,7 +291,7 @@ sub log($@) {
 	} elsif( exists $_->{xLOGGED} ) {	# Already defined
 	  int;			# The cheapest external representation of a ref.
 	} elsif( !exists $_->{'..'} ) { # not a Mpp::File
-	  # TODO: These two liness are a reminder for when we store RULE_SOURCE per ref.
+	  # TODO: These two lines are a reminder for when we store RULE_SOURCE per ref.
 	  #undef $_->{xLOGGED};
 	  #int() . "\03" . $_->name;
 	  $_->name;

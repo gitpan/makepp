@@ -1,29 +1,28 @@
 =head1 NAME
 
-makepp_extending -- How to extend makepp using perl
+makepp_extending -- How to extend makepp using Perl
 
-=for vc $Id: makepp_extending.pod,v 1.18 2011/04/17 21:38:04 pfeiffer Exp $
+=for vc $Id: makepp_extending.pod,v 1.20 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
-Makepp internally is flexible enough so that by writing a
-little bit of perl code, you can add functions or do a number of other
-operations.
+Makepp internally is flexible enough so that by writing a little bit of Perl
+code, you can add functions or do a number of other operations.
 
-=head2 General notes on writing perl code to work with makepp
+=head2 General notes on writing Perl code to work with makepp
 
 Each makefile lives in its own package.  Thus definitions in one
 makefile do not affect definitions in another makefile.  A common set of
 functions including all the standard textual manipulation functions is
 imported into the package when it is created.
 
-Makefile variables are stored as perl scalars in that package.  (There are
+Makefile variables are stored as Perl scalars in that package.  (There are
 exceptions to this: automatic variables and the default value of variables
 like CC are actually implemented as functions with no arguments.  Target
 specific vars, command line vars and environment vars are not seen this way.)
-Thus any perl code you write has access to all makefile variables.  Global
+Thus any Perl code you write has access to all makefile variables.  Global
 variables are stored in the C<Mpp::global> package.  See L<Makefile
-variables|makepp_variables/"Variables and perl"> for the deails.
+variables|makepp_variables/"Variables and Perl"> for the details.
 
 Each of the statements (L<ifperl / ifmakeperl|makepp_statements/ifperl_perlcode>,
 L<perl / makeperl|makepp_statements/perl_perlcode>, L<sub /
@@ -43,14 +42,14 @@ C<END> blocks but if you have any global file handles they may not get
 flushed.  But you should be using the modern lexical filehandles, which get
 closed properly when going out of scope.
 
-In perl code run directly as a rule action or via a command you define, it is
+In Perl code run directly as a rule action or via a command you define, it is
 the opposite.  C<END> blocks will not be run, but global filehandles get
 flushed for you.  The C<DESTROY> of global objects will never be run.
 
 =head2 Adding new textual functions
 
 You can add a new function to makepp's repertoire by simply defining a
-perl subroutine of the same name but with a prefix of C<f_>.  For
+Perl subroutine of the same name but with a prefix of C<f_>.  For
 example:
 
     sub f_myfunc {
@@ -106,7 +105,7 @@ split the arguments.  Some examples from makepp's builtin functions:
 The function should return a scalar string (not an array) which is then
 inserted into the text at that point.
 
-If your function encounters an error, it should die using the usual perl
+If your function encounters an error, it should die using the usual Perl
 die statement.  This will be trapped by makepp and an error message
 displaying the file name and the line number of the expression causing
 the error will be printed out.
@@ -151,7 +150,7 @@ C<f_> functions, C<arg> or C<args>), you must put this line into your module:
 
 The drawback is that the module would be in a different package than a
 function directly appearing in a makefile.  So you need to pass in everything
-as parameters, or construct names with perl's C<caller> function.
+as parameters, or construct names with Perl's C<caller> function.
 
 =head2 Calling external Perl scripts
 
@@ -288,7 +287,7 @@ contain a few special items (see Mpp/Signature.pm in the distribution for
 details).  The class's name must be prefixed with C<Mpp::Signature::>, so in
 this case our class should be called C<Mpp::Signature::shared_object>.  We
 have to create a file called F<shared_object.pm> and put it into a
-F<Mpp::Signature> directory somewhere in the perl include path; the easiest
+F<Mpp::Signature> directory somewhere in the Perl include path; the easiest
 place might be in the F<Mpp/Signature> directory in the makepp installation
 (e.g., F</usr/local/share/makepp/Mpp/Signature> or wherever you installed
 it).
@@ -336,7 +335,7 @@ So the file F<Mpp/Signature/shared_object.pm> might contain the following:
 This file is provided as an example in the makepp distribution, with
 some additional comments.
 
-Incidently, why don't we make this the default?  Well, there are times
+Incidentally, why don't we make this the default?  Well, there are times
 when changing a shared library will require a relinking of your program.
 If you ever change either the symbols that a shared library defines, or
 the symbols that it depends on other libraries for, a relink may

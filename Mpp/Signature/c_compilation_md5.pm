@@ -1,4 +1,4 @@
-# $Id: c_compilation_md5.pm,v 1.26 2011/10/30 20:57:17 pfeiffer Exp $
+# $Id: c_compilation_md5.pm,v 1.27 2012/03/04 13:56:35 pfeiffer Exp $
 use strict;
 package Mpp::Signature::c_compilation_md5;
 
@@ -141,10 +141,10 @@ sub md5sum_c_tokens {
 	  $tokens .= "\n";	# Go to bol.
 	  $preproc = 0;
 	} else {
-	  ++$n_newlines;	# Remeber nl for later.
+	  ++$n_newlines;	# Remember nl for later.
 	}
       } elsif( $preproc && /\G\\\r?\n/gc ) {
-	++$n_newlines;	# Remeber nl for later.
+	++$n_newlines;	# Remember nl for later.
 
       } elsif( /\G(([-+&*])\2?)/gc ) {
 	$add_space = !$word;	# Keep space in what might be "a+ ++b" or "a/ *b"!

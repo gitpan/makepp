@@ -34,10 +34,10 @@ BEGIN {
 
 use Config;
 
-$0 =~ s!.*/!!;
+(my $cmd = $0) =~ s!.*/!!;
 my $makepp = @ARGV && $ARGV[0] =~/\bm(?:ake)?pp$/ && shift;
 if( @ARGV && $ARGV[0] eq '-?' ) { print <<EOF; exit }
-$0\[ options][ -- run_tests options][ tests]
+$cmd\[ options][ -- run_tests options][ tests]
     -T  run_tests.pl -dvs rather than default -ts
     -b  Add all build_cache tests to list.
     -c  Select only those which use the C compiler.
@@ -47,7 +47,7 @@ $0\[ options][ -- run_tests options][ tests]
 
     If no tests are given, runs all in and below the current directory.
 EOF
-$0 =~ s!all\.t!tests.pl!;
+$cmd =~ s!all\.t!tests.pl!;
 my( $T, $b, $c, $C, $R, $S, @opts );
 while( @ARGV ) {
   last unless $ARGV[0] =~ /^-(.*)/;
@@ -72,19 +72,19 @@ push @ARGV, <*repository*.test */*repository*.test> if $R;
 @ARGV = grep !/stress_tests/, @ARGV if $S;
 
 unshift @ARGV, @opts, $T ? '-dvs' : '-ts';
-print "$0 @ARGV\n" if $ENV{DEBUG};
+print "$cmd @ARGV\n" if $ENV{DEBUG};
 
 my $reason;
 if( $ENV{AUTOMATED_TESTING} || $^O =~ /^MSWin/ ) {	# exec detaches a child process and exit immediately
-  system $^X, $0, @ARGV;
+  system $^X, $cmd, @ARGV;
   exit( $? >> 8 || $? ) unless $ENV{AUTOMATED_TESTING};
   $reason =
-    $? == -1 ? "failed: $!: system $^X, $0, @ARGV \n" :
-    $? & 127 ? "died with signal $?: system $^X, $0, @ARGV \n" :
-    $? ? "exited with value " . ($? >> 8) . ": system $^X, $0, @ARGV\n" :
+    $? == -1 ? "failed: $!: system $^X, $cmd, @ARGV\n" :
+    $? & 127 ? "died with signal $?: system $^X, $cmd, @ARGV\n" :
+    $? ? "exited with value " . ($? >> 8) . ": system $^X, $cmd, @ARGV\n" :
     '';
 } else {
-  exec $^X, $0, @ARGV;
+  exec $^X, $cmd, @ARGV;
   die $!;
 }
 

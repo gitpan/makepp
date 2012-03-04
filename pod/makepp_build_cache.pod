@@ -2,7 +2,7 @@
 
 makepp_build_cache -- How to set up and use build caches
 
-=for vc $Id: makepp_build_cache.pod,v 1.25 2011/09/29 04:04:51 pfeiffer Exp $
+=for vc $Id: makepp_build_cache.pod,v 1.27 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -94,7 +94,7 @@ once, build caches can only slow things down.
 
 =back
 
-Using a build cache requires a little bit of setup and maintanance work.
+Using a build cache requires a little bit of setup and maintenance work.
 Please do not try using a build cache until you understand how they
 work, how to create them, and how to keep them from continually growing
 and eating up all of the available disk space on your system.
@@ -397,7 +397,7 @@ C<makeppbuiltin> might be needed:
 You can also use these commands from a makefile after loading them, with a
 C<&>-prefix as follows for the example of C<create>:
 
-    perl { use Mpp::BuildCacheControl } # It's a Perl module, so use intead of include.
+    perl { use Mpp::BuildCacheControl } # It's a Perl module, so use instead of include.
  
     my_cache:
 	&create $(CACHE_OPTIONS) $(output) # Call a loaded builtin.
@@ -424,7 +424,7 @@ Standard options: C<-v, --verbose>
 =item --extend-group=I<group>
 
 Add the new build cache to the C<group>.  This may have been a single stand
-alone build cache upto now.
+alone build cache up to now.
 
 =item -f
 
@@ -449,7 +449,7 @@ with this option, in which case the files will be migrated randomly to them.
 
 Controls how many levels of subdirectories are created to hold the cached
 files, and how many files will be in each subdirectory.  The first I<n1>
-charactes of the filename form the top level directory name, and the
+characters of the filename form the top level directory name, and the
 characters from I<n1> to I<n2> form the second level directory name, and so
 on.
 
@@ -503,7 +503,7 @@ doesn't get physically deleted anyway -- you'd just uncache a file which
 someone is apparently still interested in, so somebody else might be too).
 The criteria you give pertain to the actual cached files.  Each build info
 file will be deleted when its main file is.  No empty directories will be
-left.  Inrrespective of the link count and the options you give, any file that
+left.  Irrespective of the link count and the options you give, any file that
 does not match its build info file will be deleted, if it is older than a
 safety margin of 10 minutes.
 
@@ -622,7 +622,7 @@ so you might consider not giving this option in the daytime.
 
 This option makes C<clean> read every symbolic link which has no external hard
 links to verify that it points to the desired member.  As this is somewhat
-expensive, it is sugested doing this only at night.
+expensive, it is suggested doing this only at night.
 
 =item -M I<spec>
 
@@ -651,9 +651,9 @@ orphaned).
 This influences how the time options count.  Weekends are ignored, as though
 they weren't there.  An exception is if you give this option on a weekend.
 Then that weekend counts normally.  So you can use it in cronjobs that run
-from tuesday through saturday.  Summertime is ignored.  So summer weekends can
-go from saturday 1:00 to monday 1:00, or southern hemisphere winter weekends
-from friday 23:00 to sunday 23:00 or however much your timezone changes the
+from Tuesday through Saturday.  Summertime is ignored.  So summer weekends can
+go from Saturday 1:00 to Monday 1:00, or southern hemisphere winter weekends
+from Friday 23:00 to Sunday 23:00 or however much your timezone changes the
 time.  Holidays are also not taken into account.
 
 =item -p I<perlcode>
@@ -708,8 +708,8 @@ have copies.  Several strategies can be combined, by calling them one after
 another or at different times.  The C<show> command is meant to help you find
 an appropriate strategy.
 
-A nightly (from tuesday through saturday) run might specify C<--atime +2> (or
-C<--mtime> if you don't have atime), deleting all files noone has read for two
+A nightly (from Tuesday through Saturday) run might specify C<--atime +2> (or
+C<--mtime> if you don't have atime), deleting all files no one has read for two
 days.
 
 If you use links, you can also prevent fast useless growth which occurs when
@@ -746,7 +746,7 @@ this is one on systems which permit hard linking to symbolic links, but that
 may temporarily not be possible, while there are external links to more than
 one copy (in which case we'd lose the link count if we deleted it.
 
-=item S, sym-links (only for grouped build caches)
+=item S, symlinks (only for grouped build caches)
 
 The number of symbolic links between build caches.  Ideally this is the number
 of build caches minus one on systems which permit hard linking to symbolic

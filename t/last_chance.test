@@ -1,8 +1,8 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	4	755	1308567017	1308567017	makepp_test_script.pl
-makepp qw(default dir/all);system'ls -lR';
+makepp qw(default dir/all);
 n_files 'n_files_0';
-makepp '--rm_stale';system'ls -lR';	# Make sure that the wildcard doesn't match the last_chance targets
+makepp '--rm_stale';	# Make sure that the wildcard doesn't match the last_chance targets
 1;
 ###	16	644	1308566871	965331711	Makeppfile
 $(phony default): file1 x

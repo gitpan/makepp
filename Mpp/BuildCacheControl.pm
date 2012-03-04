@@ -1,8 +1,8 @@
-# $Id: BuildCacheControl.pm,v 1.29 2011/07/01 19:59:34 pfeiffer Exp $
+# $Id: BuildCacheControl.pm,v 1.30 2012/03/04 13:56:35 pfeiffer Exp $
 
 =head1 NAME
 
-Mpp::BuildCacheControl - Extenally usable management commands
+Mpp::BuildCacheControl - Externally usable management commands
 
 =cut
 
@@ -123,7 +123,7 @@ sub ARGVgroups(&) {
       # TODO: warn if we have partially overlapping groups.
       next if exists $seen{int $group[0]{'..'}}; # Already handled this group.
       &{$_[0]};
-      @seen{map int( $_->{'..'} ), @group} = (); # Remeber we've treated these BCs.
+      @seen{map int( $_->{'..'} ), @group} = (); # Remember we've treated these BCs.
     }
   }
 }

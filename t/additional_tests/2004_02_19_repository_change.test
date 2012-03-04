@@ -1,6 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	1	775	1168790726	1186229258	is_relevant.pl
-is_windows ? makepp( '-n' ) : 1; # Let makepp test if it uses a symlink capable compiler.
+###	1	775	1168790726	1329052044	is_relevant.pl
+have_cc and is_windows ? makepp( '-n' ) : 1; # Let makepp test if it uses a symlink capable compiler.
 ###	59	644	1159479798	1210071503	makepp_test_script.pl
 sub sed_17($) {
   # Make sure that the foo.c timestamp changes

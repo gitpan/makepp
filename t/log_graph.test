@@ -1,7 +1,8 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	2	644	1216325548	1216326053	is_relevant.pl
+###	3	644	1216325548	1329051628	is_relevant.pl
 my $cwd = Cwd::cwd;
-($cwd =~ tr!/!!d) > 3		# Deep enough with tdir for rewriting cwd 4 levels?
+($cwd =~ tr!/!!d) > 3 &&	# Deep enough with tdir for rewriting cwd 4 levels?
+  have_cc
 ###	66	644	1170452082	1290375089	makepp_test_script.pl
 { open my $fh, '>', 'c/c.h' }
 utime 0, 0, 'c/c.h';		# Make sure this exists (because makeppclean removes it) and is old.

@@ -9,18 +9,18 @@ relationship to make is analogous to C++'s relationship to C: it is almost
 ways to write makefiles.
 
 Makepp works on Unix/Linux-like systems, Ebcdic-based emulations like BS2000
-or z/OS and Windows.  It is written entirely in perl.  It requires version 5.6
-of perl or better.  It's distributed under the terms of the perl Artistic
+or z/OS and Windows.  It is written entirely in Perl.  It requires version 5.6
+of Perl or better.  It's distributed under the terms of the Perl Artistic
 License or GPL 2 or newer, which means that it's freely available to anyone
 for just about any purpose.
 
-Some perl versions have bugs that cause makepp to fail.  These are:
-o perl 5.6.0 fails in really weird ways on the x86 (and maybe other
+Some Perl versions have bugs that cause makepp to fail.  These are:
+o Perl 5.6.0 fails in really weird ways on the x86 (and maybe other
   platforms) on large builds.
-o perl 5.6.1 has failed for us in different ways on different architectures.
+o Perl 5.6.1 has failed for us in different ways on different architectures.
   On some architectures it seems to work fine, on others it's flaky.
 
-We develop and test mostly with perl 5.8.0 or later, and we have
+We develop and test mostly with Perl 5.8.0 or later, and we have
 encountered no problems with it.
 
 For the latest distribution, manual pages, and information about mailing
@@ -104,9 +104,9 @@ o Makepp supports filenames with special characters like space or ":".  Just
 o Makepp supports more easily understood synonymns for the cryptic
   symbols $@, $<, $^, etc.
 
-o You can define your own text processing functions in perl if
+o You can define your own text processing functions in Perl if
   the default ones are not sophisticated or convenient enough.
-  You can also embed perl code to manipulate the make variables directly
+  You can also embed Perl code to manipulate the make variables directly
   in your makefile.
 
 Why not cons?  cook?  bake?  icmake?  jam?

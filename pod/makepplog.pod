@@ -2,7 +2,7 @@
 
 makepplog -- Textual analysis of the build log
 
-=for vc $Id: makepplog.pod,v 1.13 2010/09/13 21:17:25 pfeiffer Exp $
+=for vc $Id: makepplog.pod,v 1.14 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -52,7 +52,7 @@ B<mppl> I<option> ...
 
 Makepp by default writes a detailed log of its decision finding and actions.
 So as to not waste its time with pretty printing, this data is dumped in a
-compact but fairly cryptical format.  This tool does the pretty printing in
+compact but fairly cryptic format.  This tool does the pretty printing in
 various formats.  For a less detailed but even prettier graphical view see
 L<makeppgraph|makeppgraph>.
 
@@ -117,10 +117,10 @@ makefiles with F<.../> so as to keep odd pathes out of your sight.
 The I<list> specifies one or more space separated Shell style patterns (with
 [xyz], ?, *, {a,bc,def}).  Remember to protect these from your Shell by
 quoting.  These are matched against the message keys (as shown by
-C<--showkey>).  Each pattern may be preceded with an exclamtion mark (C<!>) or
+C<--showkey>).  Each pattern may be preceded with an exclamation mark (C<!>) or
 a caret (C<^>) to exclude the matched keys from those selected before instead
 of adding them to the selection.  If the first pattern starts with an
-exclamtion mark, it operates on all keys.  There are a few key prefixes with
+exclamation mark, it operates on all keys.  There are a few key prefixes with
 fixed meanings so you can select categories of keys:
 
 =over
@@ -230,7 +230,7 @@ If you want to know which file includes which other file, and nothing else:
     makepplog -p '/^INCL$/'
 
 If you want to format lines with a prefix so Emacs' compilation-mode can parse
-the lines and exlude all scanning related messages:
+the lines and exclude all scanning related messages:
 
     makepplog -mp '!/^SCAN/'
 

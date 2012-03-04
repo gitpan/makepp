@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.196 2011/12/04 12:37:27 pfeiffer Exp $
+# $Id: Subs.pm,v 1.198 2012/03/04 13:56:35 pfeiffer Exp $
 
 =head1 NAME
 
@@ -16,12 +16,12 @@ Subroutines in this package are called in two ways:
 Any line which isn't a rule or an assignment and has at the left margin a word
 is interpreted as a subroutine call to a subroutine in the makefile package,
 or if not in the makefile package, in this package.  "s_" is prefixed to the
-name before the perl function is looked up.
+name before the Perl function is looked up.
 
 =item 2)
 
 Any function that is in a make expression (e.g., $(xyz abc)) attempts to call
-a perl function in the make package, and failing that, in this package.  "f_"
+a Perl function in the make package, and failing that, in this package.  "f_"
 is prefixed to the name first.
 
 =back
@@ -49,7 +49,7 @@ use Mpp::CommandParser::Gcc;
 our( $makefile, $makefile_line );
 sub eval_or_die($$$) {
   my $code = $_[0];
-  # Make $makefile and $makefile_line available to the perl code, so that it
+  # Make $makefile and $makefile_line available to the Perl code, so that it
   # can call f_* and s_* subroutines.
   local( undef, $makefile, $makefile_line ) = @_; # Name the arguments.
 
@@ -266,7 +266,7 @@ sub relative_filenames {
 # a) The text after the function name in the makefile (with other macros
 #    already expanded).
 # b) The makefile.
-# c) The line number in the makefile that this expression occured in.
+# c) The line number in the makefile that this expression occurred in.
 #
 
 #
@@ -316,7 +316,7 @@ sub arg { $_[1] && ref $_[0] ? $_[1]->expand_text( ${$_[0]}, $_[2] ) : $_[0] }
 # only_comma: don't eat space around commas
 #
 sub args {
-  local $_ = ref $_[0] ? ${$_[0]} : $_[0]; # Make a modifyable copy
+  local $_ = ref $_[0] ? ${$_[0]} : $_[0]; # Make a modifiable copy
   my $max = $_[3] || 2;
   my $min = ($_[4] or $max == ~0 ? 1 : $max) - 1;
   pos = 0;
@@ -719,7 +719,7 @@ sub f_iftrue {
 
 #
 # Infer the linker command from a list of objects.  If any of the objects
-# is fortran, we use $(FC) as a linker; if any of the objects is C++, we
+# is Fortran, we use $(FC) as a linker; if any of the objects is C++, we
 # use $(CXX); otherwise, we use $(CC).
 #
 # This function is mostly used by the default link rules (see
@@ -834,7 +834,7 @@ sub f_infer_objects {
       my $handle = when_done $bh, # Build this dependency.
       sub {			# Called when the build is finished:
 	defined($bh) && $bh->status and return $bh->status;
-				# Skip if an error occured.
+				# Skip if an error occurred.
 	my @this_sources = split /\01/, Mpp::File::build_info_string($o_info,'SORTED_DEPS') || '';
 				# Get the list of source files that went into
 				# it.
@@ -1172,7 +1172,7 @@ sub f_shell {
       warn "shell command `$str' returned `$?' at `$mkfile_line'\n";
   } else {
 #
-# We used to use perl's backquotes operators but these seem to have trouble,
+# We used to use Perl's backquotes operators but these seem to have trouble,
 # especially when doing parallel builds.  The backquote operator doesn't seem
 # to capture all of the output.	 Every once in a while (sometimes more often,
 # depending on system load and whether it's a parallel build) the backquote
@@ -1382,7 +1382,7 @@ sub f_sorted_dependencies {
 *f_sorted_inputs = *f_sorted_dependencies;
 
 #
-# Foreach is a little bit trick, since we have to support the new
+# Foreach is a little bit tricky, since we have to support the new
 # $(foreach) automatic variable, but also the old GNU make function
 # foreach.  We can tell the difference pretty easily by whether we have
 # any arguments.
@@ -1704,14 +1704,14 @@ sub s_perl {#__
 				# Name the arguments.
   $perl_code = Mpp::Makefile::read_block( $keyword->{make} ? 'makeperl' : 'perl', $perl_code );
   $perl_code = $mkfile->expand_text($perl_code, $mkfile_line) if $keyword->{make};
-  $mkfile->cd;		# Make sure we're in the correct directory
-				# because some perl code will expect this.
+  $mkfile->cd;			# Make sure we're in the correct directory
+				# because some Perl code will expect this.
   eval_or_die $perl_code, $mkfile, $mkfile_line;
 }
 
 
 #
-# Begin a whole block of perl code.
+# Begin a whole block of Perl code.
 #
 sub s_perl_begin {#_
   my ($perl_code, $mkfile, $mkfile_line) = @_;
@@ -1720,7 +1720,7 @@ sub s_perl_begin {#_
     if $perl_code;
   $perl_code = Mpp::Makefile::read_block( perl_begin => $perl_code, qr/perl[-_]end/ );
   $mkfile->cd;			# Make sure we're in the correct directory
-				# because some perl code will expect this.
+				# because some Perl code will expect this.
   eval_or_die $perl_code, $mkfile, $mkfile_line;
 }
 

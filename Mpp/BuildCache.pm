@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.46 2011/09/15 20:58:00 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.47 2012/03/04 13:56:35 pfeiffer Exp $
 #
 # Possible improvements:
 #
@@ -153,7 +153,7 @@ Copies or links the file into the build cache with the given file key.	Also
 the build information is stored alongside the file so that when it is
 retrieved we can verify that in fact it is exactly what we want.
 
-Returns a true value if the operation succeded, false if any part failed.  If
+Returns a true value if the operation succeeded, false if any part failed.  If
 anything failed in updating the build cache, the cache is cleaned up and left
 in a consistent state.
 
@@ -278,7 +278,7 @@ sub cache_file {
       $linking = 1;
       $target_src = $input_filename;
       $target_prot &= ~0222;	# Make it read only, so that no one can
-				# accidently corrupt the build cache copy.
+				# accidentally corrupt the build cache copy.
       Mpp::File::set_build_info_string( $input_finfo, 'LINKED_TO_CACHE', 1 );
 				# Remember that it's linked to the build
 				# cache, so we need to delete it before

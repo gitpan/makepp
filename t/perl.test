@@ -13,7 +13,7 @@ perl_begin
 
 perl_end
 
-perl { sub f_foo { return "foo"; } } # A one-line perl statement.
+perl { sub f_foo { return "foo"; } } # A one-line Perl statement.
 
 sub f_abc { return "abc"; }	# A one-line sub statement.
 
@@ -25,7 +25,7 @@ sub f_jkl			# A multi-line sub statement.
   return "jkl";
 }
 
-perl {				# A multi-line perl statement.
+perl {				# A multi-line Perl statement.
   sub f_bar { return "bar"; }
 }
 
@@ -33,7 +33,7 @@ sub f_ghi {{			# A double-paren sub statement.
   return 'ghi';
 }}
 
-perl				# A double-paren perl statement.
+perl				# A double-paren Perl statement.
   {{
     *{"f_def-."} = sub { 'def' };
   }}

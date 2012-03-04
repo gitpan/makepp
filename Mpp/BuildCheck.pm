@@ -1,4 +1,4 @@
-# $Id: BuildCheck.pm,v 1.9 2011/10/30 20:57:09 pfeiffer Exp $
+# $Id: BuildCheck.pm,v 1.10 2012/03/04 13:56:35 pfeiffer Exp $
 package Mpp::BuildCheck;
 
 =head1 NAME
@@ -29,8 +29,8 @@ object has no data, and its only purpose is to contain a blessed reference to
 the package that actually implements the functions.  Each rule contains a
 reference to the build check object that is appropriate for it.  The object is
 found by the name of the build check class.  For example, the above rule uses
-the object referenced by C<$BuildCeck::special_build::special_build>.  (The
-purpose of this naming scheme is to make it impossible to inherit accidently a
+the object referenced by C<$Mpp::BuildCheck::special_build::special_build>.  (The
+purpose of this naming scheme is to make it impossible to inherit accidentally a
 singleton object, which would cause the wrong Mpp::Signature class to be used.)
 
 The build check class is independent of the signature class.  In general, any

@@ -15,7 +15,7 @@ makepp qw(generated stale x STALE=1);
 $(phony default): *
 
 perl_begin
-    # Test that command line variables are accessible in perl
+    # Test that command line variables are accessible in Perl
     $MY_STALE = $makefile->expand_variable( 'STALE' );
 perl_end
 

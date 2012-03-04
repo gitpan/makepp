@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.113 2011/12/04 12:38:22 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.114 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 NAME
 
@@ -844,7 +844,7 @@ sub grok_build_info_file {
     return unless /(.+?)=(.*)/;	# Check the format.
     return \%build_info if $1 eq 'END';
     ($build_info{$1} = $2) =~
-      tr/\cC\r/\n/d;		# Strip out the silly windows-format lines too.
+      tr/\cC\r/\n/d;		# Strip out the silly Windows EOLs too.
   }
   undef;
 }

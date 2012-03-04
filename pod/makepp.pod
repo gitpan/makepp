@@ -2,7 +2,7 @@
 
 makepp -- Compatible but improved replacement for make
 
-=for vc $Id: makepp.pod,v 1.34 2012/01/11 21:01:46 pfeiffer Exp $
+=for vc $Id: makepp.pod,v 1.36 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -29,9 +29,9 @@ Makepp passes an extensive test-suite, and is used in several big projects.
 If you have any issues with the latest CVS version, holler, and we'll try to
 fix it quickly.
 
-Makepp runs with any version of perl since 5.6.  I have seen it occasionally
-trip over a nasty bug in perl 5.6.0 on linux which causes makepp to spit out
-all kinds of strange error messages, so I don't recommend running with perl
+Makepp runs with any version of Perl since 5.6.  I have seen it occasionally
+trip over a nasty bug in Perl 5.6.0 on Linux which causes makepp to spit out
+all kinds of strange error messages, so I don't recommend running with Perl
 5.6.0; however, this is apparently rare so if you have 5.6.0 you might well be
 ok.
 
@@ -59,7 +59,7 @@ Various tips for making makepp go much faster.
 
 =item L<Perl Performance|perl_performance>
 
-Various tips for making perl (within your makefiles and elsewhere) go faster.
+Various tips for making Perl (within your makefiles and elsewhere) go faster.
 
 =back
 
@@ -110,7 +110,7 @@ Where and and with what version of Perl makepp works.
 
 =item L<Extending|makepp_extending>
 
-How you can add functions to makepp by writing your own perl code.
+How you can add functions to makepp by writing your own Perl code.
 
 =item L<Functions|makepp_functions>
 
@@ -204,7 +204,7 @@ don't exist yet but have to be built.  (This is true no matter where on the
 include path they come from, unlike programs that depend on gcc's
 S<C<-MM -MG>> option.)  Makepp has a flexible system for doing this which is
 based on scanning the build command; you can adapt it for other languages or
-build commands by writing a perl subroutine.
+build commands by writing a Perl subroutine.
 
 =item Better system for hierarchical builds
 
@@ -280,7 +280,7 @@ definition:
 
 Now suppose you decide to turn on the C<SPECIAL_OPTION> option by adding
 C<-DSPECIAL_OPTION> to the command line.  A recompilation of everything
-is needed, but a traditional unix make will not detect this, and will
+is needed, but a traditional Unix make will not detect this, and will
 only recompile source files which have actually changed.  As a result,
 some of your modules will be compiled with -DSPECIAL_OPTION, and others
 won't.  After a very frustrating debugging session, you will discover
@@ -306,7 +306,7 @@ modules.  Then when you've found your bug, just type
 and it will be recompiled with optimization.  You don't need to type
 C<make clean> when you change build options.
 
-Some makefiles (e.g., those for the linux kernel) go to incredible
+Some makefiles (e.g., those for the Linux kernel) go to incredible
 lengths to force recompilation when the compile command changes.  With
 makepp, it's taken care of automatically--you don't have to do anything.
 
@@ -435,12 +435,12 @@ details.)
 
 =item Extensible textual substutition functions
 
-Makepp can use arbitrary perl subroutines for textual substitution in
-the makefile.  If you know perl, you are not constrained at all by the
+Makepp can use arbitrary Perl subroutines for textual substitution in
+the makefile.  If you know Perl, you are not constrained at all by the
 set of makepp's builtin textual manipulation functions.
 
-You can also simply write perl code in your makefile.  You can manipulate Make
-variables with the full power of the entire perl language.  See
+You can also simply write Perl code in your makefile.  You can manipulate Make
+variables with the full power of the entire Perl language.  See
 L<makepp_variables> for details.
 
 =item Logging of build decisions
@@ -460,7 +460,7 @@ running simultaneously.
 
 =item Synonyms for cryptic variables
 
-Makepp supports easier-to-remember synonymns for the cryptic make
+Makepp supports easier-to-remember synonyms for the cryptic make
 variables C<$@>, C<$^>, and C<$E<lt>>.  See L<makepp_variables> for
 details.
 

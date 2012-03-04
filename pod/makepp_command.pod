@@ -2,7 +2,7 @@
 
 makepp -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.56 2012/01/11 21:01:46 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.57 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -232,7 +232,7 @@ directory and everything under it defaults to C<--do-build>, while the overall
 root of your file system defaults to C<--dont-build>.  That way, everything
 inside your build system is built (if necessary) but nothing outside is
 attempted.  If, in this scenario, you want external parts to always be built
-as needed, you must exlicitly pick them up with C<load_makefile> statements in
+as needed, you must explicitly pick them up with C<load_makefile> statements in
 one of the makefiles within your tree.
 
 You may have one F<RootMakeppfile(.mk)> each, in separate build trees, and
@@ -240,7 +240,7 @@ they will be loaded if one tree has dependencies in another one.  But you are
 not allowed to have F<RootMakeppfile(.mk)> in nested directories, avoiding
 funny effects that tend to arise when you accidentally call C<makepp
 --repository> again in a subdirectory.  These effects include duplicate rules
-through duplicate sources, or eternal buld cache reimports because cached
+through duplicate sources, or eternal build cache reimports because cached
 files have the right signatures but the wrong relative pathes.
 
 Override C<--dont-build> for the specified file or directory.  If you have a
@@ -252,7 +252,7 @@ directory, then the root (and all else under it) of your build system defaults
 to C<--dont-build>.
 
 To resolve conflicts between C<--dont-build> and C<--do-build>, the one
-with the most specific path takes precendece regardless of order.
+with the most specific path takes precedence regardless of order.
 If the same path is specified with both C<--dont-build> and C<--do-build>,
 then the rightmost one wins.
 
@@ -392,7 +392,7 @@ back to starting another independent instance of makepp.  If this fails, try
 C<--traditional-recursive-make>.
 
 If you do use this option, you will get log files in the each directory the
-fall back occured in.  To get rid of only them use C<makeppclean --logs
+fall back occurred in.  To get rid of only them use C<makeppclean --logs
 --recurse> or C<mppc -lr>.
 
 =item -I I<directory>
@@ -588,7 +588,7 @@ L<makepp_build_algorithm/Implicit loading>).  By default, makepp automatically
 loads a makefile from any directory that contains a dependency of some target
 it needs to build, and from any directory that is scanned by a wildcard.
 Sometimes, however, this causes a problem, since makefiles need to be loaded
-with different command line varaibles or options, and if they are implicitly
+with different command line variables or options, and if they are implicitly
 loaded before they are explicitly loaded by a recursive make invocation or the
 C<load_makefile> statement, makepp aborts with an error.  You can also turn
 off makefile loading on a directory-by-directory basis by using the
@@ -638,7 +638,7 @@ Ordinarily, makepp loads each makefile in, then looks to see whether
 there is a rule that specifies how to update the makefile.  If there is,
 and the makefile needs to be rebuilt, the command is executed, and the
 makefile is reread.  This often causes problems with makefiles produced
-for the standard unix make utility, because (in my experience) often the
+for the standard Unix make utility, because (in my experience) often the
 make rules for updating makefiles are inaccurate--they frequently omit
 targets which are modified.  This can cause makepp to remake a lot of
 files unnecessarily.  You can often solve this problem by simply

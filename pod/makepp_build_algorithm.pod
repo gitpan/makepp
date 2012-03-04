@@ -2,17 +2,17 @@
 
 makepp_build_algorithm -- How makepp executes a makefile
 
-=for vc $Id: makepp_build_algorithm.pod,v 1.6 2010/07/16 21:15:23 pfeiffer Exp $
+=for vc $Id: makepp_build_algorithm.pod,v 1.7 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
-Makepp's internals differ from the standard unix make in fundamental ways.
+Makepp's internals differ from the standard Unix make in fundamental ways.
 This page describes the different philosophy in detail.
 
 =head2 Reverse vs. forward inference
 
-Makepp works in the opposite direction from the standard unix make.
-Traditional unix make is given a target to build, and then it finds a
+Makepp works in the opposite direction from the standard Unix make.
+Traditional Unix make is given a target to build, and then it finds a
 rule which matches the characters in the target filename.  If the target
 is older than any of its dependencies of the rule, then it is rebuilt.
 
@@ -124,8 +124,8 @@ rebuild even if the files themselves haven't changed.
 
 =item *
 
-The architecture.  If you have compiled your program on linux
-and then switch to solaris, makepp automatically knows to
+The architecture.  If you have compiled your program on Linux
+and then switch to Solaris, makepp automatically knows to
 recompile everything.
 
 =back

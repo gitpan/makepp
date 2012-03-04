@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.118 2011/11/20 18:19:06 pfeiffer Exp $
+# $Id: Rule.pm,v 1.121 2012/03/04 13:56:35 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -245,9 +245,9 @@ sub find_all_targets_dependencies {
   }
 
 #
-# For some reason, the #@!$@#% linux kernel makefiles have a file that
+# For some reason, the #@!$@#% Linux kernel makefiles have a file that
 # depends on itself.  This looks like a simple mistake, but I want this
-# to work properly on the linux kernel, so we explicitly remove dependencies
+# to work properly on the Linux kernel, so we explicitly remove dependencies
 # that are equal to the target.
 #
   foreach (values %all_targets) {
@@ -576,14 +576,16 @@ sub save_build_info_ {
     if $value || $sub;
 }
 sub save_build_info_tag_ {
-  my ($self, $tinfo, $key, $sub) = @_;
+  my( $self, $tinfo, $key, $sub ) = @_;
   save_build_info_( $self, $tinfo, $key,
     sub {
       my $hashref = $_[0] || {};
       my @result;
       for(sort keys %$hashref) {
 	my $item=&$sub($hashref->{$_});
-	push @result, join1_ [$_, $item] if $item ne '';
+	push @result, join1_ [$_, $item] if $item ne '' || $key eq 'INCLUDE_PATHS';
+				# The latter can be empty on Win, if it includes only undef.
+				# This is not the same thing as an empty list, so store it.
       }
       join "\02", @result;
     }
@@ -627,7 +629,7 @@ sub load_scaninfo_single {
 
   # Early out for command changed. This is redundant, but it saves a lot of
   # work if it fails, especially because loading the cached dependencies might
-  # entail building metadepedencies.
+  # entail building metadependencies.
   return 'the build command changed' if $command_string ne $command;
 
   my $name = $self->{SIG_METHOD_NAME} || '';
@@ -1136,7 +1138,7 @@ sub execute_command {
       $action = $self->{DISPATCH} . " sh -c '$action'";
     }
     Mpp::print_profile( $action ) unless $silent_flag;
-    if( Mpp::is_windows > 0 ) {	# Can't fork / exec on native windows.
+    if( Mpp::is_windows > 0 ) {	# Can't fork / exec on native Windows.
       {
 	# NOTE: In Cygwin, TERM and HUP are automatically unblocked in the
 	# system process, but INT and QUIT are not -- they are just ignored
@@ -1169,7 +1171,7 @@ sub execute_command {
 # 1) A nasty message is printed if the first word is not a valid shell
 #    command, and the perl process aborts, apparently without setting the
 #    correct exit code.
-# 2) On linux, system() blocks signals, which means that makepp wouldn't
+# 2) On Linux, system() blocks signals, which means that makepp wouldn't
 #    respond to ^C or other things like that.  (See the man page.)
 #
       &Mpp::flush_log if Mpp::is_perl_5_6;
@@ -1194,7 +1196,7 @@ sub execute_command {
 
   Mpp::is_windows > 0 and return 0; # If we didn't fork, we'll always get here.
 
-  # Close filehandles that may have been left opened by a perl command.
+  # Close filehandles that may have been left opened by a Perl command.
   if( $maybe_open || $unsafe ) {
     if( Mpp::is_perl_5_6 ) {
       close $_ for @Mpp::close_fhs, Mpp::MAKEPP ? values %{$self->{MAKEFILE}{PACKAGE}.'::'} : ();
@@ -1387,7 +1389,7 @@ sub add_target {
 # For example, we might have a rule like:
 #
 #   %.o: %.c
-#     compilation commnad
+#     compilation command
 #
 #   xyz.o : abc.h def.h ghi.h
 #

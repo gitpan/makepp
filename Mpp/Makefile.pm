@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.159 2012/01/11 21:01:12 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.161 2012/02/28 21:41:18 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_do);
@@ -248,7 +248,7 @@ sub expand_expression {
     my( $rtn, $rest_of_line ) = ($1, $2);
     my $orig = $rtn;
     my $code = $rtn =~ tr/-/_/ && *{"$self->{PACKAGE}::f_$rtn"}{CODE} ||
-				# Convert - into _ so it's more perl friendly.
+				# Convert - into _ so it's more Perl friendly.
       *{"$self->{PACKAGE}::f_$orig"}{CODE};
 				# See if it's a known function.
     if( $code ) {
@@ -297,16 +297,15 @@ sub expand_expression {
     open my $fh, '<', $temp or die;
     local $/;
     $result = <$fh>;
-    $result =~ s/\r?\n/ /g # Get rid of newlines.
+    $result =~ s/\r?\n/ /g	# Get rid of newlines.
       unless $s_define;
     $result =~ s/\s+$//;	# Strip out trailing whitespace.
   } elsif( $expr =~ /^([^:#=]+):([^=]+)=([^=]+)$/ ) {
-				# Substitution reference (e.g., 'x:%.o=%.c')?
-    my $from = (0 <= index $2, '%') ? $2 : "%$2"; # Use the full GNU make style
-    my $to = (0 <= index $3, '%') ? $3 : "%$3";
+				# Substitution reference ('x:%.o=%.c' or 'x:o=c')?
+    my $pct = 0 <= index $2, '%'; # Is it the 1st form?
     $result = join ' ',
-      Mpp::Text::pattern_substitution $from, $to,
-	  split_on_whitespace expand_variable( $self, $1, $makefile_line );
+      Mpp::Text::pattern_substitution $pct ? ($2, $3) : ("%$2", "%$3"),
+	split_on_whitespace expand_variable( $self, $1, $makefile_line );
   } else {			# Must be a vanilla variable to expand.
     $result = expand_variable( $self, $expr, $makefile_line );
   }
@@ -321,7 +320,7 @@ sub expand_expression {
 }
 
 #
-# A variable allowing to intoduce special purpose Makefile variables that have
+# A variable allowing to introduce special purpose Makefile variables that have
 # a higher lookup priority than any other.  This is used by rules for target
 # specific variables and by $(foreach ...) for the index variable.
 # This must (typically temporarily) contain a hash reference with one or two
@@ -367,7 +366,7 @@ sub expand_variable {
 
 # 1st attempt:
     if( $var =~ /^\d+$/ || exists $Mpp::Subs::perl_unfriendly_symbols{$var} ) { # Is it one of the call
-				# or 1-char symbols like '$(11)' or '$@' that conflict with perl variables?
+				# or 1-char symbols like '$(11)' or '$@' that conflict with Perl variables?
 				# The call fn may eval more than got passed.  These can't be per target or global.
       if( ref $Mpp::Subs::perl_unfriendly_symbols{$var} ) {
 	$result = eval { &{$Mpp::Subs::perl_unfriendly_symbols{$var}}( undef, $self, $makefile_line ) };
@@ -427,6 +426,9 @@ sub expand_variable {
       my $tmp = !$Mpp::environment_override && $self->{ENVIRONMENT}{$var};
       if( $tmp && $fn == *{"Mpp::Subs::f_$var"}{CODE} ) {
 	$result = $tmp;
+      } elsif( defined $mode && $mode == 1 ) {
+	$result = "\$(perl &f_$var)"; # Turn it into a normal expression, so it can be extended.
+	$reexpand = 1;
       } else {
 	local $Mpp::makefile = $self; # Pass the function a reference to the makefile.
 	$result = &$fn( '', $self, $makefile_line ) and
@@ -537,7 +539,7 @@ sub implicitly_load {
 =head2 cleanup_vars
 
 Remove undefined variables from the environment and the command line.
-Such variables come into existence when perl looks for them, but they need
+Such variables come into existence when Perl looks for them, but they need
 to be ignored for comparing and/or setting them.
 
 =cut
@@ -967,7 +969,7 @@ sub initialize {
     local $self->{INITIALIZED} = 1; # Don't go into deep recursion if expanding an export
     for my $var (keys %{$self->{EXPORTS}}) {
       $self->{EXPORTS}{$var} = expand_variable $self, $var, absolute_filename( $self->{MAKEFILE} ) . ':0';
-				# We don't know the line here, but provide one, in case perl code gets assigned.
+				# We don't know the line here, but provide one, in case Perl code gets assigned.
     }
 
     # NOTE: Don't set INITIALIZED here, because even though we've done the
@@ -1012,7 +1014,7 @@ sub assign {
     if( expand_variable $self, $name, $makefile_line, 2 ) {
       return $self;		# Nothing to do for ?= if already defined
     } else {
-      $type = 0;	# Else it's like a = assignment.
+      $type = 0;		# Else it's like a = assignment.
     }
   }
 
@@ -1791,7 +1793,7 @@ sub grok_rule {
 #
 # Read a block either optionally indented {{ to }} or single braced.
 # The latter must finish on the same line or at the very beginning of
-# a following line.  Or upto the regexp given as 2nd arg
+# a following line.  Or up to the regexp given as 2nd arg
 #
 sub read_block {
   my( $name, $code, $re, $strip ) = @_;		# Name the arguments.
@@ -1858,7 +1860,7 @@ sub read_makefile {
     $makefile_contents = <$fh>; # Read the whole makefile.
     $makefile_contents =~ tr/\r//d;
 				# Strip out those annoying CR characters
-				# which get put in sometimes on windows.
+				# which get put in sometimes on Windows.
   }
 
   if( $c_preprocess ) {
@@ -1953,7 +1955,7 @@ sub read_makefile {
 
     if( /^\s*([-\w]+)\s+(.*)/ ) { # Statement at beginning of line?
       my ($rtn, $rest_of_line) = ($1, $2);
-      $rtn =~ tr/-/_/;		# Make routine names more perl friendly.
+      $rtn =~ tr/-/_/;		# Make routine names more Perl friendly.
       substr $rtn, 0, 0, "$self->{PACKAGE}::s_";
       if( defined &$rtn ) {	# Function from makefile?
 	eval { &$rtn( $rest_of_line, $self, $makefile_line, $keyword ) };
@@ -2192,13 +2194,16 @@ sub _read_makefile_line_stripped_1 {
   }
 
   defined $line or return undef; # No point checking at end of file.
-  if( -1 < index $line, '$[' ) {
-    eval {
-      local $expand_bracket = 1;
-      unshift_makefile_lines( expand_text $makefile, $line, $makefile_name . ':' . $makefile_lineno );
+  if( -1 < (my $bracket = index $line, '$[') ) {
+    local $expand_bracket = 1;
+    $line = expand_text $makefile, $line, $makefile_name . ':' . $makefile_lineno;
+    if( -1 < index substr( $line, 0, -1 ), "\n" ) {
+      # TODO: figure out if we are in makeperl, else don't expand after #
+      warn "$makefile_name:$makefile_lineno: After # multiline \$[] only comments out 1st line.\n"
+	if -1 < index_ignoring_quotes substr( $line, 0, $bracket ), '#';
+      unshift_makefile_lines( $line );
       $line = shift @hold_lines;
-    };
-    die $@ if $@;
+    }
   }
   return $line if $_[1];
 
@@ -2278,7 +2283,7 @@ sub _read_makefile_line_stripped_1 {
 #
 # Skip until we find a line containing else or endif.  This is used to skip
 # over the false part of an if statement.  With a true argument always skip
-# upto endif.
+# up to endif.
 #
 sub skip_makefile_until_else_or_endif {
   my $was_true = $_[0];
@@ -2318,7 +2323,7 @@ sub skip_makefile_until_else_or_endif {
     } else {
       if ($line =~ /^\s*([-\w]+)/ ) {
 	my $rtn = $1;
-	$rtn =~ tr/-/_/;	# Make routine names more perl friendly.
+	$rtn =~ tr/-/_/;	# Make routine names more Perl friendly.
 	substr $rtn, 0, 0, 'Mpp::Subs::s_';
 	next if defined &$rtn;	# Statement?
       }

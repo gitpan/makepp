@@ -1,4 +1,4 @@
-# $Id: Signature.pm,v 1.13 2011/11/07 21:24:52 pfeiffer Exp $
+# $Id: Signature.pm,v 1.14 2012/03/04 13:56:35 pfeiffer Exp $
 package Mpp::Signature;
 
 =head1 NAME
@@ -33,7 +33,7 @@ the package that actually implements the functions.  Each rule contains a
 reference to the Mpp::Signature object that is appropriate for it.  The object is
 found by the name of the Mpp::Signature class.  For example, the above rule uses
 the object referenced by C<$Mpp::Signature::special_build::special_build>.  (The
-purpose of this naming scheme is to make it impossible to inherit accidently a
+purpose of this naming scheme is to make it impossible to inherit accidentally a
 singleton object, which would cause the wrong Mpp::Signature class to be used.)
 
 

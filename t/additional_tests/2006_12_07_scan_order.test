@@ -1,4 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	1	644	1329052295	1329052295	is_relevant.pl
+have_cc
 ###	13	644	1169469581	1169504947	makepp_test_script.pl
 #
 # This test checks that 2nd level includes are correctly found and that a

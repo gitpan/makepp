@@ -1,6 +1,8 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	1	644	1329052295	1329052295	is_relevant.pl
+have_cc
 ###	51	644	1164351461	1208285030	makepp_test_script.pl
-# This test depends entirely on the builtin rules and the existence of a C compiler.
+# This test depends entirely on the builtin rules.
 #
 # Tests several things about C compilation:
 # 1) Correctly parsing command lines to scan for include files.

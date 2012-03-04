@@ -276,7 +276,7 @@ conveniently edited, especially in Emacs.
 =item -a, --append
 
 This can add further files to an existing I<spar>.  If that is empty or
-inexistant, this is the same as C<--createdata>.
+inexistent, this is the same as C<--createdata>.
 
 =item -c, --create
 

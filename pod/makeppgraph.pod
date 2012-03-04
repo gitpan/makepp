@@ -2,7 +2,7 @@
 
 makeppgraph -- Graphical analysis of the dependency graph
 
-=for vc $Id: makeppgraph.pod,v 1.15 2010/09/03 21:26:28 pfeiffer Exp $
+=for vc $Id: makeppgraph.pod,v 1.16 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -205,7 +205,7 @@ hexadecimal color specifications.
 SVG, one of the file types the backends can export to, is already quite old.
 But some browsers still have problems with it.  When embedding it with an
 object tag only Opera scales it, others clip it, which is useless for a
-thumbnail.  When viewed as a document of it's own, only Opera and Konqueoror
+thumbnail.  When viewed as a document of it's own, only Opera and Konqueror
 allow scaling it, while Firefox scales only the labels.  Even though the
 labels are text, no browser can search for them.  IE6 doesn't have a clue,
 unless you install a plugin.  A dedicated application, like Inkscape, can
@@ -403,7 +403,7 @@ Write the output to this file.
 =item --plain
 
 Don't use attributes like colors or dotted lines.  This is especially useful
-for uncluttering C<-t, --text> output.  In that format bidrectional edges will
+for uncluttering C<-t, --text> output.  In that format bidirectional edges will
 be lost unless you combine this with C<-s, --separate-directions>.
 
 =item -r I<perlcode>
@@ -456,7 +456,7 @@ gallery L<http://makepp.sourceforge.net/gallery/>.
 
 This is the first name rewriting that occurs, if the C<-r, --rename> option is
 given.  For every name encountered, perlcode gets called.  It gets a filename
-in C<$_>, and it may modify it.  This is often needed, bacause makepp logs
+in C<$_>, and it may modify it.  This is often needed, because makepp logs
 fully qualified file names, so one node can easily be half a screen wide.
 
 For one thing, you can rewrite names to C<undef> or the empty string.  This
@@ -464,7 +464,7 @@ will eliminate the node from the graph.  Note that eliminating a node in this
 first stage will break a chain of dependency if this node was in the middle.
 
 You can also rewrite various names to the same string, coercing them all into
-the same node, which accumulates the combined dependencies and dependees.
+the same node, which accumulates the combined dependencies and dependents.
 
 On the other hand you can just rename names to (usually) shorter names, so as
 to reduce the width of nodes, which can be far to wide with absolute

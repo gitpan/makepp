@@ -1,4 +1,4 @@
-# $Id: File.pm,v 1.100 2011/08/06 11:47:53 pfeiffer Exp $
+# $Id: File.pm,v 1.102 2012/03/04 13:56:35 pfeiffer Exp $
 
 package Mpp::File;
 require Exporter;
@@ -115,7 +115,7 @@ additional information to the structure.
 Mpp::File is designed so it won't be confused by soft-linked directories.
 However, it will have problems if a soft link initially points to one
 directory and then is changed to point to a different directory, or if files
-are referred to thruogh a symbolic link to a directory before the symbolic
+are referred to through a symbolic link to a directory before the symbolic
 link is actually created.  Generally speaking, it's not a good idea to modify
 existing soft links.
 
@@ -176,8 +176,8 @@ BEGIN {
       unless $done;
     return;
 				# If that doesn't work for some reason, assume
-				# we are case insensitive if windows, and case
-				# sensitive for unix.
+				# we are case insensitive if Windows, and case
+				# sensitive for Unix.
   }
 
   *case_sensitive_filenames = $Mpp::Text::N[-e uc $test_fname ? 0 : 1]
@@ -317,7 +317,7 @@ sub absolute_filename {
   if( Mpp::is_windows ) {
     $fstr =~ s@^/(?=[A-Za-z]:)@@s;
 				# Convert /C: to C:.  We converted the other
-				# way so we could use unix file name syntax
+				# way so we could use Unix file name syntax
 				# everywhere.
   }
   $fstr;
@@ -385,7 +385,7 @@ sub chdir {
 
   publish($newdir);		# Make sure we know about this directory.
 
-  $CWD_INFO = $newdir; # Store the new directory if that succeded.
+  $CWD_INFO = $newdir; # Store the new directory if that succeeded.
 }
 
 
@@ -741,7 +741,7 @@ sub is_writable {
   }
 
 #
-# For some reason, on cygwin it is possible to write to a directory whose
+# For some reason, on Cygwin it is possible to write to a directory whose
 # mode is 0000, so trying to create a file in the directory is not a valid
 # test.	 So we explicitly test the mode instead of trying to open a file.
 # If the mode says it's read only for all users, then we don't bother
@@ -985,7 +985,7 @@ sub read_directory {
     publish($finfo);		# Activate any wildcard routines.
   }
 
-  for my $fname ( keys %previous_files ) {	# Forget what we knew about newly inexistant files.
+  for my $fname ( keys %previous_files ) {	# Forget what we knew about newly inexistent files.
     ($dircontents->{$fname}{LSTAT} || 0) == $empty_array or
       delete @{$dircontents->{$fname}}{qw(LINK_DEREF xEXISTS IS_READABLE LSTAT HAVE_READ_PERMISSION IS_WRITABLE)};
   }

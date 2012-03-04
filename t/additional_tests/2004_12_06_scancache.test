@@ -1,4 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	1	644	1329052295	1329052295	is_relevant.pl
+have_cc
 ###	31	755	1154546812	1209997183	makepp_test_script.pl
 my $x = is_windows > 0 ? '.\\x' : './x';
 makepp;

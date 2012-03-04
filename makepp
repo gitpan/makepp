@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.204 2011/11/25 21:36:39 pfeiffer Exp $
+# $Id: makepp,v 1.206 2012/03/04 13:56:35 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -696,7 +696,7 @@ sub build_dependencies_done {
   # We need to cache the scanner info even if the action wasn't executed,
   # because the existing build info may have been generated with
   # --nocache_scaninfo. Since Mpp::File::set_build_info is intelligent, this
-  # shouldn't slow things down noticably if the scan info didn't change.
+  # shouldn't slow things down noticeably if the scan info didn't change.
   if( UNIVERSAL::isa $build_check_method, 'Mpp::BuildCheck::exact_match' ) {
     $rule->cache_scaninfo([
       grep {
@@ -715,7 +715,7 @@ sub build_dependencies_done {
 
 #
 # This subroutine is called when a rule's command has finished executing.
-# We don't reach this subroutine if an error occured while the rule was
+# We don't reach this subroutine if an error occurred while the rule was
 # executing.
 #
 # Arguments:
@@ -859,7 +859,7 @@ sub build_target_done {
 	  if( $mfile && $mfile->expand_variable( 'makepp_require_phony', $rule->source )) {
 	    $implicit_phony++;	# DefaultRule has no MAKEFILE.
 	  } elsif( UNIVERSAL::isa $rule, 'Mpp::DefaultRule' ) {
-	    warn 'There is no rule to build inexistant ' . absolute_filename( $tinfo ) . "\n";
+	    warn 'There is no rule to build inexistent ' . absolute_filename( $tinfo ) . "\n";
 	  } elsif( $n_phony_messages++ ) { # Give a shorter message on other instances.
 	    warn 'Target ' . absolute_filename( $tinfo ) . " is probably also phony.\n";
 	  } else {

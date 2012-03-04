@@ -1,3 +1,46 @@
+2012-03-04  pfeiffer  <occitan@esperanto.org>
+
+Version 2.0rc3 makepp-2.0rc3.tgz, technically 1.50-120304:20-0228:1-0207:5 on sourceforge & CPAN.
+
+	* *: Spellcheck pod and comments.
+
+2012-02-28  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm (expand_expression): In substitution reference add % to both or none. (Bug 3488851)
+	(expand_variable): Extend builtin vars as though they were "=" assigned. (Bug 3488858)
+
+	* Mpp/Rule.pm (save_build_info_tag_): Don't skip INCLUDE_PATHS if it contains only undef.
+
+	* pod/html/Pod/Html.pm
+	* pod/html/html.pl: Bundle 1.11 as newer ones are not compatible and broken. (Perl bug 110520)
+
+2012-02-14  pfeiffer  <occitan@esperanto.org>
+
+	* t/run_tests.pl (have_cc):
+	* t/**/*.test: Check for a C compiler, eliminating CPAN testers' false negatives.
+
+2012-02-08  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm (_read_makefile_line_stripped_1): Warn about multiline "# ... $[X]".
+
+	* t/makeppreplay.test: Give hint about ccache bug (found by Mike Frysinger).
+
+	* *: Fix many typos.
+
+2012-01-22  pfeiffer  <occitan@esperanto.org>
+
+	* pod/html/html.pl:
+	* pod/html/makepp.less: Create valid xhtml 1.1.
+
+2012-01-19  pfeiffer  <occitan@esperanto.org>
+
+	* pod/html/makepp.{css,js}:
+	* pod/html/html.pl: Add button to search and abbrevs to nav bar, remember its side.
+
+	* install.pl: Convert index to better html, it was useless as Man anyway.
+
+	* pod/makepp_faq.pod: Add safety question.
+
 2012-01-11  pfeiffer  <occitan@esperanto.org>
 
 Version 2.0rc2 makepp-2.0rc2.tgz, technically 1.50-120111:3-0106:1-111204:2 on sourceforge & CPAN.
@@ -148,7 +191,7 @@ Snapshot makepp-1.50.110915.tgz, version 1.50-110915:6-0827:1-0806:6 on sourcefo
 	xDELETABLE, xUPDATE_BUILD_INFOS/NEEDS_BUILD_UPDATE, xREFERENCED,
 	xNO_IMPLICIT_LOAD, xLOOKED_FOR_SUBDIRS, xIN_VERBATIM_BLOCK
 
-	* Mpp/Event.pm (start): Do real exec on cygwin and msys.
+	* Mpp/Event.pm (start): Do real exec on Cygwin and MSYS.
 
 	* makepplog (REMOVE): Also give the reason, which increased log version to 3.
 
@@ -484,7 +527,7 @@ Snapshot makepp-1.50.100422.tgz, version 1.50-04221-02242-02094 on CPAN.
 	* Mpp/FileOpt.pm (set_additional_dependencies): Handle :include of
 	generated dependency file. (Suggested by Yoni Londner)
 	(get_rule): Remove unneeded label colliding with a reserved word
-	in perl 5.11.
+	in Perl 5.11.
 
 	* Mpp/Subs.pm (scanner_none):
 	* Mpp/ActionParser.pm (parse_rule): Keep promise that scanner none
@@ -1013,7 +1056,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 	* Makefile.pm (_truthval):
 	* ActionParser.pm (find_command_parser):
 	* makepp: Ensure that HOME is set.  Enhance is_windows: negative
-	means Unix-like (Cygwin, MinGW msys), positive means Shell- and
+	means Unix-like (Cygwin, MinGW MSYS), positive means Shell- and
 	coreutils-less (ActiveState).
 
 	* FileInfo.pm (is_writable): Revert to immediately deleting
@@ -1072,7 +1115,7 @@ Snapshot makepp-1.50-cvs-080517.tgz, version 1.50-051710-05101-05084 on CPAN.
 
 	* makepp (propagate_interrupts): Drop unused sub.
 	(build): Fix dont_build handling, so it gives a warning when an
-	inexistant file was specified, for which we might have found out
+	inexistent file was specified, for which we might have found out
 	later it's phony.
 	(load_repository_recurse): Only loop once, and don't recurse into
 	single files.
@@ -2119,7 +2162,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* t/run_tests.pl (n_files): Avoid "Can't stat answers"
 	warning.
 
-	* pod/makepp_build_cache.pod: Use perl wildcards rather than
+	* pod/makepp_build_cache.pod: Use Perl wildcards rather than
 	$(wildcard /home*) to avoid loading a default makefile.
 
 	* t/additional_tests/2005_01_17_runtime.test (c): Don't
@@ -2260,7 +2303,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	the string is often the same, but not the ref it is associated
 	with.
 
-	* makepplog: Adapt to new log format, and offer preliminary perl
+	* makepplog: Adapt to new log format, and offer preliminary Perl
 	code filter option, e.g. -p '!/^SCAN/'
 
 	* Scanner.pm (scan_file1): Cache and check that we already
@@ -2747,7 +2790,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* t/additional_tests/2006_02_18_makeppbuiltin.test:
 	Reorganized slightly, because with the oncome of &preprocess, a
-	strange dump when exiting in eval occured in 5.8.1 - 5.8.3.
+	strange dump when exiting in eval occurred in 5.8.1 - 5.8.3.
 
 	* pod/makepp_release_notes.pod, pod/makepp_builtins.pod: Document
 	&preprocess.
@@ -2871,7 +2914,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	3 chapters.
 
 	* pod/makepp_extending.pod: Point to the chapter on the problems
-	with using makefile variables in perl.
+	with using makefile variables in Perl.
 
 2006-07-07  Anders Johnson  <ajohnson@nvidia.com>
 
@@ -2898,7 +2941,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Makefile.pm (expand_variable): Handle ;= and &=.  Do %ENV before
 	or after f_subs, depending on $::environment_override.
-	(load): Don't turn command line variables into perl vars, as that
+	(load): Don't turn command line variables into Perl vars, as that
 	breaks the new lookup logic.  See makepp_variables.pod for
 	details.
 	(assign): New function, extracted from parse_assignment.
@@ -2920,7 +2963,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	assignment.
 
 	* pod/makepp_variables.pod: Document the new features.  Add a new
-	section explaining why directly accessing vars from perl is not
+	section explaining why directly accessing vars from Perl is not
 	such a hot idea, and what is the clean way to do it.
 
 	* pod/makepp_release_notes.pod: Document the new features.
@@ -2958,7 +3001,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	checking.
 
 	* BuildCacheControl.pm: Don't rely on File::Find's preprocess
-	feature, which isn't available in perl 5.6.0.
+	feature, which isn't available in Perl 5.6.0.
 
 2006-06-28  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -3003,7 +3046,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* BuildCheck.pm (build_check, build_check_from_build_info)
 	(update_dep_sigs):
 	* Scanner.pm (xscan_file): Eliminate unneeded fallback functions,
-	for the lack of which perl itself has a clear error message.  This
+	for the lack of which Perl itself has a clear error message.  This
 	saves a few kilobytes.
 
 	* t/additional_tests/2004_04_01_append_to_undef.test:
@@ -3136,7 +3179,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	export and global.
 
 	* t/additional_tests/2006_03_21_smartscan.test: Turn
-	into Perl script so that it can also work on native windows.
+	into Perl script so that it can also work on native Windows.
 
 2006-05-30  Anders Johnson  <ajohnson@nvidia.com>
 
@@ -3253,11 +3296,11 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(find_all_targets_dependencies): Have consistent log file
 	indentation.
 
-	* t/additional_tests/2004_12_20_errors.test: Adapt to
-	fact that warn now produces real perl messages.
+	* t/additional_tests/2004_12_20_errors.test: Adapt to fact that
+	warn now produces real perl messages.
 
-	* t/run_tests.pl (execute): Don't complain about the
-	newly visible perl warnings out of makefiles.
+	* t/run_tests.pl (execute): Don't complain about the newly visible
+	perl warnings out of makefiles.
 
 	* pod/perl_performance.pod: Tell about the inefficiency of
 	separate prints (or arguments to print).
@@ -3458,7 +3501,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	closures.  As an optimisation I check is_stale only once, rather
 	than again for every directory.	 I hope this is safe, on the
 	assumption that a file won't be made stale by a wildcard action.
-	(dir_contents): Remove doc of inexistant function.
+	(dir_contents): Remove doc of inexistent function.
 	(find_file): Remove unused (and unoptimized) function.
 
 	* FileInfo_makepp.pm (load_build_info_file): Eliminate
@@ -3690,7 +3733,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2006-02-17  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	* Makecmds.pm ($opt{o}, _close): Implement inplace editing via
-	perl-like -o +<
+	Perl-like -o +<
 
 	* t/builtins.test (sed.out): Test -o +<
 
@@ -3703,7 +3746,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2006-02-08  Anders Johnson  <ajohnson@nvidia.com>
 
-	* run_tests.pl: Work-around for bug in perl 5.8.0 (on x86
+	* run_tests.pl: Work-around for bug in Perl 5.8.0 (on x86
 	Redhat EL3.0) wherein $Config{perlpath} is corrupted if you
 	access $Config{sig_name} first.
 
@@ -4199,7 +4242,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 	* Glob.pm (find_real_subdirs): Use STAT_NLINK.
 
-	* profiler.pm: Don't instrumentize very trivial functions.
+	* profiler.pm: Don't instrument very trivial functions.
 	(@ENV{MINTIME MINCOUNT}): New minima, below which functions are
 	not considered.	 Defaults to 10ms and 20 calls.
 	(display): New function grouping ever the same operations, and
@@ -4323,7 +4366,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 
 2005-06-30  Gary Holt  <holt-makepp@gholt.net>
 
-	* FileInfo.pm (is_writable): Because of problems with cygwin's
+	* FileInfo.pm (is_writable): Because of problems with Cygwin's
 	directory permissions not actually corresponding to what Windows
 	thinks the directory permissions are, when checking for
 	writability of a directory, we look more carefully at the mode.
@@ -4560,7 +4603,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	chmod`ing to-be-deleted dir.
 
 	* t/builtins.test: Don't fail if Perl can't chmod on
-	cygwin (probably a //server/share).
+	Cygwin (probably a //server/share).
 
 	* install.pl: Handle makepp_compatibility so that it can be easily
 	edited and shown in all output formats.
@@ -4612,7 +4655,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2005-05-24  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	* FileInfo.pm (is_windows): New exported constant.  Also covers
-	MinGW (msys) and for the future ActiveState (MSWin32).
+	MinGW (MSYS) and for the future ActiveState (MSWin32).
 
 	* Glob.pm (zglob_fileinfo): Use is_windows.
 
@@ -5362,7 +5405,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	* run_tests.pl: fix problem where delete $ENV{MAKEPPFLAGS} didn't
 	work, which could cause a test failure due to the user's environment.
 
-	* Makesubs.pm (infer_objects): if an error occured building a
+	* Makesubs.pm (infer_objects): if an error occurred building a
 	dependency, stop immediately unless --keep-going.
 
 2004-12-17  Anders Johnson  <ajohnson@nvidia.com>
@@ -5724,14 +5767,14 @@ Version 1.40 beta1 released
 
 2004-04-10  Gary Holt  <holt-makepp@gholt.net>
 
-	* FileInfo.pm (file_info): Support the cygwin //server/share
+	* FileInfo.pm (file_info): Support the Cygwin //server/share
 	syntax.
 	* FileInfo.pm (guess_case_sensitivity): Allow case-insensitive
-	filesystems on unix.  Autodetect whether we are in a
+	filesystems on Unix.  Autodetect whether we are in a
 	case-insensitive file system and set flags appropriately.
 	* Added --no-case-sensitive-filenames switch.
 	* t/wildcard_repositories.test: don't try this on a
-	windows share because making files unreadable doesn't seem to
+	Windows share because making files unreadable doesn't seem to
 	work.
 
 2004-04-07  Gary Holt  <holt-makepp@gholt.net>
@@ -5771,19 +5814,19 @@ Version 1.40 beta1 released
 
 2004-04-01  Daniel Pfeiffer  <occitan@esperanto.org>
 
-	* Rule.pm (execute_command): Respect ignore_error on cygwin.
+	* Rule.pm (execute_command): Respect ignore_error on Cygwin.
 
 2004-03-26  Gary Holt  <holt-makepp@gholt.net>
 
 	* t/additional_tests/2004_03_24_scanner_c_lib.test: fix
-	for cygwin.
+	for Cygwin.
 
 	* FileInfo_makepp.pm (set_rule), Makefile.pm (parse_rule): set
 	$finfo->{PATTERN_LEVEL} only if the rule is not overridden
 	(suggestion by Anders Johnson).
 
 	* t/additional_tests/2003_10_17_shell_exit_status.test:
-	fix so that it works on cygwin.
+	fix so that it works on Cygwin.
 	t/additional_tests/2004_03_26_perl_exit_status.test:
 	new test.
 
@@ -5942,18 +5985,18 @@ Version 1.40 beta1 released
 
 2004-02-27  Gary Holt  <holt-makepp@gholt.net>
 
-	* makepp_builtin_rules.mk: Handle the .exe extension for cygwin,
+	* makepp_builtin_rules.mk: Handle the .exe extension for Cygwin,
 	and make a phony target xyz for each xyz.exe so the default
 	build rules do what you'd expect.
 
 	* makepp (build_target_done): Count phony targets separately from
 	real files, and report only the number of real files built.  This
-	makes it so the expected file counts are the same on cygwin and
-	regular unix, because for making executables, cygwin has an extra
+	makes it so the expected file counts are the same on Cygwin and
+	regular Unix, because for making executables, Cygwin has an extra
 	phony target.
 
 	* FileInfo.pm (is_writable): If the permissions are 000, don't try
-	to write a file in the directory. This fixes a problem on cygwin
+	to write a file in the directory. This fixes a problem on Cygwin
 	where even though the permissions were 000, it was possible to
 	create a file in the directory.
 
@@ -6235,7 +6278,7 @@ Version 1.40 beta1 released
 2003-11-03  Gary Holt  <holt-makepp@gholt.net>
 
 	* Glob.pm (zglob_fileinfo & friends): More fixes to support
-	--case-sensitive-filenames on cygwin.
+	--case-sensitive-filenames on Cygwin.
 
 2003-11-02  Daniel Pfeiffer  <occitan@esperanto.org>
 
@@ -6659,7 +6702,7 @@ Version 1.10 released.
 	it's not so overwhelming, at least after the first warning.
 
 	* Rule.pm (find_all_targets_dependencies): remove any dependencies
-	where a file depends on itself.	 The linux kernel has a couple of
+	where a file depends on itself.	 The Linux kernel has a couple of
 	examples of this (which I assume are mistakes).	 Later we'll have
 	to handle these differently when we implement iteration to a fixed
 	point.
@@ -6669,15 +6712,15 @@ Version 1.10 released.
 	(parse_assignment): Broke out code to parse
 	assignments into a separate function so it was easier to modify.
 	Support indirect assignments (e.g., $(xyz) = value instead of
-	xyz=value), which are needed for the linux kernel.
+	xyz=value), which are needed for the Linux kernel.
 	(expand_expression): Expand variable values that were set on the
 	command line again, so if they contain '$(var)' it is set
 	properly.  The gcc makefiles actually depended o this.
 
 	* Makesubs.pm (f_foreach): Support the GNU make foreach function.
-	We need this to compile the linux kernel.
+	We need this to compile the Linux kernel.
 	(f_if): Support partial evaluation on the operands.
-	(f_join): New function needed for linux kernel.
+	(f_join): New function needed for Linux kernel.
 
 2000-12-26  Gary Holt  <holt-makepp@gholt.net>
 

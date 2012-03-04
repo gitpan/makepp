@@ -1,4 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	1	644	1329052295	1329052295	is_relevant.pl
+have_cc
 ###	33	755	1164320845	1190063119	makepp_test_script.pl
 makepp \'builtin', qw(-MMpp::BuildCacheControl create build_cache);
 

@@ -1,6 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	3	775	1168790726	1210255905	is_relevant.pl
-is_windows < 0 || is_windows == 1 ?
+###	3	775	1168790726	1329052036	is_relevant.pl
+have_cc and is_windows < 0 || is_windows == 1 ?
   makepp( '-nfMakefile.relevant' ) : # Let makepp test if it uses a -l capable compiler.
   !is_windows
 ###	5	644	1077141637	1186229250	Makefile.relevant

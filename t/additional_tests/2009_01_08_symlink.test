@@ -6,7 +6,7 @@ makepp;
 my %warnings;
 n_files 'n_files1', sub {
   undef $warnings{$1} if
-    /warning:.*?(is a symbolic link|I attempted to build|\w+ is probably also phony|There is no rule to build inexistant.+)/;
+    /warning:.*?(is a symbolic link|I attempted to build|\w+ is probably also phony|There is no rule to build inexistent.+)/;
 };
 die if 5 != keys %warnings;
 
@@ -30,7 +30,7 @@ die if grep -f, qw(fl fl2 fc gl gl2 gc hl hl2 hc);
 
 1;
 ###	32	644	1230569382	1304538479	Makeppfile
-default: default1			# Provoke inexistant warnings.
+default: default1			# Provoke inexistent warnings.
 
 default1: default2
 

@@ -2,7 +2,7 @@
 
 makepp_statements -- Various statements in a makefile
 
-=for vc $Id: makepp_statements.pod,v 1.44 2012/01/11 21:01:47 pfeiffer Exp $
+=for vc $Id: makepp_statements.pod,v 1.45 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -178,7 +178,7 @@ L<makepp_variables> for details.
 
 =item *
 
-It was given a value as a perl variable in a C<perl_begin> block.
+It was given a value as a Perl variable in a C<perl_begin> block.
 
 =item *
 
@@ -283,8 +283,8 @@ C<global> may not be given at the same time.
 This is the same as C<perl>, but using GNU make style statement syntax.
 This statement introduces a block of code which is interpreted verbatim
 by perl.  It can be useful for defining functions, but you can do this
-more concisely with the C<sub> statement.  A block of perl code in your
-makefile can be useful to perform actions that are easier in perl than
+more concisely with the C<sub> statement.  A block of Perl code in your
+makefile can be useful to perform actions that are easier in Perl than
 with makepp functions and rules.
 
 The remainder of the line following the C<perl_begin> statement is
@@ -325,24 +325,24 @@ than makepp's text functions.  For example,
     %.o: %.c
  	$(CC) $(CFLAGS) -c $(input) -o $(output)
 
-Any make variable can be accessed directly as a perl scalar.
+Any make variable can be accessed directly as a Perl scalar.
 In this case, we've set the value of C<CFLAGS>
 differently based on a regular expression match on the
 architecture flags.
 
 As a final example, some pieces of information are easier to access
-directly from perl than from makepp.  For example, you can access all of
+directly from Perl than from makepp.  For example, you can access all of
 the configuration information that perl knows about your system,
 including how to build shared libraries, etc.  (Type
 S<C<perldoc Config>> if you want to see what configuration information
-perl has available.)
+Perl has available.)
 
     perl_begin
  
     use Config;
  
     $ARCH = $Config{'archname'};    # Use perl's knowledge of the architecture.
-    $CC = $Config{'cc'};	    # Use the same C compiler as perl did.
+    $CC = $Config{'cc'};	    # Use the same C compiler as Perl did.
     $SHARED_OBJ_CFLAGS = $Config{'cccdlflags'};
  				# Flags needed to compile objects which will
  				# go into a shared library.
@@ -360,10 +360,10 @@ perl has available.)
  	$(SHARED_CC_LINK) $(inputs) -o $(output) $(SHARED_OBJ_LDFLAGS)
 
 
-Note how we define a bunch of variables in the perl block, and then we
+Note how we define a bunch of variables in the Perl block, and then we
 use them afterwards in the rest of the makefile.  You can use the full
 power of the perl interpreter to set your variables in arbitrarily
-complicated ways.  You can run shell commands from your perl code,
+complicated ways.  You can run shell commands from your Perl code,
 access a database, or whatever you want.
 
 =item perl I<perlcode>
@@ -430,16 +430,16 @@ Then you can type C<c> at the debugger's prompt, to continue till that point.
 
 =item makesub
 
-This statement provides a way to define a perl subroutine inside your
+This statement provides a way to define a Perl subroutine inside your
 makefile.  The first variant is plain Perl code, while the second variant
 first passes the statement through Make-style variable expansion.  The syntax
-is identical to that of the perl sub statement, except that prototypes are
+is identical to that of the Perl sub statement, except that prototypes are
 meaningless.
 
 For the three possibilities of putting the braces of the body, see the
 explanation at the C<perl> statement.
 
-A perl subroutine is invoked whenever a statement is seen, or when an
+A Perl subroutine is invoked whenever a statement is seen, or when an
 expression like S<C<$(name words)>> is seen.  For example, suppose that
 for some reason you need to load the contents of a file into a make
 variable.  (You could do this by saying S<C<$(shell cat filename)>> but
@@ -843,7 +843,7 @@ into subdirectories.
 
 All builtin and self defined commands (see L<builtin commands|makepp_builtins>
 and L<extending makepp|makepp_extending>), as well as external cleanly
-programmed perl scripts can be used like statements.  In this case they differ
+programmed Perl scripts can be used like statements.  In this case they differ
 from rule actions in that they run in the same process as makepp and any input
 or output files are not noted as dependencies or as having been built by
 makepp.

@@ -1,4 +1,4 @@
-# $Id: Recursive.pm,v 1.17 2011/10/30 20:56:46 pfeiffer Exp $
+# $Id: Recursive.pm,v 1.18 2012/03/04 13:56:35 pfeiffer Exp $
 
 =head1 NAME
 
@@ -21,7 +21,7 @@ use Mpp::Event qw(wait_for read_wait);
 our $traditional;		# 1 if we invoke makepp recursively, undef if
 				# we call the recursive_makepp stub and do
 				# the build in the parent process.
-our $hybrid;			# 1 if we try non-traditionl, but fall back for
+our $hybrid;			# 1 if we try non-traditional, but fall back for
 				# directories with multiple makefiles.
 our $depth;			# Brake
 if( defined $traditional || defined $hybrid ) {
@@ -80,7 +80,7 @@ sub connection {
 				# happen if the other process has already
 				# exited.
 #
-# Set up a few data items about this stream.  These will be passed thruogh
+# Set up a few data items about this stream.  These will be passed through
 # the closure to the actual read routine.
 #
   my $whole_command = '';	# Where we accumulate the whole command

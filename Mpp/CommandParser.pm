@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.38 2011/01/16 17:09:07 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.39 2012/03/04 13:56:35 pfeiffer Exp $
 
 =head1 NAME
 
@@ -172,10 +172,9 @@ If it does, then this method is responsible for clearing previous command
 information, such as the include paths.
 
 A TRUE return value indicates that some meaningful scanner was successfully
-employed.
-An undefined return value is interpretted as a failure.
-A failure forces the rule to propagate failure status, without attempting to
-build the target.
+employed.  An undefined return value is interpreted as a failure.  A failure
+forces the rule to propagate failure status, without attempting to build the
+target.
 
 =cut
 
@@ -227,7 +226,7 @@ The 1-arg versions add a dependency on $name (relative to $parser->dirinfo),
 and record the dependency based on undef, undef, and $name relative to
 $parser->rule->build_cwd.
 The 1-arg version of add_dependency is guaranteed either to return a
-sucessfully built Mpp::File object (possibly nonexistent if it was phony or
+successfully built Mpp::File object (possibly nonexistent if it was phony or
 marked for don't build, etc.) or to die.
 
 add_dependency adds a "meta" dependency (a dependency on which the rule's
@@ -320,7 +319,7 @@ would use it right now.
 Dependencies on the environment should also be captured by xparse_command.
 I don't know if there is a way to do this at all yet, but in principle it
 could be added.
-The $setenv_hash parameter can be used to avoid adding depedencies on
+The $setenv_hash parameter can be used to avoid adding dependencies on
 variables that are set earlier in the action.
 For search paths picked up from the environment, it would be a lot more
 efficient to capture dependencies in the form

@@ -2,7 +2,7 @@
 
 makepp_builtin -- Built in rules for makepp
 
-=for vc $Id: makepp_builtin.pod,v 1.10 2010/07/16 21:15:23 pfeiffer Exp $
+=for vc $Id: makepp_builtin.pod,v 1.12 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -17,7 +17,7 @@ you can always look at that to see exactly what the default rules are.
 Makepp's builtin rules are almost the same as the rules in GNU make, except
 that it has no rules for some of the rare languages that GNU make has rules
 for.  (This is deliberate; I often ran into trouble with GNU make on several
-projects that accidently reused some of the suffixes that GNU make assigned to
+projects that accidentally reused some of the suffixes that GNU make assigned to
 those rare languages.)  The rules use the same variables as GNU make, with
 some possibly useful additions.  Makepp is smarter than GNU make about
 inferring which compiler to use, and which other objects and libraries to link
@@ -38,7 +38,7 @@ always put a line like either of these lines in your Makeppfile:
     &echo -- $(CC)		# Must be indented less than previous rule.
 
 which simply prints the value of the C<$(CC)> variable when the Makeppfile
-is loaded.  (Incidently, this is a useful way to debug any expression
+is loaded.  (Incidentally, this is a useful way to debug any expression
 that you're not sure is right.)
 
 =head2 Compilation rules
@@ -60,7 +60,7 @@ the compilation command is changed as expected.
  	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(input) -o $(output)
  
     #
-    # For fortran programs:
+    # For Fortran programs:
     #
     %.o: %.f
  	$(FC) $(FFLAGS) -c $(input) -o $(output)
@@ -84,7 +84,7 @@ Makepp also knows how to link programs, too.  Makepp attempts to be more
 clever than the standard Unix make when it comes to figuring out a link
 command.  Suppose you are trying to build the target program C<xyz>.
 Makepp will try to build this from C<xyz.o>, and (unlike the standard
-unix make) it will also attempt to infer whether any other objects or
+Unix make) it will also attempt to infer whether any other objects or
 libraries need to be linked in.
 
 The link rule looks something like this:

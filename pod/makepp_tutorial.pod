@@ -2,13 +2,13 @@
 
 makepp_tutorial -- Tutorial on writing makefiles
 
-=for vc $Id: makepp_tutorial.pod,v 1.13 2010/11/17 21:35:52 pfeiffer Exp $
+=for vc $Id: makepp_tutorial.pod,v 1.15 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 A I<makefile> is the set of instructions that you use to tell makepp how to
 build your program.  Makepp can accept most makefiles written for the standard
-unix make, but if you're starting from scratch, it is often much simpler to
+Unix make, but if you're starting from scratch, it is often much simpler to
 use some of makepp's advanced features.  This is an introduction for writing
 makefiles that are specific to makepp.
 
@@ -65,12 +65,12 @@ program will build like this:
     makepp: Entering directory `/somewhere/or/other'
     gcc -g -Wall -c test.c -o test.o
     gcc -g -Wall test.o     -o test
-    Warning: on unix, to run a program called 'test', you must type
+    Warning: on Unix, to run a program called 'test', you must type
        ./test
     rather than just 'test'.
 
 
-These are the basic commands needed to compile a program on unix.  If
+These are the basic commands needed to compile a program on Unix.  If
 these commands don't make any sense to you, see
 L<makepp_tutorial_compilation>.
 
@@ -96,13 +96,13 @@ C<CFLAGS=-O2>.  For a complete list of other options you can configure without
 writing a makefile, see L<makepp_builtin>.
 
 Makepp's builtin rules are somewhat more powerful than the
-standard unix make, but if you write programs of any complexity,
+standard Unix make, but if you write programs of any complexity,
 it's likely that you'll need a makefile eventually to tell
 makepp what to do.
 
-If you are not familiar with unix compilation commands, it may be helpful at
+If you are not familiar with Unix compilation commands, it may be helpful at
 this point to read L<makepp_tutorial_compilation> for a description of what
-these cryptic unix compilation commands do.
+these cryptic Unix compilation commands do.
 
 =head2 A simple makefile
 
@@ -254,7 +254,7 @@ The actions have changed since the last build.
 
 =item *
 
-The last build occured on a different architecture (different CPU type or
+The last build occurred on a different architecture (different CPU type or
 operating system type).
 
 =item *
@@ -403,8 +403,8 @@ These are just conventions, but you will see them in a lot of makefiles.
  				# of CXX.)
     CXXFLAGS := -g		# C++ compilation options related to
  				# optimization or debugging (-O or -g).
-    F77	     := f77		# The fortran compiler.
-    FFLAGS   :=	        	# Optimization flags for fortran.
+    F77	     := f77		# The Fortran compiler.
+    FFLAGS   :=	        	# Optimization flags for Fortran.
 
 
 Makepp will guess appropriate values for some of these variables if you
@@ -458,26 +458,26 @@ that it appears in.  The most useful automatic variables are:
 =item C<$(input)>
 
 The name of the first input file.  In this rule, this would be the file
-that matches the C<%.c> pattern.  C<$(dependency)> is a synonymn for
+that matches the C<%.c> pattern.  C<$(dependency)> is a synonym for
 C<$(input)>.  In older makefiles, you will also see the cryptic symbol
 C<$E<lt>> used as well.
 
 =item C<$(output)>
 
 The name of the first output file.  In this rule, this would be the file
-that matches the C<%.o> pattern.  C<$(target)> and C<$@> are synonymns.
+that matches the C<%.o> pattern.  C<$(target)> and C<$@> are synonyms.
 
 =item C<$(inputs)>
 
 The name of all explicitly listed input files.  In this case, since
 there is only one, C<$(inputs)> is equivalent to C<$(input)>.
-C<$(dependencies)> and C<$^> are synonymns.
+C<$(dependencies)> and C<$^> are synonyms.
 
 =item C<$(outputs)>
 
 The name of all explicitly listed targets.  In this case, since there is
 only one, C<$(outputs)> is equivalent to C<$(output)>.  C<$(targets)> is
-a synonymn for C<$(outputs)>.
+a synonym for C<$(outputs)>.
 
 =back
 
@@ -706,7 +706,7 @@ that need to be built but should be kept separate, it is quite likely
 that you have split up your sources into several directories.  One of
 the main motivations for writing makepp was to make dealing with several
 directories much easier than with the standard make utility.  If you're
-familiar with the standard unix make, you'll notice that with makepp,
+familiar with the standard Unix make, you'll notice that with makepp,
 you don't have to mess around with ugly complexities like recursive
 invocations of make.
 
@@ -927,7 +927,7 @@ source files), then these modules will be incorrectly included into your
 library.  If you choose to use wildcards, it's up to you to keep the
 directory clean enough.
 
-Makepp supports the usual unix wildcards and one additional one:
+Makepp supports the usual Unix wildcards and one additional one:
 
 =over 4
 
@@ -1052,9 +1052,9 @@ C<$(variable)>, and any characters following C<$(variable)> are placed
 after each word in C<$(variable)>.  Thus the result of evaluating
 C<x$(MODULES)y> would be S<C<xay xbcy xdefy>>.
 
-=item Inline perl code
+=item Inline Perl code
 
-If you know perl, you can insert perl code to perform arbitrary
+If you know Perl, you can insert Perl code to perform arbitrary
 manipulations on variables into your makefile.  This is best illustrated
 by an example:
 
@@ -1066,13 +1066,13 @@ by an example:
 Any text between the C<perl_begin> statement and the C<perl_end> statement is
 passed off to the perl interpreter.  You can also use an equivalent more
 perlish syntax of C<perl { ... }>.  All variables in the makefile (except
-automatic variables) are accessible as perl scalars.  Any variables you set
-with perl code will be accessible in the makefile.
+automatic variables) are accessible as Perl scalars.  Any variables you set
+with Perl code will be accessible in the makefile.
 
 So what the above example does is to copy the text from C<$SOURCES> to
-C<$OBJS>, then substitute each occurence of C<.cpp> with C<.o>.
+C<$OBJS>, then substitute each occurrence of C<.cpp> with C<.o>.
 
-In this example, using inline perl code is probably unnecessary since
+In this example, using inline Perl code is probably unnecessary since
 there are easier and clearer ways of doing the same manipulation.  But
 the full power of the perl interpreter is available if you need it.
 
@@ -1083,15 +1083,15 @@ the full power of the perl interpreter is available if you need it.
 Up to this point all of the makefiles we have seen put the object files
 in the same directory as the source files.  This is usually the way
 makefiles are written, and it's certainly the simplest way to do things.
-However, suppose you have to compile your program on both a linux
+However, suppose you have to compile your program on both a Linux
 machine and a Solaris machine.  The binaries from the two machines are
 incompatible, of course.  Unlike the traditional make, makepp is smart
-enough to know that if the last compilation was on linux, and the
+enough to know that if the last compilation was on Linux, and the
 current compilation is on Solaris, a recompilation of everything is
 necessary.
 
 But this still leaves a problem: when you recompile on Solaris, you wipe
-out your linux binaries.  Then when you switch back to linux, you have
+out your Linux binaries.  Then when you switch back to Linux, you have
 to recompile everything again, even though the source files that haven't
 changed.
 
@@ -1132,7 +1132,7 @@ different directory, like this:
  			# ARCH becomes the output from the uname commands.
 			# Sometimes people use only $(shell uname -m), but
 			# this will be the same for FreeBSD and Linux on an
-			# x86.  The -r is not really useful on linux, but is
+			# x86.  The -r is not really useful on Linux, but is
 			# important for other OSes: binaries for SunOS 5.8
 			# typically won't run on SunOS 5.7.  Note the ;= which
 			# means to evaluate this at most once, when first
@@ -1164,9 +1164,9 @@ Repositories are a magical way of using a makefile that is written to
 put objects in the same directory, but having makepp automatically put
 the objects in a different directory.  Suppose we start with the
 original makefile above (before we modified it to put the objects in a
-different directory), and we've been working on linux so our source
-directory is filled with linux binaries.  When we want to recompile our
-code on solaris instead of linux, we use the following command instead
+different directory), and we've been working on Linux so our source
+directory is filled with Linux binaries.  When we want to recompile our
+code on Solaris instead of Linux, we use the following command instead
 of just typing C<makepp>:
 
     % mkdir solaris
@@ -1193,19 +1193,19 @@ file.)  The rule actions then act on the file in the current directory,
 but actually reference the files in the repository.
 
 In this example, initially we start off with a blank new directory
-C<solaris>.  (It doesn't have to be blank, of course, and it won't be
+F<solaris>.  (It doesn't have to be blank, of course, and it won't be
 the second time you run makepp.)  Makepp is run in this directory, and
 it sees that there is no makefile there.  However, there is a makefile
 in the repository, so it links in the one from the repository, and reads
 it.  The pattern rule in the makefile that converts C<.c> files into
 C<.o> files causes makepp to link all the C<.c> files that it needs from
-the repository, and run the compilation command from the C<solaris>
+the repository, and run the compilation command from the F<solaris>
 subdirectory.  Therefore the C<.o> files are now placed into the
-C<solaris> subdirectory, not in the top level directory.  When the build
+F<solaris> subdirectory, not in the top level directory.  When the build
 command is finished, any files linked from the repository are deleted,
-so the C<solaris> subdirectory will contain only the binary files for
+so the F<solaris> subdirectory will contain only the binary files for
 Solaris.  Any C<.o> files that exist in the repository are unmodified,
-so when you go back to your linux machine and rerun makepp, most of your
+so when you go back to your Linux machine and rerun makepp, most of your
 program will not have to be recompiled.
 
 Sometimes it might be more convenient to use a different form of the
@@ -1215,9 +1215,9 @@ replaced by the following one command:
     % makepp -R solaris=. -F solaris
 
 What this does is to say that the files in the current directory are to
-be linked into the C<solaris> subdirectory as necessary.  (The
-C<solaris> subdirectory will be created automatically if it does not
-exist.)  Then the C<-F> option causes makepp to cd to the solaris
+be linked into the F<solaris> subdirectory as necessary.  (The
+F<solaris> subdirectory will be created automatically if it does not
+exist.)  Then the C<-F> option causes makepp to cd to the F<solaris>
 directory and execute the makefile there (which will be linked from the
 repository).
 
@@ -1268,7 +1268,7 @@ might try debugging a serial make first.
 =item Not specifying all dependencies
 
 Makepp is designed to be extremely clever about finding dependencies,
-and if you just use a standard unix C or C++ compiler command, it is
+and if you just use a standard Unix C or C++ compiler command, it is
 actually somewhat difficult to get makepp to miss something.  (Please
 send me examples if you find that it missed something, so I can make
 makepp smarter.)  However, if you are running commands other than

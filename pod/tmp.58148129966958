@@ -1,0 +1,131 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>makepp_compatibility -- Compatibility list for makepp</title>
+<link rel="stylesheet" href="makepp.css" type="text/css" />
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+<!-- INDEX BEGIN -->
+<div name="index">
+<p><a name="__index__"></a></p>
+
+<ul>
+
+	<li><a href="#name">NAME</a></li>
+	<li><a href="#description">DESCRIPTION</a></li>
+	<ul>
+
+		<li><a href="#perl_version_vs__system">Perl Version vs. System</a></li>
+		<li><a href="#file_systems">File Systems</a></li>
+	</ul>
+
+	<li><a href="#author">AUTHOR</a></li>
+</ul>
+
+<hr name="index" />
+</div>
+<!-- INDEX END -->
+
+<p>
+</p>
+<h1><a name="name">NAME</a></h1>
+<p>makepp_compatibility -- Compatibility list for makepp</p>
+<p>
+</p>
+<hr />
+<h1><a name="description">DESCRIPTION</a></h1>
+<p>
+</p>
+<h2><a name="perl_version_vs__system">Perl Version vs. System</a></h2>
+<p>The many Perl versions available and still installed on many machines come
+with various subtle bugs.  We have tried to work around most of them, but a
+few remain.  We have a test suite of around 75 tests, all of which usually
+pass.  On some platforms lacking some features, notably Cygwin, a few tests
+are explicitly skipped.  This table shows with what version this has been
+tested where, and whether it was successful.  We would like to hear of your
+results on other platforms too!</p>
+<ul>
+<li>successful: <b class="good">&nbsp;x&nbsp;</b></li>
+<li>mostly successful with footnote: <b class="soso">&nbsp;x<sup>*)</sup></b></li>
+<li>failed: <b class="bad">&nbsp;<i>/</i>&nbsp;</b></li>
+<li>Click the navigation bar's close button (&#xd7;) to have more space for the table!</li>
+</ul>
+<table border="1" cellspacing="3" cellpadding="3"><pre>
+                #||     5.6             #|||||||||                      5.8                                             #|      5.10    #||||           5.12                    #|| 5.14                #</pre>
+<pre>
+                # .0    | .1    | .2    # .0    | .1    | .2    | .3    | .4    | .5    | .6    | .7    | .8    | .9    # .0    | .1    # .0    | .1    | .2    | .3    | .4    # .0    | .1    | .2    #</pre>
+<pre>
+ GNU/Linux (x86)# x     | x     | req   # x     | x     | x     | x     | x     |       | x     | x     | x     | x     # x     | x     # x     | x     | x     | x     | x     # x     | x     | x     #</pre>
+<pre>
+ GNU/Linux (amd64)#     |       |       #       |       |       |       |       | x     |       |       |       | x     #       |       #       |       | x     | x     |       # x     |       | x     #</pre>
+<pre>
+ GNU/Linux (Alpha)#     | x     |       #       |       |       |       |       |       |       |       |       |       #       |       #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ GNU/Linux (S/390)#     |       | x     #       |       |       |       |       |       |       |       | x     | x     # x     | x     #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ FreeBSD (x86)  #       | x     | x     #       |       |       |       |       |       |       |       | x     | x     # x     | x     # x     | x     | x     | x     |       #       | x     |       #</pre>
+<pre>
+ NetBSD (x86)   #       |       |       #       |       |       |       |       |       |       |       |       | x     # x     | x     # x     | x     | x     | x     |       #       | x     | x     #</pre>
+<pre>
+ NetBSD (Alpha) #       |       |       #       |       |       |       |       |       |       |       |       | x     # x     | x     #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ OpenBSD (x86)  #       |       |       # x     |       |       |       |       |       |       |       |       | x     # x     | x     # x     | x     | x     |       | x     # x     | x     | x     #</pre>
+<pre>
+ AIX (PPC)      #       |       |       #       | x     | x     |       |       |       |       | x     | x     |       #       |       #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ Darwin (x86)   # x     |       |       #       |       |       |       |       |       |       |       |       |       #       |       #       | x     |       |       |       #       |       | x     #</pre>
+<pre>
+ Darwin (PPC)   # x     |       |       #       |       |       |       |       |       | x     | x     | x     | x     # x     | x     # x     | x     | x     |       |       #       |       |       #</pre>
+<pre>
+ HP/UX (IA64)   #       |       |       # HPUX  |       |       | HPUX  |       |       |       |       |       |       #       |       #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ Irix           #       |       |       #       |       |       |       |       |       |       |       | x     |       #       |       #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ Reliant (Mips) # Nest  | Nest  |       #       |       |       |       |       |       |       |       |       |       #       |       #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ Solaris (Sparc)# x     | req   |       # x     | x     | x     | x     | x     | x     | x     | x     | x     | x     # x     |       # x     | x     |       |       |       #       |       |       #</pre>
+<pre>
+ Solaris (64bit)#       |       |       #       | x     |       |       |       |       |       |       | x     |       # x     |       #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ Solaris (x86)  #       | x     |       #       | x     |       |       |       |       |       |       | x     | x     # x     | x     # x     | x     | x     |       |       #       |       |       #</pre>
+<pre>
+ BS2000 (S/390) #       | x     |       #       | x     |       |       |       |       |       |       |       |       # /     |       #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ z/OS USS (S/390)#      |       |       #       |       |       |       |       |       |       |       | zOS   |       # /     |       #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ Cygwin (x86)   #       |       |       #       |       |       |       |       |       |       | Win   | x     |       # x     | x     #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ MinGW MSYS     #       | Win   |       #       |       |       |       |       |       |       |       |       |       #       |       #       |       |       |       |       #       |       |       #</pre>
+<pre>
+ Stawberry      #       |       |       #       |       |       |       |       |       |       |       | x     | x     # x     | x     #       | x     | x     | x     |       #       |       |       #</pre>
+<pre>
+ ActiveState Win# Win   | Win   |       # x     | x     | x     | x     | x     |       | x     | x     | x     | x     # x     | x     # x     | x     |       | x     |       # x     |       |       #</pre>
+</table><dl>
+<dt><strong><a name="hpux" class="item">HPUX</a></strong></dt>
+
+<dd>
+<p>Perl at least up to V5.8.8 has a 64bitall bug on HP/UX that hurts makepp
+badly.  If it recognized that its running on a 64 bit Perl, it will rewrite
+several sources so as to have a workaround for this problem.</p>
+</dd>
+<dt><strong><a name="req" class="item">req</a></strong></dt>
+
+<dd>
+<p>Some instances of 5.6 at least on Linux and Solaris will dump in a Perl
+<code>require</code> statement.  Strangely this only happens in one test, so you are
+probably ok using these Perls.</p>
+</dd>
+<dt><strong><a name="win" class="item">Win</a></strong></dt>
+
+<dd>
+<p>There are 4 different Perl environments on Windows, which normally extend one
+another when installed in parallel.  Here they have been tested with a minimal
+PATH, so as to separate them completely.  When using native programs, you may
+need to see the note under
+<a hr

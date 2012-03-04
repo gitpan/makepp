@@ -183,15 +183,30 @@ EOF
       (stat _)[3] == 2 && (stat 'g')[3] == 2); # Link count right?
   unlink 'f', 'g';
   eval 'sub no_link() {' . ($link ? '' : 1) . '}';
-  # Under 5.6.2 (at least on linux) we cannot repeatedly test for require :-(
+  # Under 5.6.2 (at least on Linux) we cannot repeatedly test for require :-(
   eval 'sub no_md5() {' . ($] > 5.007 || eval { require Digest::MD5; 1 } ? 0 : 1) . '}';
   chdir $old_cwd;
 }
 
+my $have_cc;
+sub have_cc() {
+  unless( defined $have_cc ) {
+    $have_cc =
+      $ENV{CC} ||
+      system( PERL, '-w', $makepp_path.'builtin', 'expr',
+	      # Use mpp's CC function without loading full mpp.  No "" because of fucked up Win.
+	      'sub Mpp::log($@) {} sub Mpp::Makefile::implicitly_load {} close STDERR; q!not-found! eq Mpp::Subs::f_CC',
+	      '-ohave_cc' ) ?
+      1 : 0;
+  }
+  $have_cc;
+}
+
+
 $ENV{PERL} ||= PERL;
 #delete $ENV{'MAKEPPFLAGS'};     # These environment variables can possibly
 #delete $ENV{'MAKEFLAGS'};       # mess up makepp tests.
-# For some reason, with perl 5.8.4, deleting the environment variables doesn't
+# For some reason, with Perl 5.8.4, deleting the environment variables doesn't
 # actually remove them from the environment.
 $ENV{"${_}FLAGS"} = ''
   for qw(MAKEPP MAKE MAKEPPBUILTIN MAKEPPCLEAN MAKEPPLOG MAKEPPGRAPH);
@@ -301,7 +316,7 @@ sub un_spar() {
 
 
 # With -d report '.' for success, 's' for skipped because of symlink failure,
-# 'w' for not applicable on windows, '-' for otherwise skipped.
+# 'w' for not applicable on Windows, '-' for otherwise skipped.
 sub dot($$;$) {
   if( defined $_[0] ) {
     if( $test ) {
@@ -386,7 +401,7 @@ foreach $archive (@ARGV) {
   } else {
     $testname =~ s/\..*$//; # Test name is tar file name w/o extension.
     if( is_windows && $testname =~ /_unix/ ) {
-				# Skip things that will cause errors on cygwin.
+				# Skip things that will cause errors on Cygwin.
 				# E.g., the test for file names with special
 				# characters doesn't work under NT!
       dot w => "skipped $testname on Windows\n";
@@ -487,14 +502,14 @@ foreach $archive (@ARGV) {
 	local $/ = undef;		# Slurp in the whole file at once.
 	open TFILE, $_ or die "$0: can't open $tdir/$File::Find::name--$!\n";
 	$tfile_contents = <TFILE>; # Read in the whole thing.
-	$tfile_contents =~ s/\r//g; # For cygwin, strip out the extra CRs.
+	$tfile_contents =~ s/\r//g; # For Cygwin, strip out the extra CRs.
 
 	# Get the name of the actual file, older find can't do no_chdir.
 	($mtfile = $File::Find::name) =~ s!answers/!!;
 	open MTFILE, "$tdir/$mtfile"
 	  or die "$mtfile\n";
 	my $mtfile_contents = <MTFILE>; # Read in the whole file.
-	$mtfile_contents =~ tr/\r//d; # For cygwin, strip out the extra CRs.
+	$mtfile_contents =~ tr/\r//d; # For Cygwin, strip out the extra CRs.
 	$mtfile_contents eq $tfile_contents or push @errors, $mtfile;
     }, 'answers' if -d 'answers';
     close TFILE;
@@ -516,7 +531,7 @@ foreach $archive (@ARGV) {
     }
 
 #
-# Also search through the log file to make sure there are no perl messages
+# Also search through the log file to make sure there are no Perl messages
 # like "uninitialized value" or something like that.
 #
     if( open my $logfile, $log ) {
@@ -554,7 +569,7 @@ foreach $archive (@ARGV) {
       dot undef, "$testname: $@", $log;
     }
     ++$n_failures;
-    close TFILE; close MTFILE;	# or cygwin will hang
+    close TFILE; close MTFILE;	# or Cygwin will hang
     cp 'hint', \*STDOUT if $hint && -f 'hint';
     chdir $old_cwd;		# Get back to the old directory.
     rename $tdir => $tdir_failed unless $dirtest;
@@ -620,7 +635,7 @@ Other reasons may be output as B<->.
 
 With the -v option it also gives info about the used Perl version and system,
 handy when parallely running this on many setups, and the used time for the
-runner (and perl scripts it runs directly) on the one hand and for the makepp
+runner (and Perl scripts it runs directly) on the one hand and for the makepp
 (and shell) child processes on the other hand.
 
 With the -? option help more available options are shown.
@@ -643,7 +658,7 @@ The following files within this directory are important:
 
 =item is_relevant.pl / is_relevant
 
-If this file exists, it should be a perl script which return true (1) or shell
+If this file exists, it should be a Perl script which return true (1) or shell
 script which returns true (0) if this test is relevant on this platform, and
 dies or false if the test is not relevant.
 
@@ -654,7 +669,7 @@ supposed to use (which is not necessarily the one in the path).
 
 =item makepp_test_script.pl / makepp_test_script
 
-If this file exists, it should be a perl script or shell script which runs
+If this file exists, it should be a Perl script or shell script which runs
 makepp after setting up whatever is necessary.  If this script dies or returns
 false (see above), then the test fails.
 
@@ -679,7 +694,7 @@ environments.  For example:
 
 =item *
 
-It must not assume that perl is in the path.  Always use $PERL instead.
+It must not assume that perl is in the path.  Always use PERL or $PERL instead.
 
 =item *
 
@@ -729,7 +744,7 @@ files that it actually built, extracted from the logfile F<.makepp/log>.
 
 =item cleanup_script.pl / cleanup_script
 
-If this file exists, it should be a perl script or shell script that is
+If this file exists, it should be a Perl script or shell script that is
 executed when the test is done.  This script is executed just before the test
 directory is deleted.  No cleanup script is necessary if the test directory
 and all the byproducts of the test can be deleted with just S<C<rm -rf I<testname>.tdir>>.

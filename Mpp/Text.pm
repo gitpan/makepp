@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.54 2011/11/25 21:36:51 pfeiffer Exp $
+# $Id: Text.pm,v 1.56 2012/03/04 13:56:35 pfeiffer Exp $
 
 =head1 NAME
 
@@ -19,7 +19,7 @@ require Exporter;
 use Config;
 
 # Centrally provide constants which are needed repeatedly for aliasing, since
-# perl implements them as subs, and each sub takes about 1.5kb RAM.
+# Perl implements them as subs, and each sub takes about 1.5kb RAM.
 BEGIN {
   our @N = map eval( "sub(){$_}" ), 0..6; # More are defined in Mpp/BuildCacheControl.pm
   *Mpp::is_perl_5_6 = $N[$] < 5.008 ? 1 : 0];
@@ -81,9 +81,9 @@ sub pattern_substitution {
 	substr( $word, $len_diff ) eq $src ) {
       my $pattern_stem = substr $word, $percent_pos, $len_diff - $percent_pos;
       ($word = $dest) =~ s/%/$pattern_stem/g;
-				# Replace all occurences of % with the stem.
-				# Save the resulting word(s).  There may be
-				# more than one if $dest contains spaces.
+				# Replace all occurrences of % with the stem.
+				# Save the resulting word(s).  TODO: this is a
+				# hack for multitarget rules, allow multiple %-pairs.
       $Mpp::Subs::rule->{PATTERN_STEM} ||= $pattern_stem
 	if defined $set_stem;	# Set it up so $* can return the stem.
     }
@@ -319,7 +319,7 @@ sub split_path {
 
 #
 # This routine is used to skip over a make expression.	A make expression
-# is a variable, like "$(CXX)", or a funtion, like $(patsubst %.o, %.c, sdaf).
+# is a variable, like "$(CXX)", or a function, like $(patsubst %.o, %.c, sdaf).
 #
 # The argument should be passed in the global variable $_ (not @_, as usual),
 # and pos($_) should be the character immediately after the dollar sign.
@@ -505,7 +505,7 @@ sub requote {
 # command has no shell metacharacters.	However, its idea of shell
 # metacharacters is a bit too limited, since it doesn't realize that something
 # like "XYZ=abc command" does not mean to execute the program "XYZ=abc".
-# Also, perl's system command doesn't realize that ":" is a valid shell
+# Also, Perl's system command doesn't realize that ":" is a valid shell
 # command.  So we do a bit more detailed check for metacharacters and
 # explicitly pass it off to a shell if needed.
 #
@@ -531,7 +531,7 @@ sub format_exec_args {
 				# Special commands that only
 				# the shell can execute?
 
-  return $cmd;			# Let perl do its optimization.
+  return $cmd;			# Let Perl do its optimization.
 }
 
 #
@@ -633,7 +633,7 @@ strictflag is optional, means to stop at first non-option.
 
 Short opt may be empty, longopt may be a regexp (grouped if alternative).
 
-$var gets incremented for each occurence of this option or, if optional
+$var gets incremented for each occurrence of this option or, if optional
 wantarg is true, it gets set to the argument.  This can be undef if you don't
 need it.
 

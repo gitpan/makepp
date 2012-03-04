@@ -1,4 +1,4 @@
-# $Id: Lexer.pm,v 1.48 2012/01/11 21:01:21 pfeiffer Exp $
+# $Id: Lexer.pm,v 1.49 2012/03/04 13:56:35 pfeiffer Exp $
 
 =head1 NAME
 
@@ -155,7 +155,7 @@ sub lex_rule {
     my $bq1 = -10;		# pretend initial replacement, length of -backquote
     my $extra = '';
     while( ($bq1 = Mpp::Text::index_ignoring_single_quotes $action, '`', $bq1 + 10) >= 0 ) {
-      my $bq2 = Mpp::Text::index_ignoring_single_quotes $action, '`', $bq1 + 1; # If not found, this is convently -1, eos
+      my $bq2 = Mpp::Text::index_ignoring_single_quotes $action, '`', $bq1 + 1; # If not found, this is conveniently -1, eos
       $extra .= ';' .substr
 	substr( $action, $bq1, $bq2 - $bq1 + 1, '-backquote' ), # Make parser's life easier
 	1, -1;			# append content of backquote, so it will get parsed as normal commands

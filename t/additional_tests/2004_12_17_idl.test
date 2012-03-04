@@ -1,4 +1,6 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	1	644	1329052295	1329052295	is_relevant.pl
+have_cc
 ###	13	644	1113847363	1113847363	Makeppfile
 # This tests that parser c_compilation finds an #include in an IDL file.
 # And that this happens from a C compiler including the output without

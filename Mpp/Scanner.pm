@@ -1,4 +1,4 @@
-# $Id: Scanner.pm,v 1.56 2011/01/16 17:10:06 pfeiffer Exp $
+# $Id: Scanner.pm,v 1.58 2012/03/04 13:56:35 pfeiffer Exp $
 
 =head1 NAME
 
@@ -58,7 +58,7 @@ BEGIN {
   (*INCLUDE_DIRS, *INCLUDE_SFXS, *TAG_MAP, *SHOULD_FIND) = @Mpp::Text::N;
 }
 
-# Most C implementations use 100, but that runs into the perl subroutine
+# Most C implementations use 100, but that runs into the Perl subroutine
 # recursion warning limit. In well-designed code, anything over 10 deep is
 # probably infinite recursion anyway, so we're very unlikely to miss
 # dependencies due to this number not being large enough.
@@ -70,12 +70,11 @@ sub DEFAULT_DEPTH() { 75 }
 
   my $scanner = Mpp::Scanner->new($rule, $dir, $conditional);
 
-Returns a new Mpp::Scanner for rule $rule.
-$dir is the directory name (relative to the CWD of $rule's Makefile) in which
-files are to be interpretted.
-$conditional is TRUE if conditional scanning is to be used, FALSE if not,
-and undef if it is to be determined from the rule options.
-The subclass may override this method, and may have different parameters.
+Returns a new Mpp::Scanner for rule $rule.  $dir is the directory name
+(relative to the CWD of $rule's Makefile) in which files are to be
+interpreted.  $conditional is TRUE if conditional scanning is to be used,
+FALSE if not, and undef if it is to be determined from the rule options.  The
+subclass may override this method, and may have different parameters.
 
 =cut
 
@@ -131,11 +130,10 @@ sub get_tagname {
 }
 sub add_include_dir {
   my ($self, $tag, $path, $front)=@_;
-  my $dirinfo;
   if(defined $path) {
-    $dirinfo=$self->get_file_info($path);
+    my $dirinfo=$self->get_file_info($path);
     if( is_or_will_be_dir $dirinfo ) {
-      # NOTE: INCLUDE_DIRS can hold dirinfo's instead of
+      # NOTE: INCLUDE_DIRS can hold dirinfos instead of
       # directory names because if the directory from which
       # an include file is picked up changes due to a
       # retargeted symbolic link, then a re-scan gets forced
@@ -283,7 +281,7 @@ If they are found, then add them to the dependency list, and either scan them
 recursively, or add them to the list of dependencies to scan later.
 Otherwise, delegate to $self->xscan_file().
 
-Before this method returns sucessfully, all of the files that are included
+Before this method returns successfully, all of the files that are included
 (possibly recursively) by the file will have been scanned.
 
 The return value is TRUE on success, FALSE if any files to be scanned failed
@@ -412,7 +410,7 @@ If $conditional is FALSE, then the following methods may not be called:
 Also, is_active() is guaranteed to return TRUE, and include() is guaranteed
 not to call scan_file() recursively.
 
-$fh is a file handle that is intially opened for reading at the beginning of
+$fh is a file handle that is initially opened for reading at the beginning of
 the file to be scanned.
 
 This method should be called only from scan_file() and not directly, because
@@ -485,10 +483,10 @@ sub find {
       $path = "\nSuffix list is: ".
         join ' ', map "`$_'", @{$self->{$tag}[INCLUDE_SFXS]};
     }
-    $path .= "\nInclude path [$tag] is:\n  ".
-      join("\n  ", map {
+    $path .= join "\n  ", "\nInclude path [$tag] is:",
+      map {
         $_ ? absolute_filename( $_ ) : "[including file's directory]"
-      } @{$self->{$tag}[INCLUDE_DIRS]});
+      } @{$self->{$tag}[INCLUDE_DIRS]};
     warn "can't locate file $name" .
       ($src ? ', included from `'.absolute_filename( $src )."'" : '') .
       $path . "\n";

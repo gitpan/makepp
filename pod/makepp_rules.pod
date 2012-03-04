@@ -2,7 +2,7 @@
 
 makepp_rules -- How to tell makepp to build something
 
-=for vc $Id: makepp_rules.pod,v 1.34 2011/10/30 20:57:44 pfeiffer Exp $
+=for vc $Id: makepp_rules.pod,v 1.36 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -207,13 +207,13 @@ instead of just once overall, if all of the following are true:
 
 =item *
 
-The rule action mentions the automatic variable C<$@>.  (The synonymns
+The rule action mentions the automatic variable C<$@>.  (The synonyms
 C<$(output)> or C<$(target)> do not trigger this behavior.)
 
 =item *
 
 The rule action does not mention the automatic variable C<$(outputs)> (or its
-synonymn C<$(targets)>).
+synonym C<$(targets)>).
 
 =item *
 
@@ -304,7 +304,11 @@ you could write this:
  	ar cr $(output) $(inputs)
 
 This will work even if none of the C<.o> files have been created yet, because
-makepp's wildcards match files which do not yet exist but can be built.
+makepp's wildcards match files which do not yet exist but can be built.  This
+will even pick up files whose rule is discovered later (in the same makefile,
+or one not yet read).  In this last point it differs from the C<wildcard>
+function, which is limited to the known rules, as it must return its result
+when it is expanded.
 
 Makepp supports all the usual shell wildcards (C<*>, C<?>, and C<[]>).  It
 also has a wildcard C<**> which matches any number of intervening directories.
@@ -319,6 +323,12 @@ Makepp's wildcards will ignore files or directories which exist but cannot be
 read.  After all, such files cannot be used in the build process anyway.
 Putting unreadable files in a directory is primarily useful to inhibit the
 automatic import of the given file from a repository.
+
+The initial assertion was that this is safe.  This is in the sence that it
+works whether the files already exist, or need to be built first.  However it
+is unsafe in the sence that it will still match files that were built by
+makepp, but no longer have a rule (e.g. you removed the F<.c> file, but the
+F<.o> file is still there.)  To prevent this, use the C<--rm-stale> option.
 
 =head2 Pattern rules
 
@@ -363,7 +373,7 @@ at that point.  So this depends on all F<.o> files buildable here:
     prog: *.o
  	$(LD) $(LDFLAGS) $(inputs) -o $(output)
 
-This could not be acheived by replacing C<*> with C<%>, because the latter is
+This could not be achieved by replacing C<*> with C<%>, because the latter is
 for one-by-one matching of input to output, producing internally one rule for
 each matched stem.
 
@@ -522,7 +532,7 @@ and you could have a makefile in one of the subdirectories that says:
 
 Pattern rules that have a shorter chain of inference are preferred over
 other pattern rules.  For example, if you had the following rules (based
-on an example from the linux kernel):
+on an example from the Linux kernel):
 
     %.s: %.c
  	$(CC) -s $(input) -o $(output)
@@ -570,7 +580,7 @@ make.  For example,
  	   : signature target_newer
  	actions
 
-will work fine with a traditional unix make, because it interprets the
+will work fine with a traditional Unix make, because it interprets the
 S<C<: signature>> line as a shell command, and a command beginning with
 a colon does nothing.
 
@@ -619,12 +629,11 @@ the targets when PATH_VARIABLE changes in an irrelevant way.
 
 =item :dispatch I<command ...> X<dispatch>
 
-Enclose each shell action (but not perl actions nor perl commands) in a
-C<sh -c '...'> and prefix it with command, but assume that the target doesn't
-depend on command.
-This is useful if you want to send actions to a job queuing system, but
-the result is assumed to be independent of the queueing parameters, as well
-as to whether the queueing system is used at all.
+Enclose each shell action (but not Perl actions nor Perl commands) in a C<sh
+-c '...'> and prefix it with command, but assume that the target doesn't
+depend on command.  This is useful if you want to send actions to a job
+queuing system, but the result is assumed to be independent of the queuing
+parameters, as well as to whether the queuing system is used at all.
 
 =item :include I<file_or_pattern>
 

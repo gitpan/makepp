@@ -13,6 +13,7 @@ zOS ./makepp_compatibility.html
 lines_list ./makepp_builtins.html
 include_dir_directory ./makeppreplay.html
 MODE_mode ./makepp_build_cache.html
+Inline_Perl_code ./makepp_tutorial.html
 ADATE_MDATE_CDATE ./makepp_build_cache.html
 strip_string ./makepp_functions.html
 unique ./makepplog.html
@@ -53,7 +54,6 @@ cwd_number ./makeppgraph.html
 infer_objects_file1_file2_pattern ./makepp_functions.html
 k ./makeppreplay.html
 Win ./makepp_compatibility.html
-links ./makepp_build_cache.html
 dispatch_command ./makepp_rules.html
 make_targets ./makepp_functions.html
 infail ./makepp_builtins.html
@@ -93,7 +93,6 @@ modification_time_spec ./makepp_build_cache.html
 s_spec ./makepp_build_cache.html
 printf_format ./makepp_builtins.html
 f_list ./makepp_builtins.html
-Inline_perl_code ./makepp_tutorial.html
 echo_option_string ./makepp_builtins.html
 export_MAKEPP_LN_CP_3 ./makepp_builtins.html
 w_or_print_directory ./makepp_incompatibilities.html
@@ -608,6 +607,7 @@ MAKEFLAGS ./makepp_variables.html
 iftrue_expression ./makepp_statements.html
 dir_noslash_filename ./makepp_functions.html
 makepp ./makeppgraph.html
+symlinks ./makepp_build_cache.html
 p_format ./makepp_builtins.html
 out_of_sandbox_path ./makepp_sandboxes.html
 filter_patterns_words ./makepp_functions.html

@@ -1,4 +1,4 @@
-# $Id: Glob.pm,v 1.40 2011/07/01 19:59:34 pfeiffer Exp $
+# $Id: Glob.pm,v 1.41 2012/02/07 22:26:15 pfeiffer Exp $
 
 package Mpp::Glob;
 
@@ -29,13 +29,11 @@ Mpp::Glob -- Subroutines for reading directories easily.
 
 =head2 Mpp::Glob::zglob
 
-This subroutine performs globbing without forking off to the csh, so in
-principle it may be faster than using the builtin perl glob.  It also
-supports some limited extended wildcards (ideas stolen from zsh).
+This subroutine supports some limited extended wildcards (ideas stolen from zsh).
 
 	*		Matches any text
 	?		Matches one character
-	[range]		Matches a range just like the unix wildcards.
+	[range]		Matches a range just like the Unix wildcards.
 	**		Matches an arbitrary list of directories.  This
 			is a shortcut to running "find" on the directory
 			tree.  For example, 'x/**/a.o' matches 'x/a.o',
@@ -108,7 +106,7 @@ sub zglob_fileinfo {
   my $is_wildcard = 0;		# We haven't seen a wildcard yet.
 
   Mpp::is_windows and
-    s@^(?=[A-Za-z]:)@/@;	# If on windows, transform C: into /C: so it
+    s@^(?=[A-Za-z]:)@/@;	# If on Windows, transform C: into /C: so it
 				# looks like it's in the root directory.
   case_sensitive_filenames or
     tr/A-Z/a-z/ unless		# Switch to lower case to avoid problems with
@@ -267,7 +265,7 @@ sub find_real_subdirs {
   my $dirinfo = $_[0];	# Get the directory to search.
 
 #
-# Find the number of expected subdirectories.  On all unix file systems, the
+# Find the number of expected subdirectories.  On all Unix file systems, the
 # number of links minus 2 is the number of expected subdirectories.  This
 # means that we can know without statting any files whether there are any
 # subdirectories.
@@ -307,7 +305,7 @@ sub find_real_subdirs {
 # them are usually editor backups.  Similarly, files with alphabetic
 # extensions (e.g., '.c') are usually not directories.
 #
-# This heuristic doesn't work at all for windows, since it doesn't maintain
+# This heuristic doesn't work at all for Windows, since it doesn't maintain
 # link counts.
 #
 # On other operating systems, this would be a lot easier since directories

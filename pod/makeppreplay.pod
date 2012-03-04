@@ -2,7 +2,7 @@
 
 makeppreplay -- Fast repeater of selected makepp actions
 
-=for vc $Id: makeppreplay.pod,v 1.7 2010/09/03 21:26:28 pfeiffer Exp $
+=for vc $Id: makeppreplay.pod,v 1.8 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -186,7 +186,7 @@ Turn off the entering or leaving directory messages.
 Makeppreplay modifies the build info of all files it touched and of all
 dependencies it found modified.  It marks them in such a way that makepp
 nevertheless knows that it needs to rescan these files.  But with this option
-you can prevent these modifications, so that makepp will simply condsider all
+you can prevent these modifications, so that makepp will simply consider all
 files makeppreplay created as incorrect.
 
 =item -V

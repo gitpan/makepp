@@ -1,8 +1,8 @@
 =head1 NAME
 
-makepp_perl_performance -- How to make perl faster
+makepp_perl_performance -- How to make Perl faster
 
-=for vc $Id: perl_performance.pod,v 1.9 2010/07/16 21:15:23 pfeiffer Exp $
+=for vc $Id: perl_performance.pod,v 1.10 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -51,7 +51,7 @@ results.  Even small modifications can matter a lot.  Be careful not to
 "measure" code that can get optimized away, because you discard the result, or
 because it depends on constants.
 
-Depending on your system, this will tell you in kb how fat perl got:
+Depending on your system, this will tell you in kb how fat Perl got:
 
     perl -Mstrict -we '<build huge data>; system "ps -ovsz $$"'
 
@@ -77,12 +77,12 @@ interpolate that.
 
 =item Use (?:...)
 
-If you don't use what the grouping matches, don't make perl save it with
+If you don't use what the grouping matches, don't make Perl save it with
 C<(...)>.
 
 =item Anchor at beginning of string
 
-Don't make perl look through your whole string, if you want a match only at
+Don't make Perl look through your whole string, if you want a match only at
 the beginning.
 
 =item Don't anchor at end after greedy
@@ -104,7 +104,7 @@ This is twice as fast as s/// when it is applicable.
 
 =item Avoid object orientation
 
-Dynamic method lookup is slower in any language, and perl, being loosely
+Dynamic method lookup is slower in any language, and Perl, being loosely
 typed, can never do it at compile time.  Don't use it, unless you need the
 benefit of polymorphism through inheritance.  The following call methods are
 ordered from slowest to fastest:
@@ -135,7 +135,7 @@ Unless you have a pertinent reason for this, use this:
 Every function (and that alas includes constants) takes up over 1kb for it's
 mere existence.  With each module requiring other ones, most of which you
 never need, that can add up.  Don't pull in a big module, just to replace two
-lines of perl code with a single more elegant looking function call.
+lines of Perl code with a single more elegant looking function call.
 
 If you have a function only called in one place, and the two combined would
 still be reasonably short, merge them with due comments.
@@ -182,7 +182,7 @@ here:
 When you need a unique reference representation, e.g. for set ops with hashes,
 using the integer form of refs is three times as fast as using the pretty
 printed default string representation.  Caveat: the HP/UX 64bitall variant of
-perl, at least up to 5.8.8 has a buggy C<int> function, where this doesn't
+Perl, at least up to 5.8.8 has a buggy C<int> function, where this doesn't
 work reliably.  There a hex form is still a fair bit faster than default
 strings.
 
@@ -194,7 +194,7 @@ strings.
 =item Beware of strings
 
 Perl is awful for always copying strings around, even if you're never going to
-modify them.  This wastes CPU and memory.  Try to avoid that whereever
+modify them.  This wastes CPU and memory.  Try to avoid that wherever
 reasonably possible.  If the string is a function parameter and the function
 has a modest length, don't copy the string into a C<my> variable, access it
 with C<$_[0]> and document the function well.  Elsewhere, the aliasing feature
@@ -240,7 +240,7 @@ the complexity of your code), one or the other may be faster.
 
 =item Don't alias $_
 
-While it is convenenient, it is rather expensive, even copying reasonable
+While it is convenient, it is rather expensive, even copying reasonable
 strings is faster.  The last example is twice as fast as the first "for".
 
     my $x = "abcdefg"; my $b = 0;

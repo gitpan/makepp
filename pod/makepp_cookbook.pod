@@ -2,7 +2,7 @@
 
 makepp_cookbook -- The best way to set up makefiles for various situations
 
-=for vc $Id: makepp_cookbook.pod,v 1.24 2012/01/11 21:01:47 pfeiffer Exp $
+=for vc $Id: makepp_cookbook.pod,v 1.26 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -43,7 +43,7 @@ archive file).
 When you have a module which should be linked into several different
 programs, and you want to load it dynamically so each program doesn't
 have to have a separate copy of the library.  Dynamic libraries can save
-executable file space and sometimes enhance system performace because
+executable file space and sometimes enhance system performance because
 there is only one copy of the library loaded for all of the different
 programs that use it.
 
@@ -54,8 +54,8 @@ large pieces of the program can significantly speed up the link.
 
 =back
 
-Using static libraries has one main disadvantage: on some systems (e.g.,
-linux), the order in which you link the libraries is critically
+Using static libraries has one main disadvantage: on some systems (e.g.
+Linux), the order in which you link the libraries is critically
 important.  The linker processes libraries in the order specified on its
 command line.  It grabs everything it thinks it needs from each library,
 then moves on to the next library.  If some subsequent library refers to
@@ -81,7 +81,7 @@ little reason to use a library: you get all of the disadvantages of
 using libraries and none of the advantages.  The technique I prefer is
 to use incremental linking, where it is available.
 
-Here is how you can do this on linux:
+Here is how you can do this on Linux:
 
     my_module.o : $(filter_out my_module.o, $(wildcard *.o))
  	ld -r -o $(output) $(inputs)
@@ -180,7 +180,7 @@ pull in both of them.  This is probably a bad thing.
 This is why we first remove the library file, and create it from
 scratch.  This will take slightly longer than just updating modules in a
 library, but not much longer; on a modern computer, the amount of time
-consumed by the F<ar> program is miniscule compared to what the C
+consumed by the F<ar> program is minuscule compared to what the C
 compiler takes up in a typical build, so it's just not worth worrying
 about.
 
@@ -287,7 +287,7 @@ following:
 
     CXX ;= $(find_program g++ c++ pg++ cxx CC aCC)
  		    # Pick first C++ compiler which is available in PATH.
- 		    # (Incidently, if you don't define CXX at all, this
+ 		    # (Incidentally, if you don't define CXX at all, this
  		    # is the way it's defined.)
     TCL_INCLUDE ;= -I$(dir_noslash $(findfile tcl.h, \
  	   /usr/local/stow/tcl-8.4.5-nothread/include \
@@ -310,7 +310,7 @@ following:
     my_program : *.o
  	$(CXX) $(CXXFLAGS) $(inputs) -o $(output) $(TCL_LIB)
 
-=head3 Take advantage of perl's config information
+=head3 Take advantage of Perl's config information
 
 The above techniques may not be sufficient if you need some additional
 information about your system, such as whether a long double exists, or
@@ -318,8 +318,8 @@ what the byte order is.  However, perl has already computed these
 things, so you can just use its answers.
 
 Perl's autoconfigure script makes all of its configuration information
-available through the %Config hash.  There's no syntax to access a perl
-hash directly in makepp, but you can drop into perl and set scalar
+available through the %Config hash.  There's no syntax to access a Perl
+hash directly in makepp, but you can drop into Perl and set scalar
 variables, which are directly accessible from makepp:
 
     perl_begin
@@ -347,7 +347,7 @@ to the presence of things in the file system might not be valid.  For
 example, C<$Config{'cc'}> refers to the C compiler that perl was built
 with, which might not be the same C compiler you want to use.  In fact,
 it might not even exist on your system, since you probably installed
-perl via a binary package.
+Perl via a binary package.
 
 =head2 Tips for using wildcards
 
@@ -521,7 +521,7 @@ following:
     ARCH	;= $(shell uname -s)-$(shell uname -m)-$(shell uname -r)
  			# Sometimes people use only $(shell uname -m), but
  			# this will be the same for FreeBSD and Linux on
- 			# an x86.  The -r is not really useful on linux,
+ 			# an x86.  The -r is not really useful on Linux,
  			# but is important for other OSes: binaries for
  			# SunOS 5.8 typically won't run on SunOS 5.7.
     &mkdir -p $(ARCH)	# Make sure the output directory exists.
@@ -877,7 +877,7 @@ it's usually easier to do something like this:
  		# $(OUTPUT_DIRECTORY) and having a rule to make it.
  		# Note that you must use := instead of = to force it to
  		# execute immediately.
-    # An alternative approach: using perl code, OUTPUT_DIRECTORY local var
+    # An alternative approach: using Perl code, OUTPUT_DIRECTORY local var
     perl_begin
       -d $OUTPUT_DIRECTORY or mkdir $OUTPUT_DIRECTORY;
     perl_end

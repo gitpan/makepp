@@ -2,7 +2,7 @@
 
 makeppclean -- Stand-alone cleanup script for makepp
 
-=for vc $Id: makeppclean.pod,v 1.12 2012/01/06 21:53:23 pfeiffer Exp $
+=for vc $Id: makeppclean.pod,v 1.13 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -103,7 +103,7 @@ Remove only links or files from a build cache.
 =item --empty-directories
 
 Remove directories that became empty after removing their content.  Since
-drectories are not usually created by rules, makepp does not keep track of
+directories are not usually created by rules, makepp does not keep track of
 which one it created.  Therefore this applies to those, where makepp created
 something, whether the directory was created manually or automatically.
 

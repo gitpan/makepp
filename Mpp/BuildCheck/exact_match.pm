@@ -1,4 +1,4 @@
-# $Id: exact_match.pm,v 1.38 2011/09/29 04:04:51 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.40 2012/03/04 13:56:35 pfeiffer Exp $
 use strict;
 package Mpp::BuildCheck::exact_match;
 
@@ -37,7 +37,7 @@ The build command.
 
 =item *
 
-The architecture this is running on (e.g., i386, sparc, alpha, etc.).
+The architecture this is running on (e.g., i386, Sparc, Alpha, etc.).
 
 =item *
 
@@ -45,7 +45,7 @@ The signatures of each dependency.
 
 =item *
 
-The values of the each envirnoment variable in the list of environmental
+The values of the each environment variable in the list of environmental
 dependencies.
 
 =back
@@ -170,7 +170,7 @@ sub build_check {
   $arch ||= '';
   unless( Mpp::ARCHITECTURE eq $arch || $ignore_architecture ) { # This bool is rarely true, so test it last.
 #
-# The pentium architectures are all more or less equivalent, but have different
+# The Pentium architectures are all more or less equivalent, but have different
 # architecture flags.  Give a warning (so at least the user is not surprised
 # about recompilation).
 #

@@ -1,4 +1,4 @@
-# $Id: CMake.pm,v 1.2 2011/08/06 11:43:31 pfeiffer Exp $
+# $Id: CMake.pm,v 1.3 2012/03/04 13:56:35 pfeiffer Exp $
 
 =head1 NAME
 
@@ -71,7 +71,7 @@ sub fix_rule {
       ++$empty;
     } elsif( $cmds[$i] =~ /\$\(CMAKE_COMMAND\) -E cmake_(?:depends|progress_(?:start|report)) / ) {
 				# Do dependencies ourself.  The undocumented progress stuff wrapped the
-				# recursive invocations.  As we elimate those, progrss marks don't appear
+				# recursive invocations.  As we eliminate those, progress marks don't appear
 				# anymore...  So eliminate the waste of time.
       splice @cmds, $i, 1;
       ++$empty;

@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: Event.pm,v 1.29 2011/07/01 19:56:41 pfeiffer Exp $
+# $Id: Event.pm,v 1.31 2012/03/04 13:56:35 pfeiffer Exp $
 
 package Mpp::Event;
 
@@ -35,8 +35,8 @@ Mpp::Event -- event loop for makepp
 
 =head1 DESCRIPTION
 
-Mpp::Event provides a way of multi-threading perl code without actually using
-any of the thread extensions.  It relies on perl closures instead.  So it's a
+Mpp::Event provides a way of multi-threading Perl code without actually using
+any of the thread extensions.  It relies on Perl closures instead.  So it's a
 little harder to write event-driven code than it would be if your code were
 threaded, but not much.
 
@@ -252,9 +252,9 @@ subroutines have been called.  Scalar arguments are interpreted as handles, a
 reference to a subroutine is treated as a subroutine to call, and a reference
 to a list is a set of arguments to pass to the subroutine.
 
-Ordinarily you would pass arguments into the subroutine via perl's
+Ordinarily you would pass arguments into the subroutine via Perl's
 closure mechanism, but there do appear to be some bugs in this (in
-perl 5.8.0) and so it is possible to pass arguments via an explicit
+Perl 5.8.0) and so it is possible to pass arguments via an explicit
 argument list.
 
 The subroutine should return any of the following values:
@@ -263,7 +263,7 @@ The subroutine should return any of the following values:
 
 =item 0
 
-0 indicates success, as with unix processes.
+0 indicates success, as with Unix processes.
 
 =item a non-zero value
 
@@ -470,9 +470,9 @@ sub start {
   my $self = $_[0];
   Mpp::Event::process_finished( $self ), return if $self->{STATUS};
   if( Mpp::is_windows > 0 ) {	# On Win Strawberry or ActiveState, we don't fork because the
-				# perl port doesn't support a following exec well.
+				# Perl port doesn't support a following exec well.
     if (@{$self->{PARAMS}}) {
-      die "makepp: internal error: parameters to Mpp::Event::Process not supported on windows\n";
+      die "makepp: internal error: parameters to Mpp::Event::Process not supported on Windows\n";
     }
 
     my $cmd = $self->{CODE};	# Get the thing to execute.
@@ -558,7 +558,7 @@ sub start {
 # be only one SIGCHLD).	 I don't know what bozo designed the system that way,
 # but we still have to live with it 30 years later.
 #
-# Most of this code is adapted from the perl cookbook.
+# Most of this code is adapted from the Perl Cookbook.
 #
 sub process_reaper {
   my @procs;
@@ -566,7 +566,7 @@ sub process_reaper {
   while( (my $pid = waitpid -1, WNOHANG) > 0 ) {
 # Collect as many defunct processes as early as possible.
 #
-# Note again because of another bozo design decision in unix, waitpid may
+# Note again because of another bozo design decision in Unix, waitpid may
 # actually return the PID of a process which was stopped, not exited.  So we
 # have to check for this.  TODO: Is this true?  The POSIX manpage states
 # otherwise at WUNTRACED.
@@ -607,9 +607,9 @@ sub terminate_all_processes {
 ###############################################################################
 #
 # Structure used to keep track of subroutines that are waiting to be called.
-# This structure also keeps track of ancilliary variables like the log
-# file indentation level so when the subroutine is called, the indentation
-# level is correct.
+# This structure also keeps track of ancillary variables like the log file
+# indentation level so when the subroutine is called, the indentation level is
+# correct.
 #
 
 package Mpp::Event::WaitingSubroutine;

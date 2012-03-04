@@ -2,7 +2,7 @@
 
 makepp_build_check -- How makepp decides to rebuild files
 
-=for vc $Id: makepp_build_check.pod,v 1.13 2011/01/23 22:44:27 pfeiffer Exp $
+=for vc $Id: makepp_build_check.pod,v 1.14 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -66,7 +66,7 @@ The build command has not changed.
 
 =item *
 
-The machine architecture (or what perl thinks it is) has not changed.
+The machine architecture (or what Perl thinks it is) has not changed.
 
 =back
 
@@ -107,7 +107,7 @@ different architecture.  This is usually not a problem, because they
 often don't take long to build.  The reason why all files are tagged
 with the architecture, instead of just binary files, is that often times
 even ASCII files are architecture-dependent.  For example, output from
-the solaris C<lex> program won't compile on linux (or at least this used
+the Solaris C<lex> program won't compile on Linux (or at least this used
 to be true the last time I tried it).
 
 =back
@@ -124,14 +124,14 @@ The C<architecture_independent> method is the same as C<exact_match>
 except that it does not check the architecture.  This can be useful for
 architecture-independent files, that don't need to be rebuilt when you
 switch to a different architecture.  For example, you probably don't
-need to rerun C<bison> on solaris if you already ran it on linux.
+need to rerun C<bison> on Solaris if you already ran it on Linux.
 
 The C<architecture_independent> method is best used by specifying it
 using the S<C<:build_check architecture_independent>> modifier to the
 each rule that produces architecture independent files.  Makepp by
 default never assumes any files are architecture independent, because
 even F<.c> files can be architecture dependent.  For example, the output
-of solaris lex will not compile under linux, or at least it wouldn't
+of Solaris lex will not compile under Linux, or at least it wouldn't
 last time I tried.  So you must manually specify this build check method
 for any files which are truly architecture-independent.
 
@@ -194,7 +194,7 @@ signatures of the dependencies:
 
 The C<target_newer> method looks only at the file date.  If any
 dependency is more recent than the target, the target is rebuilt.  This
-is the algorithm that the traditional unix I<make> utility uses.
+is the algorithm that the traditional Unix I<make> utility uses.
 
 The C<target_newer> method isn't as safe as the C<exact_match> method because
 it won't trigger a rebuild if you change the build command, or if you replace

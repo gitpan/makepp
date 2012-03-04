@@ -1,4 +1,4 @@
-# $Id: architecture_independent.pm,v 1.6 2009/02/09 22:07:39 pfeiffer Exp $
+# $Id: architecture_independent.pm,v 1.7 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 NAME
 
@@ -15,7 +15,7 @@ method except that it will not cause a rebuild if the architecture changes.
 This method is intended for architecture independent files.
 
 Some files that you might think are architecture independent are actually not.
-For example, the output of solaris lex will not compile on linux, or at least
+For example, the output of Solaris lex will not compile on Linux, or at least
 it wouldn't last time I tried.
 
 =cut

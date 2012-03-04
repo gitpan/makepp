@@ -2,7 +2,7 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.75 2012/01/11 21:01:47 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.76 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -38,7 +38,7 @@ the encountered keywords as keys.
 
 Makefiles are now parsed with the same priority as in gmake.  Hence C<include
 :> or C<include => are now statements (no space: still rule or assignment.)  This
-means that C<perl { qualified::name }> no longer mysteriously dissapears (it
+means that C<perl { qualified::name }> no longer mysteriously disapears (it
 used to be a useless rule.)  Now variable names may contain whitespace.  This
 means that C<&preprocess --assignment> will treat just about any equal sign as
 an assignment (replace them with C<$E> from the funny assignment C<E==>.)
@@ -61,7 +61,7 @@ reference.  In that case you are responsible for expanding your arguments.
 Use the accessor functions C<&arg> or C<args> described in L<makepp
 extensions|makepp_extending>.  Until you get round to updating your functions,
 you can turn this off by setting C<$Mpp::Makefile::legacy_functions = 1>
-either in your makefile (one per build system is enough, as it's a perl
+either in your makefile (one per build system is enough, as it's a Perl
 variable) or patch it into your new makepp installation.  If you want your
 updated functions to work with both your old and this new makepp, use C<ref
 $_[0] ? &arg : $_[0]> or C<ref $_[0] ? args(...) : $_[0]> in the transition
@@ -78,7 +78,7 @@ CMake generated makefiles no longer lead to deep recursion.
 
 =item *
 
-New scanner C<esql_compilation> for embedded SQL C, now covers all databeses.
+New scanner C<esql_compilation> for embedded SQL C, now covers all databases.
 You must supply the rules, however.
 
 =item *
@@ -224,8 +224,8 @@ to back.
 
 =item *
 
-Added a C<global> statement for sharing variables accross makefiles.  The
-assignment variant of C<export> now works like a normal assignmant, so you may
+Added a C<global> statement for sharing variables across makefiles.  The
+assignment variant of C<export> now works like a normal assignment, so you may
 have to change to C<:=>.  Added the C<override> modifier to assignments.  The
 C<define var :=> statement now optionally allows specifying the kind of
 assignment.  And the forms with immediate evaluation retain the newlines in
@@ -241,7 +241,7 @@ A makefile is now also found if it is called C<Makeppfile.mk>.
 
 There are two new possible filenames for makefiles: C<RootMakeppfile> or
 equivalently C<RootMakeppfile.mk>.  The presence of either of these gives your
-build tree a formal root, accesible through the new variable C<$(ROOT)>.  The
+build tree a formal root, accessible through the new variable C<$(ROOT)>.  The
 advantage is that this file is always loaded first, if present, allowing you
 to more easily create a build system where makepp can be called from anywhere,
 without telling it which makefile to start at.
@@ -266,7 +266,7 @@ Interface definition files for SWIG (.i files) are now scanned for
 includes.  Makepp now understands swig invocations.  (SWIG stands for
 Simplified Wrapper and Interface Generator.  It automatically generates
 all the wrapper functions to link your C or C++ code to a variety of
-other languages such as perl, python, tcl, ruby, ocaml, C#, etc.  See
+other languages such as Perl, Python, Tcl, Ruby, OCaml, C#, etc.  See
 http://www.swig.org/.)
 
 =item *
@@ -358,7 +358,7 @@ code to this release.
 =item *
 
 Too many bug fixes to list individually.  Probably the most salient
-fixes are to make it work significantly more reliably on cygwin, but
+fixes are to make it work significantly more reliably on Cygwin, but
 there were also fixes to variable expansion, scanning, repositories,
 etc.
 
@@ -412,7 +412,7 @@ handle makefiles produced by MakeMaker without much trouble.
 
 =item *
 
-Added syntax for perfoming Perl code as a statement and in rules C<perl { ...
+Added syntax for performing Perl code as a statement and in rules C<perl { ...
 }> or C<makeperl { ...  }>.  Added functions for evaluating Perl statements
 C<$(perl ... )> or C<$(makeperl ... )>.  Added statement C<makesub { ... }>.
 I<(Daniel Pfeiffer)>
@@ -489,8 +489,8 @@ A few other minor bugs were fixed.
 =head2 Version 1.18
 
 The most important change was support for the Cygwin build environment.
-You can now run makepp with the Cygwin version of perl; I do not think
-it will work properly with the native windows version of perl yet.
+You can now run makepp with the Cygwin version of Perl; I do not think
+it will work properly with the native Windows version of Perl yet.
 
 A few other bug fixes went into this release.
 
@@ -545,7 +545,7 @@ compatible with old makefiles.  Makepp has a heuristic algorithm for
 guessing whether the rule is supposed to build all targets at once or
 whether the rule needs to be invoked multiple times.  I do not think
 this will break any existing makefiles, but it should allow makepp to
-work with many more makefiles designed for unix make.
+work with many more makefiles designed for Unix make.
 
 =item *
 
@@ -744,7 +744,7 @@ probably be supported again in future releases.
 =item *
 
 A man page is no longer provided since the documentation is no longer
-written in the perl pod format.  Use the HTML documentation instead.
+written in the Perl pod format.  Use the HTML documentation instead.
 
 =item *
 

@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppgraph,v 1.25 2012/01/06 21:56:59 pfeiffer Exp $
+# $Id: makeppgraph,v 1.27 2012/03/04 13:56:35 pfeiffer Exp $
 
 #TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
 
@@ -63,7 +63,7 @@ $datadir = absolute_filename dereference file_info $datadir;
 
 package Mpp::Rewrite;
 
-# Reduce any file (execept dirs) to the containing directory.
+# Reduce any file (except dirs) to the containing directory.
 sub dir() { defined and $_ ne '' and -d || s!/[^/]+$!! || s!^(\|\w+\|).*!$1! }
 
 # Replace your home directory with '~'
@@ -451,7 +451,7 @@ if( @ARGV ) {			# Start with the args and follow them up and/or downwards.
   }
 
   %graph = %tmp;		# This benchmarks as more efficient than a
-				# normal copy.  Maybe perl just moves the
+				# normal copy.  Maybe Perl just moves the
 				# pointer, since %tmp is no longer needed.
 }
 

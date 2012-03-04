@@ -2,7 +2,7 @@
 #
 # This script does the pod to html generation with some heavy massageing.
 #
-# $Id: html.pl,v 1.2 2012/01/11 21:02:03 pfeiffer Exp $
+# $Id: html.pl,v 1.6 2012/02/28 21:41:06 pfeiffer Exp $
 #
 
 package Mpp::html;
@@ -14,6 +14,7 @@ use File::Path;
 
 our $podroot;
 
+BEGIN { unshift @INC, 'html' }	# For now bundle 1.11, the last working version
 use Pod::Html ();
 # Nuke the pod cache, because otherwise it doesn't get updated when new
 # pages are added (on Perl 5.6.1, Pod::Html 1.03, i686-linux2.4)
@@ -47,13 +48,14 @@ my %alias = (makepp => 'Makepp Introduction',
 	     makepp_builtins => 'Makepp Builtin Commands',
 	     makepp_faq => 'Makepp FAQ',
 
-	     makepp_command => 'makepp',
-	     makeppbuiltin => 'makeppbuiltin',
-	     makeppclean => 'makeppclean',
-	     makeppgraph => 'makeppgraph',
-	     makeppinfo => 'makeppinfo',
-	     makepplog => 'makepplog',
-	     makeppreplay => 'makeppreplay');
+	     makepp_command => 'makepp,&nbsp; mpp',
+	     makeppbuiltin => 'makeppbuiltin,&nbsp; mppb',
+	     makeppclean => 'makeppclean,&nbsp; mppc',
+	     makeppdeclude => 'makeppdeclude,&nbsp; mppd',
+	     makeppgraph => 'makeppgraph,&nbsp; mppg',
+	     makeppinfo => 'makeppinfo,&nbsp; mppi',
+	     makepplog => 'makepplog,&nbsp; mppl',
+	     makeppreplay => 'makeppreplay,&nbsp; mppr');
 
 my @nav =
  ([qw(Overview
@@ -123,7 +125,7 @@ sub init {
     [('Documentation') x 2, "${docroot}$docindex", 'doc'],
     [('Gallery') x 2, "${webroot}gallery/", 'gallery'],
 
-    [('Dowload') x 2, "http://sourceforge.net/projects/makepp/files/", 'download'],
+    [('Dowload') x 2, 'http://sourceforge.net/projects/makepp/files/2.0/', 'download'],
     ['Makepp on SourceForge', 'SourceForge', "https://sourceforge.net/projects/makepp/", 'sourceforge'],
     ['Makepp on CPAN', 'CPAN', "http://search.cpan.org/~pfeiffer/makepp/", 'cpan']);
 }
@@ -166,8 +168,8 @@ sub frame($$$) {
   }
   my $ret;
   for my $piece ( split /(div id='_main'>|<pre>.*?<\/pre>)/s, "<?xml version='1.0'?>
-<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.0 Strict//EN' 'http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd'>
-<html xmlns='http://www.w3.org/1999/xhtml'>
+<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.1//EN' 'http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd'>
+ <html xmlns='http://www.w3.org/1999/xhtml'>
 <head>
   <link rel='stylesheet' href='${docroot}makepp.css' type='text/css'/>
   $head
@@ -186,7 +188,8 @@ sub frame($$$) {
   <form action='http://www.google.com/search'>
     <p>
       <input type='hidden' name='as_sitesearch' value='makepp.sourceforge.net/2.0'/>
-      <input name='as_q' type='text'/>
+      <input type='text' name='as_q'/>
+      <input type='submit' value='Go'/>
     </p>
   </form>
   <a title='Makepp Homepage' href='$webroot'><img src='${docroot}makepp.png' alt='Makepp'/></a>
@@ -194,8 +197,10 @@ sub frame($$$) {
 </div>
 <ul>
   <li id='_close'>
+    <script type='text/javascript'>r()</script>
     <span title='Flip side' onclick='lr(this)'>\x{2194}</span><span title='Collapse' onclick='roll(this)'>\x{2013}</span><span title='Expand' onclick='roll(this,1)'>\xa4</span><span title='Close' onclick='nonav(this)'>\xd7</span>
-</li>$nav</ul>
+  </li>$nav
+</ul>
 <div id='_main'>$body</div><div id='_clear'/></body></html>" ) {
     if( !$ret ) {		# compact html
       ($ret = $piece) =~ s/>\s+</></g;
@@ -204,10 +209,11 @@ sub frame($$$) {
 	$piece =~ s/\s+/ /g;
 	$piece =~ s! />!/>!g;
 	$piece =~ s!(</?)strong([> ])!$1b$2!g;
-	$piece =~ s!(</?)em([> ])!$1i$2!g;
+	$piece =~ s!(</?)em([> ])!$1i$2!g; # Use <i> for italic, because of u
 	$piece =~ s!(</?)code([> ])!$1tt$2!g;
 	$piece =~ s! ?(</?(?:li|ul|p|h[1-6]|hr/|d[dlt])\b[^>]*>) ?!$1!g;
       }
+      $piece =~ s!(</?)u([> ])!$1em$2!g; # Use now free em for deprecated u -- crap!!!
       $ret .= $piece;
     }
   }
@@ -292,8 +298,9 @@ sub highlight_variables() {
 
 my $uc = $Pod::Html::VERSION < 1.04; # Perl 5.6
 sub simplify($$$) {
-  copy $_[0], "/tmp/p2h.$Pod::Html::VERSION" if $_[1] eq 'makepp_build_cache';
+  copy $_[0], "/tmp/p2h.$Pod::Html::VERSION" if $_[1] eq 'makepp_signatures';
   open my( $tmpfile ), $_[0] or die;
+  binmode $tmpfile, ':utf8' if $] > 5.008; # suppress warning
   my $base = $_[1];
   my $timestamp = $_[2];
   my $file = "$base.html";
@@ -388,7 +395,7 @@ sub simplify($$$) {
 	s/^ {1,7}\t(\t*)(?!#)/$1    / or s/^    ?//;
 
 	if( /^\s+$/ ) {
-	  $next_tall = '<sup class="tall">&nbsp;</sup>';
+	  $next_tall = '<b class="tall"> </b>';
 	  next;
 	} else {
 	  # don't grok comments
@@ -410,7 +417,7 @@ sub simplify($$$) {
 	$pre = 0 if m!</pre>!;
 
       }
-    } elsif( s!<dt><strong><a name="(\w+)"[^>]*>(.*)</a></strong></dt>!<dt id="$1"><strong>$2</strong></dt>! ) {
+    } elsif( s!<dt><strong><a name="(\w*)"[^>]*>(.*)</a></strong></dt>!my $id = $1 ? " id='$1'" : ''; "<dt$id><b>$2</b></dt>"!e ) {
       if( !html_short_names ) {
 	s!(<strong>-. )(.+?<)!$1<i>$2/i><! ||	# Repetitions of same don't get itemized.
 	  s!("item_[^"]*">--[^<=]*=)(.+?) ?<!$1<i>$2</i><! ||
@@ -422,7 +429,10 @@ sub simplify($$$) {
 	s!"item_(%[%\w]+)">!(my $i = $1) =~ tr/%/_/; "'$i'>"!e; # Perl 5.6
       }
     } else {
+      s!<h([123])><a name=(.*?)</a></h\1>!<h$1 id=$2</h$1>!;
       s/<a&nbsp;href/<a href/g;	# what the heck
+      s!(<a href="[^>]+">)(.*?)<a href="[^>]+">(.+?)</a>!index( $2, '</a>' ) > -1 ? $& : "$1$2$3"!eg and
+	s!(<a href="[^>]+">)(.*?)<a href="[^>]+">(.+?)</a>!index( $2, '</a>' ) > -1 ? $& : "$1$2$3"!eg;
       #s!([\s>]|^)([Mm]ake)pp([\s,.:])!$1<i><span class="makepp">$2</span>pp</i>$3!g;
       s!("#_)(?=\w+">&amp;)!${1}26!g;		# fix builtins index link
       s!<li></li>!<li>!;
@@ -450,9 +460,8 @@ sub simplify($$$) {
     }
 				# uniquify =item labels (and simplify them)
     no warnings 'uninitialized';
-    s!dt><strong><a name=['"](.+?)['"]!dt id="$1$count{$1}"! &&
-      ++$count{$1} &&
-	s!</a></strong>!!;
+    s!(<[^>]+) id=['"]([^>'"]*)['"]!$1 id="$2$count{$2}"! &&
+      ++$count{$2};
     s!\./\./makepp!makepp!g;
     $contents .= $_;
   }

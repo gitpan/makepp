@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppreplay,v 1.14 2011/04/17 21:37:03 pfeiffer Exp $
+# $Id: makeppreplay,v 1.15 2012/02/07 22:26:15 pfeiffer Exp $
 
 package Mpp;
 
@@ -61,7 +61,7 @@ use Mpp::Rule;
 my @targets;
 my $target_cwd = $CWD_INFO;
 Mpp::Makefile::find_root_makefile_upwards $target_cwd;
-				# See if we find a RootMakeppfile from here, in case perl code uses ROOT.
+				# See if we find a RootMakeppfile from here, in case Perl code uses ROOT.
 my $modules = '';
 
 my %command_line_vars;

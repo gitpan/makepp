@@ -2,7 +2,7 @@
 
 makepp_speedup -- How to make makepp faster
 
-=for vc $Id: makepp_speedup.pod,v 1.13 2012/01/11 21:01:47 pfeiffer Exp $
+=for vc $Id: makepp_speedup.pod,v 1.14 2012/02/07 22:26:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -14,7 +14,7 @@ of a mysterious bug" syndrome).  If you suspect some Perl code you added to
 your makefiles might be at fault, take a look at L<perl_performance>.
 
 But there are a few things you can do to squeeze out more speed.  Some of the
-things are labelled unsafe, in the sence that you're asking makepp not to
+things are labeled unsafe, in the sence that you're asking makepp not to
 check or do certain things, which you think are not needed.  If these things
 would have been necessary, the build may not be correct.  Luckily this problem
 will be temporary, however.  It will get corrected as soon as you let makepp
@@ -105,7 +105,7 @@ use that name.
 
 =head3 Have as few rules as you need
 
-Makepp keeps track not only of existant files, but also of any it learns to
+Makepp keeps track not only of existent files, but also of any it learns to
 create.  (That's why it offers reliable wildcards like F<*.o>.)  The price for
 this power is a lot of management.  So, if you tell it how to create a F<.o>
 from a F<.c>, that's fine, because it will happen for most if not all
@@ -132,7 +132,7 @@ Makepp offers very convenient possibilities of being extended through Perl.
 But if you write some functions, commands or statements in a file and include
 that from dozens of makefiles, you will get dozens of copies of them all in
 memory.  And they will be read dozens of times by the makepp parser, which is
-a bit slower than perl's.
+a bit slower than Perl's.
 
 In this situation it is better to L<put your own functions into a
 module|makepp_extending/Putting functions into a Perl module>.
@@ -152,7 +152,7 @@ differences.
 If your build is so big that makepp is having a hard time digesting all the
 information and if you can find a way of splitting it up into smaller
 independent parts, L<sandboxes|makepp_sandboxes> might give you better
-parallelity than the C<--jobs> option.
+parallelism than the C<--jobs> option.
 
 =head3 Don't log what you do
 

@@ -1,4 +1,4 @@
-# $Id: Vcs.pm,v 1.30 2011/11/07 21:27:09 pfeiffer Exp $
+# $Id: Vcs.pm,v 1.31 2012/03/04 13:56:35 pfeiffer Exp $
 
 =head1 NAME
 
@@ -244,7 +244,7 @@ sub xparse_command {
     $vera_scanner->scan_file($self, "vera", $_) or return undef;
   }
   if(@c_args) {
-    # Because some relative paths in @c_args are interpretted
+    # Because some relative paths in @c_args are interpreted
     # by VCS as being relative to the csrc subdirectory, we model
     # that by having the scanner think that it's in that dir,
     # but munge the @c_args that *aren't* relative to csrc before

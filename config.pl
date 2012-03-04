@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: config.pl,v 1.29 2011/01/16 17:09:32 pfeiffer Exp $
+# $Id: config.pl,v 1.30 2012/02/07 22:26:15 pfeiffer Exp $
 #
 # Configure this package.
 #
@@ -11,33 +11,33 @@ use Mpp::Text ();
 use Mpp::File ();		# ensure HOME is set
 
 #
-# First make sure this version of perl is recent enough:
+# First make sure this version of Perl is recent enough:
 #
 eval { require 5.006 };
 if ($@) {			# Not recent enough?
-  die "I need perl version 5.6 or newer.  If you have it installed somewhere
+  die "I need Perl version 5.6 or newer.  If you have it installed somewhere
 already, run this installation procedure with that perl binary, e.g.,
 
 	perl5.12.1 config.pl ...
 
-If you don't have a recent version of perl installed (what kind of system are
+If you don't have a recent version of Perl installed (what kind of system are
 you on?), get the latest from www.perl.com and install it.
 ";
 }
 
 if ($] == 5.006) {
-  print "**************** You're running perl 5.6.0.  *************************
+  print "**************** You're running Perl 5.6.0.  *************************
 
-perl 5.6.0 has a bug which can cause makepp to behave in a bizarre fashion.
+Perl 5.6.0 has a bug which can cause makepp to behave in a bizarre fashion.
 This bug is not encountered in every makefile, so you might be ok.  But it
-would be safer to upgrade to another version of perl (e.g., 5.8.0 does
+would be safer to upgrade to another version of Perl (e.g., 5.8.0 does
 not seem to have the problem).\n";
 } elsif ($] == 5.006001) {
-  print "**************** You're running perl 5.6.1.  *************************
+  print "**************** You're running Perl 5.6.1.  *************************
 
-perl 5.6.1 fails on some architectures and works just fine on others.
+Perl 5.6.1 fails on some architectures and works just fine on others.
 If you encounter weird problems with makepp, or if the tests fail,
-consider upgrading your version of perl.\n";
+consider upgrading your version of Perl.\n";
 }
 
 #
@@ -138,7 +138,7 @@ Usage: configure [option]
 Valid options are:
 
 -b, --bindir=/path/to/installation/bin
-    Where the binaries go.  Makepp's binaries are just perl scripts so they
+    Where the binaries go.  Makepp's binaries are just Perl scripts so they
     are architecture independent.
 -d, --datadir=/path/to/installation/share/makepp
     Where to install makepp's library files.

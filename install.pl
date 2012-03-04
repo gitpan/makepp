@@ -3,22 +3,22 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.106 2012/01/06 21:58:21 pfeiffer Exp $
+# $Id: install.pl,v 1.109 2012/03/04 13:56:35 pfeiffer Exp $
 #
 
 package Mpp;
 
 #
-# First make sure this version of perl is recent enough:
+# First make sure this version of Perl is recent enough:
 #
 BEGIN {
   eval { require 5.006 };
-  die "I need perl version 5.6 or newer.  If you have it installed somewhere
+  die "I need Perl version 5.6 or newer.  If you have it installed somewhere
 already, run this installation procedure with that perl binary, e.g.,
 
 	perl5.14.0 install.pl
 
-If you don't have a recent version of perl installed (what kind of system are
+If you don't have a recent version of Perl installed (what kind of system are
 you on?), get the latest from www.perl.com and install it.
 " if $@;			# Not recent enough?
 }
@@ -50,7 +50,7 @@ $prefix = "/usr/local";
 $bindir = shift(@ARGV) ||
   read_with_prompt("
 Makepp needs to know where you want to install it and its data files.
-makepp is written in perl, but there is no particular reason to install
+makepp is written in Perl, but there is no particular reason to install
 any part of it in the perl hierarchy; you can treat it as you would a
 compiled binary which is completely independent of perl.
 
@@ -62,7 +62,7 @@ $bindir =~ m@^(.*)/bin@ and $prefix = $1;
 
 my $datadir = shift @ARGV || read_with_prompt("
 Makepp has a number of library files that it needs to install somewhere.  Some
-of these are perl modules, but they can't be used by other perl programs, so
+of these are Perl modules, but they can't be used by other Perl programs, so
 there's no point in installing them in the perl modules hierarchy; they are
 simply architecture-independent data that needs to be stored somewhere.
 
@@ -250,9 +250,10 @@ if( $mandir ne 'none' ) {
 		   center Makepp
 		   lax 1);
   my $parser = Pod::Man->new( %options );
-  open STDERR, '>/tmp/null' if $] < 5.008; # warns about  E<>
+  open STDERR, is_windows > 0 ? '>NUL:' : '>/dev/null' if is_perl_5_6; # warns about E<>
   { no warnings; *Pod::Man::cmd_head3 = \&Pod::Man::cmd_head2 if $] < 5.006_001 } # n/a
-  foreach $file (@pods) {
+  for my $file (@pods) {
+    next if $file eq 'makepp_index.pod'; # html only
     my $manfile = $file;
     $manfile =~ s/\.pod$/.1/;   # Get the name of the man file.
     $parser->parse_from_file( $file, "$mandir/man1/$manfile" );
@@ -265,12 +266,12 @@ if( $mandir ne 'none' ) {
 #
 eval "use Digest::MD5";		# See if it's already installed.  Was not with 5.6.
 if ($@) {
-  print "\nIt looks like you don't have the perl module Digest::MD5 installed.
+  print "\nIt looks like you don't have the Perl module Digest::MD5 installed.
 Makepp likes to have Digest::MD5 installed because it is a better technique
 for checking whether files have changed than just looking at the dates.
 Makepp will work without it, however.
-   If you would like this feature, you'll have to install this perl module.
-If you installed perl from a binary distribution (e.g., from a linux package),
+   If you would like this feature, you'll have to install this Perl module.
+If you installed Perl from a binary distribution (e.g., from a Linux package),
 you can probably get a precompiled version of this module from the same place.
 Otherwise, you can get it from CPAN
 (http://www.cpan.org/authors/id/G/GA/GAAS/Digest-MD5-2.33.tar.gz).
@@ -289,8 +290,8 @@ There is no need to reinstall makepp after installing Digest::MD5.
 print "makepp successfully installed.\n";
 
 #
-# This subroutine makes a copy of an input file, substituting all occurences
-# of @xyz@ with the perl variable $xyz.  It also fixes up the header line
+# This subroutine makes a copy of an input file, substituting all occurrences
+# of @xyz@ with the Perl variable $xyz.  It also fixes up the header line
 # "#!/usr/bin/perl" if it sees one.  On Win also create a .bat to call it.
 #
 # Arguments:
