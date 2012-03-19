@@ -2,7 +2,7 @@
 
 makepp -- Compatible but improved replacement for make
 
-=for vc $Id: makepp.pod,v 1.36 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp.pod,v 1.37 2012/03/19 21:29:15 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -52,6 +52,10 @@ What the Unix compilation commands do.
 =item L<Release Notes|makepp_release_notes>
 
 What changed with each release.
+
+=item L<Incompatibilities|makepp_incompatibilities>
+
+What works differently between GNU make and makepp.
 
 =item L<Speedup|makepp_speedup>
 
@@ -115,10 +119,6 @@ How you can add functions to makepp by writing your own Perl code.
 =item L<Functions|makepp_functions>
 
 Functions for text manipulation and various other purposes.
-
-=item L<Incompatibilities|makepp_incompatibilities>
-
-What works differently between GNU make and makepp.
 
 =item L<Repositories|makepp_repositories>
 

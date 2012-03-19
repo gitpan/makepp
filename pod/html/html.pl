@@ -2,7 +2,7 @@
 #
 # This script does the pod to html generation with some heavy massageing.
 #
-# $Id: html.pl,v 1.6 2012/02/28 21:41:06 pfeiffer Exp $
+# $Id: html.pl,v 1.7 2012/03/19 21:29:15 pfeiffer Exp $
 #
 
 package Mpp::html;
@@ -63,6 +63,7 @@ my @nav =
       makepp_tutorial
       makepp_tutorial_compilation
       makepp_release_notes
+      makepp_incompatibilities
       makepp_speedup
       perl_performance)],
   [qw(Q&amp;A
@@ -126,8 +127,8 @@ sub init {
     [('Gallery') x 2, "${webroot}gallery/", 'gallery'],
 
     [('Dowload') x 2, 'http://sourceforge.net/projects/makepp/files/2.0/', 'download'],
-    ['Makepp on SourceForge', 'SourceForge', "https://sourceforge.net/projects/makepp/", 'sourceforge'],
-    ['Makepp on CPAN', 'CPAN', "http://search.cpan.org/~pfeiffer/makepp/", 'cpan']);
+    ['Makepp on SourceForge', 'SourceForge', 'https://sourceforge.net/projects/makepp/', 'sourceforge'],
+    ['Makepp on CPAN', 'CPAN', 'http://search.cpan.org/dist/makepp/', 'cpan']);
 }
 &init;
 

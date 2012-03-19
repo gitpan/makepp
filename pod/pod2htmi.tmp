@@ -49,6 +49,7 @@ a ./makepp_builtins.html
 UID ./makepp_build_cache.html
 dates ./makeppinfo.html
 dependencies ./makeppgraph.html
+Comments_don_t_have_continuation_lines ./makepp_incompatibilities.html
 load_makefile_VAR1_value1_VAR2_value2_subdir ./makepp_statements.html
 cwd_number ./makeppgraph.html
 infer_objects_file1_file2_pattern ./makepp_functions.html
@@ -587,6 +588,7 @@ dont_read_filename ./makepp_command.html
 AR ./makepp_variables.html
 template_pl ./makeppbuiltin.html
 because ./makeppgraph.html
+Pattern_dependencies_don_t_match_phony_targets ./makepp_incompatibilities.html
 signature_signature_method ./makepp_rules.html
 makeperl_perlcode ./makepp_statements.html
 current_working_directory_and_up_number ./makepplog.html
@@ -648,8 +650,8 @@ h ./makeppreplay.html
 Nest ./makepp_compatibility.html
 POSIX ./makepp_incompatibilities.html
 help ./makeppreplay.html
-f ./makepplog.html
 != ./makepp_variables.html
+f ./makepplog.html
 silent ./makepp_command.html
 O ./makepp_builtins.html
 stop ./makepp_command.html

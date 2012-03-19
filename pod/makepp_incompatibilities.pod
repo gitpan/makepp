@@ -2,7 +2,7 @@
 
 makepp_incompatibilities -- Incompatibilities between makepp and GNU make
 
-=for vc $Id: makepp_incompatibilities.pod,v 1.35 2012/02/28 21:43:22 pfeiffer Exp $
+=for vc $Id: makepp_incompatibilities.pod,v 1.36 2012/03/19 21:29:15 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -577,6 +577,22 @@ you must use either of these
 
 This will probably be fixed in version 2.1, maybe optionally.
 
+=head2 Minor points
+
+=over
+
+=item Pattern dependencies don't match phony targets
+
+    %.a: %.b; ...
+    $(phony x.b): ; ...		# does not provide a way to build x.a
+
+=item Comments don't have continuation lines
+
+    # This is \
+    NOT a 2-line comment
+
+=back
+
 =head1 Command line incompatibilities
 
 Makepp supports a few of make's more useful command line options.  The
@@ -585,6 +601,11 @@ following, however, are not supported:
 =over 4
 
 =item -d or --debug
+
+=item -f -
+
+Makepp's internal makefile objects are linked to file objects, so it can't
+handle stdin.
 
 =item -i
 

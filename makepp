@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.206 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: makepp,v 1.207 2012/03/19 21:29:06 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -111,6 +111,7 @@ use Mpp::Event qw(when_done wait_for read_wait);
 
 our $original_cwd = $CWD_INFO;	# Remember the directory we started from.
 
+delete $ENV{ROOT};		# This is our builtin variable.
 our $MAKEFLAGS = delete $ENV{MAKEFLAGS};
 our $MAKEPPFLAGS = delete $ENV{MAKEPPFLAGS};
 our %global_ENV = %ENV;		# Make a copy of the environment, because

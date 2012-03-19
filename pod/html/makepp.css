@@ -18,7 +18,7 @@ img{border:0;}
 #_cpan{clip:rect(0, 990px, 23px, 900px);left:-354px;}
 body>ul{float:left;overflow-x:hidden;overflow-y:hidden;overflow:hidden;width:10em;padding:0;margin:0;background-color:#d6e0f5;color:black;list-style:inside url(nav.png);white-space:nowrap;border-collapse:collapse;border-bottom:solid 8px #999999;}body>ul li{font-size:85%;border-top:solid 1px white;padding:4px;}body>ul li.unfold{cursor:n-resize;}
 body>ul li.fold{cursor:s-resize;}body>ul li.fold ul{display:none;}
-body>ul ul{padding-left:0;margin:0;padding-bottom:4px;list-style:inside url(nav2.png);}body>ul ul li{border-top-width:0;padding:1px;}
+body>ul ul{cursor:default;padding-left:0;margin:0;padding-bottom:4px;list-style:inside url(nav2.png);}body>ul ul li{border-top-width:0;padding:1px;}
 #_close{font-size:100%;list-style-image:none;list-style-type:none;margin:0;border:hidden;height:23px;background-color:black;color:white;text-align:right;vertical-align:middle;padding:0;}#_close span{padding:6px 4px 0 0;cursor:pointer;}
 #_act{background-color:#b9caee;color:black;}
 .right{float:right;}

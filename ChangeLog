@@ -1,3 +1,9 @@
+2012-03-19  pfeiffer  <occitan@esperanto.org>
+
+Version 2.0 makepp-2.0.tgz on sourceforge & CPAN.
+
+	* makepp: Environment $ROOT is harmful to our builtin.
+
 2012-03-04  pfeiffer  <occitan@esperanto.org>
 
 Version 2.0rc3 makepp-2.0rc3.tgz, technically 1.50-120304:20-0228:1-0207:5 on sourceforge & CPAN.

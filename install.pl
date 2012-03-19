@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.109 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: install.pl,v 1.110 2012/03/19 21:28:57 pfeiffer Exp $
 #
 
 package Mpp;
@@ -142,6 +142,7 @@ mkpath "$datadir/$_" for
 
 our $useoldmodules = '';
 if( $ENV{MAKEPP_INSTALL_OLD_MODULES} ) {
+  warn "MAKEPP_INSTALL_OLD_MODULES is deprecated.\n";
   my %packages =		# The renamed or multipackage cases.
    (BuildCache => [qw(BuildCache BuildCache BuildCache::Entry)],
     FileInfo => ['FileInfo=File'],
