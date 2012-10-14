@@ -2,7 +2,7 @@
 
 makepp_faq -- Frequently asked questions about makepp
 
-=for vc $Id: makepp_faq.pod,v 1.11 2012/01/19 23:19:53 pfeiffer Exp $
+=for vc $Id: makepp_faq.pod,v 1.12 2012/03/25 18:34:48 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -14,7 +14,7 @@ be found in the L<cookbook|makepp_cookbook>.
 
 =head3 Why does it run this rule 3 times?
 
-Gnu make has no makepp style multi target rules.  Instead it interprets this
+GNU make has no makepp style multi target rules.  Instead it interprets this
 as a shortcut for three separate rules:
 
     a b c:

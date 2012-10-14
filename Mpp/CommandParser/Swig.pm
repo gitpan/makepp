@@ -1,4 +1,4 @@
-# $Id: Swig.pm,v 1.15 2011/10/30 20:57:25 pfeiffer Exp $
+# $Id: Swig.pm,v 1.16 2012/05/15 21:26:30 pfeiffer Exp $
 
 =head1 NAME
 
@@ -124,8 +124,7 @@ sub xparse_command {
   $includeall and $scanner->{INCLUDEALL} = 1;
 
   my $rule = $self->rule;
-  $rule->set_signature_class( 'C', 1 )
-    if $Mpp::has_md5_signatures;
+  $rule->set_signature_class( 'C', 1 );
 
   $scanner->set_var(SWIG => 1);
   $scanner->set_var("SWIG" . uc($swig_language), 1);

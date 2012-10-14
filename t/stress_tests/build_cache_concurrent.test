@@ -32,7 +32,7 @@ $i = 0;
 my %pids;
 for( @hosts ) {
   mkdir "dir$i" or die;
-  cp 'Makeppfile.in', "dir$i/Makeppfile";
+  c_cp 'Makeppfile.in', "dir$i/Makeppfile";
   my $pid = fork;
   unless( $pid ) {		# We're the child now
     my @cmd = ($ENV{PERL}, './stress_test.pl',
@@ -111,7 +111,7 @@ long_file.$( wc junk): long_file : build_cache none
 ###	3	644	1164319650	1167411378	.makepp/log
 This is a dummy file present so as to satisfy makepp's test harness.
 
-N_FILES00
+N_FILES000
 ###	D	755	1103936101	1103936159	answers/
 ###	0	644	1103936084	1103936090	answers/build_cache_stress
 ###	D	755	1103936101	1103936159	answers/dir0

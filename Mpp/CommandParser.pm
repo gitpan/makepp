@@ -1,4 +1,4 @@
-# $Id: CommandParser.pm,v 1.39 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: CommandParser.pm,v 1.40 2012/06/09 20:36:20 pfeiffer Exp $
 
 =head1 NAME
 
@@ -118,11 +118,11 @@ sub add_executable_dependency {
     my $dirinfo = $self->dirinfo;
     my $finfo = file_info($exe, $dirinfo);
     my @runtime_deps = values %{$finfo->{RUNTIME_DEPS} || {}};
-    my %visited = map { int, 1 } @runtime_deps;
+    my %visited = map { sprintf( '%x', $_ ), 1 } @runtime_deps;
     while(@runtime_deps) {
       my $runtime_dep = shift @runtime_deps;
       $self->add_optional_dependency( relative_filename $runtime_dep, $dirinfo );
-      $visited{int()}++ or push @runtime_deps, $_
+      $visited{sprintf '%x', $_}++ or push @runtime_deps, $_
 	for values %{$runtime_dep->{RUNTIME_DEPS} || {}};
     }
     $self->add_more_executable_dependencies($1)

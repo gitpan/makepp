@@ -53,7 +53,7 @@ b.c:
 
 b.$(OBJ_SUFFIX): pre			# Dep must not be forgotten when rereading, or would rebuild next time
 
-%.$(OBJ_SUFFIX): %.c $[perl $Mpp::has_md5_signatures && ':signature C'] :include %.$(DEP_SUFFIX)
+%.$(OBJ_SUFFIX): %.c :signature C :include %.$(DEP_SUFFIX)
   ifmakeperl '$(CC)' =~ /\bcl/
 	cl -showIncludes -c $(input) >$(stem).d
 	&sed &dependify -o +<$(stem).d

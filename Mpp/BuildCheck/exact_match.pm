@@ -1,10 +1,10 @@
-# $Id: exact_match.pm,v 1.40 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: exact_match.pm,v 1.42 2012/06/09 20:36:20 pfeiffer Exp $
 use strict;
 package Mpp::BuildCheck::exact_match;
 
 use Mpp::BuildCheck;
 use Mpp::File;
-use Mpp::Signature;
+use Mpp::Signature::md5;
 
 our @ISA = 'Mpp::BuildCheck';
 
@@ -248,11 +248,11 @@ sub report_changed_dependencies {
 
   my( $old_deps, $new_deps, $tinfo ) = @_;
 
-  my %old_deps = map +(int, $_), @$old_deps; # Int is cheapest printable ref representation
+  my %old_deps = map +(sprintf( '%x', $_ ), $_), @$old_deps; # Int is cheapest printable ref representation
   my @not_in_old_deps;
   foreach (@$new_deps) {
     push @not_in_old_deps, $_	# Record any files which are new.
-      if !delete $old_deps{int()}; # Forget common files.
+      if !delete $old_deps{sprintf '%x', $_}; # Forget common files.
   }
 
   Mpp::log BUILD_DEP_DEL => $tinfo, [values %old_deps]
@@ -307,9 +307,6 @@ sub build_check_from_build_info {
 # only by derived classes.
 #
 sub build_cache_key {
-  $Mpp::has_md5_signatures or return undef; # Disable the build cache if
-                                # the MD5 method is not available.
-
   my( undef, $tinfo, $sorted_dependencies, $key, $build_cwd, $sig_method, $env ) = @_;
 			# Copy the build command directly into key.
   my( $ignore_action, $ignore_architecture, $only_action ) = @{$_[0]};
@@ -322,9 +319,8 @@ sub build_cache_key {
     for( @$sorted_dependencies ) {
       my $content_based_signature = $sig_method->signature( $_ );
       unless( Mpp::Signature::is_content_based $content_based_signature ) {
-	require Mpp::Signature::md5;
 	# If the signature isn't already content-based, then use MD5.
-	$content_based_signature = Mpp::Signature::md5::signature( $Mpp::Signature::md5::md5, $_ );
+	$content_based_signature = Mpp::Signature::md5::signature $_;
       }
       $key .= "\01$content_based_signature";
 				# Delimit the dependency signatures too.
@@ -340,10 +336,10 @@ sub build_cache_key {
     if $tinfo->{'..'} != $build_cwd;
 
   if( case_sensitive_filenames ) {
-    $key = Digest::MD5::md5_base64( $key );
-    $key =~ tr|/|%|;		# Make it file system compatible.
+    ($key = Digest::MD5::md5_base64 $key)
+      =~ tr|/|%|;		# Make it file system compatible.
   } else {
-    $key = Digest::MD5::md5_hex( $key );
+    $key = Digest::MD5::md5_hex $key;
   }
   $key . "_" . $tinfo->{NAME};
                                 # Append the name we're looking for to the

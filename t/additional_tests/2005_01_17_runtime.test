@@ -3,7 +3,7 @@
 -x 'a';				# Can't set this on VFAT, but may be the default.
 ###	3	775	1168790818	1168790819	makepp_test_script.pl
 makepp;
-cp x => 'x-1';
+c_cp x => 'x-1';
 makepp 'C=12';
 ###	14	775	1168790874	1168789807	Makeppfile
 runtime $(patsubst %.m, %.n, a), b

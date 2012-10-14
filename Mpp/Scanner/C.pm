@@ -1,4 +1,4 @@
-# $Id: C.pm,v 1.29 2010/12/24 13:26:47 pfeiffer Exp $
+# $Id: C.pm,v 1.30 2012/06/09 20:37:17 pfeiffer Exp $
 
 =head1 NAME
 
@@ -288,8 +288,7 @@ sub xscan_file {
 	  $scanworthy = 1;
 	} elsif( (my $no=$directive eq 'ifndef') || $directive eq 'ifdef' and /^\w+$/ ) {
 	  my $def = defined $self->get_var( $_ );
-          $go = $no ? !$def : $def;
-          $go = $go ? 1 : 0;
+          $go = ($no ? !$def : $def) || 0;
 	  $self->push_scope([$go, $go]);
 	  if( $no && !defined $guarded && !defined $guard ) {
 	    $guard_scope = $self->{SCOPES}[-1];	# Might be beginning of an include guard.

@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.110 2012/03/19 21:28:57 pfeiffer Exp $
+# $Id: install.pl,v 1.114 2012/07/05 21:55:13 pfeiffer Exp $
 #
 
 package Mpp;
@@ -11,17 +11,15 @@ package Mpp;
 #
 # First make sure this version of Perl is recent enough:
 #
-BEGIN {
-  eval { require 5.006 };
-  die "I need Perl version 5.6 or newer.  If you have it installed somewhere
+eval { require 5.008; 1 } or
+  die "I need Perl version 5.8 or newer.  If you have it installed somewhere
 already, run this installation procedure with that perl binary, e.g.,
 
-	perl5.14.0 install.pl
+	perl5.14.1 install.pl ...
 
 If you don't have a recent version of Perl installed (what kind of system are
 you on?), get the latest from www.perl.com and install it.
-" if $@;			# Not recent enough?
-}
+";
 
 use Config;
 use File::Copy;
@@ -37,10 +35,8 @@ warn "\nMakepp will be installed with DOS newlines, as you unpacked it.\n\n"
   if ($_ = <DATA>) =~ tr/\r//d;
 
 our $eliminate = '';		# So you can say #@@eliminate
-$eliminate = $eliminate if Mpp::is_perl_5_6;
 
-our( $BASEVERSION ) = $VERSION =~ /^([^-]+)/;
-$BASEVERSION = $BASEVERSION if Mpp::is_perl_5_6;
+our $BASEVERSION = $Mpp::Text::BASEVERSION;
 
 #
 # Now figure out where everything goes:
@@ -106,6 +102,7 @@ Where should the manual pages be installed?
 Enter \"none\" if you do not want the manual pages.
 Man directory [$prefix/man]: ") ||
   "$prefix/man";
+our $noman = $mandir eq 'none' ? 1 : '';
 
 $htmldir = shift @ARGV || read_with_prompt("
 Where should the HTML documentation be installed?
@@ -128,12 +125,9 @@ if($findbin) {
 
 my $destdir = shift @ARGV;
 
-@sig_num{split ' ', $Config{sig_name}} = split ' ', $Config{sig_num};
-$USR1 = $sig_num{USR1}; $USR1 = $USR1; 	# suppress used-only-once warning
-
 if( $destdir ) {
   for( $bindir, $datadir, $mandir, $htmldir_val ) {
-    s/$prefix/$destdir/o if defined;
+    s/^/$destdir/o if defined;
   }
 }
 
@@ -173,6 +167,7 @@ if( $ENV{MAKEPP_INSTALL_OLD_MODULES} ) {
   }
 }
 
+$ENV{_MAKEPP_INSTALL} = 1;
 substitute_file( $_, $bindir, 0755, 1 ) for
   qw(makepp makeppbuiltin makeppclean makeppgraph makeppinfo makepplog makeppreplay makepp_build_cache_control);
 
@@ -251,8 +246,6 @@ if( $mandir ne 'none' ) {
 		   center Makepp
 		   lax 1);
   my $parser = Pod::Man->new( %options );
-  open STDERR, is_windows > 0 ? '>NUL:' : '>/dev/null' if is_perl_5_6; # warns about E<>
-  { no warnings; *Pod::Man::cmd_head3 = \&Pod::Man::cmd_head2 if $] < 5.006_001 } # n/a
   for my $file (@pods) {
     next if $file eq 'makepp_index.pod'; # html only
     my $manfile = $file;
@@ -260,32 +253,6 @@ if( $mandir ne 'none' ) {
     $parser->parse_from_file( $file, "$mandir/man1/$manfile" );
     chmod 0644, "$mandir/man1/$manfile";
   }
-}
-
-#
-# Figure out whether we need to do anything about Digest::MD5.
-#
-eval "use Digest::MD5";		# See if it's already installed.  Was not with 5.6.
-if ($@) {
-  print "\nIt looks like you don't have the Perl module Digest::MD5 installed.
-Makepp likes to have Digest::MD5 installed because it is a better technique
-for checking whether files have changed than just looking at the dates.
-Makepp will work without it, however.
-   If you would like this feature, you'll have to install this Perl module.
-If you installed Perl from a binary distribution (e.g., from a Linux package),
-you can probably get a precompiled version of this module from the same place.
-Otherwise, you can get it from CPAN
-(http://www.cpan.org/authors/id/G/GA/GAAS/Digest-MD5-2.33.tar.gz).
-After you've downloaded it, do the following:
-	gzip -dc Digest-MD5-2.33.tar.gz | tar xf -
-	cd Digest-MD5-2.33
-	perl Makefile.PL
-	make
-	make test
-	make install
-There is no need to reinstall makepp after installing Digest::MD5.
-
-";
 }
 
 print "makepp successfully installed.\n";
@@ -311,8 +278,8 @@ sub substitute_file {
   open OUTFILE, "> $outdir/$infile" or die "$0: can't write to $outdir/$infile--$!\n";
 
   local $_;
+  my $perl = PERL;
   while( <INFILE> ) {
-    my $perl = PERL;
     s@^\#!\s*(\S+?)/perl(\s|$)@\#!$perl$2@o	# Handle #!/usr/bin/perl.
        if $. == 1;
     s/\\?\@(\w+)\@/$$1/g;		# Substitute anything containg @xyz@.
@@ -322,6 +289,8 @@ sub substitute_file {
     }
 
     print OUTFILE $_;
+    open INFILE, "$perl $infile --help |" # '-|' no good on Win AS
+      if $abbrev && /__DATA__/;
   }
   close OUTFILE;
   close INFILE;

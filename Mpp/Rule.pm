@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.121 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: Rule.pm,v 1.125 2012/10/14 15:16:14 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -251,8 +251,8 @@ sub find_all_targets_dependencies {
 # that are equal to the target.
 #
   foreach (values %all_targets) {
-    if( $all_dependencies{int()} ) {
-      delete $all_dependencies{int()}; # Remove it from the dependency list.
+    if( $all_dependencies{sprintf '%x', $_} ) {
+      delete $all_dependencies{sprintf '%x', $_}; # Remove it from the dependency list.
       my $warn_flag = 0;
       for (my $idx = 0; $idx < @explicit_dependencies; ++$idx) {
 	if ($explicit_dependencies[$idx] == $_) { # Was it an explicit dependency?
@@ -271,8 +271,8 @@ sub find_all_targets_dependencies {
 # (and breaks some makefiles) if dependencies are built in a different order
 # than they are specified.
 #
-  delete @all_targets{int()} for @explicit_targets;
-  delete $all_dependencies{int()} for @explicit_dependencies;
+  delete @all_targets{sprintf '%x', $_} for @explicit_targets;
+  delete $all_dependencies{sprintf '%x', $_} for @explicit_dependencies;
 
   ([ @explicit_targets, values %all_targets ],
    [ @explicit_dependencies, values %all_dependencies ],
@@ -292,15 +292,15 @@ requested tag might not match the actual tag that gets returned.
 =cut
 
 sub get_tagname {
-  my ($self, $tag) = @_;
-  return undef unless defined $tag;
-  die if $tag eq '';
-  my $real_tag = $tag;
+  #my ($self, $tag) = @_;
+  return undef unless defined $_[1];
+  die if $_[1] eq '';
+  my $real_tag = $_[1];
   my $suffix = 0;
-  while(exists $self->{META_DEPS}{$real_tag}) {
-    $real_tag = $tag . ++$suffix;
+  while(exists $_[0]{META_DEPS}{$real_tag}) {
+    $real_tag = $_[1] . ++$suffix;
   }
-  $self->{META_DEPS}{$real_tag}={};
+  $_[0]{META_DEPS}{$real_tag}={};
   $real_tag;
 }
 
@@ -316,17 +316,16 @@ $dirname is a name relative to build_cwd.
 =cut
 
 sub add_include_dir {
-  my ($self, $tag, $dir, $front) = @_;
-  die "unregistered tag $tag" unless $self->{META_DEPS}{$tag};
-  die unless $tag;
-  $self->{INCLUDE_PATHS}{$tag} ||= [];
-  if($front) {
-    unshift(@{$self->{INCLUDE_PATHS}{$tag}}, $dir);
+  #my ($self, $tag, $dir, $front) = @_;
+  die "unregistered tag $_[1]" unless $_[0]{META_DEPS}{$_[1]};
+  die unless $_[1];
+  $_[0]{INCLUDE_PATHS}{$_[1]} ||= [];
+  if( $_[3] ) {
+    unshift @{$_[0]{INCLUDE_PATHS}{$_[1]}}, $_[2];
+  } else {
+    push @{$_[0]{INCLUDE_PATHS}{$_[1]}}, $_[2];
   }
-  else {
-    push(@{$self->{INCLUDE_PATHS}{$tag}}, $dir);
-  }
-  $self->{INCLUDE_PATHS_REL}{$tag} = 1 unless defined $dir;
+  undef $_[0]{xxINCLUDE_PATHS_REL}{$_[1]} unless defined $_[2];
 }
 
 =head2 add_include_suffix
@@ -339,9 +338,9 @@ See L</"load_scaninfo">.
 =cut
 
 sub add_include_suffix_list {
-  my( $self, $tag, $sfxs ) = @_;
-  die "unregistered tag $tag" unless $self->{META_DEPS}{$tag};
-  $self->{INCLUDE_SFXS}{$tag} = $sfxs;
+  #my( $self, $tag, $sfxs ) = @_;
+  die "unregistered tag $_[1]" unless $_[0]{META_DEPS}{$_[1]};
+  $_[0]{INCLUDE_SFXS}{$_[1]} = $_[2];
 }
 
 =head2 add_meta_dependency
@@ -371,24 +370,27 @@ sub fix_file_ {
   $name;
 }
 sub add_any_dependency_ {
-  my ($self, $key, $tag, $src, $name, $finfo) = @_;
-  $tag='' unless defined $tag;
+  #my ($self, $key, $tag, $src, $name, $finfo) = @_;
+  my $tag = $_[2];
+  $tag = '' unless defined $tag;
   # We won't care where the file was included from if it's not using a tag,
   # if the tag it's using doesn't care about the source directory, or if
   # the file was included with an absolute path.
-  $src='' unless defined($src) && $tag ne '' &&
-    $self->{INCLUDE_PATHS_REL}{$tag} && $name !~ m@^/@;
+  my $src = $_[3];
+  $src=  '' unless defined($src) && $tag ne '' &&
+    exists $_[0]{xxINCLUDE_PATHS_REL}{$tag} && $_[4] !~ m@^/@;
   $src=~s@/*$@/@ unless $src eq '';
-  die "unregistered tag $tag" unless $tag eq '' || $self->{META_DEPS}{$tag};
-  $self->{$key}{$tag}{$src}{fix_file_($name)} = 1;
-  if($finfo) {
-    $self->add_dependency($finfo);
-    return wait_for Mpp::build $finfo if $key eq 'META_DEPS';
+  die "unregistered tag $tag" unless $tag eq '' || $_[0]{META_DEPS}{$tag};
+  $_[0]{$_[1]}{$tag}{$src}{fix_file_ $_[4]} = 1;
+  if( $_[5] ) {
+    my $finfo = $_[5];
+    $_[0]->add_dependency( $finfo );
+    return wait_for Mpp::build $finfo if $_[1] eq 'META_DEPS';
   }
   0; # success
 }
 sub add_any_dependency_if_exists_ {
-  my ($self, $key, $tag, $src, $name, $finfo, $tinfo) = @_;
+  #my ($self, $key, $tag, $src, $name, $finfo, $tinfo) = @_;
 
   # TBD: We should return undef if work would have to be done in order
   # to build or re-build $finfo. This would require the equivalent of the
@@ -398,11 +400,11 @@ sub add_any_dependency_if_exists_ {
   # dependency, because we might need to build Makeppfile's while searching,
   # and we might fail to build one that we'll wind up not actually needing.
   local $Mpp::keep_going = 1;
-  if($finfo && !Mpp::File::exists_or_can_be_built_or_remove $finfo ) {
+  if( $_[5] && !Mpp::File::exists_or_can_be_built_or_remove $_[5] ) {
     return undef;
   }
-  Mpp::log CACHED_DEP => $finfo, $tinfo
-    if $Mpp::log_level && $finfo;
+  Mpp::log CACHED_DEP => $_[5], $_[6]
+    if $Mpp::log_level && $_[5];
   !&add_any_dependency_;
 }
 sub add_meta_dependency {
@@ -437,10 +439,10 @@ See L</"load_scaninfo">.
 =cut
 
 sub add_implicit_target {
-  my ($self, $name) = @_;
-  $self->{IMPLICIT_TARGETS}{fix_file_($name)} = 1;
-  my $finfo = file_info($name, $self->build_cwd);
-  $self->add_target($finfo);
+  #my ($self, $name) = @_;
+  $_[0]{IMPLICIT_TARGETS}{fix_file_ $_[1]} = 1;
+  my $finfo = file_info $_[1], $_[0]->build_cwd;
+  $_[0]->add_target($finfo);
   $finfo;
 }
 
@@ -454,9 +456,9 @@ See L</"load_scaninfo">.
 =cut
 
 sub add_implicit_env_dependency {
-  my ($self, $name) = @_;
-  $self->{IMPLICIT_ENV_DEPS}{$name} = 1;
-  $self->add_env_dependency($name);
+  #my ($self, $name) = @_;
+  $_[0]{IMPLICIT_ENV_DEPS}{$_[1]} = 1;
+  $_[0]->add_env_dependency($_[1]);
 }
 
 =head2 set_signature_class
@@ -469,16 +471,16 @@ set one (when reading meta data).  If $method is given, skip look up.
 =cut
 
 sub set_signature_class {
-  my( $self, $name, $implicit, $method, $override ) = @_;
-  unless( $self->{SIG_METHOD_NAME} && $self->{SIG_METHOD_OVERRIDE} && $implicit ) {
-    $method = Mpp::Signature::get $name, $self->{RULE_SOURCE}
-      or die "$self->{RULE_SOURCE}: invalid signature class $name\n";
-    $self->{SIG_METHOD_NAME} = $name;
-    $self->{SIG_METHOD_IMPLICIT} = 1 if $implicit;
-    $self->{SIGNATURE_METHOD} = $method;
-    $self->{SIG_METHOD_OVERRIDE} = 1 if $override; # remember this against later implicit value
+  #my( $self, $name, $implicit, $method, $override ) = @_;
+  if( $_[0]{SIG_METHOD_NAME} && exists $_[0]{xSIG_METHOD_OVERRIDE} && $_[2] ) {
+    $_[3];
+  } else {
+    $_[0]{SIG_METHOD_NAME} = $_[1];
+    $_[0]{SIG_METHOD_IMPLICIT} = 1 if $_[2];
+    undef $_[0]{xSIG_METHOD_OVERRIDE} if $_[4]; # remember this against later implicit value
+    $_[0]{SIGNATURE_METHOD} = Mpp::Signature::get $_[1], $_[0]{RULE_SOURCE}
+      or die "$_[0]{RULE_SOURCE}: invalid signature class $_[1]\n";
   }
-  $method;
 }
 
 =head2 mark_scaninfo_uncacheable
@@ -633,7 +635,7 @@ sub load_scaninfo_single {
   return 'the build command changed' if $command_string ne $command;
 
   my $name = $self->{SIG_METHOD_NAME} || '';
-  if( $name ? $self->{SIG_METHOD_OVERRIDE} : !$sig_method_implicit ) {
+  if( $name ? exists $self->{xSIG_METHOD_OVERRIDE} : !$sig_method_implicit ) {
     # This will make files look like changed (even if they are not).
     return 'signature method changed' if ($sig_method_name||'') ne $name;
   }
@@ -669,7 +671,7 @@ sub load_scaninfo_single {
   # Save the existing list of dependencies.
   my %saved_all_dependencies = %{$self->{ALL_DEPENDENCIES}};
 
-  my %meta_dep_finfos; # Not used, but may be used in the future.
+  my %meta_dep_finfos;
   my $cant_build_deps;
   {
     # Update $self to reflect the cached dependencies:
@@ -707,13 +709,13 @@ sub load_scaninfo_single {
 	    ) or $cant_build_deps=1;
 	  }
 	  last TAG if $cant_build_deps;
-	  $meta_dep_finfos{$finfo} = 1 if $finfo && $key eq 'META_DEPS';
+	  undef $meta_dep_finfos{sprintf '%x', $finfo} if $finfo && $key eq 'META_DEPS';
 	}
       }
     }
   }
 
-  # TBD: If you have a explicit dependency in the target list, then it gets
+  # TBD: If you have an explicit dependency in the target list, then it gets
   # removed after this method, but before the dependencies are stored in the
   # build info, and therefore the dependency list will look out of date
   # when it isn't.  This only slows things down, only happens when the
@@ -739,8 +741,8 @@ sub load_scaninfo_single {
 	values %{$self->{ALL_DEPENDENCIES}}
       );
 
-      for(@outdated) {
-	if($meta_dep_finfos{$_}) {
+      for( @outdated ) {
+	if( exists $meta_dep_finfos{sprintf '%x', $_} ) {
 	  $flush_scaninfo = 1;
 	  last;
 	}
@@ -890,9 +892,6 @@ sub execute {
     my $tmpfile = "/tmp/makepp.$$" . substr rand, 1;
 				# Make the name of a temporary file.
 				# Don't use f_mktemp, which is more expensive.
-				# TODO when discontinuing support of 5.6:
-				# switch to: open my $fh, '+>', undef
-				# and dup $fh to STDOUT/ERR
     my $proc_handle = new Mpp::Event::Process sub {
 #
 # Child process.  Redirect our output to the temporary file and then start
@@ -1003,19 +1002,19 @@ sub setup_environment {
 
 use POSIX ();
 sub exec_or_die {
-  my( $action, $silent ) = @_;
+  #my( $action, $silent ) = @_;
   my $result = 254 << 8;
-  if( $silent || !$Mpp::profile ) {
-    { exec format_exec_args $action }
+  if( $_[1] || !$Mpp::profile ) {
+    { exec format_exec_args $_[0] }
 				# Then execute it and don't return.
 				# This discards the extra make process (and
 				# probably saves lots of memory).
-    print STDERR "exec $action failed--$!\n"; # Should never get here, braces eliminate warning.
+    print STDERR "exec $_[0] failed--$!\n"; # Should never get here, braces eliminate warning.
   } else {
-    $result = system format_exec_args $action;
-    print STDERR "system $action failed--$!\n"
+    $result = system format_exec_args $_[0];
+    print STDERR "system $_[0] failed--$!\n"
       if $result == -1;
-    Mpp::print_profile_end( $action ) if $Mpp::profile;
+    Mpp::print_profile_end( $_[0] ) if $Mpp::profile;
   }
   close $_ for @Mpp::close_fhs;
   Mpp::suicide Mpp::signame $result & 0x7F
@@ -1045,7 +1044,7 @@ sub execute_command {
   # action will be stoppable, and we'll still be able to mark them because
   # while the system is running they are blocked by the makepp process
   # automatically.
-  &Mpp::reset_signal_handlers if !Mpp::is_windows; # unless constant gives a warning in some variants of 5.6
+  &Mpp::reset_signal_handlers if !Mpp::is_windows; # unless constant warns till Win AS 5.8.3
   chdir $build_cwd;		# Move to the correct directory.
   $self->{MAKEFILE}->setup_environment;
 
@@ -1174,7 +1173,6 @@ sub execute_command {
 # 2) On Linux, system() blocks signals, which means that makepp wouldn't
 #    respond to ^C or other things like that.  (See the man page.)
 #
-      &Mpp::flush_log if Mpp::is_perl_5_6;
       my $pid = fork;
       unless ($pid) {		# Executed in child process:
 	$SIG{__WARN__} = $nop;	# Suppress annoying warning message here if
@@ -1198,9 +1196,6 @@ sub execute_command {
 
   # Close filehandles that may have been left opened by a Perl command.
   if( $maybe_open || $unsafe ) {
-    if( Mpp::is_perl_5_6 ) {
-      close $_ for @Mpp::close_fhs, Mpp::MAKEPP ? values %{$self->{MAKEFILE}{PACKAGE}.'::'} : ();
-    }
     exec $true;			# Close open filehandles w/o doing garbage collection
     warn "failed to exec `$true'--$!";
     # If that didn't work, then do a close on every symbol in the makefile's
@@ -1223,14 +1218,14 @@ sub execute_command {
 #
 our $last_build_cwd = 0;	# Comparable to a ref.
 sub print_build_cwd {
-  my $build_cwd = $_[0];
-  if( $last_build_cwd != $build_cwd ) { # Different from previous or no previous?
+  #my $build_cwd = $_[0];
+  if( $last_build_cwd != $_[0] ) { # Different from previous or no previous?
     if( $Mpp::print_directory ) {
       print "$Mpp::progname: Leaving directory `$last_build_cwd->{FULLNAME}'\n"
 	if $last_build_cwd;	# Don't let the directory stack fill up.
       print "$Mpp::progname: Entering directory `" . &absolute_filename . "'\n";
     }
-    $last_build_cwd = $build_cwd;
+    $last_build_cwd = $_[0];
   }
 }
 
@@ -1311,7 +1306,7 @@ sub source { $_[0]{RULE_SOURCE} }
 # called by the command parsers.
 #
 sub add_dependency {
-  $_[0]{ALL_DEPENDENCIES}{int $_[1]} ||= $_[1];
+  $_[0]{ALL_DEPENDENCIES}{sprintf '%x', $_[1]} ||= $_[1];
 				# Store it if we didn't already know about it.
 }
 
@@ -1329,9 +1324,8 @@ sub add_env_dependency {
   return if $rule->{ENV_DEPENDENCIES}{$var_name};
   if( my( $name, $val ) = $var_name =~ /^(.+) in (\S+)$/) {
     if( $val eq 'PATH' ) {
-      my $found = Mpp::Subs::f_find_program( $name, $rule->{MAKEFILE}, $rule->{SOURCE}, 1 );
-print $found," XX\n";
-      return $rule->{ENV_DEPENDENCIES}{$var_name} = Mpp::Subs::f_dir_noslash( $found, $rule->{MAKEFILE}, $rule->{SOURCE} )
+      my $found = Mpp::Subs::f_find_program( $name, $rule->{MAKEFILE}, $rule->{RULE_SOURCE}, 1 );
+      return $rule->{ENV_DEPENDENCIES}{$var_name} = Mpp::Subs::f_dir_noslash( $found, $rule->{MAKEFILE}, $rule->{RULE_SOURCE} )
 	if $found;
     } else {
       for( split /:/, $rule->{MAKEFILE}->get_env( $val ) || '' ) {
@@ -1381,7 +1375,7 @@ sub expand_additional_deps {
 sub add_target {
   my ($self, $oinfo) = @_;
 
-  return if $self->{ALL_TARGETS}{int $oinfo}; # Quit if we already knew about this.
+  return if $self->{ALL_TARGETS}{sprintf '%x', $oinfo}; # Quit if we already knew about this.
 
 #
 # This target may have dependencies which were explicitly listed in some other
@@ -1398,7 +1392,7 @@ sub add_target {
 				# Add them to the dependency list.
   push @{$self->{EXTRA_DEPENDENCIES}}, @dep_infos;
 
-  $self->{ALL_TARGETS}{int $oinfo} = $oinfo;
+  $self->{ALL_TARGETS}{sprintf '%x', $oinfo} = $oinfo;
 }
 
 

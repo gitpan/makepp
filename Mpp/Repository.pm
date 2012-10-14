@@ -1,4 +1,4 @@
-# $Id: Repository.pm,v 1.9 2011/09/15 20:59:26 pfeiffer Exp $
+# $Id: Repository.pm,v 1.10 2012/10/14 15:16:04 pfeiffer Exp $
 
 =head1 NAME
 
@@ -199,6 +199,13 @@ sub Mpp::Repository::get {
   # can be built, because we'll build it locally instead).
   return 0 unless exists_or_can_be_built_norecurse $src_finfo, undef, 1;
 
+  if( &dont_read or my $src = dont_read $src_finfo ) {
+    Mpp::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
+      ' because the ', $src ? 'latter' : 'former', ' is marked for dont-read';
+    ++$Mpp::failed_count;
+    return 1;			# Indicate failure.
+  }
+
   &mkdir( $dest_finfo->{'..'} ); # Make the directory (and its parents) if it doesn't exist.
 
   Mpp::log REP_LINK => @_
@@ -211,33 +218,25 @@ sub Mpp::Repository::get {
 
   # NOTE: Even if the symlink is already correct, we need to copy over the
   # build info, because it may have changed since the link was created.
-  my $binfo = $src_finfo->{BUILD_INFO} ||=
-    load_build_info_file($src_finfo) || {};
-				# Get the build information for the old file.
+  # However, if the rep file is a symlink to copy, we need the build info of
+  # the linkee, which might be a local file, and which might have changed,
+  # even if the link is still the same.
+  my $linkee = readlink absolute_filename $src_finfo
+    if !defined $Mpp::symlink_in_rep_as_file && is_symbolic_link $src_finfo;
+  my $binfo_finfo = $linkee ? file_info $linkee, $dest_finfo->{'..'} : $src_finfo;
+  my $binfo = $binfo_finfo->{BUILD_INFO} ||=
+    load_build_info_file( $binfo_finfo ) || {};
+				# Get the build information for the rep file.
   my %build_info = %$binfo;	# Make a copy of everything.
-  $build_info{FROM_REPOSITORY} = relative_filename( $src_finfo, $dest_finfo->{'..'} );
+  $build_info{FROM_REPOSITORY} = relative_filename $src_finfo, $dest_finfo->{'..'};
 				# Remember that we got it from a repository.
   undef $dest_finfo->{xUPDATE_BUILD_INFOS}; # Remember to update the build info.
   $dest_finfo->{BUILD_INFO} = \%build_info;
   push @build_infos_to_update, $dest_finfo;
 				# Update it soon.
 
-  if( dont_read $src_finfo ) {
-    Mpp::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
-      ' because the former is marked for dont-read';
-    ++$Mpp::failed_count;
-    return 1;			# Indicate failure.
-  }
-  if( &dont_read ) {
-    Mpp::print_error 'Cannot link ', $src_finfo, ' to ', $dest_finfo,
-      ' because the latter is marked for dont-read';
-    ++$Mpp::failed_count;
-    return 1;			# Indicate failure.
-  }
-
   my $changed = 1;
-  if( &is_symbolic_link ) { # If it's already a symbolic link,
-				# maybe it's correct.
+  if( &is_symbolic_link ) {	# If it's already a symbolic link, maybe it's correct.
     $dest_finfo->{LINK_DEREF} or &dereference;
 				# Get the link value.
     $dest_finfo->{LINK_DEREF} == $src_finfo and $changed = 0;
@@ -251,13 +250,11 @@ sub Mpp::Repository::get {
 	" because the latter is marked for out-of-sandbox\n";
       return 1 unless $Mpp::sandbox_warn_flag;	# Indicate failure.
     }
-    &unlink;			# Get rid of anything that might already
-				# be there.
-    if( !defined $Mpp::symlink_in_rep_as_file && is_symbolic_link $src_finfo ) {
-				# Must not fetch symlinks from repository, because
-				# they can point to another file in the repository
-				# of which we have a different version locally.
-      $build_info{SYMLINK} = readlink absolute_filename $src_finfo;
+    &unlink;			# Get rid of anything that might already be there.
+    if( $linkee ) {		# Must copy symlinks from repository, because they
+				# can point to another file in the repository of
+				# which we might have a different version locally.
+      $build_info{SYMLINK} = $linkee;
       if( CORE::symlink $build_info{SYMLINK}, &absolute_filename ) {
 	undef $dest_finfo->{xEXISTS}; # We know this file exists now.
       } else {
@@ -289,12 +286,8 @@ sub Mpp::Repository::get {
 				# and we can delete it appropriately.
 
   if ($changed) {
-    my $build_info = $dest_finfo->{BUILD_INFO}; # Don't flush the build info.
-				# (If we lose the build info, then we don't
-				# clean up this file in
-				# cleanup_temporary_links. TODO: is that still needed?)
+    local $dest_finfo->{BUILD_INFO}; # Don't flush the build info.
     &may_have_changed;		# Flush the stat array cache.
-    $dest_finfo->{BUILD_INFO} = $build_info;
     $dest_finfo->{SIGNATURE} = signature( $src_finfo );
 				# Have to have the current signature or else
 				# the build info will get discarded anyway.

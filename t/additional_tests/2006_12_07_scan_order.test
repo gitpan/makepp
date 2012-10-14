@@ -12,7 +12,7 @@ n_files 'n_files_1';
 unlink 'answers/n_files'	# This file system emulates symlinks by copying.  Thus
   if !-l 'include/a.h';		# makepp will recreate the "links", so count is wrong.
 
-{ open my $fh, '>a/a1.h'; print $fh "int i;\n" }
+c_echo 'int i;', '-oa/a1.h';
 unlink 'a/a2.h';
 makepp;
 ###	24	644	1165597567	1186006155	RootMakeppfile

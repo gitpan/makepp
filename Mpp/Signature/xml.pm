@@ -1,4 +1,4 @@
-# $Id: xml.pm,v 1.1 2011/11/20 18:18:46 pfeiffer Exp $
+# $Id: xml.pm,v 1.2 2012/05/15 21:26:30 pfeiffer Exp $
 use strict;
 package Mpp::Signature::xml;
 
@@ -81,7 +81,7 @@ sub signature {
     if( $@ ) {			 # Not valid xml.
       $@ =~ tr/\n//d;
       Mpp::log ERROR => $finfo, $@, 'falling back to md5';
-      $sum = Mpp::Signature::md5::signature $Mpp::Signature::md5::md5, $finfo;
+      $sum = Mpp::Signature::md5::signature $finfo;
     } else {
       my $str = $libxml ? $doc->toStringEC14N : flatten @$doc;
       if( $libxml && !$space ) {

@@ -2,11 +2,42 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.76 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.79 2012/05/29 21:31:38 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
-=head2 Version 2.0
+=head2 Version 2.1 (under development)
+
+=over 4
+
+=item *
+
+You can use the new L<makeppinfo, mppi|makeppinfo> option C<--unremembered> to
+spot no longer needed files.
+
+=item *
+
+You can use the new L<makeppreplay, mppr|makeppreplay> option C<--sed> to
+replay a command differently, e.g. to stop after preprocessing or to add
+debugging options to the linker.
+
+=item *
+
+There was an undocumented (and slightly buggy) feature whereby making
+F<.makepp/log> unwritable would suppress logging.  Now instead it falls back
+to C<--verbose>, so you must pass C<--no-log> if you want that.  This option
+and a few others were also already available for L<makeppreplay,
+mppr|makeppreplay>, but not documented.
+
+=item *
+
+At least Perl 5.8 is required.
+
+=back
+
+
+
+=head2 Version 2.0 (March 2012)
 
 The items are roughly ordered by increasing age, so you need to read only the
 first parts if you've been using snapshots newer than 1.40.
@@ -271,7 +302,7 @@ http://www.swig.org/.)
 
 =item *
 
-Gnu Emacs 22 now has a standard makefile-makepp-mode, which is the default
+GNU Emacs 22 now has a standard makefile-makepp-mode, which is the default
 when visiting F<Makeppfile>.
 
 =item *
@@ -345,6 +376,10 @@ change a file and revert, then you can have makepp drop back to the
 immediately preceding .o file without rebuilding.  Or you can share builds of
 identical files between separate source trees.  Newly added grouping of build
 caches for big setups, possibly spanning several machines.
+
+=item *
+
+At least Perl 5.6 is required.
 
 =back
 
@@ -486,7 +521,7 @@ A few other minor bugs were fixed.
 
 =back
 
-=head2 Version 1.18
+=head2 Version 1.18 (January 2002)
 
 The most important change was support for the Cygwin build environment.
 You can now run makepp with the Cygwin version of Perl; I do not think
@@ -494,7 +529,7 @@ it will work properly with the native Windows version of Perl yet.
 
 A few other bug fixes went into this release.
 
-=head2 Version 1.10
+=head2 Version 1.10 (February 2001)
 
 The most important change in this version is that makepp can accept a
 vastly larger number of makefiles without any command line options
@@ -531,7 +566,7 @@ In addition to bug-fixes, this version has one user-visible change.  The
 C<--norc-substitution> command line option was introduced to allow
 compatible handling of whitespace in makefiles.
 
-=head2 Version 0.99
+=head2 Version 0.99 (January 2001)
 
 In addition to numerous bug fixes, this version has several user-visible
 changes:

@@ -2,12 +2,12 @@
 
 makepp_incompatibilities -- Incompatibilities between makepp and GNU make
 
-=for vc $Id: makepp_incompatibilities.pod,v 1.36 2012/03/19 21:29:15 pfeiffer Exp $
+=for vc $Id: makepp_incompatibilities.pod,v 1.37 2012/03/25 18:34:48 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 Makepp was designed to be as close as possible to GNU make
-(L<http://www.gnu.org/software/make/manual/make.html>).  Gnu autotools
+(L<http://www.gnu.org/software/make/manual/make.html>).  GNU autotools
 (L<http://www.gnu.org/software/automake/manual/automake.html>), CMake
 (L<http://www.cmake.org/>), Premake (L<http://industriousone.com/premake> and
 see L<remark below|/Compatibility via the option:
@@ -568,11 +568,11 @@ L<Target-specific assignments|makepp_variables/target_specific_assignments>.
 Makepp ends expressions at the first matching parenthesis or brace.  Instead
 of this
 
-    $(somefunction ... ( ) ...)	# Gnu make style
+    $(somefunction ... ( ) ...)	# GNU make style
 
 you must use either of these
 
-    ${somefunction ... ( ) ...}	# Gnu make compatible
+    ${somefunction ... ( ) ...}	# GNU make compatible
     $((somefunction ... ( ) ...)) # Makepp extension
 
 This will probably be fixed in version 2.1, maybe optionally.

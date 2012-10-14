@@ -20,11 +20,11 @@ mkdir 'dir2';
 
 # Ask politely what we need to do.
 {
-  local *FH;			# 5.6 can't revert by: open STDOUT, '>&', $fh
-  open FH, '>&STDOUT';
+  open my $fh, '>&STDOUT';
   open STDOUT, '>commands';
   makepp '--dry-run';
-  open STDOUT, '>&FH';
+  open STDOUT, '>&', $fh;
+  close $fh;
 }
 
 # Restore the way it was in builtins.test.

@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	48	644	1103567918	1103567911	Makeppfile
+###	48	644	1103567918	1103567911	makefile
 perl_begin
  warn 0;
  sub f_foo {
@@ -50,16 +50,16 @@ ifeq $(warning 8)
 endif
 ###	D	755	1103567444	1103567383	answers
 ###	10	644	1119250783	1103567928	answers/warnings
-*** warning: 0 at Makeppfile line 2.
-*** warning: 8 at `Makeppfile:46'
-*** warning: 9 at `Makeppfile:47'
-*** warning: 1 at Makeppfile line 4.
-*** warning: 2 at Makeppfile line 10.
-*** warning: 3 at Makeppfile line 16.
-*** warning: 4 at Makeppfile line 21.
-*** warning: 5 at `Makeppfile:23'
+*** warning: 0 at makefile line 2.
+*** warning: 8 at `makefile:46'
+*** warning: 9 at `makefile:47'
+*** warning: 1 at makefile line 4.
+*** warning: 2 at makefile line 10.
+*** warning: 3 at makefile line 16.
+*** warning: 4 at makefile line 21.
+*** warning: 5 at `makefile:23'
 *** warning: 7 at foo.mk line 2.
-*** warning: 6 at Makeppfile line 24.
+*** warning: 6 at makefile line 24.
 ###	1	644	1103567804	1103567928	answers/input_check
 nothing
 ###	D	755	1103567444	1103567383	dir
@@ -68,28 +68,14 @@ $(phony foo):
 	perl {{
 		warn 7;
 	}}
-###	24	755	1164209909	1103567781	makepp_test_script.pl
+###	10	755	1164209909	1342898729	makepp_test_script.pl
 makepp;
 
-my $good = '';
-
-{
-  open my $log, '<', '.makepp/log';
-  open my $warn, '>', 'warnings';
-  while( <$log> ) {
-    if( /warning:/ ) {
-      tr/\02//d;
-      # Windows makepp downcases filename.
-      s/at \S*[Mm]akeppfile:/at `Makeppfile:/ or
-	s/at \S*[Mm]akeppfile /at Makeppfile / or
-	s!(?:[A-Za-z]:)?/.*/dir/!!;
-      print $warn $_;
-    } else {
-      $good .= $_;
-    }
-  }
+sub dewarn {
+  /warning:/ or return 1;
+  tr/\02//d;
+  s!(at `?).*/!$1!;		# Remove path, which varies
+  0;
 }
 
-# Eliminate warnings from log.
-open my $log, '>', '.makepp/log';
-print $log $good;
+c_grep '-wwarnings', '&dewarn', '-o+<.makepp/log';

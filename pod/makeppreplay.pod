@@ -2,7 +2,7 @@
 
 makeppreplay -- Fast repeater of selected makepp actions
 
-=for vc $Id: makeppreplay.pod,v 1.8 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makeppreplay.pod,v 1.10 2012/05/23 18:30:41 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -24,15 +24,21 @@ B<I:>E<nbsp>L<-I|/i_directory>,
 B<J:>E<nbsp>L<--just-print|/n>,E<nbsp>
 B<K:>E<nbsp>L<-k|/k>,
   L<--keep-going|/k>,E<nbsp>
+B<L:>E<nbsp>L<--log|/log_logfilename>,
+  L<--log-file|/log_logfilename>,E<nbsp>
 B<M:>E<nbsp>L<-M|/m_module_arg>,
   L<$MAKEPPREPLAYFLAGS|/_makeppreplayflags>,
   L<--module|/m_module_arg>,E<nbsp>
 B<N:>E<nbsp>L<-n|/n>,
+  L<--no-log|/no_log>,
   L<--no-print-directory|/no_print_directory>,
   L<--no-warn|/no_warn>,E<nbsp>
+B<P:>E<nbsp>L<--profile|/profile>,E<nbsp>
 B<R:>E<nbsp>L<--recon|/n>,
   L<--root-dir|/c>,
   L<--root-directory|/c>,E<nbsp>
+B<S:>E<nbsp>L<-s|/s_perl_expression>,
+  L<--sed|/s_perl_expression>,E<nbsp>
 B<T:>E<nbsp>L<-t|/t>,
   L<--temporary|/t>,E<nbsp>
 B<V:>E<nbsp>L<-V|/v>,
@@ -159,6 +165,14 @@ default, makepp stops when it encounters the first error, even if there
 are other files that need to be built that don't depend on the erroneous
 file.
 
+=item --log=I<logfilename>
+
+=item --log-file=I<logfilename>
+
+Changes the name of the log file to the indicated name.  By default, the log
+file is called F<.makepp/log>.  This file is readable with L<makepplog,
+mppl|makepplog>.
+
 =item -M I<module[=arg,...]>
 
 =item --module=I<module[=arg,...]>
@@ -175,9 +189,37 @@ Load module and import any functions it exports.
 
 Print out commands without actually executing them.
 
+=item --no-log
+
+Don't bother writing a detailed description of what was done to the log file.
+
 =item --no-print-directory
 
 Turn off the entering or leaving directory messages.
+
+=item --profile
+
+Output raw timestamps before and after each action.
+
+=item -s I<perl-expression>
+
+=item --sed=I<perl-expression>
+
+Run the perl expression against the command before running it, like for
+preprocessor C<-s 's/ -c / -E /; s/\.o\b/.i/'>.  This would transform a
+compilation command (C<-c>) into a preprocessor (C<-E>) invocation, changing
+the F<.o> suffix to F<.i>, which is a conventional suffix for preprocessed C.
+Or you might want to add some debug output to your linker.  If you have only
+one command in the rule, you can do this by substituting it into the first
+space: C<-s 's/ / -Wl,-t /'>.
+
+When the command is altered, nothing is remembered about this, i.e. makepp
+will think you have manually modified the file, causing a rebuild.
+
+Note that (unlike makepp) makeppreplay does not parse the command, so it won't
+notice that the target filename was changed.  So you must still request the
+F<.o> target, even though a F<.i> will be built.  And makeppclean won't know
+to remove it.
 
 =item -t
 

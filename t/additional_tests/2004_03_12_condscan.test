@@ -1,21 +1,18 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	644	1329052295	1329052295	is_relevant.pl
 have_cc
-###	14	755	1164319503	1079144775	makepp_test_script.pl
+###	11	755	1164319503	1342866383	makepp_test_script.pl
 makepp;
 
 my $correct=9;
 my $count=0;
 n_files 0, sub { $count++ if /File\s+warn_header/ };
 
-open my $out, ">x2" or die "cannot open x2\n";
-if ($count == $correct) {
-   print $out "OK\n";
-}
-else {
-   print $out "File warn_header should be included $correct times with warning \"File warn_header ...\" , see C.pm \n";
-}
-close $out;
+c_echo '-ox2', $count == $correct ?
+  'OK' :
+  "Warning \"File warn_header ...\" occured $count/$correct times, see C.pm";
+
+1;
 ###	23	644	1079144736	1186282528	Makeppfile
 _OBJ_SUFFIX := $(filter %cl %cl.exe %bcc32 %bcc32.exe, $(CC))
 ifdef _OBJ_SUFFIX

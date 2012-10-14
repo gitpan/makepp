@@ -2,7 +2,7 @@
 
 makepp -- Compatible but improved replacement for make
 
-=for vc $Id: makepp.pod,v 1.37 2012/03/19 21:29:15 pfeiffer Exp $
+=for vc $Id: makepp.pod,v 1.38 2012/05/15 21:26:30 pfeiffer Exp $
 
 =head1 SYNOPSIS
 
@@ -27,13 +27,7 @@ and much better ways to write makefiles.
 
 Makepp passes an extensive test-suite, and is used in several big projects.
 If you have any issues with the latest CVS version, holler, and we'll try to
-fix it quickly.
-
-Makepp runs with any version of Perl since 5.6.  I have seen it occasionally
-trip over a nasty bug in Perl 5.6.0 on Linux which causes makepp to spit out
-all kinds of strange error messages, so I don't recommend running with Perl
-5.6.0; however, this is apparently rare so if you have 5.6.0 you might well be
-ok.
+fix it quickly.  Makepp runs with any version of Perl since 5.8.
 
 The following manual pages contain further information on how to use
 makepp:

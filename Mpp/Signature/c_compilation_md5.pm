@@ -1,9 +1,9 @@
-# $Id: c_compilation_md5.pm,v 1.27 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: c_compilation_md5.pm,v 1.28 2012/05/15 21:26:30 pfeiffer Exp $
 use strict;
 package Mpp::Signature::c_compilation_md5;
 
 use Mpp::Signature;
-use Digest::MD5;
+use Mpp::Signature::md5;
 use Mpp::Text;
 use Mpp::File;
 our @ISA = qw(Mpp::Signature);
@@ -86,8 +86,7 @@ sub signature {
     } else {
       # Use regular MD5 digesting if it exists, but we can't tell what it is
       # by its extension.
-      require Mpp::Signature::md5;	  # Make sure the MD5 signature module is loaded.
-      Mpp::Signature::md5::signature( $Mpp::Signature::md5::md5, $finfo );
+      Mpp::Signature::md5::signature $finfo;
     }
   }
 }

@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.198 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: Subs.pm,v 1.200 2012/06/09 20:36:48 pfeiffer Exp $
 
 =head1 NAME
 
@@ -535,7 +535,7 @@ sub f_find_program {
 	my( $exists_exe, $finfo_exe );
 	$exists_exe = Mpp::File::exists_or_can_be_built $finfo_exe = Mpp::File::path_file_info "$name.exe", $mkfile->{CWD}
 	  if !$exists ||
-	    $_[3] && $Mpp::File::stat_exe_separate ? !exists $finfo->{xEXISTS} : !open my $fh, '<', absolute_filename $finfo;
+	    $_[3] && Mpp::File::stat_exe_separate ? !exists $finfo->{xEXISTS} : !open my $fh, '<', absolute_filename $finfo;
 				# Check for exe, but don't bother returning it, unless full path wanted.
 				# If stat has .exe magic, xEXISTS is meaningless.
 	return $_[3] ? absolute_filename( $finfo_exe ) : $name if $exists_exe;
@@ -559,7 +559,7 @@ sub f_find_program {
 	my( $exists_exe, $finfo_exe );
 	$exists_exe = Mpp::File::exists_or_can_be_built $finfo_exe = file_info( "$name.exe", $dir ), undef, undef, 1
 	  if !$exists ||
-	    $_[3] && $Mpp::File::stat_exe_separate ? !exists $finfo->{xEXISTS} : !open my $fh, '<', absolute_filename $finfo;
+	    $_[3] && Mpp::File::stat_exe_separate ? !exists $finfo->{xEXISTS} : !open my $fh, '<', absolute_filename $finfo;
 				# Check for exe, but don't bother returning it, unless full path wanted.
 	return $_[3] ? absolute_filename( $finfo_exe ) : $name if $exists_exe;
       }
@@ -1762,7 +1762,7 @@ sub prebuild {
       unless ref( $myrule ) eq 'Mpp::DefaultRule' ||
 	exists $finfo->{BUILD_HANDLE} ||
 	$myrule->makefile == $mkfile ||
-	$myrule->makefile->{INITIALIZED};
+	exists $myrule->makefile->{xINITIALIZED};
   }
   Mpp::build($finfo);
 }

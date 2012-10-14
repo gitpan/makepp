@@ -1,8 +1,8 @@
 # This "module" is a haphazard assortment of stuff needed by various utils.
-require 5.006;
+use 5.008;
 use strict;
 
-# $Id: Utils.pm,v 1.15 2010/09/29 22:19:53 pfeiffer Exp $
+# $Id: Utils.pm,v 1.16 2012/05/15 21:26:29 pfeiffer Exp $
 
 # This is syntactically needed by many modules but not called in utils, except mppr.
 sub log($@);

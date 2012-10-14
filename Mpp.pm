@@ -1,4 +1,4 @@
-# $Id: Mpp.pm,v 1.14 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: Mpp.pm,v 1.17 2012/06/09 20:36:20 pfeiffer Exp $
 
 =head1 NAME
 
@@ -76,10 +76,8 @@ our $print_directory = 1;	# Default to printing it.
 our $log_level = 2;		# Default to logging. 1: STDOUT, 2: $logfile
 sub log($@);
 
-my @signals_to_handle = is_windows > 0 && is_perl_5_6 ?
-  () :				# ActiveState 5.6 doesn't define signals.
-  qw/INT QUIT HUP TERM/;
 {
+  my @signals_to_handle = qw/INT QUIT HUP TERM/;
   my %pending_signals;
   sub suicide {
     my ($sig) = @_;
@@ -122,8 +120,7 @@ my @signals_to_handle = is_windows > 0 && is_perl_5_6 ?
   sub reset_signal_handlers {
     @SIG{@signals_to_handle} = ( 'DEFAULT' ) x @signals_to_handle;
   }
-  # Autovivification of hash elements probably isn't reentrant, so initialize
-  # them here in case we're using Perl 5.6.
+  # Autovivification of hash elements may not be reentrant, so initialize them here.
   @pending_signals{@signals_to_handle} = ( 0 ) x @signals_to_handle;
 
   END {
@@ -142,8 +139,8 @@ my @signals_to_handle = is_windows > 0 && is_perl_5_6 ?
     }
   }
 
+  @SIG{@signals_to_handle} = ( \&handle_signal ) x @signals_to_handle;
 }
-@SIG{@signals_to_handle} = ( \&handle_signal ) x @signals_to_handle;
 
 my $invocation = join_with_protection($0, @ARGV);
 
@@ -202,13 +199,13 @@ simple fields contain ^C`s they are ref definitions of up to 4 fields:
 
     ref[^Cname[^Cdir-ref[^Cdir-name]]]
 
-The I<refs> are numbers (hex on HP/UX with 64bit pointers) and the I<names>
-are to be remembered by makepplog for these numbers.  If a I<dir-name> is
-present, that is remembered for I<dir-ref>, else it has been given earlier.
-If a I<dir-ref> is given, that is prepended to I<name> with a slash and
-remembered for I<ref>.  Else if only I<name> is given that is remembered for
-I<ref> as is.  If I<ref> is alone, it has been given earlier.  Makepplog will
-output the remembered name for refs between quotes.
+The I<refs> are hex numbers and the I<names> are to be remembered by makepplog
+for these numbers.  If a I<dir-name> is present, that is remembered for
+I<dir-ref>, else it has been given earlier.  If a I<dir-ref> is given, that is
+prepended to I<name> with a slash and remembered for I<ref>.  Else if only
+I<name> is given that is remembered for I<ref> as is.  If I<ref> is alone, it
+has been given earlier.  Makepplog will output the remembered name for refs
+between quotes.
 
 The fields may also be plain strings if they contain no known I<ref>.  Due to
 the required terminator, the strings may contain newlines, which will get
@@ -226,12 +223,14 @@ sub log($@) {
   # Open the log file if we haven't yet.  Must do it dynamically, because
   # there can be messages (e.g. from -R) before handling all options.
   unless( defined $logfh ) {
+    REDO:
     if( $log_level == 1 ) {
       (my $mppl = $0) =~ s/\w+$/makepplog/;
       -f $mppl or
 	substr $mppl, 0, 0, absolute_filename( $Mpp::original_cwd ) . '/';
       open $logfh, '|' . PERL . " $mppl -pl-" or # Pass the messages to makepplog for formatting.
 	die "$progname: can't pipe to `makepplog' for verbose option--$!\n";
+      my $oldfh = select $logfh; $| = 1; select $oldfh;
     } else {
       if( $logfile ) {
 	my( $dir ) = $logfile =~ /(.+)\//;
@@ -241,9 +240,10 @@ sub log($@) {
 	$logfile = '.makepp/log';
       }
       unless( open $logfh, '>', $logfile ) {
-	warn "$progname: can't create log file ./$logfile--$!\n";
-	$log_level = 0;
-	return;
+	print STDERR "$progname: warning: fallback to --verbose, can't create log file ./$logfile--$!\n";
+	$log_level = 1;
+	undef $logfh;
+	goto REDO;		# recursively calls us, retry to mppl
       }
     }
     push @close_fhs, $logfh;
@@ -268,41 +268,35 @@ sub log($@) {
 	  $_;
 	} elsif( 'ARRAY' eq ref ) {
 	  join "\02", map {		# Array shall only contain objects.
-	    if( exists $_->{xLOGGED} ) {	# Already defined
-	      int;			# The cheapest external representation of a ref.
-	    } elsif( !exists $_->{'..'} ) { # not a Mpp::File
-	      # TODO: These two lines are a reminder for when we store RULE_SOURCE per ref.
-	      #undef $_->{xLOGGED};
-	      #int() . "\03" . $_->name;
-	      $_->name;
-	    } elsif( exists $_->{'..'}{xLOGGED} ) { # Dir already defined
+	    if( exists $_->{xLOGGED} ) { # Already defined
+	      sprintf '%x', $_;		# The cheapest external representation of a ref.
+	    } elsif( exists $_->{'..'} ) { # not a Mpp::File or similar
 	      undef $_->{xLOGGED};
-	      int() . "\03$_->{NAME}\03" . int $_->{'..'};
+	      if( exists $_->{'..'}{xLOGGED} ) { # Dir already defined
+		sprintf "%x\03%s\03%x", $_, $_->{NAME}, $_->{'..'};
+	      } else {
+		undef $_->{'..'}{xLOGGED};
+		sprintf "%x\03%s\03%x\03%s", $_, $_->{NAME}, $_->{'..'}, $_->{'..'}{FULLNAME} || absolute_filename $_->{'..'};
+	      }
 	    } else {
-	      undef $_->{xLOGGED};
-	      undef $_->{'..'}{xLOGGED};
-	      int() . "\03$_->{NAME}\03" .
-		int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || absolute_filename $_->{'..'});
+	      $_->name;
 	    }
 	  } @$_;
 # The rest is a verbatim copy of the map block above.  This function is heavy
 # duty, and repeating code is 6% faster than calling it as a function, even
 # with &reuse_stack semantics.
-	} elsif( exists $_->{xLOGGED} ) {	# Already defined
-	  int;			# The cheapest external representation of a ref.
-	} elsif( !exists $_->{'..'} ) { # not a Mpp::File
-	  # TODO: These two lines are a reminder for when we store RULE_SOURCE per ref.
-	  #undef $_->{xLOGGED};
-	  #int() . "\03" . $_->name;
-	  $_->name;
-	} elsif( exists $_->{'..'}{xLOGGED} ) { # Dir already defined
+	} elsif( exists $_->{xLOGGED} ) { # Already defined
+	  sprintf '%x', $_;		# The cheapest external representation of a ref.
+	} elsif( exists $_->{'..'} ) {	# not a Mpp::File or similar
 	  undef $_->{xLOGGED};
-	  int() . "\03$_->{NAME}\03" . int $_->{'..'};
+	  if( exists $_->{'..'}{xLOGGED} ) { # Dir already defined
+	    sprintf "%x\03%s\03%x", $_, $_->{NAME}, $_->{'..'};
+	  } else {
+	    undef $_->{'..'}{xLOGGED};
+	    sprintf "%x\03%s\03%x\03%s", $_, $_->{NAME}, $_->{'..'}, $_->{'..'}{FULLNAME} || absolute_filename $_->{'..'};
+	  }
 	} else {
-	  undef $_->{xLOGGED};
-	  undef $_->{'..'}{xLOGGED};
-	  int() . "\03$_->{NAME}\03" .
-	    int( $_->{'..'} ) . "\03" . ($_->{'..'}{FULLNAME} || absolute_filename $_->{'..'});
+	  $_->name;
 	}
       } @_ ),
       "\n";

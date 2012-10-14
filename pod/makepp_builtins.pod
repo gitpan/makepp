@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.50 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.51 2012/06/09 20:43:14 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -53,8 +53,9 @@ be found, this is also the syntax for calling an external script within the
 Perl instance performing the rule.  See L<C<run>|makepp_extending/run_script_arguments>.
 
 These commands, as well as your self defined ones and Perl scripts can also be
-called as a make function, returning the standard output.  The newlines are
-converted to spaces, except when evaluated within a C<define> statement.
+called as a make function, returning the standard output.  This requires perl
+to be built for PerlIO.  The newlines are converted to spaces, except when
+evaluated within a C<define> statement.
 
     FIRST-WORDS ;= $(&cut -d' ' -f0 $(FILES))
 

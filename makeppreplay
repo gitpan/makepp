@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppreplay,v 1.15 2012/02/07 22:26:15 pfeiffer Exp $
+# $Id: makeppreplay,v 1.17 2012/05/23 18:30:17 pfeiffer Exp $
 
 package Mpp;
 
@@ -50,7 +50,7 @@ use Mpp::Event qw(wait_for);
 
 our $progname;
 
-my $temporary;
+my( $sed, $temporary );
 
 use Mpp::File;
 use Mpp::FileOpt;
@@ -114,6 +114,7 @@ perform eval {
        }],
       ['I', qr/include(?:[-_]?dir)?/, \$tmp, 1, sub { unshift @INC, absolute_filename file_info $tmp }],
       [qw(M module), \$tmp, 1, sub { $tmp =~ s/=(.*)/ qw($1)/ and $tmp =~ tr/,/ /; $modules .= "use $tmp;" }],
+      [qw(s sed), \$sed, 1],
       [qw(t temporary), \$temporary],
 
       @Mpp::common_opts;
@@ -150,6 +151,12 @@ perform eval {
 
     (my $cmd = $build_info->{COMMAND}) =~ s/\A\|FAILED\|//;
     $cmd =~ tr/\cC/\n/;
+    if( $sed ) {
+      my $ocmd = $cmd;
+      eval $sed for $cmd;
+      die "--sed: $@" if $@;
+      undef $finfo->{xSED} if $ocmd ne $cmd; # Cmd might now be changing other files.  Treat this as a change outside of mpp.
+    }
     (my $deps = $build_info->{SORTED_DEPS} || '') =~ tr/\cA/ /;
 
     my $dinfo = file_info $build_info->{CWD}, $finfo->{'..'};
@@ -217,6 +224,7 @@ perform eval {
       $Mpp::failed_count += $n_files;
       unless( $temporary || $build_info->{COMMAND} =~ /\A\|FAILED\|/ ) {
 	for my $tinfo ( @{$rule->{TARGETS}} ) {
+	  next if exists $tinfo->{xSED};
 	  substr $tinfo->{BUILD_INFO}{COMMAND}, 0, 0, '|FAILED|';
 	  Mpp::File::mark_build_info_for_update $tinfo;
 	}
@@ -240,6 +248,7 @@ perform eval {
 	$sep = "\cA";
       }
       for my $tinfo ( @{$rule->{TARGETS}} ) {
+	next if exists $tinfo->{xSED};
 	$build_info = $tinfo->{BUILD_INFO};
 	delete $tinfo->{LSTAT};
 	$build_info->{SIGNATURE} = Mpp::File::signature $tinfo;
@@ -262,38 +271,6 @@ perform eval {
 };
 
 __DATA__
-Usage: makeppreplay [-options] [VAR=value] targets
+[option ...] [VAR=value ...] target ...
 
 Valid options are:
-
--A filename, --args-file=filename, --arguments-file=filename
-    Read the file and parse it as possibly quoted whitespace- and/or
-    newline-separated options.
--C directory, --directory=directory
-    Cd to the given directory before loading the makefile and trying to
-    build the targets.
--c, --root-dir, --root-directory
-    Cd up to the directory containing a RootMakeppfile.
--I directory, --include=directory, --include-dir=directory
-    Add directory to Perl load path @INC.
--?, -h, --help
-    Print out a brief summary of the options.
--k, --keep-going
-    Build as many files as possible, even if some of them have errors.
--M module[=arg,...], --module=module[=arg,...]
-    Load module and import any functions it exports.
--n, --dry-run, --just-print, --recon
-    Print out commands without actually executing them.
---no-print-directory
-    Turn off the entering or leaving directory messages.
--t, --temporary
-    Makeppreplay modifies the build info of all files it touched and of all
-    dependencies it found modified.
--V, --version
-    Print out the version number.
---no-warn
-    Don't print any warning messages.
-
-Look at @htmldir@/makeppreplay.html for wrapper details,
-or at http://makepp.sourceforge.net/@BASEVERSION@/makeppreplay.html
-or type "man makeppreplay".

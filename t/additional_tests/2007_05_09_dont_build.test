@@ -13,6 +13,6 @@ foo:
 ###	5	755	1164209909	1103567781	makepp_test_script.pl
 makepp qw(d/foo);
 makepp qw(--dont-build d);
-open(my $fh, '<.makepp/log') or die;
-die "warnings: $_" for grep /warning/, <$fh>;
+open my $fh, '<.makepp/log' or die;
+/warning/ and die $_ for <$fh>;
 1;

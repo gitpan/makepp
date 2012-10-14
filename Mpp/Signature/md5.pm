@@ -1,4 +1,4 @@
-# $Id: md5.pm,v 1.12 2010/08/22 20:17:17 pfeiffer Exp $
+# $Id: md5.pm,v 1.13 2012/05/15 21:26:30 pfeiffer Exp $
 use strict;
 package Mpp::Signature::md5;
 
@@ -29,10 +29,10 @@ our $md5 = bless \@ISA;		# Make the singleton object.
 
 #
 # The only subroutine we need to override is the signature method; we use
-# exact matching of MD5 signatures.
+# exact matching of MD5 signatures.  This can be called as a method or function.
 #
 sub signature {
-  my $finfo = $_[1];		# Name the argument.
+  my $finfo = $_[1] || $_[0];	# Name the argument.
 
   my $stored_cksum = Mpp::File::build_info_string( $finfo, "MD5_SUM");
 

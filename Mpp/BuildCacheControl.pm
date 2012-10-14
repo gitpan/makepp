@@ -1,10 +1,16 @@
-# $Id: BuildCacheControl.pm,v 1.30 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: BuildCacheControl.pm,v 1.33 2012/06/09 20:36:20 pfeiffer Exp $
 
 =head1 NAME
 
 Mpp::BuildCacheControl - Externally usable management commands
 
 =cut
+
+$0 = $Mpp::progname = ($Mpp::Text::pod = 'makepp_build_cache') . '_control';
+$Mpp::Text::opts = 'makeppbuiltin';
+$Mpp::Text::helpline =
+$Mpp::Text::extraman = '';	# back to default
+
 
 package Mpp::BuildCacheControl;
 use strict;
@@ -13,10 +19,10 @@ require Exporter;
 our @ISA = 'Exporter';
 our @EXPORT = qw(c_clean c_create c_show c_stats);
 
-use Mpp::File;
 use Mpp::BuildCache;
-use Mpp::FileOpt;
 use Mpp::Cmds;
+use Mpp::File;
+use Mpp::FileOpt;
 use POSIX ':errno_h';
 
 BEGIN {
@@ -69,19 +75,17 @@ sub group(@) {
   my @list = @_;
   for( @list ) {
     my $dinfo = file_info $_;
-    next if exists $bc{int $dinfo};
-    $bc{int $dinfo} = $dinfo;
+    next if exists $bc{sprintf '%x', $dinfo};
+    $bc{sprintf '%x', $dinfo} = $dinfo;
 
     my $opt = "$_/$Mpp::BuildCache::options_file";
     unless( -r $opt ) {		# Disk or NFS server  might be down.
       push @unreachable, $_ if $! == ENOENT || $! == ENOTDIR;
-      undef $bc{int $dinfo};	# Note it so we don't warn for it again.
+      undef $bc{sprintf '%x', $dinfo};	# Note it so we don't warn for it again.
       warn "Can't read $opt--$!\n";
       next;
     }
-# do() fails to return list on one instance of 5.6.1, hence alternative on next line:
-#    my @tmp = do $opt or die $@ =~ / $opt / ? $@ : "$opt: $@";
-    open my $fh, '<', $opt; local $/; my @tmp = eval <$fh> or die $@ =~ / $opt / ? $@ : "$opt: $@";
+    my @tmp = do $opt or die $@ =~ / $opt / ? $@ : "$opt: $@";
     $tmp[-1]{'..'} = $dinfo;	# [0] for non grouped, [1] for grouped.
     $dinfo->{BC} = new Mpp::BuildCache $_, $tmp[-1];
 
@@ -121,9 +125,9 @@ sub ARGVgroups(&) {
     for( @ARGV ) {		# Might specify more than one group.
       group $_;
       # TODO: warn if we have partially overlapping groups.
-      next if exists $seen{int $group[0]{'..'}}; # Already handled this group.
+      next if exists $seen{sprintf '%x', $group[0]{'..'}}; # Already handled this group.
       &{$_[0]};
-      @seen{map int( $_->{'..'} ), @group} = (); # Remember we've treated these BCs.
+      @seen{map sprintf( '%x', $_->{'..'} ), @group} = (); # Remember we've treated these BCs.
     }
   }
 }
@@ -718,7 +722,7 @@ sub c_show {
       }
       $sep = "\f\n" if $Mpp::verbose;
     };
-  } 'f', qw(o O),		# fails in 5.6: qw(f o O);
+  } qw(f o O),
     ['a', qr/a(?:ccess[-_]?)?time/, \$atime],
     $blendopt,
     ['c', qr/c(?:hange[-_]?)?time/, \$ctime],
@@ -863,23 +867,12 @@ sub c_stats {
 
 package Mpp;			# DATA shall be in this package for help.
 
-$0 = 'makepp_build_cache_control';
-
-no warnings 'redefine';
-
-sub helpfoot { die <<'EOF' }
-
-Look at @htmldir@/makepp_build_cache.html for more details,
-or at http://makepp.sourceforge.net/@BASEVERSION@/makepp_build_cache.html
-or type "man makepp_build_cache".
-EOF
-
 1;
 
 __DATA__
-command [option ...] directory ...
-	mppbcc command [option ...] directory ...
-	makeppbuiltin -MMpp::BuildCacheControl command [option ...] directory ...
-	mppb -MMpp::BuildCacheControl command [option ...] directory ...
+[metaoption ...] command [option ...] directory ...
+    makeppbuiltin [metaoption ...] -MMpp::BuildCacheControl command [option ...] directory ...
   available commands:	clean, create, show, stats
   to see options do:	makepp_build_cache_control command --help
+
+Options depend on the command, while metaoptions are these:

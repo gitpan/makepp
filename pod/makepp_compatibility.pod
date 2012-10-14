@@ -2,7 +2,7 @@
 
 makepp_compatibility -- Compatibility list for makepp
 
-=for vc $Id: makepp_compatibility.pod,v 1.35 2012/02/28 21:41:30 pfeiffer Exp $
+=for vc $Id: makepp_compatibility.pod,v 1.40 2012/10/14 15:18:27 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -21,7 +21,7 @@ results on other platforms too!
 <li>successful: <b class="good">&nbsp;x&nbsp;</b></li>
 <li>mostly successful with footnote: <b class="soso">&nbsp;x<sup>*)</sup></b></li>
 <li>failed: <b class="bad">&nbsp;<i>/</i>&nbsp;</b></li>
-<li>Click the navigation bar's close button (&#xd7;) to have more space for the table!</li>
+<li>Click the navigation side bar's close button (&#xd7;) to have more space for the table!</li>
 </ul>
 <table border="1" cellspacing="3" cellpadding="3">
 
@@ -33,74 +33,58 @@ list below.  The first two lines are special, based on the OS field being
 empty.  This is converted to html by install.pl and readable as is in other
 formats.  The 1st header line is currently not dynamic.
 
-		#||	5.6		#|||||||||			5.8						#|	5.10	#||||		5.12			#|| 5.14		#
+		#|||||||||			5.8						#|	5.10	#||||		5.12			#|| 5.14		#| 5.16		#
 
-		# .0	| .1	| .2	# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	| .9	# .0	| .1	# .0	| .1	| .2	| .3	| .4	# .0	| .1	| .2	#
+		# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	| .9	# .0	| .1	# .0	| .1	| .2	| .3	| .4	# .0	| .1	| .2	# .0	| .1	#
 
- GNU/Linux (x86)# x	| x	| req	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	| x	| x	# x	| x	| x	#
+ GNU/Linux (x86)# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	| x	| x	# x	| x	| x	# x	| x	#
 
- GNU/Linux (amd64)#	|	|	#	|	|	|	|	| x	|	|	|	| x	#	|	#	|	| x	| x	|	# x	|	| x	#
+ GNU/Linux (amd64)#	|	|	|	|	| x	|	|	|	| x	#	|	#	|	| x	| x	|	# x	|	| x	#	|	#
 
- GNU/Linux (Alpha)#	| x	|	#	|	|	|	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	|	#
+ GNU/Linux (S/390)#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	|	|	|	|	#	|	|	#	|	#
 
- GNU/Linux (S/390)#	|	| x	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	|	|	|	|	#	|	|	#
+ FreeBSD (x86)	#	|	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	| x	|	#	| x	|	#	|	#
 
- FreeBSD (x86)	#	| x	| x	#	|	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	| x	|	#	| x	|	#
+ NetBSD (x86)	#	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	| x	|	#	| x	| x	#	|	#
 
- NetBSD (x86)	#	|	|	#	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	| x	|	#	| x	| x	#
+ NetBSD (Alpha)	#	|	|	|	|	|	|	|	|	| x	# x	| x	#	|	|	|	|	#	|	|	#	|	#
 
- NetBSD (Alpha)	#	|	|	#	|	|	|	|	|	|	|	|	| x	# x	| x	#	|	|	|	|	#	|	|	#
-
- OpenBSD (x86)	#	|	|	# x	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	|	| x	# x	| x	| x	#
+ OpenBSD (x86)	# x	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	|	| x	# x	| x	| x	# x	| x	#
 
 
- AIX (PPC)	#	|	|	#	| x	| x	|	|	|	|	| x	| x	|	#	|	#	|	|	|	|	#	|	|	#
+ AIX (PPC)	#	| x	| x	|	|	|	|	| x	| x	|	#	|	#	|	|	|	|	#	|	|	#	| x	#
 
- Darwin (x86)	# x	|	|	#	|	|	|	|	|	|	|	|	|	#	|	#	| x	|	|	|	#	| 	| x	#
+ Darwin (x86)	#	|	|	|	|	|	|	|	|	|	#	|	#	| x	|	|	|	#	|	| x	#	|	#
 
- Darwin (PPC)	# x	|	|	#	|	|	|	|	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	|	|	#	| 	| 	#
+ Darwin (PPC)	#	|	|	|	|	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	|	|	#	|	|	#	|	#
 
- HP/UX (IA64)	#	|	|	# HPUX	|	|	| HPUX	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	|	#
+ HP/UX (IA64)	# x	|	|	| x	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	|	#	|	#
 
- Irix		#	|	|	#	|	|	|	|	|	|	|	| x	|	#	|	#	|	|	|	|	#	|	|	#
+ Irix		#	|	|	|	|	|	|	|	| x	|	#	|	#	|	|	|	|	#	|	|	#	|	#
 
- Reliant (Mips)	# Nest	| Nest	|	#	|	|	|	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	|	#
+ Solaris (Sparc)# x	| x	| x	| x	| x	| x	| x	| x	| x	| x	# x	|	# x	| x	|	|	|	#	|	|	# x	| x	#
 
- Solaris (Sparc)# x	| req	|	# x	| x	| x	| x	| x	| x	| x	| x	| x	| x	# x	|	# x	| x	|	|	|	#	| 	| 	#
+ Solaris (64bit)#	| x	|	|	|	|	|	|	| x	|	# x	|	#	|	|	|	|	#	|	|	#	|	#
 
- Solaris (64bit)#	|	|	#	| x	|	|	|	|	|	|	| x	|	# x	|	#	|	|	|	|	#	|	|	#
-
- Solaris (x86)	#	| x	|	#	| x	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	|	| 	#	| 	| 	#
+ Solaris (x86)	#	| x	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	|	|	#	|	|	#	|	#
 
 
- BS2000 (S/390)	#	| x	|	#	| x	|	|	|	|	|	|	|	|	# /	|	#	|	|	|	|	#	|	|	#
+ BS2000 (S/390)	#	| x	|	|	|	|	|	|	|	|	# /	|	#	|	|	|	|	#	|	|	#	|	#
 
- z/OS USS (S/390)#	|	|	#	|	|	|	|	|	|	|	| zOS	|	# /	|	#	|	|	|	|	#	|	|	#
+ z/OS USS (S/390)#	|	|	|	|	|	|	|	| zOS	|	# /	|	#	|	|	|	|	#	|	|	#	|	#
 
 
- Cygwin (x86)	#	|	|	#	|	|	|	|	|	|	| Win	| x	|	# x	| x	#	|	|	|	|	#	|	|	#
+ Cygwin (x86)	#	|	|	|	|	|	|	| Win	| x	|	# x	| x	#	|	|	|	|	#	|	| x	#	|	#
 
- MinGW MSYS	#	| Win	|	#	|	|	|	|	|	|	|	| x	|	#	|	#	|	|	|	|	#	|	|	#
+ MinGW MSYS	#	|	|	|	|	|	|	|	| x	|	#	|	#	|	|	|	|	#	|	|	#	|	#
 
- Stawberry	#	|	|	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	| x	| x	| x	|	#	|	|	#
+ Stawberry	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	| x	| x	| x	|	#	|	| x	# x	| x	#
 
- ActiveState Win# Win	| Win	|	# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	|	| x	|	# x	| 	| 	#
+ ActiveState Win# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	|	| x	|	# x	|	| x	#	| x	#
 
 =for html </table>
 
 =over
-
-=item HPUX
-
-Perl at least up to V5.8.8 has a 64bitall bug on HP/UX that hurts makepp
-badly.  If it recognized that it's running on a 64 bit Perl, it will rewrite
-several sources so as to have a workaround for this problem.
-
-=item req
-
-Some instances of 5.6 at least on Linux and Solaris will dump in a Perl
-C<require> statement.  Strangely this only happens in one test, so you are
-probably ok using these Perls.
 
 =item Win
 
@@ -134,7 +118,7 @@ mechanism, so that isn't available, in addition to the Cygwin deficiencies.
 =item *
 
 On B<Strawberry> Perl with only native Windows most customary Unix commands
-(except Gnu compilers) are missing, and the "shell" is extremely primitive.  A
+(except GNU compilers) are missing, and the "shell" is extremely primitive.  A
 maximal use of makepp's builtin commands and embedded Perl can increase
 makefile portability.
 
@@ -150,8 +134,7 @@ known to be a broken paradigm) and B<parallel> builds.
 =item *
 
 B<ActiveState> Perl is very similar to Strawberry, as far as makepp goes,
-though it doesn't come with Gnu compilers.  Perl 5.6.0 fails on quite a few
-tests, especially with $SHELL, 5.6.1 fails on two tests.  Up to 5.8.6, it will
+though it doesn't come with GNU compilers.  Up to Perl 5.8.6, it will
 rewrite Mpp/File.pm so as to have a needed workaround for an lstat bug.
 
 =back
@@ -189,7 +172,7 @@ meta-data files, which makepp stores alongside each file.  Especially in build
 caches, with their concurrent access, some workaround handling was necessary,
 but it is shown by load test to work fine.
 
-=item Windows CIFS on Gnu/Linux
+=item Windows CIFS on GNU/Linux
 
 A few special characters are not allowed in filenames.  Links are emulated by
 copying while symbolic linking fails.  Apparently write operations come back
@@ -205,12 +188,12 @@ access to this very welcome precision.
 The same CIFS disk that was works so badly on Linux, passes all tests on
 Cygwin.  Possibly there are CIFS mount options that might improve something.
 
-=item Unix SMBFS from Gnu/Linux
+=item Unix SMBFS from GNU/Linux
 
 Linking and symbolic linking fails.  No other tests fail.  I have no access to
 a more realistic Windows SMB server, where the situation might be different.
 
-=item VFAT on Gnu/Linux
+=item VFAT on GNU/Linux
 
 A few special characters are not allowed in filenames.  Linking and symbolic
 linking fails.  The file permission mask and owner are mount options, while

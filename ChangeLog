@@ -1,3 +1,77 @@
+2012-10-14  DP  <occitan@esperanto.org>
+
+snapshot 2.0.98.1
+
+	* Mpp/Repository.pm: Cope with rule producing symlink in repository.
+
+	* Mpp/FileOpt.pm (signature): Dangling symlinks also produce a signature, since they are legal (albeit funny) files.
+
+	* Mpp/Scanner.pm
+	* Mpp/Rule.pm: Optimize small functions.
+
+	* Mpp/Text.pm
+	* VERSION: n.m.98.i are snapshots, and n.m.99.i a release candidate.
+
+2012-08-30  DP  <occitan@esperanto.org>
+
+	* t/*: Use our built in commands for tests.
+
+	* Mpp/Cmds.pm (c_touch): utime not working as documented in 5.8.0.
+
+	* makepp: Simplify Win workaround.
+
+2012-07-05  Mike Frysinger  <vapier@gentoo.org>
+
+	* install.pl: Fix DESTDIR.
+
+2012-06-09  pfeiffer  <occitan@esperanto.org>
+
+	* *: Eliminate need for HP/UX hack, which was slightly buggy.
+
+	* Mpp/File.pm
+	* Mpp/Subs.pm: Make stat_exe_separate a constant.
+
+	* Mpp/Makefile.pm: Use possibilities of PerlIO.
+
+2012-05-29  pfeiffer  <occitan@esperanto.org>
+
+	* makeppinfo (--unremembered): New option.
+
+	* Mpp/Makefile.pm (read_makefile): Run toplevel &cmds in correct dir.
+
+	* *: Remove more 5.6-isms.
+
+	* VERSION: i.j.9beta is development for i.j+1.
+
+2012-05-23  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Text.pm
+	* makepp*
+	* Mpp/BuildCacheControl.pm
+	* install.pl: Make sure help option is consistent with pod, and reflects if man and/or html is installed.
+
+	* Mpp.pm: Fallback to --verbose if log file not writable.
+
+2012-05-15  pfeiffer  <occitan@esperanto.org>
+
+	* *: use v5.8 and eliminate many v5.6-isms
+
+2012-05-12  pfeiffer  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm
+	* makepp: This "x:y;a=1 cmd"' is not a target specific assignment.
+	Accept -f -, both for gmake test suite. (Thanks to Ben S.)
+
+	* makeppreplay (--sed): New option.
+
+	* Mpp/FileOpt.pm: Store build info for mppr, even on initial fail.
+
+	* Mpp/Rule.pm: Use valid attribute.
+
+2012-03-25  pfeiffer  <occitan@esperanto.org>
+
+	* *: Upcase "GNU".
+
 2012-03-19  pfeiffer  <occitan@esperanto.org>
 
 Version 2.0 makepp-2.0.tgz on sourceforge & CPAN.
@@ -3012,7 +3086,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 2006-06-28  Daniel Pfeiffer  <occitan@esperanto.org>
 
 	Variable warning: This is the first of two steps of variable
-	handling cleanup.  Bringing this in line with Gnu make removes
+	handling cleanup.  Bringing this in line with GNU make removes
 	some of the quirky handling we had, i.e. this (and my coming
 	change) is not quite backwards compatible.
 
@@ -3028,7 +3102,7 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(_truthval): Use expand_variable to also handle forgotten things
 	like "ifdef CC" or "ifdef some_global_var".
 	(parse_assignment): Add "override" modifier.  Complete rewrite to
-	be consistent with Gnu make and between assignment forms.  This is
+	be consistent with GNU make and between assignment forms.  This is
 	work in progress, not yet handling target specific vars and the
 	"define" statement the new way.
 	(expand_variable): New function extracted from expand_expression
@@ -4957,8 +5031,8 @@ Snapshot makepp-1.50-cvs-070506.tgz, version 1.50-05065-04272-04245 on CPAN.
 	(getopts): Moved to main in preparation for makepp (was _getopts).
 	(Makecmds): New package automatically considered by Rule.
 	(eval_or_die, _chomp, _escape): New functions.
-	(-E, --no-escape): New option as in Gnu echo.
-	(-s, --separator): Lowercased short option as in Gnu tac or
+	(-E, --no-escape): New option as in GNU echo.
+	(-s, --separator): Lowercased short option as in GNU tac or
 	fmt.
 	(c_echo): Handle \escape sequences.
 	(c_cut, c_printf, c_yes, c_uniq): New commands.
@@ -6315,7 +6389,7 @@ Version 1.40 beta1 released
 
 	* t/additional_tests/*.tar: renamed to .test
 	* t/**/*.test: recreated with spar, so the tests can
-	run on platforms not compatible with Gnu tars (Ebcdic indicator)
+	run on platforms not compatible with GNU tars (Ebcdic indicator)
 	* run_tests.pl (un_spar): new function
 
 2003-10-27  Gary Holt  <holt-makepp@gholt.net>

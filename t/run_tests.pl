@@ -8,7 +8,6 @@ package Mpp;
 use Config;
 use Cwd;
 use File::Path;
-use File::Copy 'cp';
 
 # on some (Windowsish) filesystems rmtree may temporarily fail
 sub slow_rmtree(@) {
@@ -52,7 +51,6 @@ our $makepp_path;
 
 # Global constants for compile time check.
 BEGIN {
-
   open OSTDOUT, '>&STDOUT' or die $!;
   open OSTDERR, '>&STDERR' or die $!;
 
@@ -106,6 +104,23 @@ BEGIN {
     }
   }
 
+  if( $^O =~ /^MSWin/ && $] < 5.008007 ) { # IDENTICAL AS IN makepp
+    # This is a very bad hack!  On earlier Win Active State "lstat 'file'; lstat _ or -l _" is broken.
+    my $file = "$datadir/Mpp/File.pm";
+    local $_ = "$file.broken";
+    unless( -f ) {		# Already converted
+      rename $file, $_;
+      open my $in, '<', $_;
+      open my $out, '>', $file;
+      chmod 07777 & (stat)[2], $file;
+      while( <$in> ) {
+	s/\blstat\b/stat/g;
+	s/-l _/0/g;
+	print $out $_;
+      }
+    }
+  }
+
   Mpp::Text::getopts(
     [qw(b basedir), \$basedir, 1],
     [qw(d dots), \$dot],
@@ -139,6 +154,15 @@ run_tests.pl[ options][ tests]
 
     If no tests are given, runs all in the current directory.
 EOF
+
+  require Mpp::Utils;
+  require Mpp::Glob;
+  require Mpp::Cmds;
+  for( keys %Mpp::Cmds:: ) {
+    if( /^c_/ and my $coderef = *{"Mpp::Cmds::$_"}{CODE} ) {
+      *{"Mpp::$_"} = $coderef;
+    }
+  }
 
   $perltype =
     $Config{cf_email} =~ /(Active)(?:Perl|State)/ ? $1 :
@@ -183,8 +207,6 @@ EOF
       (stat _)[3] == 2 && (stat 'g')[3] == 2); # Link count right?
   unlink 'f', 'g';
   eval 'sub no_link() {' . ($link ? '' : 1) . '}';
-  # Under 5.6.2 (at least on Linux) we cannot repeatedly test for require :-(
-  eval 'sub no_md5() {' . ($] > 5.007 || eval { require Digest::MD5; 1 } ? 0 : 1) . '}';
   chdir $old_cwd;
 }
 
@@ -242,6 +264,7 @@ sub system_intabort {
   return $?;
 }
 
+my %file;
 my $page_break = '';
 my $log_count = 1;
 sub makepp(@) {
@@ -254,7 +277,8 @@ sub makepp(@) {
     rename log => 'log' . $log_count++;
     chdir '..';
   }
-  system_intabort \"makepp$suffix", PERL, '-w', -f 'makeppextra.pm' ? '-Mmakeppextra' : (), $makepp_path.$suffix, @_;
+  system_intabort \"makepp$suffix", # "
+    PERL, '-w', exists $file{'makeppextra.pm'} ? '-Mmakeppextra' : (), $makepp_path.$suffix, @_;
   1;				# Command succeeded.
 }
 
@@ -346,19 +370,15 @@ sub dot($$;$) {
 }
 
 
-sub execute($$;$) {
-  open STDOUT, ">$_[1]" or die "$_[1]: $!";
-  open STDERR, '>&STDOUT' or die "$!";
-  my $ret =
-    -r( "$_[0].pl" ) ? !do "$_[0].pl" :
-    -x( $_[0] ) ? system_intabort "./$_[0]", $makepp_path :
-    $_[2] ? system_intabort PERL, $makepp_path :
-    0;
-  warn $@ if $@;		# This goes to log file
-  open STDOUT, '>&OSTDOUT' or die "$!";
-  open STDERR, '>&OSTDERR' or die "$!";
-  $ret || $@;
+$Mpp::Subs::rule->{MAKEFILE}{PACKAGE} = 'Mpp';
+sub do_pl($) {
+  my $pl = "$_[0].pl";
+  return -1 unless exists $file{$pl};
+  $Mpp::Subs::rule->{MAKEFILE}{MAKEFILE} = Mpp::File::file_info $pl;
+  $Mpp::Subs::rule->{RULE_SOURCE} = $pl . ':0';
+  do $pl;
 }
+
 
 sub n_files(;$$) {
   my( $outf, $code ) = @_;
@@ -368,14 +388,13 @@ sub n_files(;$$) {
   while( <$logfh> ) {
     &$code if $code;
     if( /^[\02\03]?N_FILES\01(\d+)\01(\d+)\01(\d+)\01$/ ) {
-      if( $outf ) {
-	print $outfh "$1 $2 $3\n";
-      } else {
-	return "$1 $2 $3\n";
-      }
+      close $logfh;		# Might happen too late for Windows.
+      my $ret ="$1 $2 $3\n";
+      print $outfh $ret if $outfh;
+      return $ret;
     }
   }
-  close $logfh;			# Might happen too late for Windows.
+  return;
 }
 
 my $have_shell = -x '/bin/sh';
@@ -383,6 +402,7 @@ my $have_shell = -x '/bin/sh';
 print OSTDOUT '1..'.@ARGV."\n" if $test;
 test_loop:
 foreach $archive (@ARGV) {
+  %file = ();
   my $testname = $archive;
   my( $tarcmd, $dirtest, $warned, $tdir, $tdir_failed, $log );
   $SIG{__WARN__} = sub {
@@ -410,20 +430,9 @@ foreach $archive (@ARGV) {
     if( no_symlink && $testname =~ /repository|symlink/ ) {
       dot s => "skipped $testname because symbolic links do not work\n";
       next;
-    } elsif( no_md5 && $testname =~ /symlink/ ) {
-      dot m => "skipped $testname because MD5 is not available\n";
-      next;
     }
-    if( (no_link || no_md5) && $testname =~ /build_cache/ ) {
-      if( no_link ) {
-	dot l => "skipped $testname because links do not work\n";
-      } else {
-	dot m => "skipped $testname because MD5 is not available\n";
-      }
-      next;
-    }
-    if( no_md5 && $testname =~ /md5/ ) {
-      dot m => "skipped $testname because MD5 is not available\n";
+    if( no_link && $testname =~ /build_cache/ ) {
+      dot l => "skipped $testname because links do not work\n";
       next;
     }
     if ($archive !~ /^\//) {	# Not an absolute path to tar file?
@@ -464,24 +473,21 @@ foreach $archive (@ARGV) {
     open STDERR, '>&STDOUT' or die $!;
     open my $fh, '>>.makepprc';	# Don't let tests be confused by a user's file further up.
     close $fh;
+    # check for all special files in one go:
+    @file{<{is_relevant.pl,makepp_test_script.pl,makepp_test_script,cleanup_script.pl,makeppextra.pm,hint}*>} = ();
+
     eval {
-      unless( $have_shell ) {
-	die "skipped x\n" if
-	  -f 'is_relevant' or
-	  -f 'makepp_test_script' or
-	  -f 'cleanup_script';
-      }
-      -r( 'is_relevant.pl' ) ? do 'is_relevant.pl' :
-	-x( 'is_relevant' ) ? !system_intabort './is_relevant', $makepp_path :
-	1
-	or die "skipped r\n";
+      die "skipped x\n" if exists $file{makepp_test_script} && !$have_shell;
+
+      do_pl 'is_relevant' or die "skipped r\n";
+
       $page_break = '';
       $log_count = 1;
-      if( -r 'makepp_test_script.pl' ) {
+      if( exists $file{'makepp_test_script.pl'} ) {
 	local %ENV = %ENV;	# some test wrappers change it.
-	do 'makepp_test_script.pl' or
+	do_pl 'makepp_test_script' or
 	  die 'makepp_test_script.pl ' . ($@ ? "died: $@" : "returned false\n");
-      } elsif( -x 'makepp_test_script' ) {
+      } elsif( exists $file{'makepp_test_script'} ) {
 	system_intabort \'makepp_test_script', './makepp_test_script', $makepp_path;
       } else {
 	makepp;
@@ -495,25 +501,22 @@ foreach $archive (@ARGV) {
 # Now look at all the final targets:
 #
     my @errors;
-    use File::Find;
-    find sub {
-	return if $_ eq 'n_files'; # Skip the special file.
-	return if -d;		   # Skip subdirectories, find recurses.
-	local $/ = undef;		# Slurp in the whole file at once.
-	open TFILE, $_ or die "$0: can't open $tdir/$File::Find::name--$!\n";
+    {
+      local $/;			# Slurp in the whole file at once.
+      for my $name ( Mpp::Glob::zglob 'answers/**/*' ) {
+	next if $name =~ /\/n_files$/ # Skip the special file.
+	  or -d $name;	# Skip subdirectories, find recurses.
+	open TFILE, '<:crlf', $name or die "$0: can't open $tdir/$name--$!\n";
 	$tfile_contents = <TFILE>; # Read in the whole thing.
-	$tfile_contents =~ s/\r//g; # For Cygwin, strip out the extra CRs.
 
-	# Get the name of the actual file, older find can't do no_chdir.
-	($mtfile = $File::Find::name) =~ s!answers/!!;
-	open MTFILE, "$tdir/$mtfile"
-	  or die "$mtfile\n";
-	my $mtfile_contents = <MTFILE>; # Read in the whole file.
-	$mtfile_contents =~ tr/\r//d; # For Cygwin, strip out the extra CRs.
-	$mtfile_contents eq $tfile_contents or push @errors, $mtfile;
-    }, 'answers' if -d 'answers';
+	# Get the name of the actual file.
+	$name =~ s!answers/!!;
+	open TFILE, '<:crlf', $name or die "$0: can't open $tdir/$name--$!\n";
+	my $mtfile_contents = <TFILE>; # Read in the whole file.
+	$mtfile_contents eq $tfile_contents or push @errors, $name;
+      }
+    }
     close TFILE;
-    close MTFILE;
 
 #
 # See if the correct number of files were built:
@@ -553,8 +556,7 @@ foreach $archive (@ARGV) {
       chop( my $loc = $@ );
       dot $1 || '-', "$loc $testname\n";
       if( !$dirtest ) {
-	$@ = '' if Mpp::is_perl_5_6;
-	execute 'cleanup_script', ">$log";
+	do_pl 'cleanup_script';
 	chdir $old_cwd;		# Get back to the old directory.
 	slow_rmtree $tdir;	# Get rid of the test directory.
       } else {
@@ -569,8 +571,8 @@ foreach $archive (@ARGV) {
       dot undef, "$testname: $@", $log;
     }
     ++$n_failures;
-    close TFILE; close MTFILE;	# or Cygwin will hang
-    cp 'hint', \*STDOUT if $hint && -f 'hint';
+    close TFILE;		# or Cygwin will hang
+    c_cat 'hint' if $hint && exists $file{hint};
     chdir $old_cwd;		# Get back to the old directory.
     rename $tdir => $tdir_failed unless $dirtest;
     last if $testname eq 'aaasimple'; # If this one fails something is very wrong
@@ -578,7 +580,7 @@ foreach $archive (@ARGV) {
     dot '.', "passed $testname\n";
     $n_successes++;
     if( !$dirtest ) {
-      execute 'cleanup_script', ">$log";
+      do_pl 'cleanup_script';
       chdir $old_cwd;		# Get back to the old directory.
       slow_rmtree $tdir
 	unless $keep;		# Get rid of the test directory.
@@ -656,11 +658,10 @@ The following files within this directory are important:
 
 =over 4
 
-=item is_relevant.pl / is_relevant
+=item is_relevant.pl
 
-If this file exists, it should be a Perl script which return true (1) or shell
-script which returns true (0) if this test is relevant on this platform, and
-dies or false if the test is not relevant.
+If this file exists, it should be a Perl script which return trueq if this test
+is relevant on this platform, and dies or false if the test is not relevant.
 
 The first argument to this script is the full path of the makepp executable we
 are testing.  The second argument is the current platform as seen by Perl.
@@ -671,7 +672,7 @@ supposed to use (which is not necessarily the one in the path).
 
 If this file exists, it should be a Perl script or shell script which runs
 makepp after setting up whatever is necessary.  If this script dies or returns
-false (see above), then the test fails.
+false (!= 0 for shell), then the test fails.
 
 In a Perl script you can use the predefined function makepp() to run it with
 the correct path and wanted interpreter.  It will die if makepp fails.  You
@@ -742,13 +743,13 @@ number of files that makepp ought to build, phony targets and that are
 expected to have failed.  This is compared to the corresponding number of
 files that it actually built, extracted from the logfile F<.makepp/log>.
 
-=item cleanup_script.pl / cleanup_script
+=item cleanup_script.pl
 
-If this file exists, it should be a Perl script or shell script that is
-executed when the test is done.  This script is executed just before the test
-directory is deleted.  No cleanup script is necessary if the test directory
-and all the byproducts of the test can be deleted with just S<C<rm -rf I<testname>.tdir>>.
-(This is usually the case, so most tests don't include a cleanup script.)
+If this file exists, it should be a Perl script that is executed when the test
+is done.  This script is executed just before the test directory is deleted.
+No cleanup script is necessary if the test directory and all the byproducts of
+the test can be deleted with just C<unlink> and C<rmdir>.  (This is usually
+the case, so most tests don't include a cleanup script.)
 
 =back
 

@@ -1,19 +1,11 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	14	755	1317765475	1317766928	makepp_test_script.pl
+###	6	755	1317765475	1342133044	makepp_test_script.pl
 makepp;
 
 n_files 'n_files_1';
-for( qw(t-db2.sqc t-proc.pc) ) {
-  open my $fh, '>>', $_ or die $!;
-  print $fh '/* unimportant change */';
-  close $fh;
-}
+c_echo '/* unimportant change */', '-o', $_ for qw(t-db2.sqc t-proc.pc);
 
-if( no_md5 ) {
-  rename 'answers/n_files_1', 'answers/n_files';
-} else {
-  makepp qw(t-db2.c t-proc.c);
-}
+makepp qw(t-db2.c t-proc.c);
 ###	37	644	1103319650	1319890767	Makeppfile
 #
 # Alas all embedded SQL/C precompilers vary wildly in how they work.  Test a few very different types.

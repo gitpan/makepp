@@ -85,7 +85,7 @@ subst_from_to_text ./makepp_functions.html
 environment_overrides ./makepp_command.html
 prefix ./makepplog.html
 suffix_names ./makepp_functions.html
-log_file_logfilename ./makepp_command.html
+log_file_logfilename ./makeppreplay.html
 strip ./makepp_builtins.html
 cwd ./makeppgraph.html
 c_spec ./makepp_build_cache.html
@@ -99,13 +99,14 @@ export_MAKEPP_LN_CP_3 ./makepp_builtins.html
 w_or_print_directory ./makepp_incompatibilities.html
 words_text ./makepp_functions.html
 m_method ./makepp_command.html
-req ./makepp_compatibility.html
 force_copy_from_bc ./makepp_command.html
 deletable ./makepp_build_cache.html
 filter_out_patterns_words ./makepp_functions.html
+VFAT_on_GNU_Linux ./makepp_compatibility.html
 absolute_filename_files ./makepp_functions.html
 BI_UID ./makepp_build_cache.html
 workdays ./makepp_build_cache.html
+sed_perl_expression ./makeppreplay.html
 $< ./makepp_variables.html
 global_override_signature_name ./makepp_statements.html
 R_or_no_builtin_variables ./makepp_incompatibilities.html
@@ -138,6 +139,7 @@ symlink ./makepp_builtins.html
 sx ./makepp_incompatibilities.html
 cat_option_filename ./makepp_builtins.html
 log ./makeppclean.html
+unremembered ./makeppinfo.html
 Not_specifying_all_dependencies ./makepp_tutorial.html
 extend_group ./makepp_build_cache.html
 change_time_spec ./makepp_build_cache.html
@@ -158,7 +160,6 @@ repository_links ./makeppclean.html
 p_none_p_skip_word_or_p_shell ./makepp_scanning.html
 filter_out_dirs_filenames ./makepp_functions.html
 dont_build_path ./makepp_sandboxes.html
-HPUX ./makepp_compatibility.html
 undef ./makepp_scanning.html
 access_time ./makepp_build_cache.html
 ATIME_MTIME_CTIME ./makepp_build_cache.html
@@ -275,6 +276,7 @@ home ./makeppgraph.html
 no_path_executable_dependencies ./makepp_command.html
 ctime ./makepp_build_cache.html
 a_spec ./makepp_build_cache.html
+Unix_SMBFS_from_GNU_Linux ./makepp_compatibility.html
 NFS ./makepp_compatibility.html
 d_or_debug ./makepp_incompatibilities.html
 temporary_words ./makepp_functions.html
@@ -333,7 +335,6 @@ ln_option_sourcefile_destdir ./makepp_builtins.html
 mv_option_sourcefile_destfile ./makepp_builtins.html
 ifndef_VARIABLE ./makepp_statements.html
 relative_filename_file1_file2_file3_slash ./makepp_functions.html
-VFAT_on_Gnu_Linux ./makepp_compatibility.html
 separator_string ./makepp_builtins.html
 e ./makepp_command.html
 makefile_Makefile ./makepp_command.html
@@ -357,6 +358,7 @@ ifneq_string1_string2 ./makepp_statements.html
 follow ./makepplog.html
 $MAKEPPCLEANFLAGS ./makeppclean.html
 target_newer ./makepp_build_check.html
+s_perl_expression ./makeppreplay.html
 stem ./makepp_variables.html
 copies ./makepp_build_cache.html
 SCAN ./makepplog.html
@@ -414,6 +416,7 @@ do_read_filename ./makepp_command.html
 sort_list ./makepp_build_cache.html
 log_filename ./makepplog.html
 run_script_arguments ./makepp_extending.html
+Windows_CIFS_on_GNU_Linux ./makepp_compatibility.html
 Not_specifying_all_targets ./makepp_tutorial.html
 wordlist_firstindex_lastindex_words ./makepp_functions.html
 only_logs ./makeppclean.html
@@ -435,7 +438,7 @@ newgrp_group ./makepp_build_cache.html
 $* ./makepp_variables.html
 templatepp ./makeppbuiltin.html
 find_first_upwards_file1_file2 ./makepp_functions.html
-no_log ./makepp_command.html
+no_log ./makeppreplay.html
 error_text ./makepp_functions.html
 pattern_pattern ./makepp_build_cache.html
 c2o ./makeppgraph.html
@@ -544,7 +547,7 @@ BUILD ./makepplog.html
 SHELL ./makepp_variables.html
 $+ ./makepp_variables.html
 what_if_filename ./makepp_command.html
-profile ./makepp_command.html
+profile ./makeppreplay.html
 false ./makepp_builtins.html
 R_directory ./makepp_command.html
 keys_list ./makepplog.html
@@ -617,7 +620,6 @@ M_spec ./makepp_build_cache.html
 MEMBER ./makepp_build_cache.html
 define ./makepp_statements.html
 numeric ./makepp_builtins.html
-Unix_SMBFS_from_Gnu_Linux ./makepp_compatibility.html
 realpath_files ./makepp_functions.html
 mkdir_option_directory ./makepp_builtins.html
 dot ./makeppgraph.html
@@ -637,7 +639,6 @@ assignment ./makepp_builtins.html
 resolve_symbolic ./makepp_builtins.html
 Grappa ./makeppgraph.html
 $? ./makepp_variables.html
-Windows_CIFS_on_Gnu_Linux ./makepp_compatibility.html
 origin_variable ./makepp_functions.html
 md5 ./makepp_signatures.html
 install_option_sourcefile_destfile ./makepp_builtins.html
@@ -650,14 +651,14 @@ h ./makeppreplay.html
 Nest ./makepp_compatibility.html
 POSIX ./makepp_incompatibilities.html
 help ./makeppreplay.html
-!= ./makepp_variables.html
 f ./makepplog.html
+!= ./makepp_variables.html
 silent ./makepp_command.html
 O ./makepp_builtins.html
 stop ./makepp_command.html
 stop_after_loading ./makepp_command.html
 in_sandbox_path ./makepp_sandboxes.html
-log_logfilename ./makepp_command.html
+log_logfilename ./makeppreplay.html
 patsubst_pattern_substitute_words ./makepp_functions.html
 sub ./makepp_statements.html
 ln_option_sourcefile ./makepp_builtins.html

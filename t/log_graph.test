@@ -1,9 +1,8 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	3	644	1216325548	1329051628	is_relevant.pl
-my $cwd = Cwd::cwd;
-($cwd =~ tr!/!!d) > 3 &&	# Deep enough with tdir for rewriting cwd 4 levels?
+###	2	644	1216325548	1337890922	is_relevant.pl
+(Cwd::cwd =~ tr!/!!) > 3 &&	# Deep enough with tdir for rewriting cwd 4 levels?
   have_cc
-###	66	644	1170452082	1290375089	makepp_test_script.pl
+###	50	644	1170452082	1345985645	makepp_test_script.pl
 { open my $fh, '>', 'c/c.h' }
 utime 0, 0, 'c/c.h';		# Make sure this exists (because makeppclean removes it) and is old.
 if( (stat 'c/c.h')[9] ) {	# mtime unchanged on this fs (but utime may have lied in its return code)
@@ -15,15 +14,7 @@ if( (stat 'c/c.h')[9] ) {	# mtime unchanged on this fs (but utime may have lied 
 makepp '--dont-build=/', '--do-build=.'; # Can't have a RootMakeppfile because that sorts output
 				# differently on a case insensitive fs or Ebcdic, so explicitly
 				# protect against logging stuff outside of our build system.
-{
-  my $file = '.makepp/log';
-  rename $file, "$file~";
-  open my $in, "$file~";
-  open my $out, '>', $file;
-  while( <$in> ) {		# Network filesystems may defer mtime update.
-    print $out $_ unless /changed without my knowledge/ .. /but you got lucky/;
-  }
-}
+c_grep '-v', '/changed without my knowledge/ .. /but you got lucky/', '-o+<.makepp/log';
 
 makepp \'log', '-ciKnuokey.txt', '-k!PARSE !NOT_FOUND !VERSION'; # $(CC) varies and thus the parsed cmd
 				# and $(FC) may not be found on Windows.
@@ -56,16 +47,8 @@ if( is_windows ) {
     unlink 'answers/rewrite.txt', # Tests Unix dirs that don't exist.
       <answers/*.{dot,html,udg}>; # For lack of reliable redirection in fork, we don't produce these files.
   }
-  for my $file ( <{both,full,log,suf,up}.{dot,html,txt,udg}>, 'key.txt' ) {
-    rename $file, "$file~" or next;
-    open my $in, "$file~";
-    open my $out, '>', $file;
-    while( <$in> ) {
-      next if /makepp_builtin_rules\.mk:(?:3[67]|42)\b/;
-      s/\.obj\b/.o/g;
-      print $out $_;
-    }
-    close $out;			# for MSWin
+  for my $file ( <{both,full,key,log,suf,up}?{dot,html,txt,udg}> ) { # ? -> pattern, only existing files
+    c_sed 's/.*makepp_builtin_rules\.mk:(?:3[67]|42)\b.*//s || s/\.obj\b/.o/g', "-o+<$file";
   }
 }
 

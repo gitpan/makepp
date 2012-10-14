@@ -1,44 +1,27 @@
 #!/usr/bin/perl -w
-# $Id: config.pl,v 1.30 2012/02/07 22:26:15 pfeiffer Exp $
+# $Id: config.pl,v 1.31 2012/05/15 21:26:29 pfeiffer Exp $
 #
 # Configure this package.
 #
 
 package Mpp;
 
-use strict;
-use Mpp::Text ();
-use Mpp::File ();		# ensure HOME is set
-
 #
 # First make sure this version of Perl is recent enough:
 #
-eval { require 5.006 };
-if ($@) {			# Not recent enough?
-  die "I need Perl version 5.6 or newer.  If you have it installed somewhere
+eval { require 5.008; 1 } or
+  die "I need Perl version 5.8 or newer.  If you have it installed somewhere
 already, run this installation procedure with that perl binary, e.g.,
 
-	perl5.12.1 config.pl ...
+	perl5.14.1 config.pl ...
 
 If you don't have a recent version of Perl installed (what kind of system are
 you on?), get the latest from www.perl.com and install it.
 ";
-}
 
-if ($] == 5.006) {
-  print "**************** You're running Perl 5.6.0.  *************************
-
-Perl 5.6.0 has a bug which can cause makepp to behave in a bizarre fashion.
-This bug is not encountered in every makefile, so you might be ok.  But it
-would be safer to upgrade to another version of Perl (e.g., 5.8.0 does
-not seem to have the problem).\n";
-} elsif ($] == 5.006001) {
-  print "**************** You're running Perl 5.6.1.  *************************
-
-Perl 5.6.1 fails on some architectures and works just fine on others.
-If you encounter weird problems with makepp, or if the tests fail,
-consider upgrading your version of Perl.\n";
-}
+use strict;
+use Mpp::Text ();
+use Mpp::File ();		# ensure HOME is set
 
 #
 # Parse the arguments:

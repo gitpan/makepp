@@ -1,4 +1,4 @@
-# $Id: Lexer.pm,v 1.49 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: Lexer.pm,v 1.50 2012/05/15 21:26:29 pfeiffer Exp $
 
 =head1 NAME
 
@@ -127,11 +127,10 @@ sub lex_rule {
       my $cmd = unquote +(split_on_whitespace $action)[0];
       my $makefile_cmd = $rule->{MAKEFILE}{PACKAGE} . "::c_$cmd";
       if( defined &$makefile_cmd ) { # Function directly or indirectly from makefile?
-	require B if !Mpp::is_perl_5_6;
+	require B;
 	my $cwd = $rule->build_cwd;
 	add_simple_dependency( '.', $cwd, $rule,
-			       relative_filename Mpp::is_perl_5_6 ?
-				 $rule->makefile->{MAKEFILE} :
+			       relative_filename
 				 # In case of chdir since '.'-based use was performed:
 				 path_file_info( B::svref_2object( \&$makefile_cmd )->FILE, $cwd ),
 				 $cwd );

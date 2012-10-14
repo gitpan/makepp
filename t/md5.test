@@ -1,7 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	644	1329052295	1329052295	is_relevant.pl
 have_cc
-###	51	644	1164351461	1208285030	makepp_test_script.pl
+###	47	644	1164351461	1342861894	makepp_test_script.pl
 # This test depends entirely on the builtin rules.
 #
 # Tests several things about C compilation:
@@ -23,7 +23,7 @@ for $iter ( 0..3 ) {
   # the files are on NFS (so that we cannot rely on calls to time).
   wait_timestamp( 'compilation_test.c', "compilation_test.$obj" ) if $iter;
   print "**** Iteration $iter\n";
-  cp "compilation_test_$iter.c", 'compilation_test.c';
+  c_cp "compilation_test_$iter.c", 'compilation_test.c';
   makepp @exe_dep, 'CPPFLAGS=-I subdir1 -Isubdir2', 'compilation_test';
 				# We test both the "-I subdir" and "-Isubdir"
 				# syntax.
@@ -45,11 +45,7 @@ for $iter ( 0..3 ) {
 }
 if( is_windows ) {
   for my $n ( 0..3 ) {
-    open my $fh, '+<', "answers/n_files_$n" or die $!;
-    my $line = <$fh>;
-    seek $fh, 0, 0;
-    $line =~ s/ 0 / 1 /;	# Extra phony on each test
-    print $fh $line;
+    c_sed 's/ 0 / 1 /', "-o+<answers/n_files_$n"; # Extra phony on each test
   }
 }
 1;

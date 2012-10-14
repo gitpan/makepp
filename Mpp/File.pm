@@ -1,4 +1,4 @@
-# $Id: File.pm,v 1.102 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: File.pm,v 1.104 2012/06/09 20:36:48 pfeiffer Exp $
 
 package Mpp::File;
 require Exporter;
@@ -155,7 +155,6 @@ That is ActiveState at least until 5.10.0 and possibly older Cygwin versions.
 
 =cut
 
-our $stat_exe_separate;
 BEGIN {
   my $done;
   if( exists $ENV{MAKEPP_CASE_SENSITIVE_FILENAMES} ) {
@@ -171,19 +170,17 @@ BEGIN {
   if( open my $fh, '>', $test_fname ) { # Create the file.
     close $fh;			# For unlinking on Windows.
   } else {
-    $stat_exe_separate = Mpp::is_windows > 0;
+    *stat_exe_separate = $Mpp::Text::N[Mpp::is_windows > 0 ? 1 : 0];
     *case_sensitive_filenames = $Mpp::Text::N[Mpp::is_windows ? 0 : 1]
       unless $done;
-    return;
-				# If that doesn't work for some reason, assume
-				# we are case insensitive if Windows, and case
-				# sensitive for Unix.
+    return;			# If that doesn't work for some reason, assume we are case
+				# insensitive if Windows, and case sensitive for Unix.
   }
 
   *case_sensitive_filenames = $Mpp::Text::N[-e uc $test_fname ? 0 : 1]
     unless $done;
 				# Look for it with different case.
-  $stat_exe_separate = !-e substr $test_fname, 0, -4 if Mpp::is_windows;
+  *stat_exe_separate = $Mpp::Text::N[(Mpp::is_windows && !-e substr $test_fname, 0, -4) ? 1 : 0];
   unlink $test_fname;
 }
 
@@ -1033,7 +1030,7 @@ sub relative_filename {
 				# file is in the given directory.
 
   my @dirs;			# Profit from all upwards paths being cached.
-  until( $dir == $fdir || exists $dir->{int $fdir} ) { # So we meet at common root.
+  until( $dir == $fdir || exists $dir->{sprintf '%x', $fdir} ) { # So we meet at common root.
     return $_[2] ? 999 + @dirs : &absolute_filename
       if exists $fdir->{xABSOLUTE};
     unshift @dirs, $fdir;
@@ -1041,11 +1038,11 @@ sub relative_filename {
   }
 
   if( $_[2] ) {
-    (($dir = $dir->{int $fdir}) =~ tr!/!!d) + @dirs;
+    ($dir->{sprintf '%x', $fdir} =~ tr!/!!) + @dirs;
   } elsif( exists $finfo->{DIRCONTENTS} ) {
-    $dir->{int $orig_fdir} = join '/', $dir == $fdir ? () : $dir->{int $fdir}, map $_->{NAME}, @dirs;
+    $dir->{sprintf '%x', $orig_fdir} = join '/', $dir == $fdir ? () : $dir->{sprintf '%x', $fdir}, map $_->{NAME}, @dirs;
   } else {
-    ($dir->{int $orig_fdir} = join '/', $dir == $fdir ? () : $dir->{int $fdir}, map $_->{NAME}, @dirs) .
+    ($dir->{sprintf '%x', $orig_fdir} = join '/', $dir == $fdir ? () : $dir->{sprintf '%x', $fdir}, map $_->{NAME}, @dirs) .
       '/' . $finfo->{NAME};
   }
 }
@@ -1135,7 +1132,7 @@ sub mark_as_directory {
 				# directories for performance reasons.
   my $parent = '..';		# Ensure we cache all upwards paths.
   for( my $pinfo = $_[0]{'..'}; !exists $pinfo->{xABSOLUTE}; $pinfo = $pinfo->{'..'} ) {
-    $_[0]{int $pinfo} = $parent;
+    $_[0]{sprintf '%x', $pinfo} = $parent;
     $parent .= '/..';
   }
 }

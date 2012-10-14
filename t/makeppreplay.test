@@ -1,35 +1,28 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	644	1329052295	1329052295	is_relevant.pl
 have_cc
-###	43	644	1227216359	1294260032	makepp_test_script.pl
+###	36	644	1227216359	1342861520	makepp_test_script.pl
 # This test creates some files, also in other dirs, messes them up and wants mppr to recreate them.
 
 local $ENV{X} = 0;		# Set up a dependency mpp won't know about.
 local $ENV{C} = 1;
 eval { makepp '-k' };
-cp qw(out out1);
+c_cp qw(out out1);
 
-cp qw(a b);			# Mess up results a bit.
+c_cp qw(a b);			# Mess up results a bit.
 unlink qw(c dir/e x.c);
 $ENV{X} = 1;			# Do a change mpp wouldn't have done.
 $ENV{C} = 0;
 				# Signatures get adjusted, but because mppr doesn't scan x.c, mpp must, to notice x1.h.
 for my $file ( qw(dd y.c) ) {	# Perform some editing, a standard use case for mppr.
-  open my $fh, '+<', $file or die $!;
-  local $/;
-  my $txt = <$fh>;
-  seek $fh, 0, 0;
-  $txt =~ s/y0/y/;		# Use y.h instead of y0.h, which mppr ignores so mpp must rescan.
-  truncate $fh, 0;
-  print $fh $txt;
-  close $fh;			# For Win.
+  c_sed 's/y0/y/', "-o+<$file"; # Use y.h instead of y0.h, which mppr ignores so mpp must rescan.
 }
 wait_timestamp 'a';		# Can have same signature after rebuilding in same second.
-eval { makepp \'replay', qw(-kI. -Mmod=c_cmd MYVAR=5 a -Cdir . -c b c bb cc d xreal.c x.c), <[xy].o [xy].obj>, <[xy] [xy].exe>, 'out' }
+eval { makepp \'replay', qw(-kI. -Mmod=c_cmd MYVAR=5 a -Cdir . -c b c bb cc d xreal.c x.c), <[xy].o{,bj}>, <[xy]{,.exe}>, 'out' }
   and die;
 				# Use glob to match Unix or Windows files.
-cp qw(out out2);
-cp qw(cc cc0);
+c_cp qw(out out2);
+c_cp qw(cc cc0);
 
 $ENV{C} = 1;
 wait_timestamp qw(x.o y.o);	# Can have same signature after rebuilding in same second.

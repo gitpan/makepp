@@ -3,7 +3,7 @@
 have_cc
 ###	3	755	1067451873	1329052311	makepp_test_script.pl
 makepp qw(--no_path_executable_dep compilation_test);
-cp 'n_files.win', 'answers/n_files' if is_windows;
+c_cp 'n_files.win', 'answers/n_files' if is_windows;
 !system '.' . ($^O =~ /^MSWin/ ? '\\' : '/') . 'compilation_test >output';
 ###	9	644	1120067422	1055627995	compilation_test.c
 #include <stdio.h>

@@ -1,13 +1,13 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	11	755	1119219345	1231331952	makepp_test_script.pl
 makepp qw(gone2 generated stale);
-cp 'generated', 'generated-1';
-cp 'stale', 'stale-1';
+c_cp 'generated', 'generated-1';
+c_cp 'stale', 'stale-1';
 
 unlink 'gone';
 eval { makepp qw(-k --rm-stale) };
-cp 'generated', 'generated-2';
-cp 'stale', 'stale-2';
+c_cp 'generated', 'generated-2';
+c_cp 'stale', 'stale-2';
 -f 'subdir/foo' or die; # Verify that it wasn't spuriously removed by makepp
 
 makepp qw(generated stale x STALE=1);

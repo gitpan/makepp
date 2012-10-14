@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	19	755	1119251973	1208342275	makepp_test_script.pl
+###	11	755	1119251973	1342865688	makepp_test_script.pl
 { open my $fh, '>', 'raw' }
 
 # There is no guarantee that a bug will actually show up here, because it
@@ -8,15 +8,7 @@
 # such a bug, then it will usually happen by the 4th run.
 makepp "X=$_" for 1..4;
 
-open my $in, '<', 'raw';
-open my $out, '>', 'commands';
-while( <$in> ) {
-  print $out $_
-    unless /^makepp[: ]/;
-}
-
-# Destructor might come too late to delete tdir on Windows.
-close $in; close $out;
+c_grep '-v', '/^makepp[: ]/', 'raw', '-ocommands';
 
 1;
 ###	1	644	1119251973	1208342214	makeppextra.pm

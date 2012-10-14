@@ -1,4 +1,4 @@
-# $Id: Cmds.pm,v 1.67 2011/08/27 16:25:22 pfeiffer Exp $
+# $Id: Cmds.pm,v 1.70 2012/08/30 21:05:00 pfeiffer Exp $
 
 =head1 NAME
 
@@ -80,7 +80,7 @@ sub _rm {
   perform { unlink } "delete `$_'"
     for grep { -l || !-d _ ? $_ : !push @dirs, $_ } @_;
   perform { rmdir } "delete directory `$_'"
-    for sort { my( $A, $B ) = ($a, $b); ($B =~ tr:/::d) <=> ($A =~ tr:/::d) } @dirs;
+    for sort { ($b =~ tr:/::) <=> ($a =~ tr:/::) } @dirs;
 }
 
 
@@ -240,7 +240,7 @@ sub c_cat {
     } else {
       perform { File::Copy::copy( $_, \*STDOUT ) } "copy `$_'" for @ARGV;
     }
-  } 'f', qw(i I o O S); # fails in 5.6: qw(f i I o O S);
+  } qw(f i I o O S);
 }
 
 
@@ -288,10 +288,6 @@ sub c_cut {
   my( $delimiter, $characters, $fields, $lines, $matching, $printf, $only_delim ) = "\t";
   my $err = "one of --characters, --fields or --lines must be given\n";
   frame {
-    my $split = eval
-      'sub { @::F = ' . (!$characters ? "split /\Q$delimiter\E/, \$_, -1 }" :
-			 Mpp::is_perl_5_6 ? 'split //, $_, -1 }' :
-			 'unpack "(a1)*", $_ }');
     my( @idxs, $eol );
     local @::F;	     # Use Perl's autosplit variable into Makeppfile's package
     @idxs = eval_or_die $fields
@@ -318,16 +314,18 @@ sub c_cut {
 	$printf = eval "qq!$printf!";
 	die $@ if $@;
       }
+      my $re = qr/\Q$delimiter/ unless $characters;
       while( <> ) {
 	$eol = _chomp $_;
-	&$split;
-	if( @::F > 1 ) {
+	if( (@::F = $re ? split( $re, $_, -1 ) : unpack '(a1)*', $_) > 1 ) {
 	  @::F = map { defined() ? $_ : $matching ? next : '' } @::F[@idxs ? @idxs : eval_or_die $fields];
 	  $_ = $printf ?
 	    sprintf( $printf, @::F ) :
 	    join( $delimiter, @::F ) . $eol;
 	} elsif( $matching || $only_delim ) {
 	  next;
+	} elsif( $printf ) {
+	  $_ = sprintf $printf, $_;
 	} else {
 	  $_ .= $eol;
 	}
@@ -419,7 +417,7 @@ sub c_grep {
       close ARGV if $synclines && eof;
     }
     print "$n\n" or die $! if $count;
-    close $waste if $waste;	# Sometimes needed on Solaris with V5.6.
+    close $waste if $waste;
     die "no matches\n" unless $cmd or $n or $count;
   } qw(f i I o O r s S),
     ($cmd ? () :
@@ -707,7 +705,7 @@ sub c_template {
 sub c_touch {
   local @ARGV = @_;
   frame {
-    my $time = time;
+    my $time = time;		# 5.8.0 should but doesn't support undef, undef
     for( @ARGV ) {
       if( -f ) {
 	perform { utime $time, $time, $_ } "update timestamp on `$_'";
@@ -729,7 +727,7 @@ sub c_uninstall {
     my %files;
     /^  .* `(.+)'/ and $files{$1} = 1 while <>;
     eval { _rm sort keys %files };
-  } 'i', 'I'; # fails in 5.6: qw(i I);
+  } qw(i I);
 }
 
 

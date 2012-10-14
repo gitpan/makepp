@@ -1,4 +1,4 @@
-# $Id: Esql.pm,v 1.21 2011/11/07 21:24:53 pfeiffer Exp $
+# $Id: Esql.pm,v 1.22 2012/05/15 21:26:30 pfeiffer Exp $
 
 =head1 NAME
 
@@ -82,9 +82,7 @@ sub new {
 }
 
 sub set_default_signature_method {
-  # Use the MD5 signature checking when we can.
-  $Mpp::has_md5_signatures and
-    $_[0]->rule->set_signature_class( 'C.([eps]c|ex*|dcl|sq[Ccx])', 1 );
+  $_[0]->rule->set_signature_class( 'C.([eps]c|ex*|dcl|sq[Ccx])', 1 );
 }
 
 sub parse_arg {

@@ -1,21 +1,16 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	775	1168790726	1329052044	is_relevant.pl
 have_cc and is_windows ? makepp( '-n' ) : 1; # Let makepp test if it uses a symlink capable compiler.
-###	59	644	1159479798	1210071503	makepp_test_script.pl
+###	54	644	1159479798	1342866037	makepp_test_script.pl
 sub sed_17($) {
   # Make sure that the foo.c timestamp changes
   wait_timestamp 'foo.c';
 
-  open my $in, 'foo/f.c';
-  open my $out, '>foo/foo.c';
-  while( <$in> ) {
-    s/17/$_[0]/;
-    print $out $_;
-  }
+  c_sed "s/17/$_[0]/", 'foo/f.c', '-ofoo/foo.c';
 }
 
 sub from_rep($) {
-  cp 'foo/bar/x', $_[0];
+  c_cp 'foo/bar/x', $_[0];
   open my $in, 'foo/bar/.makepp/foo.c.mk';
   /FROM_REPOSITORY/ and return while <$in>;
 
@@ -23,14 +18,14 @@ sub from_rep($) {
   print $out "Lost repository\n";
 }
 
-cp qw(M foo/Makeppfile);
+c_cp qw(M foo/Makeppfile);
 makepp qw(-R foo/bar=foo foo/bar/nothing);
 
 unlink 'foo/Makeppfile';
 makepp qw(-R foo/bar=foo);
 
-cp qw(M foo/Makeppfile);
-cp qw(foo/f.c foo/foo.c);
+c_cp qw(M foo/Makeppfile);
+c_cp qw(foo/f.c foo/foo.c);
 makepp qw(-R foo/bar=foo foo/bar/x);
 
 sed_17 18;
@@ -38,7 +33,7 @@ makepp qw(-R foo/bar=foo foo/bar/x);
 
 from_rep 'x';
 
-cp qw(foo/f.c foo/foo.c);
+c_cp qw(foo/f.c foo/foo.c);
 makepp 'foo/x';
 makepp \'clean', '--only-repository-links', 'foo/bar';
 

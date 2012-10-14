@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppgraph,v 1.27 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: makeppgraph,v 1.28 2012/05/23 18:30:17 pfeiffer Exp $
 
 #TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
 
@@ -697,58 +697,7 @@ if( $type eq 'dot' ) {
 print $foot{$type};
 
 __DATA__
-Usage: makeppgraph [-options] [starting-point ...]
+[option ...] [starting-point ...]
+
 Generate a graphical representation of the last build for viewing with
-uDraw(Graph), Graphviz or as a textual representation.
-
-Valid options are:
-
--A filename, --args-file=filename, --arguments-file=filename
-    Read the file and parse it as possibly quoted whitespace- and/or
-    newline-separated options.
--b, --because, --build-reasons
-    If a node was rebuilt because of a dependency, then that edge is shown
-    in red.
--D, --dependencies
-    Draw a graph of the dependency relationship determined by makepp.
--d, --down, --downwards
-    This option is only meaningful if you provide one or more patterns.
--g, --graphviz, --dot
-    Produce a Graphviz .dot file, instead of the default uDraw(Graph) .udg
-    file.
--h, --html
-    Produce a browser .html file, instead of the default uDraw(Graph) .udg
-    file.
--?, --help
-    Print out a brief summary of the options.
--I directory, --include=directory, --include-dir=directory
-    Add directory to Perl load path @INC.
--i, --includes
-    Instead of dependencies (or with "-D, --dependencies" additionally to
-    them) draw a graph of include relationships.
--l filename, --log=filename, --log-file=filename
-    The filename is to where makepp wrote its log.
--M module[=arg,...], --module=module[=arg,...]
-    Load module and import any functions it exports.
--m perlcode, --merge=perlcode
-    Perform perlcode for every target and its dependencies.
--o filename, --output=filename
-    Write the output to this file.
--p, --plain
-    Don't use attributes like colors or dotted lines.
--r perlcode, --rename=perlcode
-    Perform perlcode for every target and its dependencies.
--s, --separate-directions
-    Draw two separate arrows, instead of each double ended arrow, to make
-    them easier to spot.
--t, --text
-    Produce a human readable .txt file, instead of the default uDraw(Graph)
-    .udg file.
--u, --up, --upwards
-    This option is only meaningful if you provide one or more patterns.
--V, --version
-    Print out the version number.
-
-Look at @htmldir@/makeppgraph.html for more details,
-or at http://makepp.sourceforge.net/@BASEVERSION@/makeppgraph.html
-or type "man makeppgraph".
+uDraw(Graph), Graphviz or as text.  Valid options are:

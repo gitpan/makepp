@@ -2,7 +2,7 @@
 
 makepp_variables -- How to use variables in makepp
 
-=for vc $Id: makepp_variables.pod,v 1.47 2012/02/28 21:41:18 pfeiffer Exp $
+=for vc $Id: makepp_variables.pod,v 1.48 2012/03/25 18:34:48 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -774,7 +774,7 @@ Windows additionally C<cl> or C<bcc32>.
 
 =item CFLAGS
 
-I<Default:> If C<$(CC)> is a Gnu compiler C<-g -Wall>, if it is one of the two
+I<Default:> If C<$(CC)> is a GNU compiler C<-g -Wall>, if it is one of the two
 Windows compilers nothing, else C<-g>.
 
 =item CURDIR
@@ -788,7 +788,7 @@ or on Windows additionally C<cl> or C<bcc32>.
 
 =item CXXFLAGS
 
-I<Default:> If C<$(CXX)> is a Gnu compiler C<-g -Wall>, if it is one of the two
+I<Default:> If C<$(CXX)> is a GNU compiler C<-g -Wall>, if it is one of the two
 Windows compilers nothing, else C<-g>.
 
 =item F77

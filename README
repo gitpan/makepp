@@ -9,19 +9,10 @@ relationship to make is analogous to C++'s relationship to C: it is almost
 ways to write makefiles.
 
 Makepp works on Unix/Linux-like systems, Ebcdic-based emulations like BS2000
-or z/OS and Windows.  It is written entirely in Perl.  It requires version 5.6
-of Perl or better.  It's distributed under the terms of the Perl Artistic
+or z/OS and Windows.  It is written entirely in Perl.  It requires version 5.8
+of Perl or newer.  It's distributed under the terms of the Perl Artistic
 License or GPL 2 or newer, which means that it's freely available to anyone
 for just about any purpose.
-
-Some Perl versions have bugs that cause makepp to fail.  These are:
-o Perl 5.6.0 fails in really weird ways on the x86 (and maybe other
-  platforms) on large builds.
-o Perl 5.6.1 has failed for us in different ways on different architectures.
-  On some architectures it seems to work fine, on others it's flaky.
-
-We develop and test mostly with Perl 5.8.0 or later, and we have
-encountered no problems with it.
 
 For the latest distribution, manual pages, and information about mailing
 lists, please see the makepp home page, http://makepp.sourceforge.net.

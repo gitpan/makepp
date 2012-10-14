@@ -5,7 +5,7 @@ local $ENV{SUF} = is_windows > 1 ? 'bat' : 'sh';
 makepp qw{ SCRIPT=test };
 # Build with different command line, should not execute command
 makepp qw{ SCRIPT=test1 };
-cp "x", "y";
+c_cp "x", "y";
 # Now change the dependencies, and check that the build info is saved with
 # virtual sandboxes (this was broken once).
 makepp qw{ --virtual-sandbox Y=Makeppfile SCRIPT=test1 };

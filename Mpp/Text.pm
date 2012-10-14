@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.56 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: Text.pm,v 1.60 2012/10/14 15:18:36 pfeiffer Exp $
 
 =head1 NAME
 
@@ -22,7 +22,6 @@ use Config;
 # Perl implements them as subs, and each sub takes about 1.5kb RAM.
 BEGIN {
   our @N = map eval( "sub(){$_}" ), 0..6; # More are defined in Mpp/BuildCacheControl.pm
-  *Mpp::is_perl_5_6 = $N[$] < 5.008 ? 1 : 0];
   *Mpp::is_windows =
     $^O eq 'cygwin' ? sub() { -1 } : # Negative for Unix like
     $^O eq 'msys' ? sub() { -2 } :   # MinGW with sh & coreutils
@@ -733,8 +732,10 @@ BEGIN {
     die "Can't read the file $Mpp::datadir/VERSION--$!.\nThis should be part of the standard distribution.\n";
   chomp( $Mpp::VERSION		# Hide assignment from CPAN scanner.
 	 = <$fh> );
+  our $BASEVERSION = $Mpp::VERSION;
   if( $Mpp::VERSION		# -"-
-      =~ s/beta\r?// ) {
+      =~ s/beta ([0-9.]+)\r?// ) {
+    $BASEVERSION = $1;
     my %VERSION = qw(0/00/00 0 00/00/00 0); # Default in case all modules change on same day.
     for( <$Mpp::datadir/makep*[!~] $Mpp::datadir/Mpp{,/*,/*/*}.pm> ) {
       open my( $fh ), $_;
@@ -753,13 +754,76 @@ BEGIN {
 }
 #@@
 
+sub help {
+#@@eliminate
+  $ENV{_MAKEPP_INSTALL} or
+#@@
+    print "usage: $Mpp::progname ";
+  local $/;
+  print <Mpp::DATA>;
+  our $pod ||= $Mpp::progname;
+  our $extraman ||= '';
+  my $htmldir = '@htmldir@';
+  my $noman = '@noman@';
+  my $helpend =
+#@@eliminate
+    $ENV{_MAKEPP_INSTALL} ? '' :
+    $htmldir ne '@htmldir@' &&
+#@@
+    $htmldir ne 'none' ? "
+For details look at $htmldir/$pod.html
+or" : "
+For details look";
+#@@eliminate
+  if( $helpend ) {
+#@@
+  our $helpline ||= 'For general info, click on sidebar "Overview" or top tab "Documentation".';
+  $helpend .= " at http://makepp.sourceforge.net/\@BASEVERSION@/$pod.html\n$helpline\n";
+  $helpend .= "Or type \"man $pod\" or \"man makepp$extraman\".\n"
+    unless $noman;
+#@@eliminate
+  }
+  $helpend =~ s/\@BASEVERSION\@/$BASEVERSION/;
+  our $opts ||= $pod;
+  print "\n";
+  open my $fh, "$Mpp::datadir/pod/$opts.pod" or die $!;
+  my $opt = $/ = '';
+  my $found;
+  while( <$fh> ) {		# skip to before 1st opt
+    $found = 1 if /Valid options are|^=head1 OPTIONS/;
+    last if $found && /^=over/;
+  }
+  while( <$fh> ) {
+    if( /^=over/ ) {
+      while( <$fh> ) { last if /^=back/ } # skip nested list
+    } elsif( /^=back/ ) {
+      last;
+    } elsif( s/^=item // ) {
+      chomp;
+      s/ ?X<.*?>//g;
+      s/I<(.*?)>/$1/g;
+      if( $opt ) { $opt .= ", $_" } else { $opt = $_ }
+    } elsif( $opt ) {
+      s/\.\s.*/./s;
+      s!L<(.*)/(.*?)>!$2 in $1!g;
+      s/[BCFILZ]<(.*?)>/$1/g;
+      tr/\n/ /;
+      pos() = 0;
+      s/\G(.{1,72})(?: |$)/    $1\n/g; # indent & word wrap
+      print "$opt\n$_";
+      $opt = '';
+    }
+  }
+#@@
+  print $helpend;
+  exit 0;
+}
 
 our @common_opts =
-  (				#  makeppbuiltin relies on help being 1st.
-    [qr/[h?]/, 'help', undef, undef, sub { local $/; print <Mpp::DATA>; exit 0 }],
+ ([qr/[h?]/, 'help', undef, undef, \&help],
 
-    [qw(V version), undef, undef, sub { $0 =~ s!.*/!!; print <<EOS; exit 0 }]);
-$0 version $Mpp::VERSION
+  [qw(V version), undef, undef, sub { $0 =~ s!.*/!!; my $typ = $Mpp::VERSION !~ /\.9([89])\./ ? 'version' : $1 == 8 ? 'snapshot' : 'release candidate'; print <<EOS; exit 0 }]);
+$0 $typ $Mpp::VERSION
 Makepp may be copied only under the terms of either the Artistic License or
 the GNU General Public License, either version 2, or (at your option) any
 later version.

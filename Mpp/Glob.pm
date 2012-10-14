@@ -1,4 +1,4 @@
-# $Id: Glob.pm,v 1.41 2012/02/07 22:26:15 pfeiffer Exp $
+# $Id: Glob.pm,v 1.42 2012/05/15 21:26:29 pfeiffer Exp $
 
 package Mpp::Glob;
 
@@ -329,7 +329,7 @@ sub find_real_subdirs {
 				# Do man pages last.  (These can be pretty
 				# expensive to stat since there's often a lot
 				# of them.)  This will not skip directories
-				# like "perl-5.6.0" because the period
+				# like "perl-5.14.1" because the period
 				# must be preceded by an alphabetic char.
 				# Do files with alphabetic extensions last.  Don't
 				# skip files with numeric extensions, since

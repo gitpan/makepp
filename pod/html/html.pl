@@ -2,7 +2,7 @@
 #
 # This script does the pod to html generation with some heavy massageing.
 #
-# $Id: html.pl,v 1.7 2012/03/19 21:29:15 pfeiffer Exp $
+# $Id: html.pl,v 1.10 2012/05/29 21:31:20 pfeiffer Exp $
 #
 
 package Mpp::html;
@@ -16,9 +16,6 @@ our $podroot;
 
 BEGIN { unshift @INC, 'html' }	# For now bundle 1.11, the last working version
 use Pod::Html ();
-# Nuke the pod cache, because otherwise it doesn't get updated when new
-# pages are added (on Perl 5.6.1, Pod::Html 1.03, i686-linux2.4)
-unlink <pod2htm*~~ pod2htm?.tmp>;
 
 BEGIN {
     *html_short_names = $Pod::Html::VERSION < 1.0901 ? sub() {} : sub() { 1 };
@@ -188,7 +185,7 @@ sub frame($$$) {
 <div id='_head'>
   <form action='http://www.google.com/search'>
     <p>
-      <input type='hidden' name='as_sitesearch' value='makepp.sourceforge.net/2.0'/>
+      <input type='hidden' name='as_sitesearch' value='makepp.sourceforge.net/2.1'/>
       <input type='text' name='as_q'/>
       <input type='submit' value='Go'/>
     </p>
@@ -297,7 +294,6 @@ sub highlight_variables() {
   s!(\$[\@%*])!<u>$1</u>!g;
 }
 
-my $uc = $Pod::Html::VERSION < 1.04; # Perl 5.6
 sub simplify($$$) {
   copy $_[0], "/tmp/p2h.$Pod::Html::VERSION" if $_[1] eq 'makepp_signatures';
   open my( $tmpfile ), $_[0] or die;
@@ -316,7 +312,7 @@ sub simplify($$$) {
   $contents .= "<link rel='prev' href='$prev{$file}'/>" if $prev{$file};
 
   {
-    local $/ = $uc ? '<BODY>' : '<body>';
+    local $/ = '<body>';
     my $head = <$tmpfile>;
     $head =~ /<title>(\w+) -- (.+)<\/title>/is;
     substr $contents, 0, 0, "<title>$alias{$base} \x{2014} $2</title>";
@@ -325,7 +321,6 @@ sub simplify($$$) {
 
   my $index;
   while( <$tmpfile> ) {
-    s/<(\/?[\w\s]+)/<\L$1/g if $uc;
     s/(<li><a href="#.+">.*<code>-)(\w\w)/$1-$2/; # it swallows one - :-(
     last if /<h1>.*(?:DESCRIPTION|SYNOPSIS)/;
     if ( /<(?:\/?ul|li)>/ ) {
@@ -345,7 +340,6 @@ sub simplify($$$) {
   }
 
   while( <$tmpfile> ) {
-    s/<(\/?[\w\s]+)/<\L$1/g if $uc;
     if( s!</(?:body|html)>.*!! ) {
       $contents .= $_;
       last;
@@ -427,7 +421,6 @@ sub simplify($$$) {
 	s!"item_(\w+)[^"]*">(\1)!"$1">$2!i;	# fix =item anchor
 	s!"item_(_2d\w+)">!"$1">! ||		# fix =item hexcode-anchor
 	  s! name="item_(_\w+?)(?:__[25][db].*?)?">!$seen{$1}++ ? '>' : " name='$1'>"!e;
-	s!"item_(%[%\w]+)">!(my $i = $1) =~ tr/%/_/; "'$i'>"!e; # Perl 5.6
       }
     } else {
       s!<h([123])><a name=(.*?)</a></h\1>!<h$1 id=$2</h$1>!;
@@ -446,8 +439,6 @@ sub simplify($$$) {
 	s!"item_(_2d\w+)">!"$1">! ||		# fix =item hexcode-anchor
 	  s! name="item_(_\w+?)(?:__[25][db].*?)?">!$seen{$1}++ ? '>' : " name='$1'>"!e;
 	s!#item_(\w+)">!#$1">!g;		# fix =item link
-	s!"item_(%[%\w]+)">!(my $i = $1) =~ tr/%/_/; "'$i'>"!e; # Perl 5.6
-	s!#item_(%[%\w]+)">!(my $i = $1) =~ tr/%/_/; "#$i\">"!ge; # Perl 5.6
       }
       s!\./(\.html.+? in the (.+?) manpage<)!$2$1!g;		  # at least up to 5.8.5
       highlight_keywords while /<code>/g;	# g creates "pseudo-BOL" \G for keywords
@@ -480,9 +471,6 @@ sub simplify($$$) {
 
 sub pods2html {
   my $libpods = join ':', map { /(makepp.+)\.pod/ ? $1 : () } @pods;
-  # Nuke the pod cache, because otherwise it doesn't get updated when new
-  # pages are added (on Perl 5.6.1, Pod::Html 1.03, i686-linux2.4)
-  unlink <pod2htm*~~ pod2htm?.tmp>;
   my $tmp = 'tmp' . substr rand, 1;
   mkpath $target_dir;
   for( @pods ) {

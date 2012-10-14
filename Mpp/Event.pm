@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: Event.pm,v 1.31 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: Event.pm,v 1.32 2012/05/15 21:26:29 pfeiffer Exp $
 
 package Mpp::Event;
 
@@ -495,7 +495,6 @@ sub start {
   $SIG{CHLD} = sub { $child_exited = 1 }; # Call the reaper subroutine in the
 				# mainline code.
 
-  &Mpp::flush_log if Mpp::is_perl_5_6;
   if( my $pid = fork ) {	# In the parent process?
     $running_processes{$pid} = $self; # Store this for later.
     ++$Mpp::Event::n_external_processes; # Keep track of how many things are running.

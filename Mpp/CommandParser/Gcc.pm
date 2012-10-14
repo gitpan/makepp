@@ -1,4 +1,4 @@
-# $Id: Gcc.pm,v 1.37 2011/10/30 20:57:53 pfeiffer Exp $
+# $Id: Gcc.pm,v 1.38 2012/05/15 21:26:30 pfeiffer Exp $
 
 =head1 NAME
 
@@ -39,10 +39,7 @@ sub new_no_gcc {
 
 sub set_default_signature_method {
   my( $self, $leave_comments ) = @_;
-
-  # Use the MD5 signature checking when we can.
-  $Mpp::has_md5_signatures and
-    $self->rule->set_signature_class( $leave_comments ? 'md5' : 'C', 1 );
+  $self->rule->set_signature_class( $leave_comments ? 'md5' : 'C', 1 );
 }
 
 # The subclass can override these. Don't start doing any actual scanning here,

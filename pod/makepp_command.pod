@@ -2,7 +2,7 @@
 
 makepp -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.57 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.59 2012/10/14 15:16:04 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -465,8 +465,9 @@ then this option has no effect.
 
 =item --log-file=I<logfilename>
 
-Changes the name of the log file to the indicated name.  By default, the
-log file is called F<.makepp/log>.
+Changes the name of the log file to the indicated name.  By default, the log
+file is called F<.makepp/log>.  This file is readable with L<makepplog,
+mppl|makepplog>.
 
 =item -m I<method>
 
@@ -596,13 +597,13 @@ C<no_implicit_load> statement in one of your makefiles.
 
 =item --no-log
 
-Don't bother writing a detailed description of what was done to the log
-file.  By default, makepp writes out an explanation of every file that
-it tried to build, and why it built it or did not build it, to a file
-called F<.makepp/log>.  This can be extremely valuable for debugging a
-makefile--makepp tells you what it thought all of the dependencies were,
-and which one(s) it thought changed.  However, it does take some extra
-CPU time, and you might not want to bother.
+Don't bother writing a detailed description of what was done to the log file.
+By default, makepp writes out an explanation of every file that it tried to
+build, and why it built it or did not build it, to a file called
+F<.makepp/log>, readable with L<makepplog, mppl|makepplog>.  This can be
+extremely valuable for debugging a makefile--makepp tells you what it thought
+all of the dependencies were, and which one(s) it thought changed.  However,
+it does take some extra CPU time, and you might not want to bother.
 
 =item --no-path-exe-dep
 
@@ -694,7 +695,7 @@ of the cache (e.g. for mission-critical builds).
 
 =item --profile
 
-Output timestamps before and after each action.
+Output raw timestamps before and after each action.
 
 =item -R I<directory>
 
@@ -757,6 +758,10 @@ stale generated header file.
 
 If you build with C<--rm-stale>, then F<./x.h> is removed, and the result
 is the same as that of a clean build, which is almost always a good thing.
+
+Note that if you build in a repository, you have to give this option there
+first, because the importing makepp doesn't know what might be stale in the
+repository.
 
 =item -s
 
@@ -932,7 +937,7 @@ setting.  If you don't treat filenames as case sensitive, then makepp converts
 all filenames to lowercase, which causes occasional difficulties.  (E.g.,
 emacs may will open several buffers to the same file.)
 
-Makepp does not currently support a build across several file systems,
-one of which is case sensitive and the other case insensitive.
+Makepp does not currently support a build across several file systems well,
+if one is case sensitive and the other case insensitive.
 
 =back

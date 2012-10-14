@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.47 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.49 2012/10/14 15:16:50 pfeiffer Exp $
 #
 # Possible improvements:
 #
@@ -20,7 +20,6 @@ Mpp::BuildCache -- subroutines for handling the makepp build cache
 
     $bc = new Mpp::BuildCache("/path/to/build_cache", $create_flags_hash);
     $bc->cache_file($file_info_of_file_to_archive, $file_key);
-    $bc->cleanup();	 # Clean out files that haven't been used for a while.
     $bc_entry = $bc->lookup_file($file_key);
 
     $build_info = $bc_entry->build_info;
@@ -101,6 +100,7 @@ use strict;
 use Mpp::File;
 use Mpp::FileOpt;
 use Mpp::Cmds ();
+use Mpp::Signature::md5;
 use Sys::Hostname;
 use POSIX qw(:errno_h S_ISREG);
 
@@ -108,7 +108,6 @@ BEGIN {
   eval { $_ = ESTALE };		# Not defined on Win ActiveState.
   if( $@ ) {
     no warnings;
-    require Mpp::Text;
     *ESTALE = sub() { -1 };
   }
 }
@@ -215,7 +214,7 @@ sub cache_file {
 
 # Build info is currently stored in a file whose name is the same as the main
 # file, but with ".makepp" before the last directory and .mk as a suffix.
-# E.g., if the filename is 01/234/5679abcdef, then the build info is
+# E.g., if the filename is 01/234/56789abcdef, then the build info is
 # stored in 01/234/.makepp/56789abcdef.mk.
 
   my $build_info_fname = $cache_fname;
@@ -283,15 +282,13 @@ sub cache_file {
 				# Remember that it's linked to the build
 				# cache, so we need to delete it before
 				# allowing it to be changed.
-      if($Mpp::md5check_bc) {
+      if( $Mpp::md5check_bc ) {
 	# Make sure that $build_info->{MD5_SUM} is set.
-	require Mpp::Signature::md5;
-	Mpp::Signature::md5::signature($Mpp::Signature::md5::md5, $input_finfo);
+	Mpp::Signature::md5::signature $input_finfo;
       }
     } else {			# Hard link not possible on different dev
       my $md5;
       if($Mpp::md5check_bc && !$build_info->{MD5_SUM}) {
-	require Digest::MD5;
 	$md5 = Digest::MD5->new;
       }
       $target_src = $temp_cache_fname;
@@ -302,7 +299,7 @@ sub cache_file {
 	$$reason = "unlink $temp_cache_fname: $!";
 	return undef;
       };
-      if (!(($size) = copy_check_md5($input_filename, $temp_cache_fname, $md5))) {
+      unless( ($size) = copy_check_md5($input_filename, $temp_cache_fname, $md5) ) {
 	$$reason = ($! == ESTALE) ? $target_aged : "write $temp_cache_fname: $!";
 	return undef;
       }
@@ -630,9 +627,7 @@ sub copy_from_cache {
 #
   $Mpp::critical_sections++;
   my $result = eval {
-    my $md5;
-    require Digest::MD5;
-    $md5 = Digest::MD5->new if $Mpp::md5check_bc;
+    my $md5 = Digest::MD5->new if $Mpp::md5check_bc;
     my ($size, $mtime);
     # TBD: Maybe we shouldn't fall back to copying if link fails.  There
     # should be a warning at least.

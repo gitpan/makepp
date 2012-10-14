@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.161 2012/02/28 21:41:18 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.165 2012/06/09 20:37:02 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_do);
@@ -276,10 +276,9 @@ sub expand_expression {
   if( $expr =~ s/^&(?=.)// ) { # & alone is a silly variable
     my( $cmd, @args ) = unquote_split_on_whitespace $expr;
     local $Mpp::Subs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
-    local *OSTDOUT;		# TODO: convert to my $fh, when discontinuing 5.6.
-    open OSTDOUT, ">&STDOUT" or die;
-    my $temp = f_mktemp '', $self;
-    open STDOUT, '>', $temp or die; # open '+>' screws up from 5.8.0 to 5.8.7 on some OS
+    open my $ofh, '>&STDOUT' or die;
+    close STDOUT;
+    open STDOUT, '>:crlf', \($result = '') or die $!; # \$result gives undef warning in 5.8.1 - 5.10.0
     eval {
       local $_;
       if( defined &{$self->{PACKAGE} . "::c_$cmd"} ) { # Function from makefile?
@@ -292,12 +291,10 @@ sub expand_expression {
 	run $cmd, @args;
       }
     };
-    open STDOUT, ">&OSTDOUT";
+    open STDOUT, '>&', $ofh;
+    close $ofh;
     die $@ if $@;
-    open my $fh, '<', $temp or die;
-    local $/;
-    $result = <$fh>;
-    $result =~ s/\r?\n/ /g	# Get rid of newlines.
+    $result =~ tr/\n/ /		# Get rid of newlines.
       unless $s_define;
     $result =~ s/\s+$//;	# Strip out trailing whitespace.
   } elsif( $expr =~ /^([^:#=]+):([^=]+)=([^=]+)$/ ) {
@@ -563,7 +560,7 @@ detail.
 =cut
 
 sub cd {
-  chdir( $_[0]{CWD} );
+  chdir $_[0]{CWD};
 }
 
 =head2 $makefile->setup_environment()
@@ -764,7 +761,7 @@ sub load {
 # We're reloading this makefile.  Clean out all the old definitions, and set
 # up a few variables:
 #
-    delete $self->{INITIALIZED};
+    delete $self->{xINITIALIZED};
 
     $mpackage = $self->{PACKAGE};
     if($autoload) {
@@ -832,7 +829,7 @@ sub load {
 # environment variables change, it seemed unnecessarily conservative to allow
 # it to do it the old way.
 #
-  if ($minfo->{NAME} ne 'makepp_default_makefile.mk') {
+  if( $minfo->{NAME} ne 'makepp_default_makefile.mk' && !$minfo->{MKTEMP} ) {
     wait_for Mpp::build($minfo) and die "Failed to build ". absolute_filename( $minfo );
 				# Build the makefile, using what rules we
 				# know from outside the makefile.  This may
@@ -894,7 +891,7 @@ sub load {
   }
 
   initialize( $self );
-  $self->{INITIALIZED} = 1;
+  undef $self->{xINITIALIZED};
 
 #
 # Now see if the makefile is up to date.  If it's not, we just wipe it out
@@ -959,20 +956,20 @@ sub load {
 #
 sub initialize {
   my $self = $_[0];
-  unless($self->{INITIALIZED}) { # after 5.6: exists $rule->{xINITIALIZED}
+  unless( exists $self->{xINITIALIZED} ) {
   #
   # Fetch the values of exported variables so we can quickly change the
   # environment when we have to execute a rule.  When the export statement was
   # seen, we put the names of the variables into a hash with a null value;
   # now replace that null value with the actual value.
   #
-    local $self->{INITIALIZED} = 1; # Don't go into deep recursion if expanding an export
+    local $self->{xINITIALIZED}; # Don't go into deep recursion if expanding an export
     for my $var (keys %{$self->{EXPORTS}}) {
       $self->{EXPORTS}{$var} = expand_variable $self, $var, absolute_filename( $self->{MAKEFILE} ) . ':0';
 				# We don't know the line here, but provide one, in case Perl code gets assigned.
     }
 
-    # NOTE: Don't set INITIALIZED here, because even though we've done the
+    # NOTE: Don't set xINITIALIZED here, because even though we've done the
     # initialization, we'll have to do it again after the Makefile is
     # completely read in order to track any subsequent changes.
   }
@@ -985,7 +982,7 @@ sub get_env {
   my ($self, $var) = @_;
   $var or die;
   if( exists $self->{EXPORTS}{$var} ) {
-    unless($self->{INITIALIZED}) {
+    unless( exists $self->{xINITIALIZED} ) {
       # Even if it's already set, we still have to re-evaluate, because its
       # value could have changed since it was last set.
       $self->{EXPORTS}{$var} =
@@ -1179,13 +1176,9 @@ sub grok_assignment {
   }
 
   if( @list ) {			# It's a target-specific assignment.
-    my $targets = $list[0];	# Get the targets for which this variable
-				# applies.
+    my $targets = $list[0];	# Get the targets for which this variable applies.
     $targets =~ tr/%/*/;	# Convert % wildcard to normal filename wildcard.
-    cd( $self );		# Make sure we're in the right directory
-				# to expand the wildcard.
-				# Can't just &cd; because for some reason Perl
-				# up to 5.6.2 has clobbered @_.
+    &cd;			# Make sure we're in the right directory to expand the wildcard.
     wildcard_do {		# This block is called for every file that matches the wildcard.
       local $private = $_[0];	# Prior PRIVATE_VARS for +=, and for storing new value.
       assign $self, $var_name, $type, $var_value, $keyword->{override}, $makefile_line, undef, $private;
@@ -1535,11 +1528,8 @@ sub grok_rule {
 				# Get first one as we can't precalculate its signature
 	if $include->{ALTERNATE_VERSIONS};
       if( Mpp::File::have_read_permission $include ) {
-	if( Mpp::is_perl_5_6 ? $Mpp::has_md5_signatures : 1 ) {
-	  require Mpp::Signature::md5;
-	  $rule->{INCLUDE_MD5} = Mpp::Signature::md5::signature( undef, $include );
+	$rule->{INCLUDE_MD5} = Mpp::Signature::md5::signature $include;
 				# remember it for checking if content changed
-	}
 	$rule->{PARSER} = \&Mpp::Subs::p_none;
 	Mpp::log LOAD_INCL => $include, $makefile_line
 	  if $Mpp::log_level;
@@ -1855,12 +1845,9 @@ sub read_makefile {
   local $makefile_contents;
   {
     local $/;			# Read in the whole file with one slurp.
-    open my $fh, $makefile_name or
+    open my $fh, '<:crlf', $makefile_name or
       die "can't read makefile $makefile_name--$!\n";
     $makefile_contents = <$fh>; # Read the whole makefile.
-    $makefile_contents =~ tr/\r//d;
-				# Strip out those annoying CR characters
-				# which get put in sometimes on Windows.
   }
 
   if( $c_preprocess ) {
@@ -1900,10 +1887,12 @@ sub read_makefile {
 				# The line name to use for error messages.
 
     if( /^\s*(-?)\s*&(\w+)\s*(.*)/ && !$c_preprocess ) { # &Command at beginning of line?
-      my( $ignore_error, $cmd, @args ) = ($1, $2, $3);
-      @args = unquote_split_on_whitespace expand_text( $self, $args[0], $makefile_line ) if @args;
+      my( $ignore_error, $cmd ) = ($1, $2);
+      my @args = unquote_split_on_whitespace expand_text( $self, $3, $makefile_line ) if length $3;
       local $Mpp::Subs::rule = { MAKEFILE => $self, RULE_SOURCE => $makefile_line };
       eval {
+	chdir $self->{CWD};	# Make sure we're in the correct directory
+				# because some commands will expect this.
 	if( defined &{$self->{PACKAGE} . "::c_$cmd"} ) { # Command from makefile?
 	  local $0 = $cmd;
 	  &{$self->{PACKAGE} . "::c_$0"}( @args );
@@ -1969,8 +1958,10 @@ sub read_makefile {
 
     if( $equal >= 0 ) {
       die "$makefile_line: no variable name in assignment\n" unless $equal;
-      grok_assignment $self, $makefile_line, $equal, $keyword;
-      next;
+      if( substr( $_, 0, $equal ) !~ /:.*;/ ) { # unusual syntax but frequent in gmake test suite
+	grok_assignment $self, $makefile_line, $equal, $keyword;
+	next;
+      }
     }
     if( $keyword->{export} || $keyword->{global} ) {
       grok_assignment $self, $makefile_line, undef, $keyword;

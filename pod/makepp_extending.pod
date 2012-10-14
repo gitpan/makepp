@@ -2,7 +2,7 @@
 
 makepp_extending -- How to extend makepp using Perl
 
-=for vc $Id: makepp_extending.pod,v 1.20 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp_extending.pod,v 1.21 2012/05/15 21:26:30 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -182,8 +182,7 @@ to use the same standard options as they have, and the I/O handling they give.
 The block operator C<Mpp::Cmds::frame> is followed by a single letter option
 list of the builtins (maximally C<qw(f i I o O r s)>).  Even if you specify
 your own option overriding one of these, you still give the single letter of
-the standard option.  Note how we take one of the letter out of C<qw()>,
-because otherwise Perl 5.6 chokes.
+the standard option.
 
 Each own option is specified as C<[qw(n name), I<\$ref>, I<arg>, I<sub>]>.
 The first two elements are short and long name, followed by the variable

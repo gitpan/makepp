@@ -2,7 +2,7 @@
 
 makepp_build_cache -- How to set up and use build caches
 
-=for vc $Id: makepp_build_cache.pod,v 1.27 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp_build_cache.pod,v 1.28 2012/05/23 18:30:17 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -413,7 +413,7 @@ L<makepp_builtins>, are:
 
 Creates the build caches with the given options.  Valid options are:
 
-Standard options: C<-v, --verbose>
+Standard options: C<-A, --args-file, --arguments-file=filename, -v, --verbose>
 
 =over 4
 
@@ -527,7 +527,7 @@ of combinations with C<or>, you must call this command repeatedly with
 different sets of options.  Do the ones where you expect the most deletions
 first, then the others can be faster.
 
-Standard options: C<-v, --verbose>
+Standard options: C<-A, --args-file, --arguments-file=filename, -v, --verbose>
 
 =over
 
@@ -798,8 +798,8 @@ shown in readable form, as well as the number of days, hours or minutes the
 age of this file has just exceeded.  If you double the option, you
 additionally get the info for each group member.
 
-Standard options: C<-f, --force, -o, --output=filename, -O, --outfail,
--v, --verbose>
+Standard options: C<-A, --args-file, --arguments-file=filename, -f, --force,
+-o, --output=filename, -O, --outfail, -v, --verbose>
 
 =over
 
@@ -906,6 +906,8 @@ There may be more than one copy, if either several people created the
 identical file before it was replicated, or if replication migrated the file
 to a preferred disk, but the original file was still in use.  Superfluous
 copies become symlinks when cleaning finds they have no more external links.
+
+Standard options: C<-A, --args-file, --arguments-file=filename, -v, --verbose>
 
 =over
 

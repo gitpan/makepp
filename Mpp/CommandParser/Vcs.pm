@@ -1,4 +1,4 @@
-# $Id: Vcs.pm,v 1.31 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: Vcs.pm,v 1.32 2012/05/15 21:26:30 pfeiffer Exp $
 
 =head1 NAME
 
@@ -46,8 +46,7 @@ sub xparse_command {
   my( $self, $command, $setenv ) = @_;
 
   # Use the MD5 signature checking when we can.
-  $self->rule->set_signature_class( 'C.v', 1 )
-    if $Mpp::has_md5_signatures;
+  $self->rule->set_signature_class( 'C.v', 1 );
 
   my @words=@$command;
   my $dir=$self->dir;

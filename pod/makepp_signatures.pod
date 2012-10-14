@@ -2,7 +2,7 @@
 
 makepp_signatures -- How makepp knows when files have changed
 
-=for vc $Id: makepp_signatures.pod,v 1.21 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp_signatures.pod,v 1.23 2012/10/14 15:16:31 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -52,7 +52,9 @@ C<--signature-method>|makepp_command/m_method> command line option.
 
 The plain signature method is the file's modification time and the file's
 size, concatenated.  These values are quickly obtainable from the operating
-system and almost always change when the file changes.
+system and almost always change when the file changes.  For symlinks it uses
+the values of the linkee.  If there is no linkee, i.e. it's a dangling
+symlink, then it uses its own values, but prepends a C<0> to mark the fact.
 
 Makepp used to look only at the file's modification time, but if you run
 makepp several times within a second (e.g., in a script that's building
@@ -76,14 +78,10 @@ access to this info, making this failsafe.
 
 =item c_compilation_md5
 
-This is the method for input files to C like compilers, if your Perl supports
-MD5 (only optionally available up to 5.6.2).  It checks if a file's name looks
+This is the method for input files to C like compilers.  It checks if a file's name looks
 like C or C++ source code, including things like Corba IDL.  If it does, this
 method applies.  If it doesn't, it falls back to plain signatures for binary
-files (determined by name or else by content) and else to L</md5>.  Alas you
-can currently tune what is to be considered C or binary only by subclassing
-C<Mpp::Signature::c_compilation_md5> to get a new signature type and there
-overriding or extending the methods C<recognizes_file> and C<excludes_file>.
+files (determined by name or else by content) and else to L</md5>.
 
 The idea is to be independent of formatting changes.  This is done by pulling
 everything up as far as possible, and by eliminating insignificant spaces.
@@ -172,11 +170,11 @@ necessary.
 
 =item md5
 
-This is the default method, if your Perl supports MD5 (optionally available up
-to 5.6.2).  Computes an MD5 checksum of the file's contents, rather than
-looking at the file's date or size.  This means that if you change the date on
-the file but don't change its contents, makepp won't try to rebuild anything
-that depends on it.
+This is the default method, for files not recognized by the L</C> method.
+Computes an MD5 checksum of the file's contents, rather than looking at the
+file's date or size.  This means that if you change the date on the file but
+don't change its contents, makepp won't try to rebuild anything that depends
+on it.
 
 This is particularly useful if you have some file which is often
 regenerated during the build process that other files depend on, but
@@ -269,11 +267,12 @@ would be C<C.(ipp|tpp)> or C<C.([it]pp)> in this syntax.
 =item C(I<regexp>)
 
 Without a dot the Perl regular expression can match anywhere in the file name.
-If it includes a slash, it will be tried against the fully qualified filename.
-So if you have C++ style suffixless headers in a directory F<include>, use
-C<C(/include/)> as your signature method.  However the above suffix example
-would be quite nasty this way, C<C(\.(?:ipp|tpp)$$)> or C<C(\.[it]pp$$)>
-because C<$> is the expansion character in makefiles.
+If it includes a slash, it will be tried against the fully qualified filename,
+otherwise only against the last part, without any directory.  So if you have
+C++ style suffixless headers in a directory F<include>, use C<C(include/)> as
+your signature method.  However the above suffix example would be quite nasty
+this way, C<C(\.(?:ipp|tpp)$$)> or C<C(\.[it]pp$$)> because C<$> is the
+expansion character in makefiles.
 
 =back
 

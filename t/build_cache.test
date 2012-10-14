@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	59	755	1103935704	1210345644	makepp_test_script.pl
+###	55	755	1103935704	1342132247	makepp_test_script.pl
 makepp \'builtin', qw(-MMpp::BuildCacheControl create --subdir-chars= ./build_cache);
 
 #
@@ -48,12 +48,8 @@ makepp qw(--build-cache build_cache -F subdir2 derived_files EXTRA_WORD=test2);
 # correctly rejected.
 #
 for( <build_cache/*_aa> ) {
-  print "<$_>\n";chmod 0755, $_;
-  open my $fh, '>>', $_;
-  print $fh "an improper modification\n";
-  close $fh;
-  cp $_, \*STDOUT;
-  print "====\n";
+  chmod 0755, $_;
+  c_echo 'an improper modification', "-o>>$_";
 }
 
 makepp qw(--build-cache build_cache -F subdir3 aa);

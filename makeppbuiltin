@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #use strict;			# TODO: explore why this breaks the builtins.
 
-# $Id: makeppbuiltin,v 1.20 2010/09/13 21:17:25 pfeiffer Exp $
+# $Id: makeppbuiltin,v 1.21 2012/05/23 18:30:17 pfeiffer Exp $
 
 package Mpp;
 
@@ -42,6 +42,11 @@ use Mpp::Utils;
 use Mpp::Text ();
 use Mpp::Cmds;
 
+
+$Mpp::Text::helpline = 'For command info, click on sidebar "Features" and then "Builtin Commands".';
+$Mpp::Text::extraman = '_builtins';
+
+
 sub eval_or_die($) {
   if( wantarray ) {
     my @result = eval $_[0];
@@ -55,15 +60,6 @@ sub eval_or_die($) {
 }
 { no warnings 'redefine'; *Mpp::Cmds::eval_or_die = \&eval_or_die }
 
-
-sub metahelp { print STDERR "usage: $0 ", <DATA>; &helpfoot }
-
-sub helpfoot { die <<'EOF' }
-
-Look at @htmldir@/makepp_builtins.html for command details,
-or at http://makepp.sourceforge.net/@BASEVERSION@/makepp_builtins.html
-or type "man makepp_builtins".
-EOF
 
 # Drop in replacement for getopts, which parses and pretty prints the option
 # specification.
@@ -86,7 +82,7 @@ sub getopts_help(@) {
     s/^(-.[^,])/    -$1/;	# indent only long option further
     print STDERR "\n  $_";
   }
-  &helpfoot;
+  die "\n";
 }
 
 
@@ -101,7 +97,6 @@ sub doit {
     $0 = $1;
     $cmd = "Mpp::Cmds::c_$0";
   } else {
-    $Mpp::Text::common_opts[0][4] = \&metahelp;
     my $tmp;
     Mpp::Text::getopts 1,
       ['I', qr/include(?:[-_]?dir)?/, \$tmp, 1, sub { unshift @INC, $tmp }],
@@ -110,7 +105,7 @@ sub doit {
 
       splice @Mpp::Text::common_opts;
 
-    &metahelp unless @ARGV;
+    &Mpp::Text::help unless @ARGV;
 
     $tmp = $0;			# 1st argument must be the command name.
     $0 = shift @ARGV;
@@ -138,20 +133,6 @@ doit;
 
 __DATA__
 [metaoption ...] command [option ...] [argument ...]
+  to see options do:	makeppbuiltin command --help
+
 Options depend on the command, while metaoptions are these:
-
--A filename, --args-file=filename, --arguments-file=filename
-    Read the file and parse it as possibly quoted whitespace- and/or
-    newline-separated options.
--?, -h, --help
-    Print out a brief summary of the options.
--I directory, --include=directory, --include-dir=directory
-    Add directory to Perl load path @INC.
--M module[=arg,...], --module=module[=arg,...]
-    Load module and import any functions it exports.
--V, --version
-    Print out the version number.
-
-Look at @htmldir@/makeppbuiltin.html for wrapper details,
-or at http://makepp.sourceforge.net/@BASEVERSION@/makeppbuiltin.html
-or type "man makeppbuiltin".

@@ -1,4 +1,4 @@
-# $Id: Scanner.pm,v 1.58 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: Scanner.pm,v 1.60 2012/10/14 15:16:14 pfeiffer Exp $
 
 =head1 NAME
 
@@ -292,8 +292,8 @@ to build, or if scanning failed.
 sub scan_file1 {
   my ($self, $command_parser, $tag, $finfo)=@_;
   unless( $self->{CONDITIONAL} ) {
-    return 1 if exists $self->{int $finfo};
-    undef $self->{int $finfo};
+    return 1 if exists $self->{my $x = sprintf '%x', $finfo};
+    undef $self->{$x};
   }
   # TBD: If we were to build scanned files in parallel,
   # then this is where we would wait for the file to finish
@@ -362,10 +362,10 @@ sub scan_file1 {
   1;
 }
 sub scan_file {
-  my ($self, $command_parser, $tag, $name)=@_;
-  push @{$self->{PENDING}}, [$tag, $self->get_file_info($name)];
-  $command_parser->add_dependency($name) ?
-    defined $self->continue_scanning($command_parser) :
+  #my ($self, $command_parser, $tag, $name)=@_;
+  push @{$_[0]{PENDING}}, [$_[2], $_[0]->get_file_info( $_[3] )];
+  $_[1]->add_dependency( $_[3] ) ?
+    defined $_[0]->continue_scanning( $_[1] ) :
     undef;
 }
 
@@ -382,14 +382,13 @@ scanning failed.
 =cut
 
 sub continue_scanning {
-  my ($self, $command_parser)=@_;
+  #my ($self, $command_parser)=@_;
   my $result=0;
-  while(@{$self->{PENDING}}) {
+  while(@{$_[0]{PENDING}}) {
     $result=1;
-    my $pend=shift @{$self->{PENDING}};
-    $self->{DEPTH} = DEFAULT_DEPTH;
-    $self->scan_file1(
-      $command_parser, $pend->[0], $pend->[1]
+    $_[0]{DEPTH} = DEFAULT_DEPTH;
+    $_[0]->scan_file1(
+      $_[1], @{shift @{$_[0]{PENDING}}}
     ) or return undef;
   }
   $result;
@@ -539,7 +538,7 @@ sub include {
     if($self->{INFO_STRING}{$tag}) {
       $self->{INC}{$tag}{$name}=1;
     }
-    push @{$self->{PENDING}}, [$tag, $finfo] if $finfo && !$self->{SEEN}{$tag}{int $finfo}++;
+    push @{$self->{PENDING}}, [$tag, $finfo] if $finfo && !$self->{SEEN}{$tag}{sprintf '%x', $finfo}++;
   }
   # NOTE: We don't need to return undef if this isn't found, because
   # it could come from a system path that we don't know about (which
@@ -758,7 +757,7 @@ sub is_active { $_[0]{ACTIVE} }
 #include path tag and whose second element if the file name (relative to the
 #current directory).
 #
-#=head2 $self->{int objectref}
+#=head2 $self->{sprintf '%x', objectref}
 #
 #Files already scanned or being scanned.  This is unlikely to collide with
 #attributes or tags.

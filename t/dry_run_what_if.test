@@ -1,5 +1,5 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	32	644	1067451874	1062014179	makepp_test_script.pl
+###	26	644	1067451874	1342817217	makepp_test_script.pl
 #
 # Test various kinds of fake signatures that we generate using the
 # --assume-new, --assume-old, and -n option.
@@ -7,15 +7,9 @@
 
 sub doit {
   my( $sf, $opt, $bl, $af, $nowait ) = @_;
-  if( $sf ) {
-    open my $sourcefile, '>sourcefile';
-    print $sourcefile "$sf\n";
-  }
-  open MKP, "$ENV{PERL} $makepp_path $opt|" or die "could not exec makepp\n";
-  open my $log, ">build_log_$bl" or die "could not create build_log$bl\n";
-  /^&(?:cat|echo|sed)/ and print $log $_ while <MKP>;
-  close MKP;
-  cp allfiles => "allfiles_$bl" if $af;
+  c_echo $sf, '-osourcefile' if $sf;
+  c_grep '/^&(?:cat|echo|sed)/', "-i$ENV{PERL} $makepp_path $opt|", "-obuild_log_$bl";
+  c_cp allfiles => "allfiles_$bl" if $af;
   wait_timestamp 'allfiles' if !$nowait;
 }
 
@@ -23,10 +17,10 @@ doit 'source_original', '', '0';
 
 doit 0, '-W f', 'W_f', 1;
 
-{ open my $h, '>h' }
+c_touch 'h';
 doit 'source_modified', '-o sourcefile', 'o_sourcefile', 1;
 
-{ open my $g, '>g'; print $g "g_modified\n" }
+c_echo 'g_modified', '-og';
 doit 'source_original', '--dont-build g', 'dont_build_g', 1;
 
 doit 0, '-n', 'n', 1, 1;

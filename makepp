@@ -1,13 +1,13 @@
 #!/usr/bin/perl -w
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.207 2012/03/19 21:29:06 pfeiffer Exp $
+# $Id: makepp,v 1.213 2012/08/30 21:05:47 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
 package Mpp;
 
-require 5.006;
+use 5.008;
 use strict;
 
 use Config;
@@ -40,46 +40,21 @@ BEGIN {
   $datadir = eval "use Cwd; cwd . '/$datadir'"
     if $datadir =~ /^\./;	# Make it absolute, if it's a relative path.
 
-  my $workaround = sub {
-    my $code = shift;
-    for( @_ ) {
-      my $file = "$datadir/$_";
-      local $_ = "$file.broken";
-      next if -f;		# Already converted
+  if( $^O =~ /^MSWin/ && $] < 5.008007 ) { # IDENTICAL AS IN t/run_tests.pl
+    # This is a very bad hack!  On earlier Win Active State "lstat 'file'; lstat _ or -l _" is broken.
+    my $file = "$datadir/Mpp/File.pm";
+    local $_ = "$file.broken";
+    unless( -f ) {		# Already converted
       rename $file, $_;
       open my $in, '<', $_;
       open my $out, '>', $file;
       chmod 07777 & (stat)[2], $file;
       while( <$in> ) {
-	&$code;
+	s/\blstat\b/stat/g;
+	s/-l _/0/g;
 	print $out $_;
       }
     }
-  };
-  if( $Config{ptrsize} == 8 && $^O eq 'hpux' ) {
-    # This is a very bad hack!  On HP/UX use64bitall is broken (at least 5.8.0,
-    # 5.8.1 and 5.8.8) in that int does not uniquely convert references.  So we
-    # fallback to a much slower hex representation, which is not broken.  Note
-    # that this list includes all files where we remember references in hash keys,
-    # which are luckily disjoint from those where we do calculations with int.
-    my $makeppok = -f "$datadir/makepp.broken";
-    &$workaround( sub {
-	s<\bint(\(?)([,;\) ])> {
-	  my $o = $1 || ($2 ne ' ' ? '(' : '');
-	  my $c = ($2 ne ' ' ? ' )' : '') . (($2 eq ',' || $2 eq ';') ? $2 : '');
-	  "sprintf$o '%x', " . ($2 ne ' ' ? '$_' : '') . $c
-	}ge;
-      },
-      qw(Mpp/BuildCheck/exact_match.pm Mpp/BuildCacheControl.pm Mpp/CommandParser.pm Mpp/File.pm Mpp/FileOpt.pm
-	 Mpp/Makefile.pm Mpp/Scanner.pm Mpp.pm Mpp/Rule.pm makepp makeppinfo) );
-    exec $^X, $0, @ARGV unless $makeppok;
-  } elsif( $^O =~ /^MSWin/ && $] < 5.008007 ) {
-    # This is a very bad hack!  On earlier Win Active State "lstat 'file'; lstat _ or -l _" is broken.
-    &$workaround( sub {
-	s/\blstat\b/stat/g;
-	s/-l _/0/g;
-      },
-      qw(Mpp/File.pm) );
   }
 #@@
   unshift @INC, $datadir;
@@ -88,6 +63,7 @@ BEGIN {
 our $progname;
 
 use Mpp::Text;
+$Mpp::Text::pod = 'makepp_command';
 BEGIN { *MAKEPP = $Mpp::Text::N[1] } # Differentiate from makeppreplay
 use POSIX ();
 use Mpp;
@@ -101,9 +77,7 @@ use Mpp::FileOpt;
 use Mpp::Makefile;
 use Mpp::Rule;
 use Mpp::BuildCheck::exact_match;
-use Mpp::Signature;
-eval 'use Mpp::Signature::c_compilation_md5'; # Try to use MD5 signature checking.
-our $has_md5_signatures = ($@ eq '');
+use Mpp::Signature::md5;
 use Mpp::Event qw(when_done wait_for read_wait);
 
 #@@useoldmodules
@@ -250,7 +224,7 @@ sub build {
   # processed, then just return as if the file were already built and hope
   # for the best.  (This is currently the best we can do with circular
   # dependencies.)
-  return undef if $rule->{SCANNING}; # after 5.6: exists $rule->{xSCANNING}
+  return undef if exists $rule->{xSCANNING};
 
   # If the file still looks stale (now that we've tried to load its rule), and
   # we're not treating stale files as source files, then we need to error out
@@ -282,7 +256,7 @@ sub build {
 				# to print out a warning message about
 				# encountering the rule after we already tried
 				# to build the file.
-  local $rule->{SCANNING} = 1;	# Ditto for other targets of this rule that
+  local $rule->{xSCANNING};	# Ditto for other targets of this rule that
 				# we might not know about yet.
 
   Mpp::log USE => $rule
@@ -754,11 +728,11 @@ sub build_target_done {
     my $include = $rule->{INCLUDE};
     my %uniq;
     if( $include ) {
-      if( $rule->{INCLUDE_MD5} ? $rule->{INCLUDE_MD5} ne Mpp::Signature::md5::signature( undef, $include ) : 1 ) {
+      if( $rule->{INCLUDE_MD5} ? $rule->{INCLUDE_MD5} ne Mpp::Signature::md5::signature( $include ) : 1 ) {
 				# If we have a sig, only reread if it changed.
-	$uniq{int()} = $_ for @$all_dependencies;
+	$uniq{sprintf '%x', $_} = $_ for @$all_dependencies;
 	for my $tinfo (@$all_targets) {
-	  delete $uniq{int()} for $rule->expand_additional_deps( $tinfo );
+	  delete $uniq{sprintf '%x', $_} for $rule->expand_additional_deps( $tinfo );
 				# These may now be outdated.
 	}
 	Mpp::log LOAD_INCL => $include, $rule
@@ -772,8 +746,8 @@ sub build_target_done {
 
     foreach my $tinfo (@$all_targets) {
       next if exists $tinfo->{xPHONY}; # Skip phony targets.
-      if( $include ) {			 # Do this for all targets, as we don't know which one was in the :include .d
-	$uniq{int()} = $_ for $rule->expand_additional_deps( $tinfo );
+      if( $include ) {		# Do this for all targets, as we don't know which one was in the :include .d
+	$uniq{sprintf '%x', $_} = $_ for $rule->expand_additional_deps( $tinfo );
       }
       may_have_changed $tinfo;	# Invalidate cached info.
 				# We don't really need to blow away BUILD_INFO,
@@ -847,8 +821,7 @@ sub build_target_done {
 		my $msg = 'Exporting of ' . absolute_filename( $tinfo ) . " to the build cache failed because $reason\n";
 		&$Mpp::build_cache_error_hook($msg) if $Mpp::build_cache_error_hook;
 		if($reason =~ /\(OK\)$/ && !$stop_on_race) {
-		    $msg .= "This might be due to concurrent access, so we'll just skip exporting this target.\n";
-		    warn $msg;
+		    warn $msg, "This might be due to concurrent access, so we'll just skip exporting this target.\n";
 		} else {
 		    die $msg;
 		}
@@ -1059,6 +1032,13 @@ sub parse_command_line(\%@) {
 
       ['f', qr/(?:make)?file/, \$tmp, 1, sub {
 				# Load a makefile without changing directory?
+	 if( $tmp eq '-' ) {	# Loading expects a real file(_info) so make one.
+	   $tmp = Mpp::Subs::f_mktemp '';
+	   open my $fh, '>', $tmp;
+	   local $/;		# Makefiles are small enough to slurp.
+	   syswrite $fh, <>;
+	   close $fh;
+	 }
 	 push @makefiles, [file_info( $tmp ), $CWD_INFO]; # Load makefile later
 				# when we can specify MAKECMDGOALS.
        }],
@@ -1125,10 +1105,6 @@ sub parse_command_line(\%@) {
   }
   close DATA;			# Only needed for --help.
   @_ = ();			# Free lots of memory.
-
-  die "--md5-check-bc: MD5 signatures not available\n"
-    if is_perl_5_6 && $md5check_bc && !$has_md5_signatures;
-
 
   unless( defined $MAKEFLAGS ) { # 1st call
     my $flags =
@@ -1390,174 +1366,7 @@ perform eval {
     [undef, qr/virtual[-_]?sandbox/, \$virtual_sandbox_flag];
 };
 
-# The following option descriptions are generated like this:
-# pod2text -oi0 pod/makepp_command.pod | perl -ne 's/.\ch//g; next if 1.../Valid options are|^OPTIONS$/; if( /^-/ ) { chop; if( $opt ) { $opt .= ", $_" } else { $opt = $_ }} elsif( $opt ) { tr/*//d && s/\?, , \{/?, *, {/; if( s/\.(?!\w).*/./ ) { print "$opt\n$_"; $opt = "" } else { chop; $opt .= "\n$_" }}'
 __DATA__
-Usage: makepp [-options] [VAR=value] targets
+[option ...] [VAR=value ...] [target ...]
 
 Valid options are:
-
--A filename, --args-file=filename, --arguments-file=filename
-    Read the file and parse it as possibly quoted whitespace- and/or
-    newline-separated options.
--b directory, --build-cache=directory
-    Specifies the path to a build cache.
---build-check=method, --build-check-method=method
-    The name of a build check method to use to decide whether files need to
-    be rebuilt.
--C directory, --directory=directory
-    Cd to the given directory before loading the makefile and trying to
-    build the targets.
--c, --root-dir, --root-directory
-    Cd up to the directory containing a RootMakeppfile.
---defer-include
-    Workaround for include statement before the rule that builds the include
-    file.
---dont-build=filename, --do-build=filename
-    Do not build the specified file, or, if it is a directory, everything
-    thereunder, even though makepp thinks it should -- or do build,
-    overriding the opposite specification from a higher directory.
---dont-read=filename, --do-read=filename
-    Do not read the specified file, or, if it is a directory, everything
-    thereunder -- or do read, overriding the opposite specification from a
-    higher directory.
---dump-makefile=filename, --dump-makeppfile=filename
-    Dump the raw contents of the makefile(s) for the current directory (as
-    determined by the position of this option relative to any "-C" options)
-    to filename.
--e, --env-overrides, --environment-overrides
-    Causes variables from the environment to override definitions in the
-    makefile.
--F Makeppfile, --makeppfile=Makeppfile
-    Loads the specified Makefile or, if you specify a directory, the
-    Makefile therein, instead of the one in the current directory -- any
-    target specified to the right of this option is interpreted relative to
-    the directory containing the Makefile.
--f Makefile, --file=Makefile, --makefile=Makefile
-    Loads the specified Makefile or, if you specify a directory, the
-    Makefile therein, instead of the one in the current directory.
---final-rules-only
-    Ignore the dependencies and implicit targets of the rule unless the
-    target is phony.
---force-copy-from-bc
-    When using build caches, always copy files in and out of the cache, even
-    if the source and target are on the same filesystem.
---force-rescan
-    Don't use cached scanner results from previous runs.
---gullible
-    Believe that the rules create what they declare, rather than checking.
--?, -h, --help
-    Print out a brief summary of the options.
---hybrid, --hybrid-recursion, --hybrid-recursive-make
-    This option is present to allow makepp to work with old makefiles that
-    use recursive make extensively, especially multiply into the same dir.
--I directory, --include=directory, --include-dir=directory
-    Search the given directory for included makefiles.
---implicit-load-makeppfile-only
-    If implicit loading of makefiles is enabled, then automatically load
-    only a file called RootMakeppfile, RootMakeppfile.mk, Makeppfile, or
-    Makeppfile.mk, and not makefile or Makefile.
--j n, --jobs=n
-    Interprets the argument n as the number of shell commands that can be
-    executed in parallel.
--k, --keep-going
-    Build as many files as safely possible, even if some commands have
-    errors.
---last-chance-rules
-    Activate limited special handling for pattern rules with '%' only on the
-    target side.
---load-makefile=Makefile, --load-makeppfile=Makefile
-    Loads the specified makefile before any other makefiles, except for
-    RootMakeppfile, or RootMakeppfile.mk above it, but do not consider this
-    option for the purposes of determining the default target.
---log=logfilename, --log-file=logfilename
-    Changes the name of the log file to the indicated name.
--m method, --signature=method, --signature-method=method
-    Specifies the default signature method to use for rules which do not
-    have the ":signature" modifier in makefiles which do not have a
-    "signature" statement.
---md5-bc, --md5-check-bc
-    When importing from a build cache, reject cached targets unless the
-    MD5_SUM is present and matches the imported target.
--n, --dry-run, --just-print, --recon
-    Print out commands without actually executing them -- unreliably where
-    commands depend on previous results.
---no-cache-scaninfos
-    Do not record the results of scanning, forcing it to be reperformed next
-    time makepp runs.
---no-implicit-load
-    Don't automatically load makefiles from directories referenced (see
-    "Implicit loading" in makepp_build_algorithm).
---no-log
-    Don't bother writing a detailed description of what was done to the log
-    file.
---no-path-exe-dep, --no-path-executable-dependencies
-    Do not add implicit dependencies on executables picked up from the
-    command search path.
---no-populate-bc
-    Don't populate the build cache, but still import from it when possible.
---no-print-directory
-    Turn off the entering or leaving directory messages.
---no-remake-makefiles
-    Ordinarily, makepp loads each makefile in, then looks to see whether
-    there is a rule that specifies how to update the makefile.
---no-warn
-    Don't print any warning messages to stderr, only to log file.
--o filename, --assume-old=filename, --old-file=filename
-    Pretends that the specified file has not changed, even if it has.
---override-signature=method, --override-signature-method=method
-    Same as "--signature-method", but even overrides the choice made by
-    command parsers.
---out-of-sandbox=filename
-    Generate an error rather than write files outside the "sandbox".
---populate-bc-only
-    Don't import for the build cache.
---profile
-    Output timestamps before and after each action.
--R directory, --repository=directory
-    Specify the given directory as a repository (see makepp_repositories for
-    details).
--r, --no-builtin-rules
-    Don't load the default rule sets.
---rm-stale, --remove-stale, --remove-stale-files
-    Ignore stale files rather then treating them as new source files,
-    removing them if necessary in order to prevent them from being read by a
-    build command.
--s, --quiet, --silent
-    Don't echo commands and don't print informational messages like
-    "Scanning" or "Loading makefile".
---sandbox=directory, --in-sandbox=directory, --inside-sandbox=directory
-    Restrain this instance of makepp to a subtree of a normally bigger build
-    tree.
---sandbox-warn, --sandbox-warning
-    Downgrade violations of "in-sandbox" and "dont-read" to warnings instead
-    of errors.
---stop, --stop-after-loading
-    After loading the top level Makeppfile, and any others explicitly or
-    implicitly (through dependencies from other directories) loaded from
-    there, makepp will stop itself (go to sleep).
---stop-race, --stop-on-race
-    Exit in error rather than only warning about a sandbox access collision
-    that could be fixed.
---symlink-in-rep-as-file, --symlink-in-repository-as-file
-    If a repository contains a symbolic link, then by default that symbolic
-    link is imported as a link, which is to say that the target of the
-    imported link need not be identical to the target of the symbolic link
-    in the repository.
---traditional, --traditional-recursion, --traditional-recursive-make
-    This option is present to allow makepp to work with old makefiles that
-    use recursive make extensively, especially with varying options.
--v, --verbose
-    Verbose mode.
--V, --version
-    Print out the version number.
---virtual-sandbox
-    Don't rewrite build infos of files that were not created by this makepp
-    process.
--W filename, --assume-new=filename, --new-file=filename, --what-if=filename
-    Pretends the specified file has changed, so that any targets that depend
-    on that file will be rebuilt.
-
-Look at @htmldir@/index.html for more details,
-or at http://makepp.sourceforge.net/@BASEVERSION@/
-or type "man makepp".

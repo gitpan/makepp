@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makeppinfo,v 1.16 2011/11/20 18:17:49 pfeiffer Exp $
+# $Id: makeppinfo,v 1.18 2012/05/29 21:31:38 pfeiffer Exp $
 
 package Mpp;
 
@@ -56,7 +56,7 @@ use Mpp::Utils;
 use Mpp::File;
 use Mpp::FileOpt;
 
-my( $decode_date, $force, $keylist, $quiet, $traverse, @keys_not, @keys );
+my( $decode_date, $force, $keylist, $quiet, $traverse, $unremembered, @keys_not, @keys );
 Mpp::Text::getopts
   ['d', qr/(?:decode[-_]?)?dates?/, \$decode_date],
 
@@ -68,7 +68,11 @@ Mpp::Text::getopts
 
   [qw't traverse', \$traverse],
 
+  [qw'u unremembered', \$unremembered],
+
   splice @Mpp::Text::common_opts;
+
+$traverse = 2 if $unremembered;
 
 $SIG{__WARN__} = sub {} if $quiet && $quiet > 1;
 
@@ -83,7 +87,7 @@ for( $keylist ) {
   }
 }
 
-my( %seen, $cwd );
+my @seen_dirs;
 sub merge($@) {
   my( $build_info, $key1, $key2 ) = @_;
   if( exists $build_info->{$key1} && exists $build_info->{$key2} ) {
@@ -102,8 +106,8 @@ while( @ARGV ) {
   } else {
     $finfo = file_info $finfo;
   }
-  next if exists $seen{int $finfo};
-  undef $seen{int $finfo};
+  next if exists $finfo->{xSEEN};
+  undef $finfo->{xSEEN};
   my $exists = file_exists $finfo;
   unless( $exists ) {
     warn 'makeppinfo: file `' . relative_filename( $finfo ) . "' not found\n";
@@ -116,7 +120,7 @@ while( @ARGV ) {
 
   my $build_info = Mpp::File::load_build_info_file $finfo;
   unless( $build_info ) {
-    warn 'makeppinfo: file `' . relative_filename( $finfo ) . "' not analyzed by mpp\n"
+    warn 'makeppinfo: file `' . relative_filename( $finfo ) . "' not remembered by mpp\n"
       unless $quiet;
     next;
   }
@@ -125,11 +129,22 @@ while( @ARGV ) {
       if $exists;
     next unless $force;
   }
-  $cwd = file_info $build_info->{CWD}, exists $finfo->{DIRCONTENTS} ? $finfo : $finfo->{'..'}
-    if $traverse && exists $build_info->{CWD};
 
-  push @ARGV, map file_info( $_, $cwd ), split /\cA/, $build_info->{SORTED_DEPS}
-    if $traverse && $build_info->{SORTED_DEPS};
+  if( $traverse ) {
+    my $finfodir = exists $finfo->{DIRCONTENTS} ? $finfo : $finfo->{'..'};
+    my $cwd = file_info $build_info->{CWD}, $finfodir
+      if exists $build_info->{CWD};
+
+    my $length = @ARGV;		# When not traversing we throw these away again:
+    push @ARGV, map file_info( $_, $cwd ), split /\cA/, $build_info->{SORTED_DEPS}
+      if $cwd && $build_info->{SORTED_DEPS};
+
+    if( $unremembered ) {
+      push @seen_dirs, grep { exists $_->{xPUSHED} ? 0 : !undef $_->{xPUSHED} }
+	@ARGV[$length..$#ARGV], $finfodir, $cwd ? $cwd : ();
+      next;
+    }
+  }
 
   if( $keylist ) {
     my %want;
@@ -182,33 +197,24 @@ while( @ARGV ) {
   }
 }
 
+if( @seen_dirs ) {
+  my @unremembered;
+  for my $dir ( @seen_dirs ) {
+    next if $unremembered == 1
+      and 999 <= relative_filename $CWD_INFO, $dir, 1;
+    Mpp::File::read_directory $dir;
+    for my $finfo ( values %{$dir->{DIRCONTENTS}} ) {
+      push @unremembered, relative_filename $finfo unless
+	exists $finfo->{xSEEN} or is_dir $finfo;
+    }
+  }
+
+  print "$_\n" for sort { ($a =~ tr:/:: || ~0) <=> ($b =~ tr:/:: || ~0) or $a cmp $b } @unremembered;
+}
+
 __DATA__
-Usage: makeppinfo [file ...]
+[option ...] [file ...]
 
 For each file print a human readable version of makepp's build info.  DEP_SIGS
 and SORTED_DEPS get merged, as do ENV_DEPS and ENV_VALS.  Tagged lists have the
-tag prepended.
-
-Valid options are:
-
--A filename, --args-file=filename, --arguments-file=filename
-    Read the file and parse it as possibly quoted whitespace- and/or
-    newline-separated options.
--d, --dates, --decode-dates
-    In the simple signatures prepend the 1st number, the raw date-time, with
-    its human readable form in parentheses.
--f, --force
-    Display info even when it is invalid because of inexistent or modified
-    file.
--?, -h, --help
-    Print out a brief summary of the options.
--k list, --keys=list, --keylist=list
-    The list specifies one or more space separated Shell style patterns
-    (with [xyz], ?, *, {a,bc,def}).
--q, --quiet
-    Don't list file and key names.
--t, --traverse
-    Also output the same information for each file in SORTED_DEPS
-    (recursively if repeated).
--V, --version
-    Print out the version number.
+tag prepended.  Valid options are:

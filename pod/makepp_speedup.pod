@@ -2,7 +2,7 @@
 
 makepp_speedup -- How to make makepp faster
 
-=for vc $Id: makepp_speedup.pod,v 1.14 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp_speedup.pod,v 1.15 2012/05/15 21:26:30 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -28,16 +28,11 @@ You can combine several of these tips to increase the time gain even more.
 =head3 Use makeppreplay
 
 The stand-alone utility L<makeppreplay, mppr|makeppreplay> repeats things that
-makepp has already done.
+makepp has already done, without any overhead.
 
 =head3 Use a Faster Perl
 
 Within version 5.8, all are roughly the same, only 5.8.7 is a bit faster.
-Within version 5.6, each newer subversion is noticeably faster.  And, at least
-for makepp, 5.6.2 is 10% faster than 5.8.7.  If you don't need any newer Perl
-features in your Makeppfiles, I suggest getting a B<5.6.2 with Digest::MD5>
-added.
-
 Tuning your Perl can also help, like not compiling it for 64 bits, which
 makepp doesn't need.  For example ActiveState's build
 (L<http://www.activestate.com/activeperl>) of 5.8.7 for Linux is faster than

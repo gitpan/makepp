@@ -2,7 +2,7 @@
 
 makepp_functions -- Functions in makepp
 
-=for vc $Id: makepp_functions.pod,v 1.47 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp_functions.pod,v 1.48 2012/06/09 20:43:14 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -78,8 +78,9 @@ may use hyphens or underscores interchangeably, since internally hyphens are
 converted to underscores.  Evaluating such an expression simply invokes a Perl
 subroutine.  If C<name> is preceded by C<&> it runs the L<builtin
 command|makepp_builtins> or script of that name within the makepp process, and
-returns the standard output.  If the name does not name a function it is
-transformed to an invocation of L<call|/call_variable_words>.
+returns the standard output.  This requires perl to be built for PerlIO.  If
+the name does not name a function it is transformed to an invocation of
+L<call|/call_variable_words>.
 
 As with variables you have a choice of C<$(name ...)> or C<${name ...}>.  Where
 the arguments contain these signs, either use the other, or double it as in

@@ -1,23 +1,22 @@
 ###	SPAR <http://www.cpan.org/scripts/>
-###	2	644	1103317920	1224089613	is_relevant.pl
-is_windows < 1 &&		# Strawberry and ActiveState don't export empty vars
-is_windows != -2		# Msys 5.6.1 dumps on delete from %ENV
+###	1	644	1103317920	1336936334	is_relevant.pl
+is_windows < 1			# Strawberry and ActiveState don't export empty vars
 ###	20	755	1100740057	1210256087	makepp_test_script.pl
 $ENV{FOO} = '';
 makepp qw(RUN=1 PARSER=foo);
-cp 'a', 'a-1';
-cp 'b', 'b-1';
-cp 'c', 'c-1';
-cp 'd', 'd-1';
+c_cp 'a', 'a-1';
+c_cp 'b', 'b-1';
+c_cp 'c', 'c-1';
+c_cp 'd', 'd-1';
 rename 'rescan', 'rescan-1';
 
 # a gets rebuilt, because $A goes from undef to ''
 $ENV{A} = '';
 makepp qw(B_VAL=b_val MY_PATH_VAL=.:nodir RUN=2 PARSER='Mpp::CommandParser::foo');
-cp 'a', 'a-2';
-cp 'b', 'b-2';
-cp 'c', 'c-2';
-cp 'd', 'd-2';
+c_cp 'a', 'a-2';
+c_cp 'b', 'b-2';
+c_cp 'c', 'c-2';
+c_cp 'd', 'd-2';
 rename 'rescan', 'rescan-2';
 
 $ENV{A} = 'a';

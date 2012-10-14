@@ -1,7 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	644	1329052295	1329052295	is_relevant.pl
 have_cc
-###	33	755	1164320845	1190063119	makepp_test_script.pl
+###	29	755	1164320845	1342865499	makepp_test_script.pl
 makepp \'builtin', qw(-MMpp::BuildCacheControl create build_cache);
 
 # Populate the cache
@@ -27,11 +27,7 @@ die "@garbage" if @garbage;
 
 if( is_windows ) {
   for my $n ( qw(1 2 _files) ) {
-    open my $fh, '+<', "answers/n$n" or die $!;
-    my $line = <$fh>;
-    seek $fh, 0, 0;
-    $line =~ s/ 1 / 2 /;	# Extra phony on each test
-    print $fh $line;
+    c_sed 's/ 1 / 2 /', "-o+<answers/n$n";
   }
 }
 1;

@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.114 2012/02/07 22:26:15 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.117 2012/10/14 15:16:30 pfeiffer Exp $
 
 =head1 NAME
 
@@ -169,7 +169,7 @@ sub exists_or_can_be_built_norecurse {
     # that there is a rule for it.
     if(!$stale && $Mpp::rm_stale_files && &is_stale) {
       Mpp::log MAYBE_STALE => $finfo
-	if $Mpp::log_level && !$warned_stale{int $finfo} and $warned_stale{int $finfo} = $finfo;
+	if $Mpp::log_level && !$warned_stale{sprintf '%x', $finfo} and $warned_stale{sprintf '%x', $finfo} = $finfo;
       return undef;
     }
     $finfo->{EXISTS_OR_CAN_BE_BUILT} = 1;
@@ -228,7 +228,7 @@ sub exists_or_can_be_built_or_remove {
     &lstat_array;
     return unless exists $finfo->{xEXISTS};
   }
-  $warned_stale{int $finfo} = $finfo if $Mpp::rm_stale_files; # Avoid redundant warning
+  $warned_stale{sprintf '%x', $finfo} = $finfo if $Mpp::rm_stale_files; # Avoid redundant warning
   my $result = &exists_or_can_be_built;
   return $result if $result || !$Mpp::rm_stale_files;
   if( exists $finfo->{xEXISTS} || &signature ) {
@@ -649,12 +649,15 @@ source code.
 
 =cut
 
+
 sub signature {
   my $stat = $_[0]{LSTAT};
   $stat = &stat_array if !$stat || exists $_[0]{LINK_DEREF};
 				# Get everything we can get about the file
 				# without actually opening it.
-  !@$stat ? undef :		# Undef means file doesn't exist.
+  !@$stat ? (@{$stat = $_[0]{LSTAT}} ? # Dangling symlink, prepend 0 as marker
+	     "0$stat->[STAT_MTIME],$stat->[STAT_SIZE]" :
+	     undef) :		# Undef means file doesn't exist.
     S_ISDIR( $stat->[STAT_MODE] ) ? 1 :
 				# If this is a directory, the modification time
 				# is meaningless (it's inconsistent across
@@ -664,7 +667,7 @@ sub signature {
 				# constant.
     # NOTE: This has to track Mpp/BuildCheck/target_newer.pm, and Mpp/BuildCache.pm
     # in a couple of places:
-    $stat->[STAT_MTIME] . ',' . $stat->[STAT_SIZE];
+    "$stat->[STAT_MTIME],$stat->[STAT_SIZE]";
 }
 
 =head2 update_build_infos
@@ -717,17 +720,16 @@ sub update_build_infos {
       "/$build_info_subdir/$finfo->{NAME}.mk"; # Form the name of the build info file.
 
     my $build_info = $finfo->{BUILD_INFO}; # Access the hash.
-    $build_info->{SIGNATURE} ||= signature( $finfo );
-				# Make sure we have a valid signature.	Use
-				# ||= instead of just = because when we're
-				# called to write the build info for a file
-				# from a repository, the build info is created
-				# before the link to avoid the race condition
-				# where a soft link is created and we are
-				# interrupted before marking it as from a
-				# repository.
-    $build_info->{SIGNATURE} or next;
-				# If the file has been deleted, don't bother
+    $build_info->{SIGNATURE} ||= signature( $finfo ) ||
+				# Make sure we have a valid signature. Use ||=
+				# instead of just = because when we're called
+				# to write the build info for a file from a
+				# repository, the build info is created before
+				# the link to avoid the race condition where a
+				# soft link is created and we are interrupted
+				# before marking it as from a repository.
+      defined $build_info->{BUILD_SIGNATURE} && $build_info->{BUILD_SIGNATURE} eq 'FAILED' && '0,0' or
+	next;			# If the file has been deleted, don't bother
 				# writing the build info stuff.
     write_build_info_file($build_info_fname, $build_info);
 				# Ignore failure to write.  TBD: warn here?

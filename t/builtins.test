@@ -67,7 +67,7 @@ dir2/subdir/d1: dir1/d dir2
 # helper variable for sed
 what = just
 %.out: %.in uniq.in
-	&perl -r0 'print tr/a-e//d, ":"' $(inputs) --output=$(output)
+	&perl -r0 'print tr/a-e//, ":"' $(inputs) --output=$(output)
 	&perl 'print "$$.\n"' $(input) --output=>>$(output)
 	&sed -v s/$$what/only/o $(input) --output=>>$(output)
 	&sed -v 'chomp; $$_ .= "|" . reverse . "\n"' -o +<$(output)
@@ -201,7 +201,7 @@ sub c_uc {
   local @ARGV = @_;
   Mpp::Cmds::frame {
     print "\u\L$_" while <>;
-  } 'f', qw(i I o O r s); # fails in 5.6: qw(f i I o O r s);
+  } qw(f i I o O r s);
 }
 
 1;

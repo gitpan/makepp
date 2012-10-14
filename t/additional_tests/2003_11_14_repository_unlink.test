@@ -3,7 +3,7 @@
 makepp qw(-F base);
 eval { makepp qw(x y die) } or print $@;
 makepp qw(Y=1 x);
-cp 'base/y', 'z';
+c_cp 'base/y', 'z';
 ###	2	644	1068850460	1068850417	Makeppfile
 repository base
 include base.mk

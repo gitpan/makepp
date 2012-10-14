@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: makepplog,v 1.48 2012/02/07 22:26:15 pfeiffer Exp $
+# $Id: makepplog,v 1.49 2012/05/23 18:30:17 pfeiffer Exp $
 
 package Mpp;
 
@@ -413,47 +413,7 @@ for my $logfile ( @logfiles ) {
 }
 
 __DATA__
-Usage: makepplog [-options]
+[option ...]
+
 Render and optionally filter what makepp logged about the last build.
-
 Valid options are:
-
--A filename, --args-file=filename, --arguments-file=filename
-    Read the file and parse it as possibly quoted whitespace- and/or
-    newline-separated options.
--c, --current-working-directory, -C number, --current-working-directory-and-up=number
-    The first two options strip the current directory from the front of all
-    filenames it outputs.
--f, --follow
-    As in "tail" command, process more lines of logfile as it grows.
--?, -h, --help
-    Print out a brief summary of the options.
--i, --install-dirs, --installation-directories
-    These options replace the invocation of makepp and the pathes to the
-    built in makefiles with .
--k list, --keys=list, --keylist=list
-    The list specifies one or more space separated Shell style patterns
-    (with [xyz], ?, *, {a,bc,def}).
--K, --showkey
-    This prefixes each output line with the internal name of the message
-    key, for use with "--keys".
--l filename, --log=filename, --log-file=filename
-    The filename is to where makepp wrote its log.
--n, --no-indent
-    Makepp puts indentation information into the log file to show you what
-    happened because of what else.
--o filename, --output=filename
-    Write the output to this file, rather than stdout.
--p, --prefix
-    Prefix every structured message with the string "makepplog: ".
--t, --tabulate
-    Put each list item on a new line, rather than outputting a line that can
-    easily become longer than a screenful.
--u, --uniq, --unique
-    Report each found include statement and each scan output only once.
--V, --version
-    Print out the version number.
-
-Look at @htmldir@/makepplog.html for more details,
-or at http://makepp.sourceforge.net/@BASEVERSION@/makepplog.html
-or type "man makepplog".

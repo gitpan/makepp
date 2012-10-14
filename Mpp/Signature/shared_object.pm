@@ -1,4 +1,4 @@
-# $Id: shared_object.pm,v 1.12 2010/11/17 21:35:52 pfeiffer Exp $
+# $Id: shared_object.pm,v 1.13 2012/03/25 18:34:48 pfeiffer Exp $
 use strict;
 package Mpp::Signature::shared_object;
 
@@ -72,7 +72,7 @@ sub signature_shared_lib {
   my $n_symbols = 0;
   while( <$nm> ) {  # Keep reading lines.
     if( s/\s+([A-Z]) .*/$1\01/s ) { # Uppercase seems to more or less cover the
-                                 # non-portable Gnu -D opt.  Someone who
+                                 # non-portable GNU -D opt.  Someone who
                                  # understands this might fine tune the types
                                  # that should really go into the sig --
                                  # portably!
