@@ -92,7 +92,7 @@ sub mail {
   my $a = 'occitan@esperanto.org';
   open VERSION, "$^X ../makeppinfo --version|";
   my $v = <VERSION>;
-  $v =~ /makeppinfo version ([^:\n]+)(.*)/s;
+  $v =~ /makeppinfo (?:(?:cvs-)?version|snapshot|release-candidate) ([^:\n]+)(.*)/s;
   my $s = "-s'$_[0] V$1' ";
   if( open MAIL, "| exec 2>/dev/null; mailx $s$a || nail $s$a || mail $s$a || /usr/lib/sendmail $a || mail $a" ) {
     print MAIL "$_[0] V$1$2\n$reason\n$v\n\n\@INC: @INC\n\n";

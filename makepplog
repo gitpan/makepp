@@ -104,6 +104,7 @@ my %log_msg =
   SCAN_NOT_SYS => 'Not scanning system file %s',
   SCAN_NOT_UNWRITABLE => 'Not scanning unwritable file %s',
   SCAN_UNCACHEABLE => 'Not caching scan info for %s because the parser for %s doesn\'t support it',
+  SHELL => 'Shell command %s at %s',
   SYMLINK => 'After building, %s is a symbolic link',
   SYMLINK_KEEP => 'Keeping symbolic link %s from previous build at %s',
   SUCCESS => '%s successfully executed for %s',

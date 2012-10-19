@@ -83,33 +83,28 @@ sub xparse_command {
       # we're no longer reading args that came from the
       # particular file. Neat hack, eh?
       delete $visited{$_};
-    }
-    elsif(/^\+incdir\+(.*)/) {
+    } elsif(/^\+incdir\+(.*)/) {
       my @args=map { $_ ? ($_) : () } (split(/\+/, $1));
       for(@args) {
 	$scanner->add_include_dir("vinc", $_);
       }
-    }
-    elsif(/^\+define\+(.*)/) {
+    } elsif(/^\+define\+(.*)/) {
       my @defs=map { $_ ? ($_) : () } (split(/\+/, $1));
       for(@defs) {
 	if(/^(\w+)=(.*)/) {
 	  $scanner->set_var($1, $2);
-	}
-	else {
+	} else {
 	  $scanner->set_var($_, "");
 	}
       }
-    }
-    elsif(/^-ntb_incdir$/) {
+    } elsif(/^-ntb_incdir$/) {
       my @args=map { $_ ? ($_) : () }
 	(split(/\+/, shift @words));
       for(@args) {
 	$vera_scanner->add_include_dir("user", $_);
 	$vera_scanner->add_include_dir("sys", $_);
       }
-    }
-    elsif(/^-ntb_define$/) {
+    } elsif(/^-ntb_define$/) {
       my @defs=map { $_ ? ($_) : () }
 	(split(/\+/, shift @words));
       for(@defs) {
@@ -120,14 +115,11 @@ sub xparse_command {
 	  $vera_scanner->set_var($_, "");
 	}
       }
-    }
-    elsif(/^\+libext\+(.*)/) {
+    } elsif(/^\+libext\+(.*)/) {
       my @sfxs = split /\+/, $1;
       push @sfxs, '' if /\+$/;
       $scanner->add_include_suffix_list( vlog => \@sfxs );
-    }
-    # TBD: What about -F and -file? How are they different from -f?
-    elsif(/^-f$/) {
+    } elsif(/^-f$/) { # TBD: What about -F and -file? How are they different from -f?
       my $file=shift @words;
       my $finfo=$self->add_dependency($file);
       next WORD unless $finfo;
@@ -135,88 +127,70 @@ sub xparse_command {
       if($visited{$finfo}++) {
 	warn "vcs argument file `$absname' already visited\n";
       } else {			# Remember that we're in a -f
-	unshift(@words, $finfo);
-	if(open(IN, "<", $absname)) {
+	unshift @words, $finfo;
+	if( open my $in, '<', $absname ) {
 	  my @read_args;
 	  local $_;
-	  while(<IN>) {
+	  while( <$in> ) {
 	    s!//.*!!;
-	    push(@read_args, split);
+	    push @read_args, split;
 	  }
-	  unshift(@words, @read_args);
+	  unshift @words, @read_args;
 	} else {
 	  warn "couldn't read vcs arguments from $absname--$!\n";
 	}
       }
-    }
-    elsif(/^-w\d+/) {
+    } elsif(/^-w\d+/) {
       # For verilint, ignore exclude pattern specifications
       shift @words;
       if($words[$[] =~ m!^/!) {
 	do { $_ = shift @words } until m!/$!;
       }
-    }
-    elsif(/^-P$/) {
-      my $file=shift @words;
-      $self->add_simple_dependency($file);
-    }
-    elsif(/^-y$/) {
+    } elsif(/^-P$/) {
+      my $file = shift @words;
+      $self->add_simple_dependency( $file );
+    } elsif(/^-y$/) {
       my $vdir=shift @words;
-      $scanner->add_include_dir("vlog", $vdir);
-    }
-    elsif(/^-v$/) {
+      $scanner->add_include_dir( 'vlog', $vdir );
+    } elsif(/^-v$/) {
       my $file=shift @words;
       push(@libs, $file);
-    }
-    elsif($file_regexp && /$file_regexp/) {
+    } elsif($file_regexp && /$file_regexp/) {
       push(@files, $_);
-    }
-    # TBD: Do OVA files need to be scanned (also -ova_file)?
-    elsif(/\.(:?vro|ova)$/) {
+    } elsif(/\.(:?vro|ova)$/) { # TBD: Do OVA files need to be scanned (also -ova_file)?
       $self->add_simple_dependency($_);
-    }
-    elsif(/\.vr[il]?$/) {
+    } elsif(/\.vr[il]?$/) {
       push(@vera_files, $_);
-    }
-    elsif(!/^[-+]/) {
-      push(@c_args, updir($_))
+    } elsif(!/^[-+]/) {
+      push @c_args, updir($_)
 	if is_cpp_source_name($_) ||
 	  is_object_or_library_name($_);
-    }
-    # NOTE: For here on, only options can be matched.
-    elsif(/^-(C|LD)FLAGS$/) {
+    } elsif(/^-(C|LD)FLAGS$/) { # NOTE: For here on, only options can be matched.
       local $_ = shift @words;
-      push(@c_args, split);
-    }
-    elsif(/^-l./) {
-      push(@c_args, $_);
+      push @c_args, split;
+    } elsif(/^-l./) {
+      push @c_args, $_;
     }
     # TBD: What does -cm_name do?
     elsif(/^-cm_(?:assert_hier|constfile|fsmcfg|hier|opfile|resetfilter|sigfile|stoppropagation|tglfile)$/ || /^-ova_(?:cov_hier|file)$/) {
       my $file = shift @words;
       $self->add_simple_dependency($file);
-    }
-    elsif(/^(?:\+ad=|\+applylearn\+|\+optconfigfile\+|-Minclude=)(.*)/) {
+    } elsif(/^(?:\+ad=|\+applylearn\+|\+optconfigfile\+|-Minclude=)(.*)/) {
       $self->add_simple_dependency($1);
-    }
-    elsif(/^-(?:vcd2vpd|vpd2vcd)$/) {
+    } elsif(/^-(?:vcd2vpd|vpd2vcd)$/) {
       my $file = shift @words;
       $self->add_simple_dependency($file);
       $file = shift @words;
       $self->add_target($file);
-    }
-    elsif(/^-l$/) {
+    } elsif(/^-l$/) {
       my $file = shift @words;
       $self->add_target($file);
-    }
-    elsif(/^\+vslogfile(?:sim)?\+(.*)/) {
+    } elsif(/^\+vslogfile(?:sim)?\+(.*)/) {
       $self->add_target($1);
-    }
-    elsif(/^-C$/i) {
-      push(@c_args, "-c");
-    }
-    elsif(/^-o$/) {
-      push(@c_args, $_, updir(shift @words));
+    } elsif(/^-C$/i) {
+      push @c_args, '-c';
+    } elsif(/^-o$/) {
+      push @c_args, $_, updir(shift @words);
     }
   }
 

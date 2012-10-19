@@ -515,14 +515,14 @@ sub start {
 # Process the parameters.  These are instructions on how to set up
 # STDIN, STDOUT, and STDERR.
 #
-  for (my $par_idx = 0; $par_idx < @{$self->{PARAMS}}; $par_idx += 2) {
+  for( my $par_idx = 0; $par_idx < @{$self->{PARAMS}}; $par_idx += 2 ) {
     my $fh = $self->{PARAMS}[$par_idx]; # Get which file handle this is.
     close $fh;			# Close down whatever it used to be.
-    if (defined($self->{PARAMS}[$par_idx+1])) {
-      unless (open($fh, $self->{PARAMS}[$par_idx+1])) {
+    if( defined $self->{PARAMS}[$par_idx+1] ) {
+      unless (open $fh, $self->{PARAMS}[$par_idx+1] ) {
 	my $errorcode = "$!";
-	open(TTY, ">/dev/tty");
-	print TTY "could not open $fh as " . $self->{PARAMS}[$par_idx+1] . "--$errorcode\n";
+	open my $tty, '>/dev/tty';
+	print $tty "could not open $fh as $self->{PARAMS}[$par_idx+1]--$errorcode\n";
 	exit 1;
       }
     }

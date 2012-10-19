@@ -1,4 +1,4 @@
-# $Id: Repository.pm,v 1.10 2012/10/14 15:16:04 pfeiffer Exp $
+# $Id: Repository.pm,v 1.11 2012/10/16 21:21:19 pfeiffer Exp $
 
 =head1 NAME
 
@@ -134,13 +134,13 @@ sub Mpp::Repository::load {
     my $finfo = file_info '.repository_manifest', $dirinfo;
     if( is_readable $finfo ) {
       my $fname = absolute_filename $finfo;
-      open MANIFEST, '<', $fname or die "Failed to read $fname--$!";
+      open my $manifest, '<', $fname or die "Failed to read $fname--$!";
       Mpp::log REP_MANIFEST => $finfo
 	if $Mpp::log_level;
       # NOTE: In the manifest file, each "Makefile.in" file must be the first
       # listed entry of the directory that contains it, or else this won't
       # handle automake stuff properly.
-      while( <MANIFEST> ) {
+      while( <$manifest> ) {
         chomp;
         # TBD: These calls to load_single are expensive. Need to
         # find out why, and see if we can get around it.
@@ -256,6 +256,7 @@ sub Mpp::Repository::get {
 				# which we might have a different version locally.
       $build_info{SYMLINK} = $linkee;
       if( CORE::symlink $build_info{SYMLINK}, &absolute_filename ) {
+	undef $@;		# Do not propagate random error.
 	undef $dest_finfo->{xEXISTS}; # We know this file exists now.
       } else {
 	$@ = "$!";

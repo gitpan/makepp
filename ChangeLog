@@ -1,3 +1,7 @@
+2012-10-16  DP  <occitan@esperanto.org>
+
+	* Mpp/Repository.pm (get): Do not propagate random $@.
+
 2012-10-14  DP  <occitan@esperanto.org>
 
 snapshot 2.0.98.1

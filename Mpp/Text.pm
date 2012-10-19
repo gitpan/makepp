@@ -728,14 +728,13 @@ sub _getopts_long($) {
 BEGIN {
   $Mpp::datadir ||= (grep -f( "$_/Mpp.pm" ) && -f( "$_/VERSION" ), @INC)[0] or
     die "Can't find our libraries in \@INC.\n";
-  open my $fh, '<', "$Mpp::datadir/VERSION" or
+  open my $fh, '<:crlf', "$Mpp::datadir/VERSION" or
     die "Can't read the file $Mpp::datadir/VERSION--$!.\nThis should be part of the standard distribution.\n";
   chomp( $Mpp::VERSION		# Hide assignment from CPAN scanner.
 	 = <$fh> );
-  our $BASEVERSION = $Mpp::VERSION;
-  if( $Mpp::VERSION		# -"-
-      =~ s/beta ([0-9.]+)\r?// ) {
-    $BASEVERSION = $1;
+  chomp( our $BASEVERSION = <$fh> || $Mpp::VERSION );
+  if( $Mpp::VERSION		# Hide -"-
+      =~ tr/a-z//d ) {
     my %VERSION = qw(0/00/00 0 00/00/00 0); # Default in case all modules change on same day.
     for( <$Mpp::datadir/makep*[!~] $Mpp::datadir/Mpp{,/*,/*/*}.pm> ) {
       open my( $fh ), $_;
@@ -822,7 +821,7 @@ For details look";
 our @common_opts =
  ([qr/[h?]/, 'help', undef, undef, \&help],
 
-  [qw(V version), undef, undef, sub { $0 =~ s!.*/!!; my $typ = $Mpp::VERSION !~ /\.9([89])\./ ? 'version' : $1 == 8 ? 'snapshot' : 'release candidate'; print <<EOS; exit 0 }]);
+  [qw(V version), undef, undef, sub { $0 =~ s!.*/!!; my $typ = $Mpp::VERSION =~ /[-:]/ ? 'cvs-version' : $Mpp::VERSION !~ /\.9([89])\./ ? 'version' : $1 == 8 ? 'snapshot' : 'release-candidate'; print <<EOS; exit 0 }]);
 $0 $typ $Mpp::VERSION
 Makepp may be copied only under the terms of either the Artistic License or
 the GNU General Public License, either version 2, or (at your option) any

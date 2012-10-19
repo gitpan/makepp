@@ -1151,6 +1151,8 @@ sub f_relative_to {
 sub f_shell {
   my $str = &arg;
   my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
+  Mpp::log SHELL => $str, $mkfile_line
+    if $Mpp::log_level;
 
   local %ENV;			# Pass all exports to the subshell.
   $mkfile->setup_environment;
@@ -1183,35 +1185,33 @@ sub f_shell {
 # (finally) seems to work.  I'm still not 100% clear on why some of the
 # other ones didn't.
 #
-    local (*INHANDLE, *OUTHANDLE); # Make a pair of file handles.
-    pipe(INHANDLE, OUTHANDLE) or die "can't make pipe--$!\n";
+    pipe my $pin, my $pout or die "can't make pipe--$!\n";
     my $proc_handle = new Mpp::Event::Process sub { # Wait for process to finish.
       #
       # This is the child process.  Redirect our standard output to the pipe.
       #
-      close INHANDLE;		# Don't read from the handle any more.
+      close $pin;		# Don't read from the handle any more.
       close STDOUT;
-      open(STDOUT,'>&OUTHANDLE') || die "can't redirect stdout--$!\n";
+      open STDOUT,'>&', $pout or die "can't redirect stdout--$!\n";
       exec format_exec_args $str;
       die "exec $str failed--$!\n";
     }, ERROR => sub {
       warn "shell command `$str' returned `$_[0]' at `$mkfile_line'\n";
     };
 
-    close OUTHANDLE;		# In parent, get rid of the output handle.
-    my $line;
+    close $pout;		# In parent, get rid of the output handle.
     my $n_errors_remaining = 3;
     for (;;) {
-      my $n_chars = sysread(INHANDLE, $line, 8192); # Try to read.
-      unless( defined $n_chars ) {	 # An error on the read?
-	$n_errors_remaining-- > 0 and next; # Probably "Interrupted system call".
+      my $n_chars = sysread $pin, my( $blk ), 8192; # Try to read.
+      unless( defined $n_chars ) { # An error on the read?
+	--$n_errors_remaining > 0 and next; # Probably "Interrupted system call".
 	die "read error--$!\n";
       }
       last if $n_chars == 0;	# No characters read--other process closed pipe.
-      $shell_output .= $line;
+      $shell_output .= $blk;
     }
     wait_for $proc_handle; 	# Should not really be necessary.
-    close INHANDLE;
+    close $pin;
   }
   $shell_output =~ s/\r?\n/ /g	# Get rid of newlines.
     unless $Mpp::Makefile::s_define;

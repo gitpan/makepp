@@ -123,7 +123,7 @@ sub init {
     [('Documentation') x 2, "${docroot}$docindex", 'doc'],
     [('Gallery') x 2, "${webroot}gallery/", 'gallery'],
 
-    [('Dowload') x 2, 'http://sourceforge.net/projects/makepp/files/2.0/', 'download'],
+    [('Download') x 2, 'http://sourceforge.net/projects/makepp/files/2.1/snapshots/', 'download'],
     ['Makepp on SourceForge', 'SourceForge', 'https://sourceforge.net/projects/makepp/', 'sourceforge'],
     ['Makepp on CPAN', 'CPAN', 'http://search.cpan.org/dist/makepp/', 'cpan']);
 }
