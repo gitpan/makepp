@@ -1,4 +1,4 @@
-# $Id: Cmds.pm,v 1.70 2012/08/30 21:05:00 pfeiffer Exp $
+# $Id: Cmds.pm,v 1.70 2012/10/21 21:05:00 pfeiffer Exp $
 
 =head1 NAME
 
@@ -195,8 +195,8 @@ sub frame(&@) {
   }
 
   # Cleanup if any I/O is open.
-  if( $inpipe && $infail or $inout ) {
-    close STDIN or _closedie $inpipe;
+  if( $inpipe || $inout ) {
+    close STDIN or $inpipe && $infail && _closedie $inpipe;
     open STDIN, '/dev/null';	# placeholder file handle as long as not local
   }
   print $print or die $! if length $print;
