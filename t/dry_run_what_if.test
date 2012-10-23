@@ -8,7 +8,7 @@
 sub doit {
   my( $sf, $opt, $bl, $af, $nowait ) = @_;
   c_echo $sf, '-osourcefile' if $sf;
-  c_grep '/^&(?:cat|sed)/', "-i$ENV{PERL} $makepp_path -r $opt|", "-obuild_log_$bl";
+  c_grep '/^&(?:cat|sed)/', "-Ii$ENV{PERL} $makepp_path -r $opt|", "-obuild_log_$bl";
   c_cp allfiles => "allfiles_$bl" if $af;
   wait_timestamp 'allfiles' if !$nowait;
 }

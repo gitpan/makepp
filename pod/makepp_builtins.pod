@@ -108,15 +108,18 @@ Start the Shell command(s) and pipe the output into the builtin.  There may
 optionally be a trailing C<|> character, to indicate this is a pipe.  With
 this option no filenames need to be given.  But if you want to perform the
 builtin on both files and the pipe output, you must use C<-> as a filename for
-the pipe output.  This option is necessary because there is no redirection
-syntax.
+the pipe output.  The pipe is emptied, but, unless you also give C<--infail>,
+the command is not waited for, so it can terminate in parallel.  This option
+is necessary because there is no redirection syntax.
 
 =item -I
 
 =item --infail
 
 If an C<--inpipe> Shell command fails, that also causes the current builtin to
-fail.
+fail.  This doesn't currently work on Strawberry and Win ActiveState, because
+of the halfhearted way they emulate Unix fork/exec.  Cygwin gets it right
+though.
 
 =item -o I<filename>
 

@@ -1,6 +1,4 @@
-2012-10-21  DP  <occitan@esperanto.org>
-
-	* Mpp/Cmds.pm (frame): Always wait for inpipe to finish.
+2012-10-22  DP  <occitan@esperanto.org>
 
 	* Mpp/Repository.pm (get): Do not propagate random $@.
 

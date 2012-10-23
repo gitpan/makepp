@@ -1,4 +1,4 @@
-# $Id: Cmds.pm,v 1.70 2012/10/21 21:05:00 pfeiffer Exp $
+# $Id: Cmds.pm,v 1.70 2012/10/23 21:05:00 pfeiffer Exp $
 
 =head1 NAME
 
@@ -195,8 +195,9 @@ sub frame(&@) {
   }
 
   # Cleanup if any I/O is open.
-  if( $inpipe || $inout ) {
-    close STDIN or $inpipe && $infail && _closedie $inpipe;
+  if( $inpipe && $infail or $inout ) {
+    Mpp::is_windows > 0 or	# fake fork, child already closed ours
+      close STDIN or _closedie $inpipe;
     open STDIN, '/dev/null';	# placeholder file handle as long as not local
   }
   print $print or die $! if length $print;
