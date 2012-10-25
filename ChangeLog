@@ -1,4 +1,20 @@
-2012-10-22  DP  <occitan@esperanto.org>
+2012-10-25  DP  <occitan@esperanto.org>
+
+snapshot 2.0.98.2
+
+	* Mpp/Text.pm: Handle new version scheme.
+
+	* Mpp/Cmds.pm: Native Windows fails when closing --inpipe.
+
+	* Mpp/Subs.pm: Log $(shell) command.  Use anonymous file handles to prevent races in async event handlers.
+
+	* Mpp/Repository.pm
+	* Mpp/CommandParser/Vcs.pm
+	* Mpp/Event.pm: Use anonymous file handles to prevent races in async event handlers.
+
+	* t/dry_run_what_if.test: Wait for child process to avoid random fail under high load.
+
+2012-10-16  DP  <occitan@esperanto.org>
 
 	* Mpp/Repository.pm (get): Do not propagate random $@.
 

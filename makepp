@@ -746,7 +746,7 @@ sub build_target_done {
 
     foreach my $tinfo (@$all_targets) {
       next if exists $tinfo->{xPHONY}; # Skip phony targets.
-      if( $include ) {		# Do this for all targets, as we don't know which one was in the :include .d
+      if( $include ) {			 # Do this for all targets, as we don't know which one was in the :include .d
 	$uniq{sprintf '%x', $_} = $_ for $rule->expand_additional_deps( $tinfo );
       }
       may_have_changed $tinfo;	# Invalidate cached info.

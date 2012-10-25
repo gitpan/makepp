@@ -1,4 +1,4 @@
-# $Id: Repository.pm,v 1.11 2012/10/16 21:21:19 pfeiffer Exp $
+# $Id: Repository.pm,v 1.12 2012/10/25 21:10:43 pfeiffer Exp $
 
 =head1 NAME
 

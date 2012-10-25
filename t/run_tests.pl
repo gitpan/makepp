@@ -522,7 +522,7 @@ foreach $archive (@ARGV) {
 # See if the correct number of files were built:
 #
     if( !defined( my $n_files_updated = n_files )) {
-      push @errors, '.makepp/log:'.(stat '.makepp/log')[7];
+      push @errors, '.makepp/log';
     } elsif( open my $n_files, 'answers/n_files' ) { # Count of # of files updated?
       $_ = <$n_files>;
       $_ eq $n_files_updated or push @errors, 'n_files';

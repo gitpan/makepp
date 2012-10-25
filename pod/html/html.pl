@@ -2,7 +2,7 @@
 #
 # This script does the pod to html generation with some heavy massageing.
 #
-# $Id: html.pl,v 1.10 2012/05/29 21:31:20 pfeiffer Exp $
+# $Id: html.pl,v 1.11 2012/10/25 21:15:41 pfeiffer Exp $
 #
 
 #use Pod::Html ();		# import module as they sometimes break backwards compatibility

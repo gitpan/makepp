@@ -2,7 +2,7 @@
 
 makepp_builtins -- Builtin commands in makepp
 
-=for vc $Id: makepp_builtins.pod,v 1.51 2012/06/09 20:43:14 pfeiffer Exp $
+=for vc $Id: makepp_builtins.pod,v 1.52 2012/10/25 21:11:05 pfeiffer Exp $
 
 =head1 DESCRIPTION
 

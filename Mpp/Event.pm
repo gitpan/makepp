@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: Event.pm,v 1.32 2012/05/15 21:26:29 pfeiffer Exp $
+# $Id: Event.pm,v 1.33 2012/10/25 21:10:42 pfeiffer Exp $
 
 package Mpp::Event;
 
