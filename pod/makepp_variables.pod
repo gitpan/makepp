@@ -2,7 +2,7 @@
 
 makepp_variables -- How to use variables in makepp
 
-=for vc $Id: makepp_variables.pod,v 1.48 2012/03/25 18:34:48 pfeiffer Exp $
+=for vc $Id: makepp_variables.pod,v 1.50 2013/02/16 15:11:38 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -51,11 +51,13 @@ B<M:>E<nbsp>L<MAKE|/make>,
   L<MAKEPP_LN_CP|/makepp_ln_cp>,
   L</makepp_percent_subdirs>,
   L</makepp_require_phony>,
+  L<makepp_signature_C_flat|/makepp_signature_c_flat>,
   L</makepp_simple_concatenation>,
   L<MAKEPP_VERSION|/makepp_version>,E<nbsp>
 B<O:>E<nbsp>L</output>,
   L</outputs>,E<nbsp>
-B<P:>E<nbsp>L<PWD|/pwd>,E<nbsp>
+B<P:>E<nbsp>L<PERL|/perl>,
+  L<PWD|/pwd>,E<nbsp>
 B<R:>E<nbsp>L<RM|/rm>,
   L<ROOT|/root>,E<nbsp>
 B<S:>E<nbsp>L<SHELL|/shell>,
@@ -813,7 +815,7 @@ I<Default:> C<libtool>.
 
 =item MAKE
 
-This variable has two different values, depnding on the presence or not of
+This variable has two different values, depending on the presence or not of
 C<--traditional-recursive-make>.  Makepp recognizes when this variable is used
 and turns off some features, even before the recursion actually takes place.
 This can be undesirable while you are gradually eliminating it, so first
@@ -876,6 +878,15 @@ compatibility with sloppy makefiles.
 
 I<Default:> undefined
 
+=item makepp_signature_C_flat
+
+This is an option to L<signature C|makepp_signatures/c>.  Set this to some
+true value (like C<1>) to treat your sources as flattened, i.e. all newlines
+(except around preprocessor statements) are treated like whitespace and
+C<#line> directives are ignored.
+
+I<Default:> undefined
+
 =item makepp_simple_concatenation
 
 Set this to some true value (like C<1>) to prevent L</rc-style substitution>.
@@ -889,6 +900,14 @@ have a hyphen followed by YYMMDD plus some more internal data.  You can use
 this for C<ifdef> to hide makepp specific constructs from other makes.
 
 I<Default:> The same value displayed by C<makepp --version>
+
+=item PERL
+
+You can set this to the exact perl you are using to run the scripts in the
+makepp suite, and export it.  This can help to run sub-scripts with the same
+perl.  This is mostly useful for the test suite, the
+L<installation|makepp_faq/How to choose perl version?> and for L<recursive
+builds|/MAKE>.
 
 =item PWD
 

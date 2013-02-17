@@ -1,3 +1,66 @@
+2013-02-16  DP  <occitan@esperanto.org>
+
+	* *: Consistent and documented handling of perl instance including
+	the possibility to install against /usr/bin/env.
+
+	* Mpp/Rule.pm: Override-variable TMP.
+
+2013-01-31  DP  <occitan@esperanto.org>
+
+	* Mpp/Text.pm
+	* makepp*: Fully move VERSION to Mpp::Text.
+
+	* install.pl
+	* config.pl: Fix help.
+
+2013-01-20  DP  <occitan@esperanto.org>
+
+	* Mpp/Recursive.pm
+	* Mpp/Rule.pm
+	* Mpp.pm: Move actual building to perform and implement --loop.
+
+	* Mpp/Subs.pm (f_find_{first_}upwards): Don't find file above ROOT, if present.
+
+	* additional_tests/2003_10_11_idash.test: Wait for timestamp only if something was built.
+
+2013-01-08  DP  <occitan@esperanto.org>
+
+	* install.pl: Gzip manfiles if local system does that, Debian policy.
+
+2012-12-29  DP  <occitan@esperanto.org>
+
+	* Mpp/Signature/c_compilation_md5.pm
+	* t/md5.test: New option makepp_signature_C_flat.
+
+2012-12-28  DP  <occitan@esperanto.org>
+
+	* makepp
+	* Mpp/Makefile.pm
+	* Mpp/Recursive.pm
+	* Mpp/Rule.pm
+	* Mpp/Subs.pm
+	* t/include.test: Defer decision about inexistant/stale include
+	till end of makefile and reload if needed.
+
+2012-11-12  DP  <occitan@esperanto.org>
+
+	* Mpp/BuildCache.pm
+	* makepp: Rename build_cache_error_hook to Mpp::BuildCache::error_hook.
+	Move build_dependencies_done code to new Mpp::BuildCache::get.  Optimize.
+
+	* Mpp.pm: Rename *hits to $Mpp::{BuildCache,Repository}::hits.
+	Make final print readable.
+
+	* Mpp/FileOpt.pm (grok_build_info_file): Rewrite as parser.
+
+	* Mpp/Rule.pm (execute): Suppress stale rep symlink warning.
+
+2012-11-02  DP  <occitan@esperanto.org>
+
+	* *: All pre-2.0 features which issued deprecated-warnings are
+	eliminated, as are $Mpp::Makefile::legacy_functions and
+	$MAKEPP_INSTALL_OLD_MODULES.
+
 2012-10-25  DP  <occitan@esperanto.org>
 
 snapshot 2.0.98.2

@@ -1,0 +1,61 @@
+###	SPAR <http://www.cpan.org/scripts/>
+###	1	755	1358594656	1358594656	is_relevant.pl
+is_windows < 1			# ActiveState doesn't have WUNTRACED
+###	29	755	1358594656	1358702790	makepp_test_script.pl
+# This tests multiply waiting for a looping mpp that stops itself.
+# It must correctly recognize changes, like a newly started mpp would.
+
+use POSIX 'WUNTRACED';
+my $pid = fork;
+if( $pid ) {
+  waitpid $pid, WUNTRACED;
+
+  kill 'CONT', $pid;
+  waitpid $pid, WUNTRACED;
+  n_files 'n_files1';
+  c_cp 'a', 'a1';
+
+  unlink 'b';
+  kill 'CONT', $pid;
+  waitpid $pid, WUNTRACED;
+  n_files 'n_files2';
+
+  c_cp 'd', 'e';
+  kill 'CONT', $pid;
+  waitpid $pid, WUNTRACED;
+
+  kill $_, $pid or last
+    for qw(TERM CONT KILL);		# Be sure it's gone
+  waitpid $pid, 0;
+} else {
+  exec PERL, '-w', $makepp_path, '--loop';
+}
+1;
+###	10	644	1358594656	1361052227	Makeppfile
+signature md5			# In case rebuild occurs in new second.
+
+a: b
+	&sed s/(b)/$$1a/ b -o a	# Don't reexpand on next iteration
+
+b: c
+	&cut -c0..2 c -o b
+
+c: d e
+	&cat d e -o c
+###	1	644	1358594656	1358594656	d
+abcde
+###	1	644	1358594656	1358594656	e
+bb
+###	D	755	1358594656	1358594656	answers
+###	2	644	1358594656	1358594656	answers/a
+abac
+abac
+###	2	644	1358594656	1358594656	answers/a1
+abac
+bab
+###	1	644	1358594656	1358594656	answers/n_files1
+3 0 0
+###	1	644	1358594656	1358594656	answers/n_files2
+1 0 0
+###	1	644	1358594656	1358594656	answers/n_files
+3 0 0

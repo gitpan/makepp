@@ -1,5 +1,5 @@
-#!/usr/bin/perl -w
-# $Id: makeppreplay,v 1.17 2012/05/23 18:30:17 pfeiffer Exp $
+#!/usr/bin/env perl
+# $Id: makeppreplay,v 1.21 2013/02/16 15:11:37 pfeiffer Exp $
 
 package Mpp;
 
@@ -7,8 +7,6 @@ use strict;
 
 our $datadir;
 BEGIN {
-  our $VERSION = '@VERSION@';
-
 #@@setdatadir
 #
 # Find the location of our data directory that contains the auxiliary files.
@@ -44,9 +42,6 @@ use POSIX ();
 use Mpp;
 
 use Mpp::Event qw(wait_for);
-
-#@@useoldmodules
-#@@
 
 our $progname;
 
@@ -96,7 +91,7 @@ sub load_build_info_file($) {
 @ARGV = '.' unless @ARGV;
 my $nothing_in_dir;
 my $found_in_dir = 0;
-perform eval {
+eval {
   while( @ARGV) {
     Mpp::Text::getopts \%command_line_vars, 1,
       ['c', qr/root(?:[-_]?dir(?:ectory)?)?/, \$tmp, undef, sub {
@@ -269,6 +264,7 @@ perform eval {
     }
   }
 };
+perform;			# Use function w/o args only for final diagnostic.
 
 __DATA__
 [option ...] [VAR=value ...] target ...

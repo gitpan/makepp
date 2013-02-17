@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.61 2012/10/25 21:09:50 pfeiffer Exp $
+# $Id: Text.pm,v 1.63 2013/02/16 15:11:37 pfeiffer Exp $
 
 =head1 NAME
 
@@ -7,6 +7,7 @@ Mpp::Text - Subs for manipulating typical makefile text
 =cut
 
 package Mpp::Text;
+
 require Exporter;
 @ISA = qw(Exporter);
 
@@ -18,9 +19,39 @@ require Exporter;
 
 use Config;
 
+BEGIN {
+  our $BASEVERSION = 2.1;
+#@@setVERSION
+  our $VERSION = '2.0.98.2cvs';
+
+#
+# Not installed, so grep all our sources for the checkin date.  Make a
+# composite version consisting of the three most recent dates (shown as (yy)mmdd,
+# but sorted including year) followed by the count of files checked in that
+# day.
+#
+  $Mpp::datadir ||= (grep -f "$_/Mpp.pm", @INC)[0] or
+    die "Can't find our libraries in \@INC.\n";
+  if( $VERSION =~ tr/a-z//d ) {
+    my %VERSION = qw(0/00/00 0 00/00/00 0); # Default in case all modules change on same day.
+    for( <$Mpp::datadir/makep*[!~] $Mpp::datadir/Mpp{,/*,/*/*}.pm> ) {
+      open my( $fh ), $_;
+      while( <$fh> ) {
+	if( /\$Id: .+,v [.0-9]+ ([\/0-9]+)/ ) {
+	  $VERSION{$1}++;
+	  last;
+	}
+      }
+    }
+    my $year = '';
+    $VERSION .= join '-', '',
+      grep { s!\d\d(\d+)/(\d+)/(\d+)!($year eq $1 ? '' : ($year = $1))."$2$3:$VERSION{$_}"!e }
+	(reverse sort keys %VERSION)[0..2];
+  }
+#@@
+
 # Centrally provide constants which are needed repeatedly for aliasing, since
 # Perl implements them as subs, and each sub takes about 1.5kb RAM.
-BEGIN {
   our @N = map eval( "sub(){$_}" ), 0..6; # More are defined in Mpp/BuildCacheControl.pm
   *Mpp::is_windows =
     $^O eq 'cygwin' ? sub() { -1 } : # Negative for Unix like
@@ -28,7 +59,7 @@ BEGIN {
     $N[$^O =~ /^MSWin/ ? (exists $ENV{SHELL} && $ENV{SHELL} =~ /sh(?:\.exe)?$/i ? 1 : 2) : 0];
 
   my $perl = $ENV{PERL};
-  if( $perl && -x $perl ) {	# Overridden successfully.
+  if( $perl ) {			# Overridden.
   } elsif( -x $^X ) {		# Use same as ourself.
     $^X =~ tr/\\/\// if Mpp::is_windows() > 0;
     $perl = (Mpp::is_windows() ? $^X =~ /^(?:\w:)?\// : $^X =~ /^\//) ?
@@ -719,39 +750,6 @@ sub _getopts_long($) {
   $str;
 }
 
-#@@eliminate
-# Not installed, so grep all our sources for the checkin date.  Make a
-# composite version consisting of the three most recent dates (shown as (yy)mmdd,
-# but sorted including year) followed by the count of files checked in that
-# day.
-#
-BEGIN {
-  $Mpp::datadir ||= (grep -f( "$_/Mpp.pm" ) && -f( "$_/VERSION" ), @INC)[0] or
-    die "Can't find our libraries in \@INC.\n";
-  open my $fh, '<:crlf', "$Mpp::datadir/VERSION" or
-    die "Can't read the file $Mpp::datadir/VERSION--$!.\nThis should be part of the standard distribution.\n";
-  chomp( $Mpp::VERSION		# Hide assignment from CPAN scanner.
-	 = <$fh> );
-  chomp( our $BASEVERSION = <$fh> || $Mpp::VERSION );
-  if( $Mpp::VERSION		# Hide -"-
-      =~ tr/a-z//d ) {
-    my %VERSION = qw(0/00/00 0 00/00/00 0); # Default in case all modules change on same day.
-    for( <$Mpp::datadir/makep*[!~] $Mpp::datadir/Mpp{,/*,/*/*}.pm> ) {
-      open my( $fh ), $_;
-      while( <$fh> ) {
-	if( /\$Id: .+,v [.0-9]+ ([\/0-9]+)/ ) {
-	  $VERSION{$1}++;
-	  last;
-	}
-      }
-    }
-    my $year = '';
-    $Mpp::VERSION .= join '-', '',
-      grep { s!\d\d(\d+)/(\d+)/(\d+)!($year eq $1 ? '' : ($year = $1))."$2$3:$VERSION{$_}"!e }
-	(reverse sort keys %VERSION)[0..2];
-  }
-}
-#@@
 
 sub help {
 #@@eliminate
@@ -821,8 +819,8 @@ For details look";
 our @common_opts =
  ([qr/[h?]/, 'help', undef, undef, \&help],
 
-  [qw(V version), undef, undef, sub { $0 =~ s!.*/!!; my $typ = $Mpp::VERSION =~ /[-:]/ ? 'cvs-version' : $Mpp::VERSION !~ /\.9([89])\./ ? 'version' : $1 == 8 ? 'snapshot' : 'release-candidate'; print <<EOS; exit 0 }]);
-$0 $typ $Mpp::VERSION
+  [qw(V version), undef, undef, sub { $0 =~ s!.*/!!; my $typ = $VERSION =~ /[-:]/ ? 'cvs-version' : $VERSION !~ /\.9([89])\./ ? 'version' : $1 == 8 ? 'snapshot' : 'release-candidate'; print <<EOS; exit 0 }]);
+$0 $typ $VERSION
 Makepp may be copied only under the terms of either the Artistic License or
 the GNU General Public License, either version 2, or (at your option) any
 later version.

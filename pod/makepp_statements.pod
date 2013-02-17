@@ -2,7 +2,7 @@
 
 makepp_statements -- Various statements in a makefile
 
-=for vc $Id: makepp_statements.pod,v 1.45 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp_statements.pod,v 1.47 2012/12/29 13:54:45 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -24,6 +24,7 @@ B<I:>E<nbsp>L<ifdef|/ifdef_variable>,
   L<ifperl|/ifperl_perlcode>,
   L<ifsys|/ifsys_wildcard>,
   L<iftrue|/iftrue_expression>,
+  L<-include|/include_makefile2>,
   L<include|/include_makefile>,
   L<_include|/include_makefile2>,E<nbsp>
 B<L:>E<nbsp>L<load_makefile|/load_makefile_some_directory_somewhere_makefile>,E<nbsp>
@@ -597,7 +598,6 @@ instead of something more complicated, like this:
 
     include ../../../standard_definitions.mk  # Is this the right number of ..?
 
-
 You can specify as many files as you want, and variables are allowed:
 
     include file1 file2 file3 $(other_include_files)
@@ -618,12 +618,26 @@ instead of F<standard_rules.mk>.  This way, when you run the makefile
 with GNU make, it loads F<standard_rules.mk>, but with makepp, it loads
 F<standard_rules.mk.makepp>.
 
+Because many legacy files put the rule to generate an include file after the
+include statement, makepp will defer decisions about inexistant or stale
+includes till the end of makefile loading.  That is, unless it is invoked with
+C<--rm-stale>.  For as many times as the situation has improved by then
+(because a rule appeared) makepp will reload the makefile, which may again
+make more such rules appear.  This is obviously an inefficient way to load
+makefiles, so try to avoid that.  Worse, if your makefile loading has
+side-effects (like appending to a global variable or a line like
+C<<< do_it_now := $(shell cat a >>b) >>> or its makepp equivalent
+C<< &cat a -o>>b >>) they will happen as many times as the makefile needs to be
+loaded, so, again, try to avoid that!
+
 =item _include I<makefile>
+
+=item -include I<makefile>
 
 A minor variant on C<include>, the C<_include> statement includes the file if
 it exists but doesn't generate a fatal error if it does not.  The C<_include>
 statement used to be important for include file scanning with GNU make, but is
-seldom useful for makepp.
+less useful for makepp.
 
 =item load_makefile I</some/directory/somewhere/Makefile>
 

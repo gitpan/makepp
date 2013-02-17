@@ -1,4 +1,4 @@
-# $Id: Recursive.pm,v 1.18 2012/03/04 13:56:35 pfeiffer Exp $
+# $Id: Recursive.pm,v 1.21 2013/02/16 15:11:46 pfeiffer Exp $
 
 =head1 NAME
 
@@ -53,7 +53,7 @@ sub setup_socket {
 #
 # Get a temp name that goes away at the end, so we don't clutter up /tmp.
 #
-  $socket_name = Mpp::Subs::f_mktemp '/tmp/makepp.';
+  $socket_name = Mpp::Subs::f_mktemp $Mpp::Rule::tmp;
 				# Name of socket for listening to recursive
 				# make requests.  This is exported to the
 				# environment by Rule::execute.
@@ -122,7 +122,10 @@ sub connection {
 				# run simultaneously.
       my $status = eval {
 	local @ARGV = @words;
-        wait_for Mpp::parse_command_line %this_ENV; # Build all the targets.
+        wait_for grep {
+	  exists $_->{DONT_BUILD} or undef $_->{DONT_BUILD};
+	  Mpp::build $_;			# Try to build the file, return handle if necessary.
+	} Mpp::parse_command_line %this_ENV; # Build all the targets.
       };
       if( $@ ) {		# Have an error code?
 	if( defined $hybrid && $@ =~ /\Aattempt to load two makefiles/ ) {
@@ -166,7 +169,6 @@ sub Mpp::Subs::f_MAKE {
       defined $hybrid ? '--hybrid' : '--traditional',
       $Mpp::BuildCheck::default == $Mpp::BuildCheck::exact_match::exact_match ? () :
 	"--buildcheck=".((ref $Mpp::BuildCheck::default)=~/BuildCheck::(.+)/)[0],
-      $Mpp::Subs::defer_include ? '--deferinclude' : (),
       $Mpp::final_rule_only ? '--finalruleonly' : (),
       $Mpp::gullible ? '--gullible' : (),
       $Mpp::last_chance_rules ? '--lastchancerules' : (),

@@ -4,18 +4,14 @@ img{border:0;}
 #_head form{padding:23px 23px 0 0;float:right;}#_head form p{padding:2px;background-color:#eeeeee;color:#000000;border:0;border-radius:3px;}
 #_head form input[type='text']{border:0;padding-right:4px;width:53px;background:url(google.png) no-repeat center;}#_head form input[type='text']:focus{width:15em;background-image:none;}
 #_head form input[type='submit']{border-radius:3px;}
-#_head div{position:absolute;right:0;bottom:23px;padding:0;width:636px;}#_head div img{vertical-align:bottom;position:absolute;}
-#_home{clip:rect(0, 90px, 23px, 0px);left:0px;}
-#_home_on{clip:rect(0, 180px, 23px, 90px);left:-90px;}
-#_faq{clip:rect(0, 270px, 23px, 180px);left:-89px;}
-#_faq_on{clip:rect(0, 360px, 23px, 270px);left:-179px;}
-#_doc{clip:rect(0, 450px, 23px, 360px);left:-178px;}
-#_doc_on{clip:rect(0, 540px, 23px, 450px);left:-268px;}
-#_gallery{clip:rect(0, 630px, 23px, 540px);left:-267px;}
-#_gallery_on{clip:rect(0, 720px, 23px, 630px);left:-357px;}
-#_download{clip:rect(0, 810px, 23px, 720px);left:-356px;}
-#_sourceforge{clip:rect(0, 900px, 23px, 810px);left:-355px;}
-#_cpan{clip:rect(0, 990px, 23px, 900px);left:-354px;}
+#_head div{position:absolute;right:0;bottom:0;padding:0;width:636px;height:23px;background:url(tabs.png) no-repeat top left;}#_head div img{vertical-align:bottom;position:absolute;top:-23px;}
+#_home{clip:rect(23px, 90px, 46px, 0px);left:0px;}
+#_faq{clip:rect(23px, 180px, 46px, 90px);left:1px;}
+#_doc{clip:rect(23px, 270px, 46px, 180px);left:2px;}
+#_gallery{clip:rect(23px, 360px, 46px, 270px);left:3px;}
+#_download{clip:rect(23px, 450px, 46px, 360px);left:4px;}
+#_sourceforge{clip:rect(23px, 540px, 46px, 450px);left:5px;}
+#_cpan{clip:rect(23px, 630px, 46px, 540px);left:6px;}
 body>ul{float:left;overflow-x:hidden;overflow-y:hidden;overflow:hidden;width:10em;padding:0;margin:0;background-color:#d6e0f5;color:#000000;list-style:inside url(nav.png);white-space:nowrap;border-collapse:collapse;border-bottom:solid 8px #999999;}body>ul li{font-size:85%;border-top:solid 1px white;padding:4px;}body>ul li.unfold{cursor:n-resize;}
 body>ul li.fold{cursor:s-resize;}body>ul li.fold ul{display:none;}
 body>ul ul{cursor:default;padding-left:0;margin:0;padding-bottom:4px;list-style:inside url(nav2.png);}body>ul ul li{border-top-width:0;padding:1px;}

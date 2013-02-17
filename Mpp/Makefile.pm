@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.165 2012/06/09 20:37:02 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.168 2013/01/31 22:06:36 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_do);
@@ -252,11 +252,6 @@ sub expand_expression {
       *{"$self->{PACKAGE}::f_$orig"}{CODE};
 				# See if it's a known function.
     if( $code ) {
-      if( $Mpp::Makefile::legacy_functions && !$expanded && !*{"Mpp::Subs::f_$rtn"}{CODE} ) {
-	# deprecated emergency switch to allow functions to work like before.
-	$rest_of_line = expand_text $self, $rest_of_line, $makefile_line;
-	$expanded = 1;
-      }
       $result = eval {		# Evaluate the function.
 	local $_;		# Prevent really strange head-scratching errors.
 	local $Mpp::makefile = $self; # Pass the function a reference to the makefile.
@@ -742,7 +737,10 @@ sub load {
       } elsif( $var_changed = hash_neq \%this_ENV, $self->{ENVIRONMENT}, 1 ) {
 	$var_changed .= " old: $self->{ENVIRONMENT}{$var_changed}, new: $this_ENV{$var_changed}";
       } elsif( "@$include_path" ne "@{$self->{INCLUDE_PATH}}" ) {
-	  $var_changed = 'include path';
+	$var_changed = 'include path';
+      } elsif( defined $self->{REINCLUDE} && !ref $self->{REINCLUDE} ) {
+	undef $self->{REINCLUDE};
+	$var_changed .= 'late rules for include statements';
       } else {
 	return $mdinfo->{MAKEINFO}; # No need to reload the makefile--just reuse what we've got.
       }
@@ -803,6 +801,7 @@ sub load {
 		    ENVIRONMENT => \%this_ENV,
 		    LOAD_IDX => 0 # First time this has been loaded.
 		  };		# Allocate our info structure.
+    $Mpp::rm_stale_files or undef $self->{REINCLUDE}; # Allow gmake style include stmt before rule.
   }
   $makepp_simple_concatenation_seen ||= expand_variable $self, 'makepp_simple_concatenation', 'init'; # from env or command?
   $mdinfo->{MAKEINFO} = $self;	# Remember for later what the makefile is.
@@ -816,7 +815,7 @@ sub load {
     *rule = \$Mpp::Subs::rule;	# Also pass in the $rule symbol.
     our $makefile = $self;	# Tell the makefile subroutines about it.
     our $MAKECMDGOALS = $makecmdgoals; # Set up this special variable.
-    our $MAKEPP_VERSION = $Mpp::VERSION;
+    our $MAKEPP_VERSION = $Mpp::Text::VERSION;
   };
   $mpackage .= '::';
 
@@ -894,10 +893,9 @@ sub load {
   undef $self->{xINITIALIZED};
 
 #
-# Now see if the makefile is up to date.  If it's not, we just wipe it out
-# and reload.  This may leave some bogus rules lying around.  Oh well.
-# This must be done after setting up the EXPORTS variables above, because
-# makefile rebuilding might depend on that.
+# Now see if the makefile is up to date.  If it's not, we just wipe it out and reload.
+# This may leave some bogus rules lying around.  Oh well.  This must be done after setting up
+# the EXPORTS variables above, because makefile rebuilding might depend on that.
 #
   if( Mpp::MAKEPP && $Mpp::remake_makefiles && # This often causes problems, so we provide
 				# a way of turning it off.
@@ -909,28 +907,36 @@ sub load {
     if($minfo->{RULE}) {
       require Mpp::BuildCheck::target_newer; # Make sure the method is loaded.
       local $Mpp::BuildCheck::default = $Mpp::BuildCheck::target_newer::target_newer;
-				# Use the target_newer technique for rebuilding
-				# makefiles, since makefiles are often modified
-				# by programs like configure which aren't
-				# under the control of make.
+				# Use the target_newer technique for rebuilding makefiles, since makefiles are
+				# often modified by programs like configure which aren't under the control of make.
       wait_for Mpp::build($minfo) and # Try to rebuild the makefile.
 	die "can't find or build " . absolute_filename( $minfo ) . "\n";
     }
     if ($old_n_files != $Mpp::n_files_changed) {
 				# Did we change anything?
-      $self->{ENVIRONMENT} = { I_rebuilt_it => 'FORCE RELOAD'};
-				# Wipe out the environment, so we force a
-				# reload.
-      local $Mpp::remake_makefiles = 0; # Don't try to keep on remaking the
-				# makefile.
-      return &load;		# Call ourselves with the same arguments to
-				# force rereading the makefile.
+      $self->{ENVIRONMENT} = { I_rebuilt_it => 'FORCE RELOAD' };
+				# Wipe out the environment, so we force a reload.
+      local $Mpp::remake_makefiles = 0; # Don't try to keep on remaking the makefile.
+      return &load;		# Call ourselves with the same arguments to force rereading the makefile.
     }
   }
-  while( @Mpp::Subs::defer_include ) {
-    local $Mpp::Subs::defer_include;
-    my $sub = shift @Mpp::Subs::defer_include;
-    &$sub( splice @Mpp::Subs::defer_include, 0, 3 );
+  if( $self->{REINCLUDE} ) {
+    if( Mpp::Subs::s_include join( ' ', keys %{$self->{REINCLUDE}} ), $self, 'x:1', {check => 1} ) { # Did any become includable?
+      $self->{REINCLUDE} = 1;	# Special reiterate marker
+      return &load;		# Call ourselves with the same arguments to force rereading the makefile.
+    } else {
+      my $warned_stale;
+      while( my( $file, $arr ) = each %{$self->{REINCLUDE}} ) {
+	if( $arr->[0] ) {
+	  warn "`" . absolute_filename( $arr->[0] ) . "' at `$arr->[2]" .
+	    ($warned_stale ? "' is also stale.\n" : $Mpp::Rule::stale_warning);
+	  $warned_stale = 1;
+	} elsif( !$arr->[3] ) {	# ignorable
+	  die "$arr->[2]: can't find include file `$file'\n";
+	}
+      }
+    }
+    # Continue, all missing files were only -include.
   }
   if( my $fh = $self->{CWD}{DUMP_MAKEFILE} ) {
     # Dump the final variables too.
@@ -1353,8 +1359,7 @@ sub grok_rule {
     } elsif ($after_colon[-1] =~ /^\s*build[-_]?check\s+(.*?)\s*$/) { # Build check class?
       $build_check and die "$makefile_line: multiple :build_check clauses\n";
       my $name = expand_text $self, $1, $makefile_line;
-      $build_check = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" || # Try to load the method.
-	eval "use BuildCheck::$name; warn qq!$makefile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name";
+      $build_check = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name"; # Try to load the method.
       defined $build_check or
         die "$makefile_line: invalid build_check method $name\n";
     } elsif ($after_colon[-1] =~ /^\s*signature\s+(.*?)\s*$/) { # Specify signature class?
@@ -1362,33 +1367,10 @@ sub grok_rule {
       my $name = expand_text $self, $1, $makefile_line;
       $signature = Mpp::Signature::get( $name, $makefile_line );
       if( defined $signature ) {
-	  $signature_name = $name;
-	  $signature_override = 1;
+	$signature_name = $name;
+	$signature_override = 1;
       } else {
-# For backward compatibility, accept build check methods as a name to
-# :signature as well.
-        $build_check = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
-	  eval "use BuildCheck::$name; warn qq!$makefile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name";
-        if( defined $build_check ) {
-	  warn "$makefile_line: requesting build check method $name via :signature is deprecated.\n";
-        } else {
-          die "$makefile_line: invalid signature class $name\n";
-        }
-      }
-    } elsif ($after_colon[-1] =~ /^\s*scanner\s+([-\w]+)/) { # Specify scanner class?
-      warn "$makefile_line: rule clause :scanner deprecated, please use :parser\n";
-      $lexer and die "$makefile_line: multiple :scanner clauses\n";
-      my $scanner_name = expand_text $self, $1, $makefile_line;
-      $scanner_name =~ tr/-/_/;
-      $lexer = *{"$self->{PACKAGE}::parser_$scanner_name"}{CODE};
-      unless(defined $lexer) {
-        my $scanref = *{"$self->{PACKAGE}::scanner_$scanner_name"}{CODE};
-        defined($scanref) or
-          die "$makefile_line: invalid scanner $scanner_name\n";
-        $lexer = sub {
-          require Mpp::ActionParser::Legacy;
-          Mpp::ActionParser::Legacy->new($scanref);
-        };
+	die "$makefile_line: invalid signature class $name\n";
       }
     } elsif ($after_colon[-1] =~ /\s*(?:smart()|quick)[-_]?scan/) {
       $conditional_scanning = defined $1;

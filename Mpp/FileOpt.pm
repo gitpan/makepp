@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.117 2012/10/14 15:16:30 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.119 2013/01/20 16:54:22 pfeiffer Exp $
 
 =head1 NAME
 
@@ -95,7 +95,7 @@ sub get_rule {
       $dirinfo = $dirinfo->{'..'};
       undef $leaf;
     }
-    $finfo->{RULE} or do {
+    unless( $finfo->{RULE} ) {
       if( my $minfo = $mdir->{MAKEINFO} ) {
 	while( my $auto = shift @{$minfo->{AUTOLOAD} || []} ) {
 	  Mpp::log AUTOLOAD => $finfo;
@@ -103,7 +103,7 @@ sub get_rule {
 	  last if exists $finfo->{RULE};
 	}
       }
-      $finfo->{RULE}
+      $finfo->{RULE};
     }
   }
 }
@@ -500,7 +500,7 @@ sub set_rule {
   unless( defined $rule ) {	# Are we simply discarding the rule now to
 				# save memory?	(There's no point in keeping
 				# the rule around after we've built the thing.)
-    undef $finfo->{RULE} if exists $finfo->{RULE};
+    undef $finfo->{RULE} if exists $finfo->{RULE} && !$Mpp::loop;
 				# Just keep a marker around that there used
 				# to be a rule.
     return;
@@ -840,15 +840,14 @@ BEGIN {
 sub build_info_fname { "$_[0]{'..'}{FULLNAME}/$build_info_subdir/$_[0]{NAME}.mk" }
 
 sub grok_build_info_file {
-  my( $fh ) = @_;
+  local $/;
+  no warnings 'closed';		# How can fh (rarely in bc stress) be closed?
+  my $file = readline( $_[0] ) || '';
+  close $_[0];
   my %build_info;
-  for( <$fh> ) {		# Read another line, localizing $_ (while does not)
-    return unless /(.+?)=(.*)/;	# Check the format.
-    return \%build_info if $1 eq 'END';
-    ($build_info{$1} = $2) =~
-      tr/\cC\r/\n/d;		# Strip out the silly Windows EOLs too.
-  }
-  undef;
+  ($build_info{$1} = $2) =~ tr/\cC/\n/
+    while $file =~ /\G(.+?)=(.*)\n/gc;	# Parse the format.
+  $file =~ /\GEND=/gc ? \%build_info : undef;
 }
 
 #
@@ -860,11 +859,11 @@ sub grok_build_info_file {
 #
 sub load_build_info_file {
   my $build_info_fname = &build_info_fname;
-  open my $fh, $build_info_fname or
+  open my $fh, '<:crlf', $build_info_fname or
     return;
 
   my $build_info = grok_build_info_file $fh;
-  if( defined $build_info ) {
+  if( $build_info ) {
     my( $finfo ) = @_;
     my $sig = &signature || '';	# Calculate the signature for the file, so
 				# we know whether the build info has changed.

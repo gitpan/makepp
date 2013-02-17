@@ -1,9 +1,9 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 #
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.114 2012/07/05 21:55:13 pfeiffer Exp $
+# $Id: install.pl,v 1.118 2013/02/16 15:11:36 pfeiffer Exp $
 #
 
 package Mpp;
@@ -11,20 +11,15 @@ package Mpp;
 #
 # First make sure this version of Perl is recent enough:
 #
-eval { require 5.008; 1 } or
-  die "I need Perl version 5.8 or newer.  If you have it installed somewhere
-already, run this installation procedure with that perl binary, e.g.,
+BEGIN { eval { require 5.008 } or exec $^X, 'config.pl' } # Dies with nice message.
 
-	perl5.14.1 install.pl ...
-
-If you don't have a recent version of Perl installed (what kind of system are
-you on?), get the latest from www.perl.com and install it.
-";
+BEGIN { eval { require Mpp::Text } or warn <<EOS and exit 1 } # avoid BEGIN/die diagnostic
+Please call this script in the directory where you unpacked it!
+EOS
 
 use Config;
 use File::Copy;
 use File::Path;
-use Mpp::Text ();
 use Mpp::File ();		# ensure HOME is set
 
 system $^X, 'makepp', '--version'; # make sure it got a chance to apply workarounds.
@@ -36,6 +31,8 @@ warn "\nMakepp will be installed with DOS newlines, as you unpacked it.\n\n"
 
 our $eliminate = '';		# So you can say #@@eliminate
 
+our $VERSION = $Mpp::Text::VERSION;
+our $setVERSION = "  our \$VERSION = '$Mpp::Text::VERSION';";
 our $BASEVERSION = $Mpp::Text::BASEVERSION;
 
 #
@@ -75,28 +72,6 @@ if ($datadir !~ /^\//) {	# Make a relative path absolute.
   $setdatadir = "\$datadir = '$datadir';";
 }
 
-# deprecated prior installation may not have supported .makepp/*.mk files
--r "$datadir/FileInfo_makepp.pm" and
-  (stat "$datadir/FileInfo_makepp.pm")[9] < 1102710870 || # check-in time
-  do {
-    my $found;
-    open F, "$datadir/FileInfo_makepp.pm";
-    while( <F> ) {
-      $found = 1, last if /build_info_subdir.+\.mk/;
-    }
-    !$found;
-  } and
-  print '
-Warning: the names of the metainformation files under .makepp have changed
-with regard to your old installation of makepp.  Every user must issue the
-following command at the tops of their build trees, to prevent the new makepp
-from rebuilding everything.  Or sysadmins installing this version can issue
-the command for the whole machine from the root directory.
-
-  find `find . -name .makepp` -type f | xargs -i mv {} {}.mk
-
-';
-
 $mandir = shift @ARGV || read_with_prompt("
 Where should the manual pages be installed?
 Enter \"none\" if you do not want the manual pages.
@@ -125,6 +100,8 @@ if($findbin) {
 
 my $destdir = shift @ARGV;
 
+my %abbrev;			# which commands have a short form
+
 if( $destdir ) {
   for( $bindir, $datadir, $mandir, $htmldir_val ) {
     s/^/$destdir/o if defined;
@@ -133,39 +110,6 @@ if( $destdir ) {
 
 mkpath "$datadir/$_" for
   qw(Mpp Mpp/ActionParser Mpp/BuildCheck Mpp/CommandParser Mpp/Fixer Mpp/Scanner Mpp/Signature);
-
-our $useoldmodules = '';
-if( $ENV{MAKEPP_INSTALL_OLD_MODULES} ) {
-  warn "MAKEPP_INSTALL_OLD_MODULES is deprecated.\n";
-  my %packages =		# The renamed or multipackage cases.
-   (BuildCache => [qw(BuildCache BuildCache BuildCache::Entry)],
-    FileInfo => ['FileInfo=File'],
-    FileInfo_makepp => [qw(FileInfo_makepp=FileOpt FileInfo_makepp=File)],
-    Makecmds => ['Makecmds=Cmds'],
-    MakeEvent =>
-      [qw(MakeEvent=Event MakeEvent=Event MakeEvent::Process=Event::Process MakeEvent::WaitingSubroutine=Event::WaitingSubroutine)],
-    Makesubs => ['Makesubs=Subs'],
-    Rule => [qw(Rule Rule DefaultRule DefaultRule::BuildCheck)],
-    TextSubs => ['TextSubs=Text']);
-  for $module ( split ' ', $ENV{MAKEPP_INSTALL_OLD_MODULES} ) {
-    $useoldmodules .= "use $module ();\n"
-      if $module =~ s/\+//;
-    $module = $packages{$module} || [$module]; # Create simple cases on the fly.
-    my( $old, $new ) = shift @$module;
-    $new = ($old =~ s/=(.+)//) ? $1 : $old;
-    my $file = $old;
-    if( $file =~ s!(.+)::!$1/! ) {
-      -d "$datadir/$1" or mkpath "$datadir/$1";
-    }
-    open my $fh, '>', "$datadir/$file.pm" or die "can't create $old.pm\n";
-    print $fh "# generated backwards compatibility wrapper\nuse Mpp::$new;\n";
-    for( @$module ? @$module : "$old=$new" ) {
-      $new = (s/=(.+)//) ? $1 : $_;
-      print $fh "%${_}:: = %Mpp::${new}::;\n";
-    }
-    print $fh '1;';
-  }
-}
 
 $ENV{_MAKEPP_INSTALL} = 1;
 substitute_file( $_, $bindir, 0755, 1 ) for
@@ -188,8 +132,6 @@ foreach $module (qw(../Mpp
 		    CommandParser/Swig CommandParser/Vcs
 
 		    Fixer/Automake Fixer/CMake
-
-		    ActionParser/Legacy ActionParser/Specific
 
 		    Scanner Scanner/C Scanner/Esqlc Scanner/Swig Scanner/Vera
 		    Scanner/Verilog
@@ -240,19 +182,27 @@ if( $htmldir_val ne 'none' ) {
 # Install the man pages:
 #
 if( $mandir ne 'none' ) {
+  my $gzip = </usr/{,local/,gnu/}{,share/}man/**/*.[1-9]*.gz> ? '.gz' : ''; # Does this OS gzip them?
   mkpath "$mandir/man1";
   require Pod::Man;
   my %options = qw(errors pod
 		   center Makepp
 		   lax 1);
   my $parser = Pod::Man->new( %options );
+  $abbrev{makepp_build_cache} = 'mppbcc'; # special case command documented with feature description
   for my $file (@pods) {
     next if $file eq 'makepp_index.pod'; # html only
-    my $manfile = $file;
-    $manfile =~ s/\.pod$/.1/;   # Get the name of the man file.
-    $parser->parse_from_file( $file, "$mandir/man1/$manfile" );
-    chmod 0644, "$mandir/man1/$manfile";
+    my $basename = substr $file, 0, -4;   # Get the name of the man file.
+    my $manfile = "$mandir/man1/$basename.1";
+    $parser->parse_from_file( $file, $manfile );
+    chmod 0644, $manfile;
+    system 'gzip', '-f9', $manfile and $gzip = '' if $gzip;
+    my $abbrev = $abbrev{$basename};
+    link "$mandir/man1/$basename.1$gzip", "$mandir/man1/$abbrev.1$gzip" or
+      symlink "$basename.1$gzip", "$mandir/man1/$abbrev.1$gzip" if $abbrev;
   }
+  link "$mandir/man1/makepp_build_cache.1$gzip", "$mandir/man1/makepp_build_cache_control.1$gzip" or
+    symlink "makepp_build_cache.1$gzip", "$mandir/man1/makepp_build_cache_control.1$gzip";
 }
 
 print "makepp successfully installed.\n";
@@ -260,7 +210,7 @@ print "makepp successfully installed.\n";
 #
 # This subroutine makes a copy of an input file, substituting all occurrences
 # of @xyz@ with the Perl variable $xyz.  It also fixes up the header line
-# "#!/usr/bin/perl" if it sees one.  On Win also create a .bat to call it.
+# "#!/usr/bin/env perl" if it sees one.  On Win also create a .bat to call it.
 #
 # Arguments:
 # a) The input file.
@@ -280,7 +230,7 @@ sub substitute_file {
   local $_;
   my $perl = PERL;
   while( <INFILE> ) {
-    s@^\#!\s*(\S+?)/perl(\s|$)@\#!$perl$2@o	# Handle #!/usr/bin/perl.
+    s@^#!\s*(/usr/bin/env )perl@$perl =~ tr!/!! ? "#!$perl -w" : "#!$1$perl"@oe
        if $. == 1;
     s/\\?\@(\w+)\@/$$1/g;		# Substitute anything containg @xyz@.
     if( /^#\@\@(\w+)/ ) {		# Substitute anything containg #@@xyz ... #@@
@@ -298,7 +248,7 @@ sub substitute_file {
   chmod $prot, "$outdir/$infile";
   if( is_windows > 0 && $prot == 0755 ) {
     open my $outfile, "> $outdir/$infile.bat" or die "$0: can't write to $outdir/$infile.bat--$!\n";
-    print $outfile '@' . PERL . " $outdir/$infile %1 %2 %3 %4 %5 %6 %7 %8 %9\n";
+    print $outfile "\@$perl $outdir/$infile %1 %2 %3 %4 %5 %6 %7 %8 %9\n";
     close $outfile;
   }
   if( $abbrev ) {
@@ -307,8 +257,9 @@ sub substitute_file {
       no warnings 'uninitialized';
       s/makepp(?:_?(.)[^_]+(?:_(.)[^_]+(?:_(.)[^_]+)?)?)?/mpp$1$2$3/;
     }
+    $abbrev{$infile} = $_;
     link "$outdir/$infile", "$outdir/$_"
-      or symlink "$outdir/$infile", "$outdir/$_";
+      or symlink $infile, "$outdir/$_";
     unless( -f "$outdir/$_" ) {
       copy "$outdir/$infile", "$outdir/$_";
       chmod $prot, "$outdir/$_";

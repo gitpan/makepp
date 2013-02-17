@@ -1,11 +1,11 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 #
 # This script does the pod to html generation with some heavy massageing.
 #
-# $Id: html.pl,v 1.11 2012/10/25 21:15:41 pfeiffer Exp $
+# $Id: html.pl,v 1.14 2013/02/16 15:11:37 pfeiffer Exp $
 #
 
-#use Pod::Html ();		# import module as they sometimes break backwards compatibility
+#use Pod::Html ();		# Stole module to have consistent id-attributes.
 BEGIN {package
 # hide from CPAN parser
 Pod::Html;
@@ -280,7 +280,7 @@ END_OF_BLOCK
 
     print $html <<END_OF_HEAD;
 <?xml version="1.0" ?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <title>$Title</title>$csslink
@@ -2125,6 +2125,7 @@ sub init {
 &init;
 
 
+our $sitesearch = '/2.1';
 sub frame($$$) {
   my( $file, $tab ) = @_;
   my( $head, $body ) = split "\f", $_[2];
@@ -2132,9 +2133,9 @@ sub frame($$$) {
 
   my $tabs = '';
   for my $meta ( @tabmeta ) {
-    my $on = $tab eq $meta->[1] ? '_on' : '';
+    $tab eq $meta->[1] or
     $tabs .=
-      "<a href='$meta->[2]'><img title='$meta->[0]' id='_$meta->[3]$on' src='${docroot}tabs.png' alt='$meta->[1]'/></a>";
+      "<a href='$meta->[2]'><img title='$meta->[0]' id='_$meta->[3]' src='${docroot}tabs.png' alt='$meta->[1]'/></a>";
   }
 
   my $nav = '';
@@ -2161,7 +2162,7 @@ sub frame($$$) {
   }
   my $ret;
   for my $piece ( split /(div id='_main'>|<pre>.*?<\/pre>)/s, "<?xml version='1.0'?>
-<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.1//EN' 'http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd'>
+<!DOCTYPE html>
  <html xmlns='http://www.w3.org/1999/xhtml'>
 <head>
   <link rel='stylesheet' href='${docroot}makepp.css' type='text/css'/>
@@ -2180,7 +2181,7 @@ sub frame($$$) {
 <div id='_head'>
   <form action='http://www.google.com/search'>
     <p>
-      <input type='hidden' name='as_sitesearch' value='makepp.sourceforge.net/2.1'/>
+      <input type='hidden' name='as_sitesearch' value='makepp.sourceforge.net$sitesearch'/>
       <input type='text' name='as_q'/>
       <input type='submit' value='Go'/>
     </p>
@@ -2290,7 +2291,6 @@ sub highlight_variables() {
 }
 
 sub simplify($$$) {
-  copy $_[0], "/tmp/p2h.$Pod::Html::VERSION" if $_[1] eq 'makepp_signatures';
   open my( $tmpfile ), $_[0] or die;
   binmode $tmpfile, ':utf8' if $] > 5.008; # suppress warning
   my $base = $_[1];
@@ -2384,7 +2384,8 @@ sub simplify($$$) {
 	# unindent initial whitespace which marks <pre> in pod
 	s/^ {1,7}\t(\t*)(?!#)/$1    / or s/^    ?//;
 
-	if( /^\s+$/ ) {
+	if( s/^  $// ) {	# special case for signature, keep exactly the empty lines
+	} elsif( /^ $/ ) {
 	  $next_tall = '<b class="tall"> </b>';
 	  next;
 	} else {

@@ -1,5 +1,5 @@
-#!/usr/bin/perl -w
-# $Id: config.pl,v 1.31 2012/05/15 21:26:29 pfeiffer Exp $
+#!/usr/bin/env perl
+# $Id: config.pl,v 1.33 2013/02/16 15:11:37 pfeiffer Exp $
 #
 # Configure this package.
 #
@@ -9,18 +9,21 @@ package Mpp;
 #
 # First make sure this version of Perl is recent enough:
 #
-eval { require 5.008; 1 } or
-  die "I need Perl version 5.8 or newer.  If you have it installed somewhere
-already, run this installation procedure with that perl binary, e.g.,
+BEGIN { eval { require 5.008 } or warn <<EOS and exit 1 } # avoid BEGIN/die diagnostic
+I need Perl version 5.8 or newer.  If you have it installed somewhere
+already, run this installation procedure with that perl binary, e.g.:
 
-	perl5.14.1 config.pl ...
+	perl5.16.2 install.pl ...
 
 If you don't have a recent version of Perl installed (what kind of system are
-you on?), get the latest from www.perl.com and install it.
-";
+you on?), get the latest from www.perl.org and install it.
+EOS
+
+BEGIN { eval { require Mpp::Utils } or warn <<EOS and exit 1 } # avoid BEGIN/die diagnostic
+Please call this script in the directory where you unpacked it!
+EOS
 
 use strict;
-use Mpp::Text ();
 use Mpp::File ();		# ensure HOME is set
 
 #
@@ -30,6 +33,8 @@ my $prefix = "/usr/local";
 my $findbin = "none";
 my $makefile = '.';
 my( $bindir, $datadir, $mandir, $htmldir );
+
+$Mpp::Text::pod = 'makepp_faq';	# for help
 
 Mpp::Text::getopts
   [qw(p prefix), \$prefix, 1],
@@ -45,14 +50,12 @@ Mpp::Text::getopts
 $makefile .= '/Makefile' if -d $makefile;
 $bindir ||= "$prefix/bin";
 $datadir ||= "$prefix/share/makepp";
-$htmldir ||= "$prefix/share/makepp/html";
+$htmldir ||= "$datadir/html";
 $mandir ||= "$prefix/man";
 
 foreach ($bindir, $datadir, $htmldir) {
   s@~/@$ENV{HOME}/@;
 }
-
-our $VERSION;
 
 #
 # Write out a makefile for this.  This makefile ought to work with any version
@@ -61,8 +64,8 @@ our $VERSION;
 open MAKEFILE, '>', $makefile or die "$0: can't write $makefile--$!\n";
 my $perl = PERL;
 
-s/\$/\$\$/g for $perl, $bindir, $datadir, $findbin, $mandir, $htmldir, $VERSION;
-$VERSION =~ s/:.*//;
+s/\$/\$\$/g for $perl, $bindir, $datadir, $findbin, $mandir, $htmldir;
+$Mpp::Text::VERSION =~ s/:.*//;
 
 print MAKEFILE "PERL = $perl
 BINDIR = $bindir
@@ -70,33 +73,36 @@ DATADIR = $datadir
 FINDBIN = $findbin
 MANDIR = $mandir
 HTMLDIR = $htmldir
-VERSION = makepp-$VERSION\n";
+VERSION = makepp-$Mpp::Text::VERSION",
+q[
 
-print MAKEFILE q[
-
-FILES = makepp makeppbuiltin makeppclean makeppgraph makepplog makeppreplay recursive_makepp \
+FILES = makepp makeppbuiltin makeppclean makeppgraph makeppinfo makepplog makeppreplay makepp_build_cache_control recursive_makepp \
 	*.pm Mpp/*.pm \
-	Mpp/ActionParser/*.pm Mpp/BuildCheck/*.pm Mpp/CommandParser/*.pm Mpp/Fixer/*.pm Mpp/Scanner/*.pm Mpp/Signature/*.pm \
+	Mpp/BuildCheck/*.pm Mpp/CommandParser/*.pm Mpp/Fixer/*.pm Mpp/Scanner/*.pm Mpp/Signature/*.pm \
 	*.mk
 
-all: test
+all:
+	@echo 'No need to build anything.  Useful targets are: test or testall and install'
+
+check: $(FILES)
+	@echo ok
 
 test: .test_done
 
 .test_done: $(FILES) t/*.test t/run_tests.pl
 	cd t && PERL=$(PERL) $(PERL) run_tests.pl --hint
-	touch $@
+	@touch $@
 
 testall: .testall_done
 
 .testall_done: .test_done t/*/*.test
 	cd t && PERL=$(PERL) $(PERL) run_tests.pl --hint */*.test
-	touch $@
+	@touch $@
 
 distribution: $(VERSION).tar.gz
 
-$(VERSION).tar.gz: README INSTALL LICENSE VERSION ChangeLog \
-	pod/*.pod $(FILES) makepp_build_cache_control makeppinfo \
+$(VERSION).tar.gz: README INSTALL LICENSE ChangeLog \
+	pod/*.pod $(FILES) \
 	t/*.test t/*/*.test t/run_all.t t/run_tests.pl \
 	config.pl configure configure.bat install.pl
 	rm -rf $(VERSION)
@@ -109,35 +115,18 @@ $(VERSION).tar.gz: README INSTALL LICENSE VERSION ChangeLog \
 	cd $(VERSION) && make test    # Make sure it all runs.
 	rm -rf $(VERSION)
 
-install: all
-	$(PERL) install.pl $(BINDIR) $(DATADIR) $(MANDIR) $(HTMLDIR) $(FINDBIN) $(DESTDIR)
+install:
+	PERL=$(PERL) $(PERL) install.pl $(BINDIR) $(DATADIR) $(MANDIR) $(HTMLDIR) $(FINDBIN) $(DESTDIR)
 
-.PHONY: all distribution install test testall
+clean:
+	rm -rf .test*_done t/*.log t/*.failed t/*.tdir .makepp pod/pod2htm?.tmp
+
+distclean: clean
+	rm -f Makefile
+
+.PHONY: all check distribution install test testall clean distclean
 ];
 
 __DATA__
-Usage: configure [option]
-
-Valid options are:
-
--b, --bindir=/path/to/installation/bin
-    Where the binaries go.  Makepp's binaries are just Perl scripts so they
-    are architecture independent.
--d, --datadir=/path/to/installation/share/makepp
-    Where to install makepp's library files.
--f, --findbin=relative/path/to/datadir/from/bindir
-    Where to find libraries relative to executables. Specify 'none' (the
-    default) to find them in datadir.
--h, --htmldir=/path/to/installation/share/html
-    Where the HTML documentation goes.  Specify 'none' if you do not want the
-    documentation installed.  (You can always read it online at
-    http://makepp.sourceforge.net.)
--m, --mandir=/path/to/man
-    Where the manual pages should reside.  Specify 'none' if you do not want
-    the documentation installed.
---makefile=/path/to/Makefile (default: .)
-    Specify location where you can write the Makefile.
--p, --prefix=/path/to/installation
-    Specify location where you want to install everything.
--?, --help
-    This help message.
+[option]
+       configure [option]

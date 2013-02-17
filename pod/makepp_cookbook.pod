@@ -2,7 +2,7 @@
 
 makepp_cookbook -- The best way to set up makefiles for various situations
 
-=for vc $Id: makepp_cookbook.pod,v 1.26 2012/02/07 22:26:15 pfeiffer Exp $
+=for vc $Id: makepp_cookbook.pod,v 1.29 2013/02/16 15:11:37 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -10,8 +10,10 @@ I discovered that practically no one ever reads a manual for a make tool,
 because frankly no one really is interested in the make process itself--we are
 only interested in results.  So this cookbook was put together in hopes that
 people will be able to get what they need quickly from the examples without
-wading through the manual.  This shows howto type questions, whereas stumbling
-blocks will be found in the L<frequently asked questions|makepp_faq>.
+wading through the manual.  This shows howto type questions, whereas
+installation instructions and stumbling blocks will be found in the
+L<frequently asked questions|makepp_faq>.
+
 
 =head2 Building libraries
 
@@ -161,15 +163,14 @@ This approach is not recommended for several reasons:
 
 =item *
 
-Suppose you remove a source file from the current directory.  It's still
-in the library, because you didn't rebuild the library from scratch.  As
-a result, anything that links with this library will have the stale
-F<.o> file, and that can screw up your builds.  (I once got thoroughly
-confused by this when I was trying to remove dead code from a project: I
-kept deleting files and it still linked, so I thought the code was dead.
-had the modules I removed.  However, when someone else rebuilt the
-project from scratch, it didn't link any more!  The problem was that the
-old F<.o> files were still in the archive.)
+Suppose you remove a source file from the current directory.  It's still in
+the library, because you didn't rebuild the library from scratch.  As a
+result, anything that links with this library will have the stale F<.o> file,
+and that can screw up your builds.  (I once got thoroughly confused by this
+when I was trying to remove dead code from a project: I kept deleting files
+and it still linked, so I thought the code was dead.  However, when someone
+else rebuilt the project from scratch, it didn't link any more!  The problem
+was that the old F<.o> files were still in the archive.)
 
 Also, depending on your options to C<ar> and your implementation of
 C<ar> (e.g., if you use the C<q> option instead of C<r>), you can wind
@@ -238,6 +239,7 @@ documentation for details.  Here's a sample Makefile:
  
     %.lo : %.c
  	$(LIBTOOL) --mode=compile $(CC) $(CFLAGS) $(INCLUDES) -c $(input) -o $(output)
+
 
 =head2 Building on several different machines or networks
 
@@ -349,6 +351,7 @@ with, which might not be the same C compiler you want to use.  In fact,
 it might not even exist on your system, since you probably installed
 Perl via a binary package.
 
+
 =head2 Tips for using wildcards
 
 =head3 Matching all files except a certain subset
@@ -403,6 +406,7 @@ list, but at present, you have to tell it to exclude it manually:
 Makepp does not know any way to build the stale F<.o> file any more
 since its source file is gone, so the S<C<$(only_targets )>> function
 will exclude it from the dependency list.
+
 
 =head2 Tips for multiple directories
 
@@ -670,6 +674,7 @@ makefile, and have it process all of the directories, like this:
     $(phony clean):
  	&rm -fm $(only_targets **/*)
 
+
 =head2 Using Qt's moc preprocessor
 
 This example shows a makefile for a utility that uses Nokia's Qt GUI
@@ -748,6 +753,7 @@ if it doesn't already exist, or if it's out of date.
 
 This second approach is the one that I usually use because it speeds up
 compilation.
+
 
 =head2 Replacements for deprecated make idioms
 
@@ -851,6 +857,7 @@ The following makefile is exactly equivalent:
     $(phony debug): debug/program
  			   # If user types "makepp debug", builds
  			   # debug/program instead of program.
+
 
 =head2 Miscellaneous tips
 

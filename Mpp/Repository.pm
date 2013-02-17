@@ -1,4 +1,4 @@
-# $Id: Repository.pm,v 1.12 2012/10/25 21:10:43 pfeiffer Exp $
+# $Id: Repository.pm,v 1.14 2013/01/20 16:54:22 pfeiffer Exp $
 
 =head1 NAME
 
@@ -11,7 +11,10 @@ The actual functionality is also dispersed in makepp and other modules.
 
 =cut
 
-package Mpp::Repository;	# For CPAN scanner.
+package Mpp::Repository;
+
+our $hits = 0;	  		# Number of the files changed that were imported from a rep.
+
 package Mpp::File;		# Use this a lot.
 
 use Mpp::FileOpt;
@@ -125,6 +128,7 @@ sub Mpp::Repository::load {
   my( $dirinfo, $destdirinfo, $prune_code ) = @_; # Name the arguments.
   Mpp::log REP_LOAD => $dirinfo, $destdirinfo
     if $log_level;
+  undef $dirinfo->{xREPOSITORY};
 
   # TBD: Using a repository manifest (in addition to the possibility that
   # it's wrong) is still pretty slow. It would be better to do lazy computation
@@ -269,7 +273,7 @@ sub Mpp::Repository::get {
       ++$Mpp::failed_count;
       return 1;			# Indicate failure.
     }
-    ++$Mpp::rep_hits;
+    ++$Mpp::Repository::hits;
   } else {
     Mpp::log 'REP_EXISTING'
       if $Mpp::log_level;

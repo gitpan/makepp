@@ -1,13 +1,12 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 #use strict;			# TODO: explore why this breaks the builtins.
 
-# $Id: makeppbuiltin,v 1.21 2012/05/23 18:30:17 pfeiffer Exp $
+# $Id: makeppbuiltin,v 1.23 2013/02/16 15:11:37 pfeiffer Exp $
 
 package Mpp;
 
 our $datadir;
 BEGIN {
-  our $VERSION = '@VERSION@';
 #@@setdatadir
 #
 # Find the location of our data directory that contains the auxiliary files.

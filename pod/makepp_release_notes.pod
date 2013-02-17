@@ -2,13 +2,36 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.79 2012/05/29 21:31:38 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.82 2013/01/20 16:54:22 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 =head2 Version 2.1 (under development)
 
 =over 4
+
+=item *
+
+The new option C<--loop> is the successor to C<--stop-after-loading>, which it
+enhances to get the head start for every edit compile cycle in an endless
+loop.
+
+=item *
+
+The C<include> statements and the functions C<find-first-upwards> and
+C<find-upwards> will no longer search higher than a F<RootMakeppfile>, if one
+is present.
+
+=item *
+
+The gmake style of putting the rule to make an include file after the include
+statement is not recommended, but now supported.  Thus the option
+C<--defer-include> has been removed.
+
+=item *
+
+All pre-2.0 features which issued deprecated-warnings are eliminated, as are
+C<$Mpp::Makefile::legacy_functions> and C<$MAKEPP_INSTALL_OLD_MODULES>.
 
 =item *
 

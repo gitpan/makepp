@@ -2,13 +2,165 @@
 
 makepp_faq -- Frequently asked questions about makepp
 
-=for vc $Id: makepp_faq.pod,v 1.12 2012/03/25 18:34:48 pfeiffer Exp $
+=for vc $Id: makepp_faq.pod,v 1.13 2013/02/16 15:11:37 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
-Here you may find some points which are not obvious from the rest of the
-documentation.  This shows stumbling blocks, whereas howto type questions will
-be found in the L<cookbook|makepp_cookbook>.
+Here you may find installation instructions and some points which are not
+obvious from the rest of the documentation.  This shows stumbling blocks,
+whereas howto type questions will be found in the L<cookbook|makepp_cookbook>.
+
+
+=head2 Getting Started
+
+=for comment This chapter through pod2text provides the file INSTALL
+
+=head3 Where to download?
+
+Makepp is hosted on SourceForge and can be downloaded as a source code tarball
+or as installation package for Debian F<.deb> based Linuxes or F<.rpm> based
+Linuxes from http://sourceforge.net/projects/makepp/files/
+
+Like tons of Perl software, makepp can also be downloaded from CPAN by
+clicking the Download link on http://search.cpan.org/dist/makepp/
+
+Makepp is part of Debian GNU/Linux unstable and testing.  This means you can
+install it directly via C<apt-get install makepp> or by choosing it from your
+preferred package tool like synaptic.
+
+Makepp is part of Gentoo Linux.  Note that their 2.0-r1 is not the release
+candidate 1, but the final released version 2.0.
+
+=head3 Can I try it without installing?
+
+Yes, if you want to try makepp on your own makefiles, either put the directory
+where you unpacked it into your path, or else run it explicitly like this, with an
+absolute or relative path to makepp:
+
+    perl /where/you/unpacked/it/makepp
+
+=head3 How to choose perl version?
+
+You must have Perl 5.8 or newer somewhere on your system.  By default all
+uninstalled scripts will use the C<perl> in your path.  But you can run them
+with an explicit instance of perl.  The test runner and installation will run
+everything with this same instance.
+
+    /path/to/perl /where/you/unpacked/it/makepp
+
+In case some script doesn't properly recognize which C<perl> it is being run
+with, you can help it by telling it the path to the same instance of perl via
+the C<PERL> variable:
+
+    PERL=/path/to/perl /path/to/perl /where/you/unpacked/it/makepp
+
+This can also be an instance to be searched in your path:
+
+    PERL=perl5.16.2 perl5.16.2 /where/you/unpacked/it/makepp
+
+=head3 How to install?
+
+There are two ways to install, which lead to the same result:
+
+=over
+
+=item configure (alias config.pl)
+
+This allows for traditional style installation:
+
+    ./configure && make test && make install
+
+The only difference between these two is that C<configure> is not a Perl
+script, so you can't say C<perl configure>, whereas you can use all the above
+variants like C<perl config.pl>.  Valid options are:
+
+=over
+
+=item -b, --bindir=F</path/to/installation/bin>
+
+Where the binaries go (default: I<prefix>/bin).  Makepp's binaries are just
+Perl scripts so they are architecture independent.
+
+=item -d, --datadir=F</path/to/installation/share/makepp>
+
+Where to install makepp's library files (default: I<prefix>/share/makepp).
+
+=item -f, --findbin=F<relative/path/to/datadir/from/bindir>
+
+Where to find libraries relative to executables, or 'none' (the default) to
+find them in I<datadir>.
+
+=item -h, --htmldir=F</path/to/installation/share/html>
+
+Where the HTML documentation goes (default: I<datadir>/html), or 'none' if you
+do not want it installed.
+
+=item -m, --mandir=/F<path/to/man>
+
+Where the manual pages should reside (default: I<prefix>/man), or 'none' if
+you do not want them installed.
+
+=item --makefile=F</path/to/Makefile>
+
+Specify location where you can write the Makefile (default: .).  Unlike the
+other options, which are remembered for the following install step, this file
+is created immediately.
+
+=item -p, --prefix=F</path/to/installation>
+
+Specify location where you want to install everything (default: /usr/local).
+All other paths are by default relative to this one.
+
+=item -V
+
+=item --version
+
+Print out the version number.
+
+=back
+
+If you want to do a mockup installation to some destdir for packaging your own
+distribution, you can give an extra parameter to the last command:
+
+    make DESTDIR=/temporary/destdir install
+
+=item install.pl
+
+This is the backend that performs the actual installation.  You can call it
+directly:
+
+    ./install.pl bindir datadir mandir htmldir findbin destdir
+
+The parameters are optional and correspond to the options from the previous
+section.  You are prompted for those you don't supply, except for the last
+one, which is not normally needed.
+
+=item I<Makefile.PL>
+
+The customary file F<Makefile.PL> is only present for technical reasons.  It
+will B<not> help you to install.
+
+=back
+
+On some systems whichever C<perl> you end up calling may be a symbolic link to
+some precise version C<perl5.m.n>.  In this case perl sees only that one, and
+will thus use it to install against.  If you don't want that, use the C<PERL>
+variable as described above.  If you install with the second variant, i.e. just
+the name of the executable without slashes, the installed scripts will always
+search for that one via C</usr/bin/env>.  This makes them a tiny bit slower to
+start, for a greater flexibility.
+
+=head3 Why does installation say permission denied?
+
+If you want to install to a system directory like F</usr>, F</usr/local> or
+F</opt>, you can only do that if you run the installation as user root.  On
+many Unices you can run a command as root, by prepending C<sudo> to it, and
+depending on the system entering the either the root password, or yours, as
+prompted for.
+
+This is not necessary for the preparatory C<configure> or C<config.pl> step
+which only writes a F<Makefile> in the current directory.
+
 
 =head2 Build Questions
 
@@ -67,6 +219,7 @@ build tree shares a common path prefix with some dependencies
 (e.g. F</opt/repository> and F</opt/sometool>, in which case makepp will
 remember the path once as relative, and once as absolute, looking like changed
 dependencies.
+
 
 =head2 Miscellaneous
 
@@ -128,6 +281,7 @@ C<--dry-run> (which does not run the rules, but evaluates everything else).
 That might be something like this:
 
     bad_boy := $(shell rm *)
+
 
 =head2 External tools
 

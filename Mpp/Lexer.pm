@@ -1,4 +1,4 @@
-# $Id: Lexer.pm,v 1.50 2012/05/15 21:26:29 pfeiffer Exp $
+# $Id: Lexer.pm,v 1.53 2012/12/27 23:10:14 pfeiffer Exp $
 
 =head1 NAME
 
@@ -211,13 +211,12 @@ sub lex_rule {
       $rule->{MAKEFILE}->setup_environment;
       my %env = %ENV; # copy the set env to isolate command settings
       while ($command =~ s/^\s*(\w+)=//) {
-        my $var=$1;
-                                # Is there an environment variable assignment?
+        my $var=$1;             # Is there an environment variable assignment?
         my $ix = index_ignoring_quotes $command, ' ';
                                 # Look for the next whitespace.
         $ix >= 0 or $ix = index_ignoring_quotes $command, "\t";
                                 # Oops, it must be a tab.
-        $ix >= 0 or last;       # Can't find the end--something's wrong.
+        $ix >= 0 or last;       # Can't find the end.  It must be a simple assignment.
         $env{$var} = substr $command, 0, $ix, ''; # Chop off the environment variable's value.
         $command =~ s/^\s+//;
       }
@@ -247,8 +246,7 @@ sub lex_rule {
 # C/C++ compilation.  See if this rule looks like it's some sort of a
 # compile:
 #
-  if( $parsers_found == 0 &&	# No parsers found at all?
-      !$rule->{SCANNER_NONE} ) { # From deprecated form of scanner none or skip_word
+  if( $parsers_found == 0 ) {	# No parsers found at all?
     my $tinfo = $rule->{EXPLICIT_TARGETS}[0];
     if( ref($tinfo) eq 'Mpp::File' && # Target is a file?
         $tinfo->{NAME} =~ /\.l?o$/ ) { # And it's an object file?
@@ -451,11 +449,10 @@ sub add_any_dependency_ {
      relative_filename is_or_will_be_dir( $src ) || $src->{'..'}, $rule->build_cwd),
     $incname,
     $finfo
-  ) and $meta and do {
-    $rule->{SCAN_FAILED} = $finfo if $finfo;
-    die "SCAN_FAILED\n";
-  };
-  $finfo || 1;
+  ) and $meta or
+    return $finfo || 1;
+  $rule->{SCAN_FAILED} = $finfo if $finfo;
+  die "SCAN_FAILED\n";
 }
 
 sub add_dependency {

@@ -1,5 +1,5 @@
-#!/usr/bin/perl -w
-# $Id: makeppgraph,v 1.28 2012/05/23 18:30:17 pfeiffer Exp $
+#!/usr/bin/env perl
+# $Id: makeppgraph,v 1.30 2013/02/16 15:11:37 pfeiffer Exp $
 
 #TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
 
@@ -11,7 +11,6 @@ use POSIX ();
 
 our $datadir;
 BEGIN {
-  our $VERSION = '@VERSION@';
 #@@setdatadir
 #
 # Find the location of our data directory that contains the auxiliary files.

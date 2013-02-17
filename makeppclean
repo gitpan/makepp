@@ -1,5 +1,5 @@
-#!/usr/bin/perl -w
-# $Id: makeppclean,v 1.22 2012/05/23 18:30:17 pfeiffer Exp $
+#!/usr/bin/env perl
+# $Id: makeppclean,v 1.24 2013/02/16 15:11:37 pfeiffer Exp $
 
 package Mpp;
 
@@ -84,25 +84,6 @@ sub print_log {
 my $n_files_removed = 0;
 my $recurse;
 
-sub perform(&) {
-  my $code = $_[0];
-  eval { &$code; };
-
-  if ($@) {			# Did we die() somehow?
-    print_error $@;		# Print the error message.
-    close STDOUT; close STDERR;	# Flush these too, or else we'll have problems.
-    exit 1;
-  }
-
-  if( $verbose ) {
-    print "$Mpp::progname: $n_files_removed file" . ($n_files_removed == 1 ? '' : 's') . " removed\n";
-  } elsif( !$n_files_removed ) {
-    print "$Mpp::progname: no files removed\n";
-  }
-
-  exit 0;
-}
-
 my @info_strings;		# Our deletion criteria.
 my @deletable;			# Files must be first remembered for deletion,
 				# because if we deleted them right away, and
@@ -177,7 +158,7 @@ sub remove_contents_if_built {
   }
 }
 
-perform {
+eval {
   Mpp::Text::getopts
     ['b', qr/(?:only[-_]?)?(?:build[-_]?)?cache[-_]?(?:link|file)s/, undef, 0,
      sub { push @info_strings, 'LINKED_TO_CACHE' }],
@@ -229,6 +210,19 @@ perform {
     rmtree relative_filename $_;
   }
 };
+if ($@) {			# Did we die() somehow?
+  print_error $@;		# Print the error message.
+  close STDOUT; close STDERR;	# Flush these too, or else we'll have problems.
+  exit 1;
+}
+
+if( $verbose ) {
+  print "$Mpp::progname: $n_files_removed file" . ($n_files_removed == 1 ? '' : 's') . " removed\n";
+} elsif( !$n_files_removed ) {
+  print "$Mpp::progname: no files removed\n";
+}
+
+exit 0;
 
 __DATA__
 [option ...] [path ...]

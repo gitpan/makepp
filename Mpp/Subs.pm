@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.201 2012/10/25 21:10:27 pfeiffer Exp $
+# $Id: Subs.pm,v 1.204 2013/01/20 16:54:56 pfeiffer Exp $
 
 =head1 NAME
 
@@ -94,72 +94,28 @@ sub p_gcc_compilation {
   shift;
   Mpp::CommandParser::Gcc->new( @_ );
 }
-# TODO: remove the deprecated backwards compatibility scanner_ variants.
-*scanner_gcc_compilation = \&p_gcc_compilation;
 
 sub p_c_compilation {
   shift;
   Mpp::CommandParser::Gcc->new_no_gcc( @_ );
 }
-*scanner_c_compilation = \&p_c_compilation;
 
 sub p_esql_compilation {
   shift;
   require Mpp::CommandParser::Esql;
   Mpp::CommandParser::Esql->new( @_ );
 }
-*scanner_esql_compilation = \&p_esql_compilation;
 
 sub p_vcs_compilation {
   shift;
   require Mpp::CommandParser::Vcs;
   Mpp::CommandParser::Vcs->new( @_ );
 }
-*scanner_vcs_compilation = \&p_vcs_compilation;
 
 sub p_swig {
   shift;
   require Mpp::CommandParser::Swig;
   Mpp::CommandParser::Swig->new( @_ );
-}
-*scanner_swig = \&p_swig;
-
-#
-# This parser exists only to allow the user to say ":parser none" to suppress
-# the default parser.
-#
-sub scanner_none {
-  $_[1]{SCANNER_NONE} = 1;
-  shift;
-  Mpp::CommandParser->new( @_ );
-}
-
-#
-# This parser simply moves to the next word that doesn't begin with
-# - and parses again.
-#
-sub scanner_skip_word {
-  #my ($action, $myrule, $dir) = @_;
-  my ($action) = @_;		# Name the arguments.
-
-  $action =~ s/^\s+//;		# Leading whitespace messes up the regular
-				# expression below.
-  while ($action =~ s/^\S+\s+//) { # Strip off another word.
-    $action =~ s/^([\"\'\(])//;	# Strip off leading quotes in case it's
-				# something like sh -c "cc ...".
-    if( defined $1 ) {
-      my $compl = ${{qw!" " ' ' ( \)!}}{$1};
-      $action =~ s/$compl//;
-    }
-    next if $action =~ /^-/;	# Word that doesn't look like an option?
-    local $_[1]{LEXER} if $_[1]{LEXER}; # Don't skip next word on recursion.
-    local $_[1]{LEXER_OBJ} if $_[1]{LEXER_OBJ}; # ditto
-    my $lexer = new Mpp::Lexer;
-    $_[1]{SCANNER_NONE} = 1
-      if Mpp::Lexer::parse_command( $lexer, $action, $_[1], $_[2], $_[1]{MAKEFILE}{ENVIRONMENT} );
-    last;			# Don't go any further.
-  }
-  new Mpp::Lexer;
 }
 
 # These are implemented in Mpp::Lexer::find_command_parser
@@ -623,6 +579,7 @@ sub f_find_upwards {
 	push @ret_names, relative_filename $finfo, $cwd;
 	last;			# done searching
       }
+      last if $dirinfo == ($dirinfo->{ROOT} || 0);
       last unless $dirinfo = $dirinfo->{'..'}; # Look in all directories above us.
       last if (stat_array $dirinfo)->[Mpp::File::STAT_DEV] !=
 	($cwd_devid ||= (stat_array $cwd)->[Mpp::File::STAT_DEV]);
@@ -658,6 +615,7 @@ sub f_find_first_upwards {
 	  file_exists $finfo :
 	  Mpp::File::exists_or_can_be_built $finfo; # Found file in the path?
     }
+    last if $dirinfo == ($dirinfo->{ROOT} || 0);
     last unless $dirinfo = $dirinfo->{'..'}; # Look in all directories above us.
     last if (stat_array $dirinfo)->[Mpp::File::STAT_DEV] !=
       ($cwd_devid ||= (stat_array $cwd)->[Mpp::File::STAT_DEV]);
@@ -1523,8 +1481,7 @@ sub s_build_check {#_
   $name =~ s/^\s*(\w+)\s*$/$1/ or
     die "$mkfile_line: invalid build_check statement\n";
   if( $name ne 'default' ) {
-    $$var = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
-      eval "use BuildCheck::$name; warn qq!$mkfile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name"
+    $$var = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name"
       or die "$mkfile_line: invalid build_check method $name\n";
   } elsif( $global ) {		# Return to the default method?
     $$var = $Mpp::BuildCheck::exact_match::exact_match;
@@ -1560,14 +1517,8 @@ sub s_no_implicit_load {
 #
 # Include statement:
 #
-our( $defer_include, @defer_include ); # gmake cludge
 sub s_include {#__
-  my( undef, $mkfile, $mkfile_line, $keyword ) = @_;
-				# Name the arguments.
-  if( $defer_include ) {
-    push @defer_include, $keyword->{ignore} ? \&s__include : \&s_include, @_[0..2];
-    return;
-  }
+  my( undef, $mkfile, $mkfile_line, $keyword ) = @_; # Name the arguments.
 
   for my $file ( split ' ', $mkfile->expand_text( $_[0], $mkfile_line )) { # Get a list of files.
     my $finfo = f_find_first_upwards $Mpp::Makefile::c_preprocess ? $file : "$file.makepp $file",
@@ -1575,29 +1526,49 @@ sub s_include {#__
     if( $Mpp::Makefile::c_preprocess ) {
       eval { $mkfile->read_makefile($finfo) };
       die $@ if
-	$@ and $keyword->{ignore} ? !/^can't read makefile/ : 1;
+	$@ and exists $keyword->{ignore} ? !/^can't read makefile/ : 1;
     } else {
-      $finfo and
-	wait_for prebuild( $finfo, $mkfile, $mkfile_line ) and
+      if( $finfo ) {
+	if( exists $keyword->{check} ) {
+	  next if Mpp::File::is_stale $finfo;
+	  wait_for prebuild( $finfo, @{$mkfile->{REINCLUDE}{$file}}[1,2] ) and
+	    die "can't build " . absolute_filename( $finfo ) . ", needed at $mkfile->{REINCLUDE}{$file}[2]\n";
+	   return 1 if		# Now that we have a rule, did we actually build the file?
+	    ($mkfile->{REINCLUDE}{$file}[0] || 0) != $finfo ||
+	    ($mkfile->{REINCLUDE}{$file}[3] || 'x') ne Mpp::File::signature $finfo;
+	  delete $mkfile->{REINCLUDE}{$file}; # Previously stale, fine now.
+	  next;
+	} elsif( Mpp::File::is_stale $finfo ) {
+	  $mkfile->{REINCLUDE}{$file} = [$finfo, $mkfile, $mkfile_line, Mpp::File::signature $finfo];
+	} else {
+	  wait_for prebuild( $finfo, $mkfile, $mkfile_line ) and
 				# Build it if necessary, or link it from a repository.
-	die "can't build " . absolute_filename( $finfo ) . ", needed at $mkfile_line\n";
-				# Quit if the build failed.
+	    die "can't build " . absolute_filename( $finfo ) . ", needed at `$mkfile_line'\n";
+	}
+      } else {
 #
 # If it wasn't found anywhere in the directory tree, search the standard
 # include files supplied with makepp.  We don't try to build these files or
 # link them from a repository.
 #
-      unless( $finfo ) { # Not found anywhere in directory tree?
-	foreach (@{$mkfile->{INCLUDE_PATH}}) {
-	  $finfo = file_info($file, $_); # See if it's here.
-	  last if file_exists $finfo;
+	my $found;
+	for my $dir (@{$mkfile->{INCLUDE_PATH}}) {
+	  $finfo = file_info $file, $dir; # See if it's here.
+	  $found = file_exists $finfo and
+	    last;
 	}
-	unless( file_exists $finfo ) {
-	  next if $keyword->{ignore};
-	  die "makepp: can't find include file `$file'\n";
+	unless( $found ) {
+	  if( exists $mkfile->{REINCLUDE} ) {
+	    exists $keyword->{check} or
+	      $mkfile->{REINCLUDE}{$file} = [undef, $mkfile, $mkfile_line, $keyword->{ignore}];
+	  } elsif( !$keyword->{ignore} ) {
+	    die "$mkfile_line: can't find include file `$file'\n";
+	  }
+	  next;
 	}
       }
 
+      return 1 if exists $keyword->{check};
       Mpp::log LOAD_INCL => $finfo, $mkfile_line
 	if $Mpp::log_level;
       $mkfile->read_makefile($finfo); # Read the file.
@@ -1781,27 +1752,6 @@ sub s_autoload {#__
 }
 
 #
-# Register an action scanner.
-# Usage from the makefile:
-#    register_scanner command_word scanner_subroutine_name
-#
-#
-sub s_register_scanner {#_
-  my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
-  warn "$mkfile_line: register-scanner deprecated, please use register-parser at `$_[2]'\n";
-
-  my( @fields ) = split_on_whitespace $mkfile->expand_text( $_[0], $mkfile_line );
-				# Get the words.
-  @fields == 2 or die "$mkfile_line: register_scanner needs 2 arguments\n";
-  my $command_word = unquote $fields[0]; # Remove quotes, etc.
-  $fields[1] =~ tr/-/_/;
-  my $scanner_sub = $fields[1] =~ /^(?:scanner_)?none$/ ?
-    undef : (*{"$mkfile->{PACKAGE}::$fields[1]"}{CODE} || *{"$mkfile->{PACKAGE}::scanner_$fields[1]"}{CODE});
-				# Get a reference to the subroutine.
-  $mkfile->register_parser($command_word, $scanner_sub);
-}
-
-#
 # Register a command parser. Usage from the makefile:
 #    register_command_parser command_word command_parser_class_name
 #
@@ -1888,23 +1838,7 @@ sub s_signature {#__
       $$name_var = $name;
       $$override_var = $override;
     } else {
-#
-# The signature methods and build check methods used to be the same thing,
-# so for backward compatibility, see if this is actually a build check
-# method.
-#
-      $var = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name" ||
-	eval "use BuildCheck::$name; warn qq!$mkfile_line: name BuildCheck::$name is deprecated, rename to Mpp::BuildCheck::$name\n!; \$BuildCheck::${name}::$name";
-      if( defined $var ) {
-	warn "$mkfile_line: requesting build check method $name via signature is deprecated.\n";
-	if( $global ) {
-	  $Mpp::BuildCheck::default = $var;
-	} else {
-	  $mkfile->{DEFAULT_BUILD_CHECK_METHOD} = $var;
-	}
-      } else {
-	die "$mkfile_line: invalid signature method $name\n";
-      }
+      die "$mkfile_line: invalid signature method $name\n";
     }
   } else {		# Return to the default method?
     undef $$name_var;
@@ -1995,7 +1929,6 @@ sub import() {
     $_[1] ? /^(?:$_[1])/ : /^[fps]_/ or # functions, parsers and statements only
       /^args?$/ or
       /^run/ or
-      /^scanner_/ or
       next;
     my $coderef = *{"Mpp::Subs::$_"}{CODE};
     *{$package . "::$_"} = $coderef if $coderef;
