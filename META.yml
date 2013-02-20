@@ -1,6 +1,17 @@
 ---
 abstract: ~
 author: []
+requires:
+   Config: 0
+   Cwd: 0
+   Carp: 0
+   POSIX: 0
+   Getopt::Long: 0
+   Digest::MD5: 0
+   Exporter: 0
+   File::Copy: 0
+   File::Path: 0
+   perl: 5.8.0
 build_requires:
   ExtUtils::MakeMaker: 0
 configure_requires:
@@ -8,7 +19,7 @@ configure_requires:
 distribution_type: script
 dynamic_config: 0
 generated_by: 'ExtUtils::MakeMaker version 6.57_05'
-license: unknown
+license: artistic, gpl2+
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4

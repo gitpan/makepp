@@ -192,6 +192,7 @@ t/rule_include.test
 t/run_all.t
 t/run_tests.pl
 t/signature.test
+t/spar
 t/special_chars_unix.test
 t/static_pattern.test
 t/stress_tests/build_cache_concurrent.test
