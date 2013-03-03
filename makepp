@@ -265,9 +265,8 @@ sub build {
 
   my( $all_targets, $all_dependencies, $command_string, $env ) =
     $rule->find_all_targets_dependencies( $oinfo, $dont_scan );
-				# Find out everything that's needed
-				# for this command, and everything that it
-				# changes.
+				# Find out everything that's needed for this
+				# command, and everything that it changes.
 
   $all_dependencies = $rule->sorted_dependencies( $all_dependencies );
 				# Use sorted list from now on.
@@ -562,19 +561,17 @@ sub build_dependencies_done {
     # confused if makepp stops very suddenly (e.g. kernel panic), even if
     # none of the targets' timestamps changed.
     my $execute_handle = $dry_run && !$is_recursive_make ?
-      $rule->print_command ($command_string ) :
+      $rule->print_command( $command_string ) :
       $rule->execute( $command_string, $all_targets, $all_dependencies );
-				# Start executing the command, or just print
-				# it if -n is enabled (unless it's recursive
-				# make).
+				# Start executing the command, or just print it
+				# if -n is enabled (unless it's recursive make).
     shift;
     my $handle = when_done $execute_handle, \&build_target_done, \@_,
       ERROR => sub {
 	$error_found = $_[0]
 	  if $_[0] =~ /^signal (?:$Mpp::int_signo|$Mpp::quit_signo)$/os;
-	$error_found ||= $_[0]	# Remember the error status.  This will
-	  unless $Mpp::keep_going;	# cause us to stop compilation as soon as
-				# possible.
+	$error_found ||= $_[0]	# Remember the error status.  This will cause us
+	  unless $Mpp::keep_going; # to stop compilation as soon as possible.
 	$Mpp::failed_count += @$all_targets;
 	print_error "Failed to build target", (@$all_targets>1 ? 's' : ''),
 	  map( ' `'.absolute_filename( $_ )."'", @$all_targets ), " [$_[0]]";

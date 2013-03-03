@@ -216,19 +216,17 @@ sub exists_or_can_be_built {
   # Exists in repository?
   if( exists $finfo->{ALTERNATE_VERSIONS} ) {
     for( @{$finfo->{ALTERNATE_VERSIONS}} ) {
-      $result = exists_or_can_be_built_norecurse $_, $phony, $stale;
+      #$result = exists_or_can_be_built_norecurse $_, $phony, $stale;
+      $result = $finfo->{RULE} || !was_built_by_makepp $_;
       return $result || undef if defined $result;
     }
   }
   undef;
 }
 sub exists_or_can_be_built_or_remove {
+  return if &dont_build && &lstat_array == $Mpp::File::empty_array;
   my $finfo = $_[0];
-  if( &dont_build ) {
-    &lstat_array;
-    return unless exists $finfo->{xEXISTS};
-  }
-  $warned_stale{sprintf '%x', $finfo} = $finfo if $Mpp::rm_stale_files; # Avoid redundant warning
+  $warned_stale{sprintf '%x', $finfo} = $finfo if $Mpp::rm_stale_files; # Remember for end, avoid redundant warning
   my $result = &exists_or_can_be_built;
   return $result if $result || !$Mpp::rm_stale_files;
   if( exists $finfo->{xEXISTS} || &signature ) {
@@ -240,9 +238,8 @@ sub exists_or_can_be_built_or_remove {
       if $Mpp::log_level;
     # TBD: What if the unlink fails?
     &unlink;
-    # Remove the build info file as well, so that it won't be treated as
-    # a generated file if something other than makepp puts it back with the
-    # same signature.
+    # Remove the build info file as well, so that it won't be treated as a generated
+    # file if something other than makepp puts it back with the same signature.
     CORE::unlink &build_info_fname;
   }
   $result;
@@ -315,46 +312,6 @@ too, so when you're not sure you have a Mpp::File, better use method syntax.
 
 *name = \&absolute_filename;
 
-=head2 set_additional_dependencies
-
-  set_additional_dependencies($finfo,$dependency_string, $makefile, $makefile_line);
-
-Indicates that the list of objects in $dependency_string are extra dependencies
-of the file.  These dependencies are appended to the list of dependencies
-from the rule to build the file.  $makefile and $makefile_line are used only
-when we have to expand the list of dependencies.  We can't do this until we
-actually need to make the file, because we might not be able to expand
-wildcards or other things properly.
-
-=cut
-
-sub set_additional_dependencies {
-  my ($finfo, $dependency_string, $makefile, $makefile_line) = @_;
-
-  push @{$finfo->{ADDITIONAL_DEPENDENCIES}},
-      [$dependency_string, $makefile, $makefile_line];
-				# Store a copy of this information.
-  publish $finfo, $Mpp::rm_stale_files;
-				# For legacy makefiles, sometimes an idiom like
-				# this is used:
-				#   y.tab.c: y.tab.h
-				#   y.tab.h: parse.y
-				#	yacc -d parse.y
-				# in order to indicate that the yacc command
-				# has two targets.  We need to support this
-				# by indicating that files with extra
-				# dependencies are buildable, even if there
-				# isn't an actual rule for them.
-  if( $Mpp::Makefile::rule_include ) {
-    # Via :include we read the compiler generated makefile twice.  If #include statements
-    # have been removed, we must not store those from 1st time we read build info.
-    if( $Mpp::Makefile::rule_include == 1 ) { # Initial lecture of possibly obsolete .d file
-      $finfo->{ADDITIONAL_DEPENDENCIES_TEMP} = $#{$finfo->{ADDITIONAL_DEPENDENCIES}};
-    } elsif( exists $finfo->{ADDITIONAL_DEPENDENCIES_TEMP} ) {
-      splice @{$finfo->{ADDITIONAL_DEPENDENCIES}}, delete $finfo->{ADDITIONAL_DEPENDENCIES_TEMP}, 1;
-    }
-  }
-}
 
 =head2 set_build_info_string
 

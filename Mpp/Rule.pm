@@ -107,45 +107,34 @@ sub find_all_targets_dependencies {
   my ($self, $oinfo, $dont_scan) = @_;
 
   my $build_cwd = $self->build_cwd; # Access the default directory.
+  my $makefile = $self->{MAKEFILE};
 
-  my %all_targets;		# A hash of all targets, so we can tell quickly
-				# whether we already know about a given target.
   local $Mpp::Subs::rule = $self; # Set this up so that subroutines can find the
 				# rule that is currently being expanded.
 
-  local $self->{ALL_TARGETS} = \%all_targets;
-				# Store this so it can be found easily but
-				# also goes away automatically.
-
-  my %all_dependencies;		# A hash of all dependencies, so we can tell
+  # Store these so they can be found easily but also go away automatically.
+  local $self->{ALL_TARGETS} = \my %all_targets;
+				# A hash of all targets, so we can tell quickly
+				# whether we already know about a given target.
+  local $self->{ALL_DEPENDENCIES} = \my %all_dependencies;
+				# A hash of all dependencies, so we can tell
 				# whether we already know about a given
 				# dependency.
-  local $self->{ALL_DEPENDENCIES} = \%all_dependencies;
-
-  my %env_dependencies;		# A hash of dependencies on the environment.
-  local $self->{ENV_DEPENDENCIES} = \%env_dependencies;
-
-  my @explicit_dependencies;	# The ones that were listed in the dependency
-				# list or explicitly somewhere else in the
-				# makefile.
-  local $self->{EXPLICIT_DEPENDENCIES} = \@explicit_dependencies;
-
-  my @explicit_targets;		# The ones that were listed and not inferred
+  local $self->{ENV_DEPENDENCIES} = \my %env_dependencies;
+				# A hash of dependencies on the environment.
+  local $self->{EXPLICIT_DEPENDENCIES} = \my @explicit_dependencies;
+				# The ones that were listed in the dependency
+				# list or explicitly somewhere else in the makefile.
+  local $self->{EXPLICIT_TARGETS} = \my @explicit_targets;
+				# The ones that were listed and not inferred
 				# from the command.
-
-  local $self->{EXPLICIT_TARGETS} = \@explicit_targets;
-
-  my @extra_dependencies;
-  local $self->{EXTRA_DEPENDENCIES} = \@extra_dependencies;
-
-  my $makefile = $self->{MAKEFILE};
+  local $self->{EXTRA_DEPENDENCIES} = \my @extra_dependencies;
 
 #
 # Get the full list of explicit targets:
 #
   my $target_string =
     $makefile->expand_text($self->{TARGET_STRING}, $self->{RULE_SOURCE});
-
 
   for( split_on_whitespace $target_string ) {
     my $tinfo = file_info unquote(), $build_cwd;
@@ -154,7 +143,7 @@ sub find_all_targets_dependencies {
   }
 
 # This is a good time to expand the dispatch rule option, if any:
-  if($self->{DISPATCH}) {
+  if( exists $self->{DISPATCH} ) {
     $self->{DISPATCH} = $makefile->expand_text( $self->{DISPATCH}, $self->{RULE_SOURCE} );
     $self->{DISPATCH} =~ s/^\s*//;
     $self->{DISPATCH} =~ s/\s*$//;
@@ -165,11 +154,10 @@ sub find_all_targets_dependencies {
 # Get the full list of explicit dependencies:
 #
   my $dependency_string =
-    $makefile->expand_text($self->{DEPENDENCY_STRING}, $self->{RULE_SOURCE});
-				# Get the list of files.
+    $makefile->expand_text( $self->{DEPENDENCY_STRING}, $self->{RULE_SOURCE} );
 
   for( split_on_whitespace $dependency_string ) {
-    push @explicit_dependencies, /[\[\*\?]/ ?		# Is it a wildcard?
+    push @explicit_dependencies, /[[*?]/ ? # Is it a wildcard?
       Mpp::Glob::zglob_fileinfo( unquote(), $build_cwd ) :
       file_info( unquote(), $build_cwd );
   }
@@ -178,46 +166,38 @@ sub find_all_targets_dependencies {
 # Get the explicit environmental dependencies:
 #
   if(exists $self->{ENV_DEPENDENCY_STRING}) {
-    my $env_dependency_string = $makefile->expand_text(
-      $self->{ENV_DEPENDENCY_STRING}, $self->{RULE_SOURCE}
-    );
+    my $env_dependency_string =
+      $makefile->expand_text( $self->{ENV_DEPENDENCY_STRING}, $self->{RULE_SOURCE} );
     $self->add_env_dependency( unquote )
       for split_on_whitespace $env_dependency_string;
   }
 
   push @explicit_dependencies, @extra_dependencies;
-				# Extra dependencies go at the end of the
-				# list.
+				# Extra dependencies go at the end of the list.
 
-  foreach (@explicit_dependencies) {
-    $self->add_dependency($_);	# Make sure we know about each dependency.
-  }
+  $self->add_dependency( $_ )	# Make sure we know about each dependency.
+    for @explicit_dependencies;
 
 #
 # Now expand the command string.  This must be done last because it
 # can depend on both the explicit targets and the explicit dependencies.
 #
-  my $perl = 0;	      # split-pattern always 2nd in list, even if 1st is empty
+  my $perl;	      # split-pattern always 2nd in list, even if 1st is empty
   my $command_string = exists $self->{xEXPANDED} ?
     $self->{COMMAND_STRING} :
     join '', map {
-    if (!($perl = !$perl))	# so this one is perl, and next won't be :-)
-    {
-      $_;
-    }
-    elsif (@explicit_targets && $explicit_targets[0]{PRIVATE_VARS})
-    {
-      local $Mpp::Makefile::private = $explicit_targets[0];
+      if (!($perl = !$perl)) {	# so this one is perl, and next won't be :-)
+	$_;
+      } elsif( @explicit_targets && $explicit_targets[0]{PRIVATE_VARS} ) {
+	local $Mpp::Makefile::private = $explicit_targets[0];
 				# Temporarily set up target-specific variables,
 				# if there actually are any.
-      $makefile->expand_text($_, $self->{RULE_SOURCE});
+	$makefile->expand_text($_, $self->{RULE_SOURCE});
 				# Get the text of the command.
-    }				# Turn off the target-specific variables.
-    else {
-      $makefile->expand_text($_, $self->{RULE_SOURCE});
-				# Get the text of the command.
-    }
-  } split /^(${action_prefix}perl\s*\{(?s:\{.*?\}\})?.*\n?)/m, $self->{COMMAND_STRING};
+      } else {
+	$makefile->expand_text($_, $self->{RULE_SOURCE});
+      }				# Get the text of the command.
+    } split /^(${action_prefix}perl\s*\{(?s:\{.*?\}\})?.*\n?)/mo, $self->{COMMAND_STRING};
   undef $self->{xEXPANDED} if $Mpp::loop; # Don't reexpand, or we'd turn $$a into $a and then into some value.
 
   $command_string =~ s/^\s+//;	# Strip out leading and trailing whitespace
@@ -226,13 +206,11 @@ sub find_all_targets_dependencies {
 
   $self->{COMMAND_STRING} = $command_string; # Remember expansion for later.
 
-  # In $dont_scan mode (--final-rule-only), don't try to build any
-  # dependencies.  We assume that the user knows they're up to date.  The
-  # build info won't show then either, so it will look out-of-date next time
-  # around.
-  if($dont_scan) {
-    return (\@explicit_targets, [], $command_string, \%env_dependencies);
-  }
+  # In $dont_scan mode (--final-rule-only), don't try to build any dependencies.
+  # We assume that the user knows they're up to date.  The build info won't
+  # show then either, so it will look out-of-date next time around.
+  return (\@explicit_targets, [], $command_string, \%env_dependencies)
+    if $dont_scan;
 
   # Try to get the scanner results from the build info, and failing that
   # scan from scratch. (Well, not completely from scratch, because the cached
@@ -242,9 +220,8 @@ sub find_all_targets_dependencies {
       if $Mpp::log_level;
     unless( eval { $self->lexer->lex_rule( $command_string, $self ) } ) {
       die $@ if $@ && $@ ne "SCAN_FAILED\n";
-      $self->{SCAN_FAILED} ||= 1;
-    }				# Look for any additional dependencies (or
-				# targets) that we didn't know about.
+      $self->{SCAN_FAILED} ||= 1; # Look for any additional dependencies (or
+    }				# targets) that we didn't know about.
   } else {
     Mpp::log SCAN_CACHED => $oinfo
       if $Mpp::log_level;
@@ -266,9 +243,9 @@ sub find_all_targets_dependencies {
     if( $all_dependencies{sprintf '%x', $_} ) {
       delete $all_dependencies{sprintf '%x', $_}; # Remove it from the dependency list.
       my $warn_flag = 0;
-      for (my $idx = 0; $idx < @explicit_dependencies; ++$idx) {
-	if ($explicit_dependencies[$idx] == $_) { # Was it an explicit dependency?
-	  splice(@explicit_dependencies, $idx, 1); # Remove it.
+      for( my $idx = 0; $idx < @explicit_dependencies; ++$idx ) {
+	if( $explicit_dependencies[$idx] == $_ ) { # Was it an explicit dependency?
+	  splice @explicit_dependencies, $idx, 1; # Remove it.
 	  $warn_flag++ or
 	    warn '`' . absolute_filename( $_ ) . "' depends on itself; circular dependency removed\n";
 	}
@@ -283,7 +260,7 @@ sub find_all_targets_dependencies {
 # (and breaks some makefiles) if dependencies are built in a different order
 # than they are specified.
 #
-  delete @all_targets{sprintf '%x', $_} for @explicit_targets;
+  delete $all_targets{sprintf '%x', $_} for @explicit_targets;
   delete $all_dependencies{sprintf '%x', $_} for @explicit_dependencies;
 
   ([ @explicit_targets, values %all_targets ],
@@ -735,7 +712,7 @@ sub load_scaninfo_single {
   delete @{$self->{ALL_DEPENDENCIES}}{keys %{$self->{ALL_TARGETS}}};
 
   my $flush_scaninfo = $cant_build_deps;
-  unless($flush_scaninfo) {
+  unless( $flush_scaninfo ) {
     my $rebuild_needed = $self->build_check_method->build_check(
       $tinfo_version,
       $self->sorted_dependencies([values %{$self->{ALL_DEPENDENCIES}}]),
@@ -762,7 +739,7 @@ sub load_scaninfo_single {
     }
   }
 
-  if($flush_scaninfo) {
+  if( $flush_scaninfo ) {
     # Reverse the side effects of this method:
     @$self{qw(SIG_METHOD_NAME SIG_METHOD_IMPLICIT SIGNATURE_METHOD)} = @sig_info
       if @sig_info;
@@ -1436,36 +1413,27 @@ sub find_all_targets_dependencies {
 }
 
 #
-# If we ever get to this subroutine, it means there's no way to build this
-# file.
+# If we ever get to this subroutine, it means there's no way to build this file.
 #
 sub execute {
-  Mpp::Event::when_done sub {
-    my $target = $_[0];
-    if( exists $target->{TEMP_BUILD_INFO} ) {
-      Mpp::print_error 'Attempting to retain stale ', $target;
-      -1;			# Return nonzero to indicate error.
-    } elsif( $target->{ADDITIONAL_DEPENDENCIES} ) {
-				# If it has additional dependencies, then
-				# there was a rule, or at least we have to
-				# pretend there was.
-      #file_exists( $target ) and return 0;
-				# If the file doesn't exist yet, we may
-				# have to link it from a repository.
-      # Mpp::build handles linking targets in from a repository after the rule
-      # runs, so we don't have to do it here even if there are
-      # ALTERNATE_VERSIONS.
-      0;			# Return success even if the file doesn't exist.
-				# This is to handle things like
-				# FORCE:
-				# which are really just dummy phony targets.
-    } elsif( exists $target->{xPHONY} ) {
-      0;
-    } else {
-      Mpp::print_error 'No rule to make ', $target;
-      -1;			# Return nonzero to indicate error.
-    }
-  }, [$_[0]{TARGET}];
+  my $target = $_[0]{TARGET};
+  if( exists $target->{TEMP_BUILD_INFO} ) {
+    Mpp::print_error 'Attempting to retain stale ', $target;
+    -1;				# Return nonzero to indicate error.
+  } elsif( $target->{ADDITIONAL_DEPENDENCIES} ) {
+    # If it has additional dependencies, then there was a rule, or at least we
+    # have to pretend there was.
+    # Mpp::build handles linking targets in from a repository after the rule
+    # runs, so we don't have to do it here even if there are ALTERNATE_VERSIONS.
+    0;				# Return success even if the file doesn't exist.
+  				# This is to handle things like FORCE:
+  				# which are really just dummy phony targets.
+  } elsif( exists $target->{xPHONY} ) {
+    0;
+  } else {
+    Mpp::print_error 'No rule to make ', $target;
+    -1;			# Return nonzero to indicate error.
+  }
 }
 
 #

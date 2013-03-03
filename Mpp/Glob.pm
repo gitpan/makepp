@@ -152,33 +152,24 @@ sub zglob_fileinfo {
     }
 
 #
-# The remaining wildcards match only files within these directories.  Convert
-# them to regular expressions:
-#
-    my $file_regex_or_name = /[[?*]/ ? wild_to_regex($_) : $_;
-				# Convert to a regular expression.
-
-#
-# At this point, $file_regex contains a regular expression that corresponds
-# to the wildcard.  It's possible, however, that there were wildcard characters
-# but they were all preceded by a backslash.
+# The remaining wildcards match only files within these directories.
 #
     my @phony_expr = (@pieces ? () : ($phony, $stale, 1)); # Set $no_last_chance
-    if( ref $file_regex_or_name ) { # Was there actually a wildcard?
+    if( /[[?*]/ ) { # Was there actually a wildcard?
+      my $re = wild_to_regex( $_, 3 ); # Convert to a regular expression.
       my $allow_dotfiles = $Mpp::Glob::allow_dot_files || /^\./;
-				# Allow dot files if we're automatically
-				# accepting them, or if they are explicitly
-				# specified.
-      for( @candidate_dirs ) { # Look for the file in each of the possible directories.
-	$_->{READDIR} or Mpp::File::read_directory( $_ ); # Load the list of filenames.
+				# Allow dot files if we're automatically accepting
+				# them, or if they are explicitly specified.
+      for my $dir ( @candidate_dirs ) { # Look for the file in each of the possible directories.
+	$dir->{READDIR} or Mpp::File::read_directory $dir; # Load the list of filenames.
 				# This also correctly sets the xEXISTS flag
 	# Sometimes DIRCONTENTS changes inside this loop, which messes up
 	# the 'each' operator.  The fix is to make a static copy:
-	my %dircontents = %{$_->{DIRCONTENTS}};
+	my %dircontents = %{$dir->{DIRCONTENTS}};
 	while( my( $fname, $finfo ) = each %dircontents ) {
-	  next if !$allow_dotfiles and $fname =~ /^\./;
-	  next unless $fname =~ /^$file_regex_or_name$/;
-	  Mpp::File::exists_or_can_be_built( $finfo, @phony_expr ) and # File must exist, or
+	  next unless $allow_dotfiles || ord( $fname ) != ord '.'
+	    and $fname =~ $re;
+	  Mpp::File::exists_or_can_be_built $finfo, @phony_expr and # File must exist, or
 	    push @new_candidates, $finfo;
 	}
       }
@@ -196,17 +187,17 @@ sub zglob_fileinfo {
 	push @new_candidates, $dir;
       }
       else {
-	$dir->{READDIR} or Mpp::File::read_directory( $dir ); # Load the list of filenames.
-	my $finfo = $dir->{DIRCONTENTS}{$file_regex_or_name}; # See if this entry exists.
-	$finfo && Mpp::File::exists_or_can_be_built( $finfo, @phony_expr ) &&
-	  push(@new_candidates, $finfo);
+	$dir->{READDIR} or Mpp::File::read_directory $dir; # Load the list of filenames.
+	my $finfo = $dir->{DIRCONTENTS}{$_}; # See if this entry exists.
+	push @new_candidates, $finfo if
+	  $finfo && Mpp::File::exists_or_can_be_built $finfo, @phony_expr;
       }
     }
 
   }
 
   sort { $a->{NAME} cmp $b->{NAME} ||
-	   absolute_filename( $a ) cmp absolute_filename( $b ) } @new_candidates;
+	   absolute_filename( $a ) cmp absolute_filename $b } @new_candidates;
 				# Return a sorted list of matching files.
 }
 

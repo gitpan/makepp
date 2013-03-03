@@ -415,7 +415,7 @@ signal propagation.$orig Stopped}
       [', %d repository import%s', $Mpp::Repository::hits, 1],
       [', %d build cache import%s', $Mpp::BuildCache::hits, 1],
       [($failed_count ? ',' : ' and') . ' %d phony target%s built', $n_phony_targets_built],
-      [" and %d target%s failed\n", $failed_count, 1];
+      [" and %d target%s failed", $failed_count, 1];
     if( $found ) {
       print "$progname: $msg\n";
     } elsif( !$error_message ) {

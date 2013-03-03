@@ -1753,7 +1753,29 @@ sub grok_rule {
 
       foreach (@targets) {
 	my $tinfo = file_info unquote(), $self->{CWD};
-	Mpp::File::set_additional_dependencies($tinfo, $after_colon[0], $self, $makefile_line);
+	push @{$tinfo->{ADDITIONAL_DEPENDENCIES}},
+	  [$after_colon[0], $self, $makefile_line];
+				# Store a copy of this information.
+	Mpp::File::publish $tinfo, $Mpp::rm_stale_files;
+				# For legacy makefiles, sometimes an idiom like
+				# this is used:
+				#   y.tab.c: y.tab.h
+				#   y.tab.h: parse.y
+				#	yacc -d parse.y
+				# in order to indicate that the yacc command
+				# has two targets.  We need to support this
+				# by indicating that files with extra
+				# dependencies are buildable, even if there
+				# isn't an actual rule for them.
+  if( $rule_include ) {
+    # Via :include we read the compiler generated makefile twice.  If #include statements
+    # have been removed, we must not store those from 1st time we read build info.
+    if( $rule_include == 1 ) { # Initial lecture of possibly obsolete .d file
+      $tinfo->{ADDITIONAL_DEPENDENCIES_TEMP} = $#{$tinfo->{ADDITIONAL_DEPENDENCIES}};
+    } elsif( exists $tinfo->{ADDITIONAL_DEPENDENCIES_TEMP} ) {
+      splice @{$tinfo->{ADDITIONAL_DEPENDENCIES}}, delete $tinfo->{ADDITIONAL_DEPENDENCIES_TEMP}, 1;
+    }
+  }
 	$self->{FIRST_TARGET} ||= $tinfo;
 				# Remember what the first target is, in case
 				# no target was specified on the command line.
