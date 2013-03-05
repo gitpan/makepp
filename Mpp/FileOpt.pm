@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.119 2013/01/20 16:54:22 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.120 2013/03/04 21:31:00 pfeiffer Exp $
 
 =head1 NAME
 
@@ -216,7 +216,6 @@ sub exists_or_can_be_built {
   # Exists in repository?
   if( exists $finfo->{ALTERNATE_VERSIONS} ) {
     for( @{$finfo->{ALTERNATE_VERSIONS}} ) {
-      #$result = exists_or_can_be_built_norecurse $_, $phony, $stale;
       $result = $finfo->{RULE} || !was_built_by_makepp $_;
       return $result || undef if defined $result;
     }

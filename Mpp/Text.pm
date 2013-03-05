@@ -22,7 +22,7 @@ use Config;
 BEGIN {
   our $BASEVERSION = 2.1;
 #@@setVERSION
-  our $VERSION = '2.0.98.2.2';
+  our $VERSION = '2.0.98.3';
 
 #
 # Not installed, so grep all our sources for the checkin date.  Make a

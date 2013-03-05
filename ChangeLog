@@ -1,3 +1,18 @@
+2013-03-04  DP  <occitan@esperanto.org>
+
+	* Mpp/Rule.pm (load_scaninfo_): Make private, don't force finding
+	remembered deps, which may not be buildable any more
+	(Mpp::DefaultRule::execute): No need for when_done.
+
+	* Mpp/FileOpt.pm (exists_or_can_be_built): Handle repository files
+	differently, since a dep there may not be valid here (hidden by
+	chmod 0).
+	(set_additional_dependencies): Remove and splice into grok_rule.
+
+	* Mpp/Glob.pm: Optimize.
+
+	* LICENSE: Add copyright because Debian wants it.
+
 2013-02-16  DP  <occitan@esperanto.org>
 
 	* *: Consistent and documented handling of perl instance including

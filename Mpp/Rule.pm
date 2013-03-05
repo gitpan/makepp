@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.129 2013/02/16 15:11:46 pfeiffer Exp $
+# $Id: Rule.pm,v 1.130 2013/03/04 21:30:52 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -597,7 +597,7 @@ Otherwise, 0 is returned.
 
 =cut
 
-sub load_scaninfo_single {
+sub load_scaninfo_ {
   my( $self, $tinfo_version, $tinfo, $command_string, $explicit_dependencies ) = @_;
 
   # Fetch the info, or give up
@@ -673,12 +673,6 @@ sub load_scaninfo_single {
       my( $tag, @incs ) = split /\01/, $_, -1;
       die unless defined $tag;
       Mpp::Scanner::get_tagname $scanner, $tag if $tag ne ''; # make it a valid tag
-
-      # TBD: Ideally, we should remember which tags are marked should_find
-      # instead of assuming that those containing 'sys' & 'lib' aren't and all
-      # others are, but this will generate the correct warnings most of the
-      # time, and it's not the end of the world if it doesn't:
-      Mpp::Scanner::should_find $scanner, $tag if $tag !~ /sys|lib/;
 
       my $dir = $cwd;
       for my $item (@incs) {
@@ -767,11 +761,11 @@ sub load_scaninfo {
 
   Mpp::log SCAN_INFO => $tinfo
     if $Mpp::log_level;
-  my $first_msg = $self->load_scaninfo_single( $tinfo, @_ );
+  my $first_msg = load_scaninfo_ $self, $tinfo, @_;
   return 0 unless $first_msg;
   if( exists $tinfo->{ALTERNATE_VERSIONS} ) {
     for( @{$tinfo->{ALTERNATE_VERSIONS}} ) {
-      if( my $msg = $self->load_scaninfo_single( $_, @_ )) {
+      if( my $msg = load_scaninfo_ $self, $_, @_ ) {
 	Mpp::log SCAN_INFO_NOT => $_, $msg
 	  if $Mpp::log_level;
       } else {

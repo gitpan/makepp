@@ -1,4 +1,4 @@
-# $Id: Automake.pm,v 1.6 2011/01/16 17:08:25 pfeiffer Exp $
+# $Id: Automake.pm,v 1.7 2013/03/04 21:31:49 pfeiffer Exp $
 
 =head1 NAME
 
