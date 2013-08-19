@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.63 2013/02/16 15:11:37 pfeiffer Exp $
+# $Id: Text.pm,v 1.66 2013/08/19 06:38:27 pfeiffer Exp $
 
 =head1 NAME
 
@@ -22,7 +22,7 @@ use Config;
 BEGIN {
   our $BASEVERSION = 2.1;
 #@@setVERSION
-  our $VERSION = '2.0.98.3';
+  our $VERSION = '2.0.98.3.1';
 
 #
 # Not installed, so grep all our sources for the checkin date.  Make a
@@ -57,6 +57,7 @@ BEGIN {
     $^O eq 'cygwin' ? sub() { -1 } : # Negative for Unix like
     $^O eq 'msys' ? sub() { -2 } :   # MinGW with sh & coreutils
     $N[$^O =~ /^MSWin/ ? (exists $ENV{SHELL} && $ENV{SHELL} =~ /sh(?:\.exe)?$/i ? 1 : 2) : 0];
+  *Mpp::DEBUG = $N[$ENV{MAKEPP_DEBUG} || 0];
 
   my $perl = $ENV{PERL};
   if( $perl ) {			# Overridden.
@@ -131,14 +132,17 @@ our %skip_over = (
 
 =head2 index_ignoring_quotes
 
-  my $index = index_ignoring_quotes($string, 'substr'[, position]);
+  my $index = index_ignoring_quotes($string, 'substr'[, position[, type]);
 
 Works like C<index($string, 'substr'[, position])>, except that the substring may not be
 inside quotes or a make expression.
 
-=head2 index_ignoring_single_quotes
+If type is C<1>, substring may be inside a make expression (for historical
+reasons opposite to split_on_whitespace).
 
-This is similar, but ignores only the characters in '' and the one after \.
+If type is C<2>, ignores only the characters in C<''> and the one after C<\>,
+i.e. makes the same difference between single and double quotes as does the
+Shell or Perl.
 
 =cut
 
@@ -146,10 +150,12 @@ sub index_ignoring_quotes {
   my $substr = $_[1];
   local $_ = $_[0];
   pos = $_[2] || 0;		# Start at the beginning.
+  my $type = $_[3] || 0;
 
   for (;;) {
     my $last_pos = pos;
-    if( /\G([^"'\\\$]+)/gc ) {	# Just ordinary characters?
+    # Just ordinary characters?
+    if( $type == 2 ? m/\G([^"'\\]+)/gc : $type == 1 ? m/\G([^'\\]+)/gc : /\G([^"'\\\$]+)/gc ) {
       my $idx = index $1, $substr; # See if it's in those characters.
       $idx >= 0 and return $last_pos + $idx;
     }
@@ -161,10 +167,6 @@ sub index_ignoring_quotes {
     # It's one of the standard cases ", ', \ or $.
     &{$skip_over{substr $_, pos()++, 1}};
   }
-}
-sub index_ignoring_single_quotes {
-  local $skip_over{'"'} = local $skip_over{'$'} = $N[0];
-  &index_ignoring_quotes;
 }
 
 =head2 max_index_ignoring_quotes
@@ -184,7 +186,7 @@ sub max_index_ignoring_quotes {
 
 =head2 split_on_whitespace
 
-  @pieces = split_on_whitespace($string);
+  @pieces = split_on_whitespace $string[, type];
 
 Works just like
 
@@ -200,6 +202,9 @@ terminated by a matching double quote that isn't escaped by a backslash.
 Backquoted strings are terminated by a matching backquote that isn't escaped
 by a backslash.
 
+If type is C<1>, doesn't split inside make expressions (for historical reasons
+opposite to index_ignoring_quotes).
+
 =cut
 
 sub unquote_split_on_whitespace {
@@ -209,24 +214,25 @@ sub unquote_split_on_whitespace {
 }
 sub split_on_whitespace {
   my @pieces;
-  my $cmds = @_ > 1;
+  my $cmds = $_[1] || 0;
   local $_ = $_[0];
 
   pos = 0;			# Start at the beginning.
-  $cmds ? /^[;|&]+/gc : /^\s+/gc;			# Skip over leading whitespace.
+  $cmds == 2 ? m/^[;|&]+/gc : /^\s+/gc; # Skip over leading whitespace.
   my $last_pos = pos;
 
   for (;;) {
-    $cmds ? /\G[^;|&()"'`\\\$]+/gc : /\G[^\s"'\\]+/gc;	# Skip over irrelevant things.
+    # Skip over irrelevant things.
+    $cmds == 2 ? m/\G[^;|&()"'`\\\$]+/gc : $cmds == 1 ? m/\G[^\s\$"'\\]+/gc : /\G[^\s"'\\]+/gc;
 
     last if length() <= pos;	# End of string.
 
     my $cur_pos = pos;		# Remember the current position.
-    if ($cmds && /\G(?<=[<>])&/gc) {	# Skip over redirector, where & is not a separator
-    } elsif ($cmds ? /\G[;|&()]+/gc : /\G\s+/gc) { # Found some whitespace?
-      push(@pieces, substr($_, $last_pos, $cur_pos-$last_pos));
+    if( $cmds == 2 && /\G(?<=[<>])&/gc) {	# Skip over redirector, where & is not a separator
+    } elsif( $cmds == 2 ? m/\G[;|&()]+/gc : /\G\s+/gc ) { # Found some whitespace?
+      push @pieces, substr $_, $last_pos, $cur_pos-$last_pos;
       $last_pos = pos;		# Beginning of next string is after this space.
-    } elsif (!$cmds and /\G"/gc) { # Double quoted string?
+    } elsif( $cmds < 2 and /\G"/gc) { # Double quoted string?
       while (pos() < length) {
 	next if /\G[^\\"]+/gc;	# Skip everything except quote and \.
 	/\G"/gc and last;	# We've found the end of the string.
@@ -254,7 +260,7 @@ sub split_on_whitespace {
   @pieces;
 }
 sub split_commands {
-  split_on_whitespace $_[0], 1;
+  split_on_whitespace $_[0], 2;
 }
 
 =head2 join_with_protection

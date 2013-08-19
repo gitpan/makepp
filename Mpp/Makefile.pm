@@ -1,4 +1,4 @@
-# $Id: Makefile.pm,v 1.169 2013/03/04 21:31:09 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.174 2013/08/19 06:38:27 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_do);
@@ -299,15 +299,17 @@ sub expand_expression {
       Mpp::Text::pattern_substitution $pct ? ($2, $3) : ("%$2", "%$3"),
 	split_on_whitespace expand_variable( $self, $1, $makefile_line );
   } else {			# Must be a vanilla variable to expand.
-    $result = expand_variable( $self, $expr, $makefile_line );
+    return expand_variable( $self, $expr, $makefile_line );
   }
 
  done:
-  if( !defined $result ) {
+  if( defined $result ) {
+    Mpp::log EXPR => $expr, $result, $makefile_line || ''
+      if Mpp::DEBUG;
+    $result;
+  } else {
     warn "expression `$expr' expanded to an undefined value at `$makefile_line'.\n";
     '';
-  } else {
-    $result;
   }
 }
 
@@ -444,12 +446,16 @@ sub expand_variable {
   if( !$mode ) {
     defined $result or $result = ''; # Variable not found--make it defined.
     if( $reexpand ) {
+      Mpp::log VAR_EXPAND => $var, $result, $makefile_line || ''
+	if Mpp::DEBUG;
       $result = expand_text $self, $result, $makefile_line;
 				# Reexpand any variables inside.
       if( $reexpand == 2 ) {
 	$$varref = $result;
 	$reexpandref->{VAR_REEXPAND}{$var} = 0;
       }
+    } elsif( Mpp::DEBUG ) {
+      Mpp::log VAR => $var, $result, $makefile_line || '';
     }
     $result;
   } elsif( $mode == 1 ) {
@@ -1176,14 +1182,14 @@ sub grok_assignment {
 # or
 #   target1 target2: VAR += val
 #
-    $var_name = $list[1];
-    $var_name =~ s/^\s+//;	# Strip leading whitespace (again).
+    ($var_name = $list[1])
+      =~ s/^\s+//;		# Strip leading whitespace (again).
     $keyword->{override} = 1 if $var_name =~ s/^override\s+//;
   }
 
   if( @list ) {			# It's a target-specific assignment.
-    my $targets = $list[0];	# Get the targets for which this variable applies.
-    $targets =~ tr/%/*/;	# Convert % wildcard to normal filename wildcard.
+    (my $targets = $list[0])	# Get the targets for which this variable applies.
+      =~ tr/%/*/;		# Convert % wildcard to normal filename wildcard.
     &cd;			# Make sure we're in the right directory to expand the wildcard.
     wildcard_do {		# This block is called for every file that matches the wildcard.
       local $private = $_[0];	# Prior PRIVATE_VARS for +=, and for storing new value.
@@ -1247,7 +1253,7 @@ sub grok_rule {
   while (defined($_ = read_makefile_line_stripped(1))) {
 				# Get the next line.
     my $whitespace_len = Mpp::Text::strip_indentation;
-    if( /^$/ or /^#/ ) {
+    if( ord == ord '#' or /^$/ ) {
       $last_line_was_blank = 1 if !$whitespace_len or /^$/;
 				# Blank line or comment at right margin?
       next;			# Skip the blank or commented out lines.
@@ -1332,7 +1338,7 @@ sub grok_rule {
 #
 # Pull off the : modifiers.
 #
-  my( $foreach, $signature, $signature_name, $signature_override, $build_check, $build_cache, $have_build_cache );
+  my( $foreach, $signature, $signature_name, $signature_override, $build_check, $build_cache );
   my( $lexer, $parser );
   my $conditional_scanning;
   my $multiple_rules_ok;
@@ -1341,28 +1347,26 @@ sub grok_rule {
   my $env_dep_str;
   my $include;
 
-  while (@after_colon > 1) {	# Anything left?
-    if ($after_colon[-1] =~ /^\s*foreach\s+(.*?)\s*$/) {
+  while( @after_colon > 1 ) {	# Anything left?
+    if( $after_colon[-1] =~ /^\s*foreach\s+(.*?)\s*$/ ) {
       $foreach and die "$makefile_line: multiple :foreach clauses\n";
       $foreach = expand_text $self, $1, $makefile_line;
-    } elsif ($after_colon[-1] =~ /^\s*build[-_]?cache\s+(.*?)\s*$/) {
-                                # Specify a local build cache for this rule?
-      $build_cache and die "$makefile_line: multiple :build_cache clauses\n";
-      $build_cache = expand_text $self, $1, $makefile_line;
-      if( $build_cache eq 'none' ) {
-        $build_cache = undef;   # Turn off the build cache mechanism.
+    } elsif( $after_colon[-1] =~ /^\s*build[-_]?c(?:ache|heck())\s+(.*?)\s*$/ ) { # Build cache or check?
+      die "$makefile_line: multiple :build_" . (defined $1 ? 'check' : 'cache') . " clauses\n"
+	if defined $1 ? $build_check : $build_cache;
+      my $name = expand_text $self, $2, $makefile_line;
+      if( defined $1 ) {
+	$build_check = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name";
+	# Try to load the method.
+	defined $build_check or
+	  die "$makefile_line: invalid build_check method $name\n";
+      } elsif( $name eq 'none' ) {
+	$build_cache = 0;	# Turn off the build cache mechanism.
       } else {
-        require Mpp::BuildCache;
-        $build_cache = new Mpp::BuildCache( absolute_filename file_info $build_cache, $self->{CWD} );
+	require Mpp::BuildCache;
+	$build_cache = new Mpp::BuildCache( absolute_filename file_info $name, $self->{CWD} );
       }
-      $have_build_cache = 1;    # Remember that we have a build cache.
-    } elsif ($after_colon[-1] =~ /^\s*build[-_]?check\s+(.*?)\s*$/) { # Build check class?
-      $build_check and die "$makefile_line: multiple :build_check clauses\n";
-      my $name = expand_text $self, $1, $makefile_line;
-      $build_check = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name"; # Try to load the method.
-      defined $build_check or
-        die "$makefile_line: invalid build_check method $name\n";
-    } elsif ($after_colon[-1] =~ /^\s*signature\s+(.*?)\s*$/) { # Specify signature class?
+    } elsif( $after_colon[-1] =~ /^\s*signature\s+(.*?)\s*$/ ) { # Specify signature class?
       $signature and die "$makefile_line: multiple :signature clauses\n";
       my $name = expand_text $self, $1, $makefile_line;
       $signature = Mpp::Signature::get( $name, $makefile_line );
@@ -1372,9 +1376,9 @@ sub grok_rule {
       } else {
 	die "$makefile_line: invalid signature class $name\n";
       }
-    } elsif ($after_colon[-1] =~ /\s*(?:smart()|quick)[-_]?scan/) {
+    } elsif( $after_colon[-1] =~ /\s*(?:smart()|quick)[-_]?scan/ ) {
       $conditional_scanning = defined $1;
-    } elsif ($after_colon[-1] =~ /^\s*(?:command[-_]?)?parser\s+(.*?)\s*$/) {
+    } elsif( $after_colon[-1] =~ /^\s*(?:command[-_]?)?parser\s+(.*?)\s*$/ ) {
       $parser and die "$makefile_line: multiple :command-parser clauses\n";
       $parser = unquote expand_text $self, $1, $makefile_line;
       $parser =~ tr/-/_/;
@@ -1383,7 +1387,7 @@ sub grok_rule {
 	*{"$parser\::factory"}{CODE} ||
 	*{"Mpp::CommandParser::$parser\::factory"}{CODE} ||
 	die "$makefile_line: invalid command parser $parser\n";
-    } elsif ($after_colon[-1] =~ /^\s*multiple[-_]?rules[-_]?ok/) {
+    } elsif( $after_colon[-1] =~ /^\s*multiple[-_]?rules[-_]?ok/ ) {
       # This is an ugly hack to solve an unusual problem, and it shouldn't
       # be used by the general public.  The reason for it is that when you
       # have a directory with a makefile that needs to read lots of generated
@@ -1398,17 +1402,17 @@ sub grok_rule {
       # (so that buildable targets can be computed lazily), but that would
       # require a significant re-design of makepp.
       $multiple_rules_ok = 1;
-    } elsif ($after_colon[-1] =~ /^\s*env(?:ironment)?\s+(.*?)\s*$/) {
+    } elsif( $after_colon[-1] =~ /^\s*env(?:ironment)?\s+(.*?)\s*$/ ) {
       if($env_dep_str) {
         $env_dep_str .= " $1";
       } else {
         $env_dep_str = $1;
       }
-    } elsif ($after_colon[-1] =~ /^\s*dispatch\s+(.*?)\s*$/) {
+    } elsif( $after_colon[-1] =~ /^\s*dispatch\s+(.*?)\s*$/ ) {
       $dispatch = $1;
-    } elsif ($after_colon[-1] =~ /^\s*last[-_]?chance/) {
+    } elsif( $after_colon[-1] =~ /^\s*last[-_]?chance/ ) {
       $last_chance_rule = 1;
-    } elsif ($after_colon[-1] =~ /^\s*include\s+(.*?)\s*$/) {
+    } elsif( $after_colon[-1] =~ /^\s*include\s+(.*?)\s*$/ ) {
       $include = $1;
     } else {			# Something we don't recognize?
       last;
@@ -1462,18 +1466,18 @@ sub grok_rule {
 #
   if (@after_colon == 2) {
     $foreach and die "$makefile_line: :foreach and GNU static pattern rule are incompatible\n";
-    $foreach = $target_string;
     $after_colon[0] =~ /%/ or die "$makefile_line: no pattern in static pattern rule\n";
 				# Don't check for last chance, because we have finite set of targets
-    (@after_colon) = "\$(filesubst $after_colon[0], $after_colon[1], \$(foreach),_)";
+    $foreach = $target_string;
     $target_string = '$(foreach)';
+    (@after_colon) = "\$(filesubst $after_colon[0], $after_colon[1], \$(foreach),_)";
   }
 
   @after_colon == 1 or die "$makefile_line: extra `:'\n";
 				# At this point, the only thing we haven't
 				# interpreted after the colon should be the
 				# dependency string.
-  my @deps = split_on_whitespace $after_colon[0]; # Separate the dependencies.
+  my @deps = split_on_whitespace $after_colon[0], 1; # Separate the dependencies.
 #
 # Handle GNU make's regular pattern rules.  We convert a rule like
 #   %.o: %.c
@@ -1481,14 +1485,14 @@ sub grok_rule {
 #   $(filesubst %.c, %.o, $(foreach)) : $(foreach) : foreach **/*.c
 #
   my $pattern_dep = 0;
-  my $target_pattern = index_ignoring_quotes( $expanded_target_string, '%' ) >= 0;
+  my $target_pattern = index_ignoring_quotes( $expanded_target_string, '%', 0, 2 ) >= 0;
   if( $target_pattern ) { # Pattern rule?
     # find the first element of @deps that contains a pattern character, '%'
     for my $dep ( @deps ) {
-      last if index_ignoring_quotes( $dep, '%' ) >= 0;
+      last if index_ignoring_quotes( $dep, '%', 0, 2 ) >= 0;
       ++$pattern_dep;
     }
-    if ($pattern_dep < @deps) {  # does such an element exist?
+    if( $pattern_dep < @deps ) {  # does such an element exist?
       unless ($foreach) { # No foreach explicitly specified?
         $foreach = $deps[$pattern_dep]; # Add one, making wildcard from first pattern dep.
 	expand_variable( $self, 'makepp_percent_subdirs', $makefile_line ) && $foreach =~ s@^%@**/*@ or
@@ -1530,25 +1534,22 @@ sub grok_rule {
 # Handle our static pattern rule, with the % modifiers:
 #
     if( $target_pattern ) { # Pattern rule?
-
       $target_string = "\$(filesubst $deps[$pattern_dep], $target_string, \$(foreach),_)";
       for( @deps[$pattern_dep+1..$#deps] ) { # Handle any extra dependencies:
-	index_ignoring_quotes( $_, '%' ) >= 0 and
+	index_ignoring_quotes( $_, '%', 0, 2 ) >= 0 and
 	  $_ = "\$(filesubst $deps[$pattern_dep], $_, \$(foreach),_)";
       }
       $include = "\$(filesubst $deps[$pattern_dep], $include, \$(foreach),_)"
-	if $include && index_ignoring_quotes( $include, '%' ) >= 0;
+	if $include && index_ignoring_quotes( $include, '%', 0, 2 ) >= 0;
       $deps[$pattern_dep] = '$(foreach)'; # This had better match the wildcard specified
-				# in the foreach clause.  I don't know of
-				# any way to check that.
+				# in the foreach clause.  TODO: this is buggy with resulting multiple %. (limr mail)
       $after_colon[0] = "@deps";
     }
     &cd;			# Make sure we're in the correct directory,
 				# or everything will be all messed up.
 
     wildcard_do { # This block is called once for each file that matches the foreach clause.
-      my( $finfo, $plain ) = @_;
-				# Get the arguments.
+      my( $finfo, $plain ) = @_; # Get the arguments.
 
       return if exists $finfo->{PATTERN_RULES} # Don't keep on applying same rule.
 	and grep $_ eq $makefile_line_dir, @{$finfo->{PATTERN_RULES}};
@@ -1573,7 +1574,7 @@ sub grok_rule {
       local $Mpp::Subs::rule = $rule; # Put it so $(foreach) can properly expand.
       $build_check and $rule->set_build_check_method($build_check);
       $signature and $rule->set_signature_class( $signature_name, 0, $signature, $signature_override );
-      $have_build_cache and $rule->set_build_cache($build_cache);
+      defined $build_cache and Mpp::BuildCache::set( $rule, $build_cache );
       $lexer and $rule->{LEXER} = $lexer;
       $parser and $rule->{PARSER} = $parser;
       defined($conditional_scanning) and
@@ -1583,10 +1584,8 @@ sub grok_rule {
 	[$makefile_line_dir, @{$finfo->{PATTERN_RULES}}] : [$makefile_line_dir]
 	unless $plain;		# Mark it as a pattern rule if it was done with a wildcard.
 
-      my @targets = split_on_whitespace(expand_text($self, $target_string, $makefile_line));
+      foreach( split_on_whitespace expand_text $self, $target_string, $makefile_line ) {
 				# Get the targets for this rule.
-
-      foreach (@targets) {
 	my $tinfo = file_info unquote(), $self->{CWD}; # Access the target object.
 	Mpp::File::set_rule $tinfo, $rule; # Update its rule.  This will be ignored if
 				# it is overriding something we shouldn't override.
@@ -1650,7 +1649,7 @@ sub grok_rule {
         $rule->{ENV_DEPENDENCY_STRING} = $env_dep_str if $env_dep_str;
 	$build_check and $rule->set_build_check_method($build_check);
 	$signature and $rule->set_signature_class( $signature_name, 0, $signature, $signature_override );
-        $have_build_cache and $rule->set_build_cache($build_cache);
+        defined $build_cache and Mpp::BuildCache::set( $rule, $build_cache );
 	$lexer and $rule->{LEXER} = $lexer;
 	$parser and $rule->{PARSER} = $parser;
         defined($conditional_scanning) and
@@ -1664,7 +1663,7 @@ sub grok_rule {
 	    $tinfo->{RULE}->append($rule); # Append the dependency list and the
 				# build commands.
 	  } else {
-	    Mpp::File::set_rule($tinfo, $rule); # Update its rule.
+	    Mpp::File::set_rule $tinfo, $rule; # Update its rule.
 	  }
 	  $self->{FIRST_TARGET} ||= $tinfo;
 				# Remember what the first target is, in case
@@ -1679,13 +1678,13 @@ sub grok_rule {
       	# If it is an open-ended ":last_chance" rule, then we need to
 	# set a trigger to generate the rules on demand.  Otherwise, it's
 	# just a single rule that we can generate now.
-      	if(index_ignoring_quotes($tstring, '%') >= 0) {
+      	if( index_ignoring_quotes( $tstring, '%', 0, 2 ) >= 0 ) {
 	  die "Can't use :last_chance and :include together\n" if $include; # TODO: figure out how to handle %.d
 	  my $subdirs = expand_variable $self, 'makepp_percent_subdirs', $makefile_line;
 	  my $pct_re = $subdirs ? '.*' : '[^/]*';
 	  my( @wild_targets, @pattern_re );
 	  foreach (split_on_whitespace($tstring)) {
-	    if( index_ignoring_quotes($_, '%') >= 0 ) {
+	    if( index_ignoring_quotes( $_, '%', 0, 2 ) >= 0 ) {
 	      my $wild_target = unquote;
 	      my $re = quotemeta $wild_target;
 	      if( $subdirs ) { $wild_target =~ s!%!**/*!g } else { $wild_target =~ tr!%!*! }
@@ -2172,7 +2171,7 @@ sub _read_makefile_line_stripped_1 {
 				# Strip out leading whitespace from line
 				# continuations.
 
-    next if !$_[0] && $next_line =~ /^#/; # Skip it if it begins with a comment.
+    next unless $_[0] || ord( $next_line ) != ord '#'; # Skip it if it begins with a comment.
 
     $line .= $next_line;	# Append it to the current line.
     my $closedgroup = ($line !~ s/((?:^|[^\$])\$(?:\(\((?!.*\)\))|\{\{(?!.*\}\})|\[\[(?!.*\]\])).*?)\s*$/$1 /s);

@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# $Id: config.pl,v 1.33 2013/02/16 15:11:37 pfeiffer Exp $
+# $Id: config.pl,v 1.36 2013/07/05 21:02:38 pfeiffer Exp $
 #
 # Configure this package.
 #
@@ -13,7 +13,7 @@ BEGIN { eval { require 5.008 } or warn <<EOS and exit 1 } # avoid BEGIN/die diag
 I need Perl version 5.8 or newer.  If you have it installed somewhere
 already, run this installation procedure with that perl binary, e.g.:
 
-	perl5.16.2 install.pl ...
+	perl5.16.3 install.pl ...
 
 If you don't have a recent version of Perl installed (what kind of system are
 you on?), get the latest from www.perl.org and install it.
@@ -26,11 +26,15 @@ EOS
 use strict;
 use Mpp::File ();		# ensure HOME is set
 
+print 'Using perl in ' . PERL . ".\n";
+print "If you want another, please set environment variable PERL to it & reconfigure.\n"
+  unless $ENV{PERL};
+
 #
 # Parse the arguments:
 #
-my $prefix = "/usr/local";
-my $findbin = "none";
+my $prefix;
+my $findbin = 'none';
 my $makefile = '.';
 my( $bindir, $datadir, $mandir, $htmldir );
 
@@ -48,10 +52,16 @@ Mpp::Text::getopts
 
 
 $makefile .= '/Makefile' if -d $makefile;
-$bindir ||= "$prefix/bin";
+if( !$bindir ) {
+  $prefix ||= '/usr/local';
+  $bindir = "$prefix/bin";
+} elsif( !$prefix ) {
+  $bindir =~ m@^(.*)/bin@ and $prefix = $1;
+  $prefix ||= '/usr/local';
+}
 $datadir ||= "$prefix/share/makepp";
-$htmldir ||= "$datadir/html";
-$mandir ||= "$prefix/man";
+$htmldir ||= do { my $d = "$prefix/share/doc"; -d $d ? "$d/makepp" : "$datadir/html" };
+$mandir ||= do { my $d = "$prefix/share/man"; -d $d ? $d : "$prefix/man" };
 
 foreach ($bindir, $datadir, $htmldir) {
   s@~/@$ENV{HOME}/@;
@@ -73,7 +83,9 @@ DATADIR = $datadir
 FINDBIN = $findbin
 MANDIR = $mandir
 HTMLDIR = $htmldir
-VERSION = makepp-$Mpp::Text::VERSION",
+VERSION = makepp-$Mpp::Text::VERSION
+PASS_PERL =",
+(Mpp::is_windows < 1 ? ' PERL=$(PERL)' : ''), # unknown syntax, not needed, coz we generate a .bat
 q[
 
 FILES = makepp makeppbuiltin makeppclean makeppgraph makeppinfo makepplog makeppreplay makepp_build_cache_control recursive_makepp \

@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.120 2013/03/04 21:31:00 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.122 2013/08/19 06:38:27 pfeiffer Exp $
 
 =head1 NAME
 
@@ -216,8 +216,8 @@ sub exists_or_can_be_built {
   # Exists in repository?
   if( exists $finfo->{ALTERNATE_VERSIONS} ) {
     for( @{$finfo->{ALTERNATE_VERSIONS}} ) {
-      $result = $finfo->{RULE} || !was_built_by_makepp $_;
-      return $result || undef if defined $result;
+      $result = exists_or_can_be_built_norecurse $_, $phony, $stale;
+      return $result ? $finfo : undef if defined $result;
     }
   }
   undef;
@@ -553,8 +553,9 @@ sub set_rule {
 # If we get here, we have decided that the new rule (in $rule) should override
 # the old one (if there is one).
 #
-#  $Mpp::log_level and
-#    Mpp::print_log(0, $rule, ' applies to target ', $finfo);
+
+  Mpp::log RULE_SET => $finfo, $rule->{DEPENDENCY_STRING}, $rule->{RULE_SOURCE}
+    if Mpp::DEBUG;
 
   undef $finfo->{xPHONY}	# Hack to get past above restriction for xyz -> xyz.exe
     if Mpp::is_windows && $rule_is_builtin && delete $finfo->{_IS_EXE_PHONY_};
@@ -695,7 +696,8 @@ sub update_build_infos {
 END {
   &update_build_infos;
   for my $finfo ( values %warned_stale ) {
-    if( is_stale $finfo and file_exists $finfo ) { # After all, it is still stale.
+    if( is_stale $finfo and file_exists $finfo ) {
+      # After all, it is still stale and not hidden from mpp.
       Mpp::log DEL_STALE => $finfo
 	if $Mpp::log_level;
       &unlink( $finfo );
@@ -736,9 +738,11 @@ rule for it is to get it from a repository.
 # Note that load_build_info_file may need to track changes to is_stale.
 sub is_stale {
   (exists $_[0]{xPHONY} ||
-   !exists($_[0]{RULE}) && !$_[0]{ADDITIONAL_DEPENDENCIES}
-  ) && !&dont_build && &was_built_by_makepp &&
-    (defined &Mpp::Repository::no_valid_alt_versions ? &Mpp::Repository::no_valid_alt_versions : 1);
+   !exists $_[0]{RULE} && !$_[0]{ADDITIONAL_DEPENDENCIES})
+  && !&dont_build && &was_built_by_makepp &&
+    (defined &Mpp::Repository::no_valid_alt_versions ? &Mpp::Repository::no_valid_alt_versions : 1)
+  && (exists $_[0]->{LINK_DEREF} || # don't test possibly dangling symlink
+      have_read_permission $_[0]); # hidden by user can't be stale
 }
 
 =head2 assume_unchanged

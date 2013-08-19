@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Makepp version @VERSION@.
-# $Id: makepp,v 1.220 2013/03/04 21:31:26 pfeiffer Exp $
+# $Id: makepp,v 1.223 2013/04/22 07:00:37 pfeiffer Exp $
 # See @htmldir@/index.html for user documentation.
 #
 
@@ -37,6 +37,7 @@ BEGIN {
 
   $datadir = eval "use Cwd; cwd . '/$datadir'"
     if $datadir =~ /^\./;	# Make it absolute, if it's a relative path.
+  do "$datadir/Mpp/DB.pm" if exists $DB::{sh};
 
   if( $^O =~ /^MSWin/ && $] < 5.008007 ) { # IDENTICAL AS IN t/run_tests.pl
     # This is a very bad hack!  On earlier Win Active State "lstat 'file'; lstat _ or -l _" is broken.
@@ -109,17 +110,10 @@ our $implicit_load_makeppfile_only = 0;
 				# Never implicitly load makefile and Makefile.
 our $force_rescan = 0;		# Don't use cached scanner results
 our $final_rule_only = 0;	# Unconditionally run only the top-level rules
-our $nopopulate_bc = 0;		# Don't populate the build cache
-our $md5check_bc = 0;		# Check the MD5 signature of build cache files
-our $populate_bc_only = 0;	# Don't import from the build cache
-our $force_bc_copy = 0;		# Don't link from BC (for testing)
 our $nocache_scaninfo = 0;	# Don't save scanner results
 our $rm_stale_files = 0;	# Ignore stale files, removing them if
 				# necessary, instead of treating them as
 				# source files.
-our $symlink_in_rep_as_file;	# Treat a symlink in a repository as a file
-				# to be fetched, rather than a link to be
-				# fetched.
 our $no_path_executable_dependencies = 0;
 				# Don't add implicit dependencies on executables
 				# picked up from the command search path.
@@ -267,9 +261,6 @@ sub build {
     $rule->find_all_targets_dependencies( $oinfo, $dont_scan );
 				# Find out everything that's needed for this
 				# command, and everything that it changes.
-
-  $all_dependencies = $rule->sorted_dependencies( $all_dependencies );
-				# Use sorted list from now on.
 
   Mpp::log DEPEND => $all_targets, $all_dependencies
     if $log_level;
@@ -472,7 +463,7 @@ sub build_dependencies_done {
 	    }
 	  }
 	}
-	if( my $build_cache = !$populate_bc_only && $rule->build_cache ) {
+	if( defined $Mpp::BuildCache::used and my $build_cache = !$Mpp::BuildCache::write_only && $rule->build_cache ) {
 				# Do we have a build cache we can look in?
 	  my $bc_key = $build_check_method->
 	    build_cache_key( $target, $all_dependencies, $command_string,
@@ -672,7 +663,7 @@ sub build_target_done {
 				# algorithm we want to use.
     my $build_cwd = $rule->build_cwd;
     my $is_recursive_make = defined $Mpp::Recursive::command && $command_string =~ /\brecursive_makepp\b/;
-    my $build_cache = $rule->build_cache;
+    my $build_cache = defined $Mpp::BuildCache::used && $rule->build_cache;
     my $build_check_method = $rule->build_check_method;
 
     Mpp::log SUCCESS => $rule, $all_targets
@@ -702,7 +693,7 @@ sub build_target_done {
 
     foreach my $tinfo (@$all_targets) {
       next if exists $tinfo->{xPHONY}; # Skip phony targets.
-      if( $include ) {			 # Do this for all targets, as we don't know which one was in the :include .d
+      if( $include ) {		# Do this for all targets, as we don't know which one was in the :include .d
 	$uniq{sprintf '%x', $_} = $_ for $rule->expand_additional_deps( $tinfo );
       }
       may_have_changed $tinfo;	# Invalidate cached info.
@@ -711,12 +702,11 @@ sub build_target_done {
 				# but that doesn't slow things down too much.
       my $deref = dereference $tinfo;
       may_have_changed $deref if $tinfo != $deref;
-				# Since we don't know whether the command
-				# modified the link or its referent or both,
-				# need to invalidate both.
+				# Since we don't know whether the command modified the link
+				# or its referent or both, need to invalidate both.
       push @built_targets, $tinfo;
     }
-    $all_dependencies = $rule->sorted_dependencies( [values %uniq] )
+    $all_dependencies = $rule->sorted_dependencies( values %uniq )
       if keys %uniq;
     $rule->cache_scaninfo(\@built_targets);
     my $sorted_dep_names = join "\cA", map relative_filename( $_, $build_cwd ), @$all_dependencies;
@@ -766,7 +756,7 @@ sub build_target_done {
 	    CWD => relative_filename( $build_cwd, $tinfo->{'..'} ),
 	    ARCH => ARCHITECTURE, # Tag the build with the architecture, too.
 	    @extra;
-	  if( $build_cache && !$nopopulate_bc and # Store this file in a build cache?
+	  if( $build_cache && !$Mpp::BuildCache::read_only and # Store this file in a build cache?
 	      my $bc_key = $build_check_method->
 		build_cache_key( $tinfo, $all_dependencies, $command_string, $build_cwd, $sig_method, $env )) {
 	    # Store the file in cache.
@@ -1230,7 +1220,7 @@ perform eval {
      }],
 
     [undef, qr/final[-_]?rules?[-_]?only/, \$final_rule_only],
-    [undef, qr/force[-_]?copy[-_]?from[-_]?bc/, \$force_bc_copy],
+    [undef, qr/force[-_]?copy[-_]?from[-_]?bc/, eval '\$Mpp::BuildCache::force_copy'],
     [undef, qr/force[-_]?rescan/, \$force_rescan],
 
     [undef, 'gullible', \$gullible],
@@ -1275,12 +1265,12 @@ perform eval {
        Mpp::Subs::s_signature $tmp, undef, $progname, {global => 1, override => 1};
      }],
 
-    [undef, qr/md5[-_]?(?:check[-_]?)?bc/, \$md5check_bc],
+    [undef, qr/md5[-_]?(?:check[-_]?)?bc/, eval '\$Mpp::BuildCache::md5check'],
 
     [undef, qr/no[-_]?cache[-_]?scaninfos?/, \$nocache_scaninfo],
     [undef, qr/no[-_]?implicit[-_]?load/, \$implicitly_load_makefiles, undef, 0],
     [undef, qr/no[-_]?path[-_]?exe(?:cutable)?[-_]?dep(?:s|endency|endencies)?/, \$no_path_executable_dependencies],
-    [undef, qr/no[-_]?populate[-_]?bc/, \$nopopulate_bc],
+    [undef, qr/no[-_]?populate[-_]?bc/, \$Mpp::BuildCache::read_only],
 				# don't populate bc with targets, just read from it
     [undef, qr/no[-_]?remake[-_]?makefiles/, \$remake_makefiles, undef, 0],
 				# Don't remake makefiles automatically?
@@ -1292,14 +1282,14 @@ perform eval {
 				# Remember that we have to check parent dirs
      }],
 
-    [undef, qr/populate[-_]?bc[-_]?only/, \$populate_bc_only],
+    [undef, qr/populate[-_]?bc[-_]?only/, \$Mpp::BuildCache::write_only],
 
     [undef, qr/re?m(?:ove)?[-_]?stale(?:[-_]?files)?/, \$rm_stale_files],
 
     [undef, qr/sand[-_]?box[-_]?warn(?:ing)?/, \$sandbox_warn_flag],
     [undef, qr/loop|stop(?:[-_]?before[-_]?build(?:ing)?|[-_]?after[-_]?load(?:ing|ed)?)?/, \$loop],
     [undef, qr/stop[-_]?(?:on[-_]?)?race/, \$stop_on_race],
-    [undef, qr/symlink[-_]?in[-_]?rep(?:os(?:itory)?)?[-_]?as[-_]?file/, \$symlink_in_rep_as_file],
+    [undef, qr/symlink[-_]?in[-_]?rep(?:os(?:itory)?)?[-_]?as[-_]?file/, eval '\$Mpp::Repository::symlink_as_file'],
 
     [undef, qr/traditional(?:[-_]?recurs(?:ion|ive|ive[-_]?make))?/, \$Mpp::Recursive::traditional],
 

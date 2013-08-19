@@ -1,4 +1,4 @@
-# $Id: Scanner.pm,v 1.60 2012/10/14 15:16:14 pfeiffer Exp $
+# $Id: Scanner.pm,v 1.62 2013/08/19 06:38:27 pfeiffer Exp $
 
 =head1 NAME
 
@@ -238,9 +238,9 @@ sub info_string {
   $scanner->dont_scan($finfo, $absname);
 
 Returns 1 if the file $finfo should be scanned.
-$absname, if defined, must be $finfo's absolute filename.
+$absname must be $finfo's absolute filename.
 
-Files that shouldn't be scanned typically include the system include files,
+Files that shouldn't be scanned typically are the system include files,
 as well as any files that are in a directory that can't be written by the
 current user.
 It is assumed that such files don't include other files that change between
@@ -251,21 +251,19 @@ makepp.
 =cut
 
 sub dont_scan {
-  my ($self, $finfo, $absname) = @_;
-  unless( Mpp::File::is_writable( $finfo->{'..'} )) {
-    Mpp::log SCAN_NOT_UNWRITABLE => $finfo
-      if $Mpp::log_level;
-    return 1;
-  }
-  $absname ||= absolute_filename( $finfo->{'..'} );
-  if( $absname =~ m@^/usr/(?:X11(?:R.)?/|local/)include\b@ ) {
+  #my( $self, $finfo, $absname ) = @_;
+  my $case = $_[2] =~ m@^/usr/(?:X11(?:R.)?/|local/)include\b@;
 				# Don't scan stuff in the system directories.
 				# This can lead to problems if we build as
 				# a user and then install as root.  This won't
 				# completely solve the problem, but it will
 				# make it much less common.
-    Mpp::log SCAN_NOT_SYS => $finfo
-      if $Mpp::log_level;
+  $case = 2 unless $case || Mpp::File::is_writable( $_[1]{'..'} );
+  if( $case ) {
+    if( Mpp::DEBUG && !exists $_[1]->{xNOSCAN} ) {
+      Mpp::log qw(SCAN_NOT_SYS SCAN_NOT_UNWRITABLE)[$case - 1], $_[1];
+      undef $_[1]{xNOSCAN};
+    }
     return 1;
   }
   0;
@@ -330,7 +328,7 @@ sub scan_file1 {
     if( open my $fh, $absname ) {
       print "$Mpp::progname: Scanning `$absname'\n" unless $Mpp::quiet_flag;
       Mpp::log SCAN => $finfo
-	if $Mpp::log_level;
+	if Mpp::DEBUG;
       # NOTE: We get away with having a single INC for the
       # Mpp::Scanner object because when we scan unconditionally,
       # there is only one file being scanned at a time.
@@ -434,8 +432,8 @@ if any, or the source directory Mpp::File.
 my %already_warned_missing;
 
 sub find {
-  my ($self, undef, $tag, $name, $src)=@_;
-  if( $name !~ m@^/@ ) {
+  my( $self, undef, $tag, $name, $src ) = @_;
+  if( ord( $name ) != ord '/' ) {
     return $self->get_file_info($name) unless $tag;
     my( $src_dir, $key );
     local $Mpp::File::read_dir_before_lstat = 1;

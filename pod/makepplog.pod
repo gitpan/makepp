@@ -2,7 +2,7 @@
 
 makepplog -- Textual analysis of the build log
 
-=for vc $Id: makepplog.pod,v 1.15 2013/01/20 16:54:22 pfeiffer Exp $
+=for vc $Id: makepplog.pod,v 1.16 2013/08/19 06:38:50 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -16,6 +16,7 @@ B<C:>E<nbsp>L<-C|/c>,
   L<-c|/c>,
   L<--current-working-directory|/c>,
   L<--current-working-directory-and-up|/c>,E<nbsp>
+B<D:>E<nbsp>L<-d|/d>,E<nbsp>
 B<F:>E<nbsp>L<-f|/f>,
   L<--follow|/f>,E<nbsp>
 B<H:>E<nbsp>L<-h|/_>,
@@ -37,7 +38,8 @@ B<O:>E<nbsp>L<-o|/o_filename>,
   L<--output|/o_filename>,E<nbsp>
 B<P:>E<nbsp>L<-p|/p>,
   L<--prefix|/p>,E<nbsp>
-B<S:>E<nbsp>L<--showkey|/k>,E<nbsp>
+B<S:>E<nbsp>L<--set-directory|/d>,
+  L<--showkey|/k>,E<nbsp>
 B<T:>E<nbsp>L<-t|/t>,
   L<--tabulate|/t>,E<nbsp>
 B<U:>E<nbsp>L<-u|/u>,
@@ -86,6 +88,14 @@ directories up from here, with the necessary number of F<../> entries.
 
 These options only work meaningfully when you call makepplog in the same
 directory makepp ran, or one near there.
+
+=item -d
+
+=item --set-directory
+
+Virtually switch to the directory where the log file was originally produced.
+If you copied or moved it from there, this is necessary for C<-c> (which is
+implied by this option) to shorten the original path.
 
 =item -f
 

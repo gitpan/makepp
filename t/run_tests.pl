@@ -156,7 +156,6 @@ run_tests.pl[ options][ tests]
 EOF
 
   require Mpp::Utils;
-  require Mpp::Glob;
   require Mpp::Cmds;
   for( keys %Mpp::Cmds:: ) {
     if( /^c_/ and my $coderef = *{"Mpp::Cmds::$_"}{CODE} ) {
@@ -268,8 +267,8 @@ my %file;
 my $page_break = '';
 my $log_count = 1;
 sub makepp(@) {
-  my $suffix = '';
-  $suffix = ${shift()} if ref $_[0];
+  my $extra = ref $_[0];
+  my $suffix = $extra ? ${shift()} : '';
   print "${page_break}makepp$suffix" . (@_ ? " @_\n" : "\n");
   $page_break = "\cL\n";
   if( !$suffix && -f '.makepp/log' ) {
@@ -279,6 +278,17 @@ sub makepp(@) {
   }
   system_intabort \"makepp$suffix", # "
     PERL, '-w', exists $file{'makeppextra.pm'} ? '-Mmakeppextra' : (), $makepp_path.$suffix, @_;
+  unless( $extra ) {
+    for my $file ( <{*/*/*/,*/*/,*/,}.makepp/*.mk> ) {
+      open my( $fh ), $file;
+      $file =~ s!\.makepp/(.+)\.mk$!$1!;
+      -r $file && !-d _ or next;
+      my $binfo = Mpp::File::grok_build_info_file $fh;
+      my $sig = join ',', (stat _)[9,7];
+      warn "$file $binfo->{SIGNATURE} vs. " . $sig
+	if $binfo->{SIGNATURE} ne $sig;
+    }
+  }
   1;				# Command succeeded.
 }
 
@@ -398,10 +408,12 @@ sub n_files(;$$) {
 }
 
 my $have_shell = -x '/bin/sh';
+our $mod_answer;
 
 print OSTDOUT '1..'.@ARGV."\n" if $test;
 test_loop:
 foreach $archive (@ARGV) {
+  undef $mod_answer;
   %file = ();
   my $testname = $archive;
   my( $tarcmd, $dirtest, $warned, $tdir, $tdir_failed, $log );
@@ -503,9 +515,9 @@ foreach $archive (@ARGV) {
     my @errors;
     {
       local $/;			# Slurp in the whole file at once.
-      for my $name ( Mpp::Glob::zglob 'answers/**/*' ) {
+      for my $name ( <answers/{*/*/*/,*/*/,*/,}*> ) {
 	next if $name =~ /\/n_files$/ # Skip the special file.
-	  or -d $name;	# Skip subdirectories, find recurses.
+	  or -d $name;		# Skip subdirectories.
 	open TFILE, '<:crlf', $name or die "$0: can't open $tdir/$name--$!\n";
 	$tfile_contents = <TFILE>; # Read in the whole thing.
 
@@ -513,7 +525,9 @@ foreach $archive (@ARGV) {
 	$name =~ s!answers/!!;
 	open TFILE, '<:crlf', $name or die "$0: can't open $tdir/$name--$!\n";
 	my $mtfile_contents = <TFILE>; # Read in the whole file.
-	$mtfile_contents eq $tfile_contents or push @errors, $name;
+	&$mod_answer( $name, $mtfile_contents, $tfile_contents ) if $mod_answer;
+	$mtfile_contents eq $tfile_contents
+	  or push @errors, $name;
       }
     }
     close TFILE;
@@ -525,7 +539,9 @@ foreach $archive (@ARGV) {
       push @errors, '.makepp/log';
     } elsif( open my $n_files, 'answers/n_files' ) { # Count of # of files updated?
       $_ = <$n_files>;
-      $_ eq $n_files_updated or push @errors, 'n_files';
+      &$mod_answer( 'n_files', $n_files_updated, $_ ) if $mod_answer;
+      $_ eq $n_files_updated
+	or push @errors, 'n_files';
     }
 
 # Get rid of the log file so we don't get confused if the next test doesn't
@@ -710,6 +726,12 @@ should use &echo and other builtins for efficiency anyway.
 
 If this file does not exist, then we simply execute the command
 S<C<$PERL makepp>>, so makepp builds all the default targets in the makefile.
+
+If you use the C<.pl> variant, you can set C<$Mpp::mod_answer> to a hook which
+will get called for each answer file, with the filename, the generated content
+and the expected answer.  The hook can then modify either of the last two
+arguments, to make them fit, e.g. on Windows where an extra phony target gets
+counted for each compilation.
 
 =item makeppextra.pm
 

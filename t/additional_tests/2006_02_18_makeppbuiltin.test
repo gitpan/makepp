@@ -51,7 +51,7 @@ while( <$mf> ) {
 sub c_clonetest {
   open my $fh, 'commands';
   while( <$fh> ) {
-    next if !/^&/;
+    next if ord != ord '&';
     warn $_;
     chop;
     my $comment = Mpp::Text::index_ignoring_quotes( $_, '#' );

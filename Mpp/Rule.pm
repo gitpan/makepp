@@ -1,12 +1,12 @@
-# $Id: Rule.pm,v 1.130 2013/03/04 21:30:52 pfeiffer Exp $
+# $Id: Rule.pm,v 1.133 2013/08/19 06:38:27 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
 
+use Mpp::Text;
 use Mpp::Event qw(when_done wait_for);
 use Mpp::File;
 use Mpp::FileOpt;
-use Mpp::Text;
 use Mpp::BuildCheck::exact_match;
 use Mpp::Lexer;
 use Mpp::Cmds;
@@ -46,6 +46,8 @@ This does not actually place the rule into the Mpp::File hierarchy.
 
 sub new {
   #my ($class, $targets, $dependencies, $command, $makefile, $source_line, $build_check_method, $signature_method) = @_;
+  $_[2] =~ s/^\s+//s;
+  $_[2] =~ s/\s+$//s;
   bless { TARGET_STRING => $_[1],
 	  DEPENDENCY_STRING => $_[2],
 	  COMMAND_STRING => $_[3],
@@ -60,25 +62,6 @@ sub new {
 # Return the directory that this rule should be executed in.
 #
 sub build_cwd { $_[0]{MAKEFILE}{CWD} }
-
-#
-# Return a build cache associated with this rule, if any.
-#
-# A build cache may be specified for each rule, or for a whole makefile,
-# or for all makefiles (on the command line).
-#
-sub build_cache {
-  exists $_[0]{BUILD_CACHE} ? $_[0]{BUILD_CACHE} :
-  exists $_[0]{MAKEFILE}{BUILD_CACHE} ? $_[0]{MAKEFILE}{BUILD_CACHE} :
-  $Mpp::BuildCache::global;
-}
-
-#
-# Set the build cache for this rule.
-#
-sub set_build_cache {
-  $_[0]{BUILD_CACHE} = $_[1];
-}
 
 #
 # Return the makefile that made this rule:
@@ -96,8 +79,8 @@ sub makefile { $_[0]{MAKEFILE} }
 #     $rule->find_all_targets_dependencies($oinfo);
 #
 # Where all_targets is a reference to a list of target object info structs,
-# all_dependencies is a reference to a list of dependency object info structs,
-# $action_string is the final build command after expanding all make
+# all_dependencies is a reference to a sorted list of dependency object info
+# structs, $action_string is the final build command after expanding all make
 # variables, and $env_deps is a reference to a hash mapping environmental
 # dependencies to current values. $oinfo is the requested target, which is
 # used only to determine where to look for cached scan information.
@@ -256,15 +239,12 @@ sub find_all_targets_dependencies {
 
 #
 # Make a list of the targets and the dependencies, first listing the explicitly
-# specified ones, and then listing the implicit ones later.  It's confusing
-# (and breaks some makefiles) if dependencies are built in a different order
-# than they are specified.
+# specified ones, and then listing the implicit ones later.
 #
   delete $all_targets{sprintf '%x', $_} for @explicit_targets;
-  delete $all_dependencies{sprintf '%x', $_} for @explicit_dependencies;
 
   ([ @explicit_targets, values %all_targets ],
-   [ @explicit_dependencies, values %all_dependencies ],
+   $self->sorted_dependencies( values %all_dependencies ),
    $command_string, \%env_dependencies);
 }
 
@@ -531,6 +511,7 @@ sub cache_scaninfo {
     my @implicits = 'IMPLICIT_TARGETS';
     push @implicits, 'IMPLICIT_ENV_DEPS' if %{$self->{IMPLICIT_ENV_DEPS} || {}};
     for my $tinfo (@$targets) {
+      save_build_info_( $self, $tinfo, 'RULE_SOURCE' ) if Mpp::DEBUG;
       save_build_info_( $self, $tinfo, 'SIG_METHOD_NAME' );
       save_build_info_( $self, $tinfo, 'SIG_METHOD_IMPLICIT' );
       save_build_info_tag_( $self, $tinfo, 'INCLUDE_PATHS', \&join1_ );
@@ -709,7 +690,7 @@ sub load_scaninfo_ {
   unless( $flush_scaninfo ) {
     my $rebuild_needed = $self->build_check_method->build_check(
       $tinfo_version,
-      $self->sorted_dependencies([values %{$self->{ALL_DEPENDENCIES}}]),
+      $self->sorted_dependencies( values %{$self->{ALL_DEPENDENCIES}} ),
       $command_string, $cwd, $self->signature_method,
       $self->{ENV_DEPENDENCIES}
     );
@@ -779,10 +760,10 @@ sub load_scaninfo {
 }
 
 sub sorted_dependencies {
-  my ($self, $all_dependencies) = @_;
+  #my( $self, @all_dependencies ) = @_;
   my( %dependencies, %long_dependencies, %dups );
-  my $build_cwd = $self->build_cwd;
-  for( @$all_dependencies ) {
+  my $build_cwd = shift->build_cwd;
+  for( @_ ) {
     my $name = $_->{NAME};
     if( $dups{$name} ) {
       $long_dependencies{relative_filename( $_, $build_cwd )} = $_;
@@ -845,7 +826,7 @@ sub execute {
     }
     $Mpp::n_files_changed--;	# Undo count, since we're not really rebuilding it.
     Mpp::log SYMLINK_KEEP => $all_targets->[0], $self->source
-      if $Mpp::log_level;
+      if Mpp::DEBUG;
     return;			# Success, pretend we did rebuild it.
   }}
 
@@ -1399,9 +1380,8 @@ sub build_cwd { $Mpp::File::CWD_INFO }
 sub find_all_targets_dependencies {
   my $target = $_[0]{TARGET};	# Get the target object info.
   ([$target],
-   $target->{ADDITIONAL_DEPENDENCIES} ? [$_[0]->expand_additional_deps($target)] : [],
-				# Are there dependencies for this file even
-				# though there's no rule?
+   $target->{ADDITIONAL_DEPENDENCIES} ? $_[0]->sorted_dependencies( $_[0]->expand_additional_deps( $target )) : [],
+				# Are there dependencies for this file even though there's no rule?
 				# We have to expand the dependency list now.
    '', {});
 }
@@ -1411,23 +1391,25 @@ sub find_all_targets_dependencies {
 #
 sub execute {
   my $target = $_[0]{TARGET};
+  my $ret = -1;			# Return nonzero to indicate error.
   if( exists $target->{TEMP_BUILD_INFO} ) {
     Mpp::print_error 'Attempting to retain stale ', $target;
-    -1;				# Return nonzero to indicate error.
   } elsif( $target->{ADDITIONAL_DEPENDENCIES} ) {
     # If it has additional dependencies, then there was a rule, or at least we
     # have to pretend there was.
     # Mpp::build handles linking targets in from a repository after the rule
     # runs, so we don't have to do it here even if there are ALTERNATE_VERSIONS.
-    0;				# Return success even if the file doesn't exist.
+    $ret = 0;			# Return success even if the file doesn't exist.
   				# This is to handle things like FORCE:
   				# which are really just dummy phony targets.
   } elsif( exists $target->{xPHONY} ) {
-    0;
+    $ret = 0;
   } else {
     Mpp::print_error 'No rule to make ', $target;
-    -1;			# Return nonzero to indicate error.
   }
+  my $ws = new Mpp::Event::WaitingSubroutine $Mpp::Text::N[0], [];
+  $ws->{STATUS} = $ret;
+  $ws;
 }
 
 #

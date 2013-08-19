@@ -3,7 +3,7 @@
 # This script asks the user the necessary questions for installing
 # makepp and does some heavy HTML massageing.
 #
-# $Id: install.pl,v 1.118 2013/02/16 15:11:36 pfeiffer Exp $
+# $Id: install.pl,v 1.120 2013/07/05 21:02:38 pfeiffer Exp $
 #
 
 package Mpp;
@@ -22,12 +22,14 @@ use File::Copy;
 use File::Path;
 use Mpp::File ();		# ensure HOME is set
 
-system $^X, 'makepp', '--version'; # make sure it got a chance to apply workarounds.
+system PERL, 'makepp', '--version'; # make sure it got a chance to apply workarounds.
 
-print 'Using perl in ' . PERL . ".\n";
+print "\nUsing perl in " . PERL . ".\n";
+print "If you want another, please set environment variable PERL to it & reinstall.\n"
+  unless $ENV{PERL};
 
-warn "\nMakepp will be installed with DOS newlines, as you unpacked it.\n\n"
-  if ($_ = <DATA>) =~ tr/\r//d;
+warn "\nMakepp is being installed with DOS newlines, as you unpacked it.\n\n"
+  if ($_ = <DATA>) =~ tr/\r//;
 
 our $eliminate = '';		# So you can say #@@eliminate
 
@@ -38,28 +40,63 @@ our $BASEVERSION = $Mpp::Text::BASEVERSION;
 #
 # Now figure out where everything goes:
 #
-$prefix = "/usr/local";
+sub ARGV_or_prompt($$) {
+  local $_ = shift @ARGV;
+  return $_ if defined && 0 < length;
 
-$bindir = shift(@ARGV) ||
-  read_with_prompt("
+  local $| = 1;			# Enable autoflush on STDOUT.
+
+  my $default = ref( $_[1] ) ? $_[1]() : $_[1];
+  print "$_[0] [$default]? ";	# Print the prompt.
+  $_ = <STDIN>;			# Read a line.
+  s/^\s+//;
+  s/\s+$//;
+  return $default unless defined && 0 < length;
+#
+# Expand environment variables and home directories.
+#
+  my $orig = $_;
+  s/\$(\w+)/$ENV{$1}/g;		# Expand environment variables.
+  if (s/^~(\w*)//) {		# Is there a ~ expansion to do?
+    if ($1 eq '') {
+      $_ = "$ENV{HOME}$_";
+    } else {
+      my ($name, $passwd, $uid, $gid, $quota, $comment, $gcos, $dir, $shell) = getpwnam($1);
+				# Expand from the passwd file.
+      if ($dir) {		# Found it?
+	$_ = "$dir$_";
+      } else {
+	$_ = "~$1";		# Not found.  Just put the ~ back.
+      }
+    }
+  }
+  print "  -> $_\n" if $orig ne $_;
+  $_;
+}
+
+$prefix = '/usr/local';
+
+$bindir = ARGV_or_prompt '
 Makepp needs to know where you want to install it and its data files.
-makepp is written in Perl, but there is no particular reason to install
+Makepp is written in Perl, but there is no particular reason to install
 any part of it in the perl hierarchy; you can treat it as you would a
 compiled binary which is completely independent of perl.
 
-Where should the makepp executable be installed [$prefix/bin]? ") ||
+The questions understand environment variables like $HOME, or ~ syntax.
+
+Where should the makepp executable be installed',
   "$prefix/bin";
 
 $bindir =~ m@^(.*)/bin@ and $prefix = $1;
 				# See if a prefix was specified.
 
-my $datadir = shift @ARGV || read_with_prompt("
+my $datadir = ARGV_or_prompt '
 Makepp has a number of library files that it needs to install somewhere.  Some
-of these are Perl modules, but they can't be used by other Perl programs, so
-there's no point in installing them in the perl modules hierarchy; they are
+of these are Perl modules, but they can\'t be used by other Perl programs, so
+there\'s no point in installing them in the perl modules hierarchy; they are
 simply architecture-independent data that needs to be stored somewhere.
 
-Where should the library files be installed [$prefix/share/makepp]? ") ||
+Where should the library files be installed',
   "$prefix/share/makepp";
 our $setdatadir;
 if ($datadir !~ /^\//) {	# Make a relative path absolute.
@@ -72,24 +109,23 @@ if ($datadir !~ /^\//) {	# Make a relative path absolute.
   $setdatadir = "\$datadir = '$datadir';";
 }
 
-$mandir = shift @ARGV || read_with_prompt("
+$mandir = ARGV_or_prompt '
 Where should the manual pages be installed?
 Enter \"none\" if you do not want the manual pages.
-Man directory [$prefix/man]: ") ||
-  "$prefix/man";
+Man directory',
+  sub { my $d = "$prefix/share/man"; -d $d ? $d : "$prefix/man" };
 our $noman = $mandir eq 'none' ? 1 : '';
 
-$htmldir = shift @ARGV || read_with_prompt("
+$htmldir_val = $htmldir = ARGV_or_prompt '
 Where should the HTML documentation be installed?
-Enter \"none\" if you do not want any documentation installed.
-HTML documentation directory [$prefix/share/makepp/html]: ") ||
-  "$prefix/share/makepp/html";
-$htmldir_val = $htmldir;
+Enter "none" if you do not want any documentation installed.
+HTML documentation directory',
+  sub { my $d = "$prefix/share/doc"; -d $d ? "$d/makepp" : "$datadir/html" };
 
-my $findbin = shift @ARGV;
-defined($findbin) or $findbin = read_with_prompt("
+my $findbin = ARGV_or_prompt "
 Where should the library files be sought relative to the executable?
-Enter \"none\" to seek in $datadir [none]: ") || "none";
+Enter \"none\" to seek in $datadir",
+  "none";
 $findbin=0 if $findbin eq "none";
 if($findbin) {
   $setdatadir = "use FindBin;\n" .
@@ -268,30 +304,5 @@ sub substitute_file {
   }
 }
 
-sub read_with_prompt {
-  local $| = 1;			# Enable autoflush on STDOUT.
-
-  print @_;			# Print the prompt.
-  $_ = <STDIN>;			# Read a line.
-  chomp $_;
-#
-# Expand environment variables and home directories.
-#
-  s/\$(\w+)/$ENV{$1}/g;		# Expand environment variables.
-  if (s/^~(\w*)//) {		# Is there a ~ expansion to do?
-    if ($1 eq '') {
-      $_ = "$ENV{HOME}$_";
-    } else {
-      my ($name, $passwd, $uid, $gid, $quota, $comment, $gcos, $dir, $shell) = getpwnam($1);
-				# Expand from the passwd file.
-      if ($dir) {		# Found it?
-	$_ = "$dir$_";
-      } else {
-	$_ = "~$1";		# Not found.  Just put the ~ back.
-      }
-    }
-  }
-  $_;
-}
 __DATA__
 Dummy line for newline test.

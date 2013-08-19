@@ -1,7 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	644	1329052295	1329052295	is_relevant.pl
 have_cc
-###	36	644	1356724506	1356724506	makepp_test_script.pl
+###	34	644	1356724506	1366573638	makepp_test_script.pl
 # Tests several things about C compilation:
 # 1) Correctly parsing command lines to scan for include files.
 # 2) Correctly calculating checksums so if files change we do not
@@ -15,10 +15,8 @@ have_cc
 my $obj;
 my @args = ('makepp_signature_C_flat=0', is_windows ? '--no-path-exe-dep' : ());
 my $compiled;
+$Mpp::mod_answer = sub { $_[2] =~ s/ 0 / 1 / } if is_windows;
 for $iter ( 0..3, 13, 10 ) {	# 13 & 10 repeat 3 & 0, but with flat option
-  c_sed 's/ 0 / 1 /', "-o+<answers/n_files_$iter" # Extra phony on each test
-    if is_windows;
-
   if( $iter == 13 ) { $args[0] =~ tr/0/1/ }
   else { c_cp 'compilation_test_'.($iter%10).'.c', 'compilation_test.c' }
   # This is slow and low-tech, but we need to guarantee that the .o timestamp changes

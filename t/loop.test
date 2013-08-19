@@ -32,8 +32,10 @@ if( $pid ) {
   exec PERL, '-w', $makepp_path, '--loop';
 }
 1;
-###	10	644	1358594656	1361052227	Makeppfile
+###	15	644	1358594656	1368039849	Makeppfile
 signature md5			# In case rebuild occurs in new second.
+
+$(phony all): f a
 
 a: b
 	&sed s/(b)/$$1a/ b -o a	# Don't reexpand on next iteration
@@ -43,6 +45,9 @@ b: c
 
 c: d e
 	&cat d e -o c
+
+f: e
+	&grep /a/ e -o f	# Fail except last time
 ###	1	644	1358594656	1358594656	d
 abcde
 ###	1	644	1358594656	1358594656	e
@@ -54,9 +59,9 @@ abac
 ###	2	644	1358594656	1358594656	answers/a1
 abac
 bab
-###	1	644	1358594656	1358594656	answers/n_files1
-3 0 0
-###	1	644	1358594656	1358594656	answers/n_files2
-1 0 0
-###	1	644	1358594656	1361413915	answers/n_files3
-3 0 0
+###	1	644	1358594656	1368039849	answers/n_files1
+3 0 1
+###	1	644	1358594656	1368039849	answers/n_files2
+1 0 1
+###	1	644	1358594656	1368039849	answers/n_files3
+4 1 0

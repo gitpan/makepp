@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.204 2013/01/20 16:54:56 pfeiffer Exp $
+# $Id: Subs.pm,v 1.207 2013/08/19 06:38:39 pfeiffer Exp $
 
 =head1 NAME
 
@@ -414,8 +414,7 @@ sub f_filesubst {
   local $Mpp::Text::set_stem = 1 if $set_stem;
   join ' ', Mpp::Text::pattern_substitution
     case_sensitive_filenames ? $src : lc $src,
-					    $dest,
-    @words;
+    $dest, @words;
 }
 
 sub f_filter {
@@ -728,8 +727,8 @@ sub f_infer_linker {
 #    target : $(infer_objs seed-list, list of possible objs)
 #
 sub f_infer_objects {
-  my ($seed_objs, $candidate_list) = args $_[0], $_[1], $_[2];
-  my (undef, $mkfile, $mkfile_line) = @_; # Name the arguments.
+  my( $seed_objs, $candidate_list ) = args $_[0], $_[1], $_[2];
+  my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
 
   my $build_cwd = $rule ? $rule->build_cwd : $mkfile->{CWD};
 
@@ -737,19 +736,10 @@ sub f_infer_objects {
 # Build up a list of all the possibilities:
 #
   my %candidate_objs;
-  foreach my $candidate_obj (map Mpp::Glob::zglob_fileinfo_atleastone($_, $build_cwd), split ' ', $candidate_list) {
+  for my $candidate_obj (map Mpp::Glob::zglob_fileinfo_atleastone($_, $build_cwd), split ' ', $candidate_list) {
 				# Get a list of all the possible objs.
-    my $objname = $candidate_obj->{NAME};
-    $objname =~ s/\.[^\.]+$//;	# Strip off the extension.
-    if ($candidate_objs{$objname}) { # Already something by this name?
-      ref($candidate_objs{$objname}) eq 'ARRAY' or
-	$candidate_objs{$objname} = [ $candidate_objs{$objname} ];
-				# Make into an array as appropriate.
-      push @{$candidate_objs{$objname}}, $candidate_obj;
-    }
-    else {			# Just one obj?
-      $candidate_objs{$objname} = $candidate_obj;
-    }
+    push @{$candidate_objs{$1}}, $candidate_obj
+      if $candidate_obj->{NAME} =~ /(.+?)(?:\.[^.]+$)?/; # Without the extension.
   }
 #
 # Now look at the list of all the include files.  This is a little tricky
@@ -760,17 +750,15 @@ sub f_infer_objects {
 				# which are look for the corresponding objects.
 
   my @build_handles;		# Where we put the handles for building objects.
-  my @deps = map zglob_fileinfo($_, $build_cwd), split ' ', $seed_objs;
+  my @deps = map zglob_fileinfo($_, $build_cwd), split ' ', $seed_objs
 				# Start with the seed files themselves.
-  @deps or die "infer_objects called with no seed objects that exist or can be built\n";
+    or die "infer_objects called with seed objects $seed_objs that can't be built\n";
   Mpp::log INFER_SEED => \@deps
     if $Mpp::log_level;
 
-  foreach (@deps) {
-    my $name = $_->{NAME};
-    $name =~ s/\.[^\.]+$//;	# Strip off the extension.
-    $source_names{$name}++;	# Indicate that we already have this as a
-				# source file.
+  for( @deps ) {
+    $_->{NAME} =~ /(.+?)(?:\.[^.]+$)?/; # Without the extension.
+    $source_names{$1} = 1;	# Indicate that we already have this as a source file.
   }
 
 
@@ -785,37 +773,31 @@ sub f_infer_objects {
 # so on.
 #
   for (;;) {
-    while ($dep_idx < @deps) {	# Look at each dependency currently available.
+    while( $dep_idx < @deps ) {	# Look at each dependency currently available.
       my $o_info = $deps[$dep_idx]; # Access the Mpp::File for this object.
       my $bh = prebuild( $o_info, $mkfile, $mkfile_line );
 				# Start building it.
       my $handle = when_done $bh, # Build this dependency.
       sub {			# Called when the build is finished:
-	defined($bh) && $bh->status and return $bh->status;
+	defined $bh && $bh->status and return $bh->status;
 				# Skip if an error occurred.
-	my @this_sources = split /\01/, Mpp::File::build_info_string($o_info,'SORTED_DEPS') || '';
-				# Get the list of source files that went into
-				# it.
-	foreach (@this_sources) {
-	  my $name = $_;	# Make a copy of the file.
-	  $name =~ s@.*/@@;	# Strip off the path.
-	  $name =~ s/\.[^\.]+$//; # Strip off the extension.
-	  unless ($source_names{$name}++) { # Did we already know about that source?
-	    if (ref($candidate_objs{$name}) eq 'Mpp::File') { # Found a file?
-	      Mpp::log INFER_DEP => $candidate_objs{$name}, $_
+	for( split /\01/, Mpp::File::build_info_string($o_info,'SORTED_DEPS') || '' ) {
+				# Get the list of source files that went into it.
+	  my( $name ) = /([^\/]+?)(?:\.[^\/.]+$)?/; # Without the path or extension.
+	  if( $candidate_objs{$name} && !$source_names{$name}++ ) { # Newly found source?
+	    if( $candidate_objs{$name}[1] ) { # More than 1 match?
+	      Mpp::print_error( '`', $mkfile_line, "' in infer_objects: more than one possible object for include file $_:",
+				map "\n  " . absolute_filename( $_ ), @{$candidate_objs{$name}} );
+	    } else { # Found a file?
+	      Mpp::log INFER_DEP => $candidate_objs{$name}[0], $_
 		if $Mpp::log_level;
-	      push @deps, $candidate_objs{$name}; # Scan for its dependencies.
-	    }
-	    elsif (ref($candidate_objs{$name}) eq 'ARRAY') { # More than 1 match?
-	      Mpp::print_error('`', $mkfile_line, "' in infer_objects: more than one possible object for include file $_:\n  ",
-			    join("\n  ", map absolute_filename( $_ ), @{$candidate_objs{$name}}),
-			    "\n");
+	      push @deps, $candidate_objs{$name}[0]; # Scan for its dependencies.
 	    }
 	  }
 	}
       };
 
-      if (defined($handle)) {   # Something we need to wait for?
+      if( defined $handle ) {   # Something we need to wait for?
         $handle->{STATUS} && !$Mpp::keep_going and
           die "$mkfile_line: infer_objects failed because dependencies could not be built\n";
         push @build_handles, $handle;
@@ -823,11 +805,10 @@ sub f_infer_objects {
       ++$dep_idx;
     }
 
-    last unless @build_handles;	# Quit if nothing to wait for.
-    my $status = wait_for @build_handles; # Wait for them all to build, and
-				# try again.
+    last if			# Quit if nothing to wait for or there was an error.
+      !@build_handles or
+      wait_for @build_handles;	# Wait for them all to build, and try again.
     @build_handles = ();	# We're done with those handles.
-    $status and last;		# Quit if there was an error.
   }
 
 #
@@ -1346,7 +1327,6 @@ sub f_sorted_dependencies {
 # any arguments.
 #
 sub f_foreach {
-  my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
   unless( $_[0] ) {		# No argument?
     defined $rule && defined $rule->{FOREACH} or
       die "\$(foreach) used outside of rule, or in a rule that has no :foreach clause at `$_[2]'\n";
@@ -1360,6 +1340,7 @@ sub f_foreach {
 # because of some special code in expand_text, VAR,LIST,TEXT has not yet
 # been expanded.
 #
+  my( undef, $mkfile, $mkfile_line ) = @_; # Name the arguments.
   my( $var, $list, $text ) = args $_[0], undef, $_[2], 3, 3, 1;
 				# Get the arguments.
   $var = ref $_[0] ? $mkfile->expand_text( $var, $mkfile_line ) : $var;

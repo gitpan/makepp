@@ -1,4 +1,4 @@
-# $Id: Glob.pm,v 1.43 2013/03/04 21:31:18 pfeiffer Exp $
+# $Id: Glob.pm,v 1.45 2013/05/09 08:41:00 pfeiffer Exp $
 
 package Mpp::Glob;
 
@@ -72,7 +72,7 @@ Mpp::File package for more details.
 
 =cut
 
-$Mpp::Glob::allow_dot_files = 0;	# Don't return any files beginning with '.'.
+our $allow_dot_files = 0;	# Don't return any files beginning with '.'.
 
 sub zglob {
   map relative_filename($_,$_[1]), &zglob_fileinfo;
@@ -157,7 +157,7 @@ sub zglob_fileinfo {
     my @phony_expr = (@pieces ? () : ($phony, $stale, 1)); # Set $no_last_chance
     if( /[[?*]/ ) { # Was there actually a wildcard?
       my $re = wild_to_regex( $_, 3 ); # Convert to a regular expression.
-      my $allow_dotfiles = $Mpp::Glob::allow_dot_files || /^\./;
+      my $allow_dotfiles = $allow_dot_files || ord( '.' ) == ord;
 				# Allow dot files if we're automatically accepting
 				# them, or if they are explicitly specified.
       for my $dir ( @candidate_dirs ) { # Look for the file in each of the possible directories.
@@ -279,10 +279,10 @@ sub find_real_subdirs {
   for( values %{$dirinfo->{DIRCONTENTS}} ) {
     if( $_->{LSTAT} && is_dir $_ ) {
       push @subdirs, $_		# Note this directory.
-	unless /^\./ && !$Mpp::Glob::allow_dot_files;
+	if $allow_dot_files || ord( '.' ) != ord;
 				# Skip dot directories.
       --$expected_subdirs;	# We got one of the expected subdirs.
-      return @subdirs if !$expected_subdirs; # We got them all.
+      return @subdirs unless $expected_subdirs; # We got them all.
     }
   }
 
@@ -338,7 +338,7 @@ sub find_real_subdirs {
 				# Look at each file in the directory.
     if( is_dir $finfo ) {
       push @subdirs, $finfo	# Note this directory.
-	unless /^\./ && !$Mpp::Glob::allow_dot_files;
+	if $allow_dot_files || ord( '.' ) != ord;
 				# Skip dot directories.
       --$expected_subdirs;	# We got one of the expected subdirs.
       last if !$expected_subdirs;
@@ -366,7 +366,7 @@ $Mpp::Glob::allow_dot_files is true.
 sub find_all_subdirs_recursively {
   my @subdirs;
 
-  if ($Mpp::Glob::allow_dot_files) {
+  if( $allow_dot_files ) {
     @subdirs = &find_all_subdirs; # Start with the list of our subdirs.
     for (my $subdir_idx = 0; $subdir_idx < @subdirs; ++$subdir_idx) {
 				# Use this kind of loop because we'll be adding
@@ -465,7 +465,7 @@ sub wild_to_regex {
     lc;				# Not case sensitive--switch to lc.
 }
 
-=head2 Mpp::Glob::wildcard_do
+=head2 wildcard_do
 
 You generally should not call this subroutine directly; it's intended to be
 called from the chain of responsibility handled by wildcard_do.
@@ -482,7 +482,7 @@ The block is called once for each file that matches the wildcards.  If at some
 later time, files which match the wildcard are created (or we find rules to
 build them), then the block is called again.  (Internally, this is done by
 Mpp::File::publish, which is called automatically whenever a file which didn't
-used to exist now exists, or whenever a build rule is specified for a file
+use to exist now exists, or whenever a build rule is specified for a file
 which does not currently exist.)
 
 An optional reference as 2nd parameter means this is from a last chance rule.
@@ -632,5 +632,14 @@ sub wildcard_do(&@) {
 				# We are the last-chance handler in the chain
 				# of responsibility for recognizing wildcards.
 }
+
+=for todo
+perl { #das matscht nur zukünftige Dateien
+  use Mpp::File;
+  my $dinfo = file_info '.';
+  push @{$dinfo->{WILDCARD_DO}}, [qr/^[ab]/, sub { print 'AHA[' . &relative_filename . "]\n" }]
+}
+
+=cut
 
 1;

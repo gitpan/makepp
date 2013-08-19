@@ -1,3 +1,81 @@
+2013-08-18  DP  <occitan@esperanto.org>
+
+	* Mpp.pm
+	* Mpp/FileOpt.pm
+	* Mpp/Makefile.pm
+	* Mpp/Repository.pm
+	* Mpp/Rule.pm
+	* Mpp/Scanner.pm
+	* makepplog: New var MAKEPP_DEBUG and show effect of mppl -c
+
+	* makepp_builtin_rules.mk: Evaluate some vars immediately.
+
+2013-07-21  DP  <occitan@esperanto.org>
+
+	* Mpp/Makefile.pm (grok_rule): Allow % to be inside make-expression.
+
+	* Mpp/Text.pm (index_ignoring_single_quotes): Eliminate.
+	(index_ignoring_quotes, split_on_whitespace): New type-option.
+
+2013-07-05  DP  <occitan@esperanto.org>
+
+	* install.pl
+	* config.pl: Installation defaults for html-doc and man have changed slightly.
+
+2013-05-19  DP  <occitan@esperanto.org>
+
+	* pod/makepp_variables.pod: Document the details of rc-style
+	substitution and how to deal with border cases.
+
+	* pod/makepp_builtins.pod: Better structure and sort -t need not modify $_.
+
+2013-05-09  DP  <occitan@esperanto.org>
+
+	* Mpp.pm (perform): Continue --loop after error.
+
+	* Mpp/Glob.pm: Don't fully qualify own $allow_dot_files.
+
+	* Mpp/File.pm (mark_as_directory): Obtain FULLNAME only once.
+
+	* makeppinfo: With --force show unremembered_SIGNATURE instead of warning.
+
+2013-04-22  DP  <occitan@esperanto.org>
+
+	* Mpp/FileOpt.pm (exists_or_can_be_built): Revert and improve, we do need to recurse.
+
+	* t/run_tests.pl
+	* t/**/*.test: Fix globbing for answers.  Check signatures after mpp.  New hook $mod_answer.
+
+	* makepp (parse_command_line): Simpler way to avoid wrong "used once" warning.
+
+	* config.pl: Win doesn't grok prefix export notation.
+
+2013-04-14  DP  <occitan@esperanto.org>
+
+	* makepp: Query build cache only if we use one.  Move some global bc and rep symbols and functions where they belong.
+
+	* Mpp.pm (perform): Use map, to avoid spurious exit code.
+
+	* Mpp/Rule.pm (DefaultRule::execute): Fix returning status.
+
+	* Mpp/DB.pm: New debug module.
+
+2013-03-30  DP  <occitan@esperanto.org>
+
+	* makepp
+	* Mpp/Rule.pm: find_all_targets_dependencies returns them already sorted.  sorted_dependencies wants list, not array.
+
+	* Mpp/Subs.pm (infer_objects): optimize
+
+	* makepp_builtin_rules.mk: Let infer_objects rules respect makepp_percent_subdirs.
+
+	* install.pl
+	* config.pl: Give more help about changing the perl binary.
+
+2013-03-05  DP  <occitan@esperanto.org>
+
+snapshot 2.0.98.3
+
 2013-03-04  DP  <occitan@esperanto.org>
 
 	* Mpp/Rule.pm (load_scaninfo_): Make private, don't force finding

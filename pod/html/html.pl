@@ -2,7 +2,7 @@
 #
 # This script does the pod to html generation with some heavy massageing.
 #
-# $Id: html.pl,v 1.14 2013/02/16 15:11:37 pfeiffer Exp $
+# $Id: html.pl,v 1.15 2013/07/05 21:05:04 pfeiffer Exp $
 #
 
 #use Pod::Html ();		# Stole module to have consistent id-attributes.
@@ -2239,7 +2239,7 @@ sub highlight_keywords() {
 }
 
 sub highlight_variables() {
-  s((\$[\{\(]{1,2})([-\w]+)([\}\)]{0,2})){
+  s((\$[{(]{1,2})([-\w]+)([})]{0,2})){
     my( $prefix, $name, $suffix ) = ($1, $2, $3);
     $name = "<b>$name</b>" if
       $name =~ /absolute[_-]filename|

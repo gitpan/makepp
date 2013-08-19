@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# $Id: makeppclean,v 1.24 2013/02/16 15:11:37 pfeiffer Exp $
+# $Id: makeppclean,v 1.25 2013/04/14 19:35:42 pfeiffer Exp $
 
 package Mpp;
 
@@ -48,6 +48,7 @@ BEGIN {
 
   $datadir = eval "use Cwd; cwd . '/$datadir'"
     if $datadir =~ /^\./;	# Make it absolute, if it's a relative path.
+  do "$datadir/Mpp/DB.pm" if exists $DB::{sh};
 #@@
   unshift @INC, $datadir;
 }

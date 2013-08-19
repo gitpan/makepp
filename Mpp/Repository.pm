@@ -1,4 +1,4 @@
-# $Id: Repository.pm,v 1.14 2013/01/20 16:54:22 pfeiffer Exp $
+# $Id: Repository.pm,v 1.16 2013/08/19 06:38:27 pfeiffer Exp $
 
 =head1 NAME
 
@@ -226,7 +226,7 @@ sub Mpp::Repository::get {
   # the linkee, which might be a local file, and which might have changed,
   # even if the link is still the same.
   my $linkee = readlink absolute_filename $src_finfo
-    if !defined $Mpp::symlink_in_rep_as_file && is_symbolic_link $src_finfo;
+    if !defined $Mpp::Repository::symlink_as_file && is_symbolic_link $src_finfo;
   my $binfo_finfo = $linkee ? file_info $linkee, $dest_finfo->{'..'} : $src_finfo;
   my $binfo = $binfo_finfo->{BUILD_INFO} ||=
     load_build_info_file( $binfo_finfo ) || {};
@@ -274,9 +274,8 @@ sub Mpp::Repository::get {
       return 1;			# Indicate failure.
     }
     ++$Mpp::Repository::hits;
-  } else {
-    Mpp::log 'REP_EXISTING'
-      if $Mpp::log_level;
+  } elsif( Mpp::DEBUG ) {
+    Mpp::log 'REP_EXISTING';
   }
 
   # NOTE: This has to happen *after* the file exists (or else the build info

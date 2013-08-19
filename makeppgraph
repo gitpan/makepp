@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# $Id: makeppgraph,v 1.30 2013/02/16 15:11:37 pfeiffer Exp $
+# $Id: makeppgraph,v 1.31 2013/04/14 19:35:42 pfeiffer Exp $
 
 #TODO: when losing BECAUSE child thru merge, become {SELF}BECAUSE
 
@@ -35,6 +35,7 @@ BEGIN {
 
   $datadir = eval "use Cwd; cwd . '/$datadir'"
     if $datadir =~ /^\./;	# Make it absolute, if it's a relative path.
+  do "$datadir/Mpp/DB.pm" if exists $DB::{sh};
 #@@
   unshift @INC, $datadir;
 }

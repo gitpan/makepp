@@ -1,4 +1,4 @@
-# $Id: Mpp.pm,v 1.21 2013/03/04 21:31:59 pfeiffer Exp $
+# $Id: Mpp.pm,v 1.25 2013/08/19 06:59:10 pfeiffer Exp $
 
 =head1 NAME
 
@@ -64,9 +64,6 @@ our $n_files_changed = 0;	# Keep track of the number of files that
 				# we actually changed.
 our $n_phony_targets_built = 0;	# Keep track of the number of phony targets
                                 # built, too.
-our $error_found = 0;		# Non-zero if we found an error.  This is used
-				# to stop cleanly when we are doing a parallel
-				# build (unless -k is specified).
 our $failed_count = 0;		# How many targets failed.  TODO: my when moving build et al here
 our $print_directory = 1;	# Default to printing it.
 our $log_level = 2;		# Default to logging. 1: STDOUT, 2: $logfile
@@ -243,7 +240,11 @@ sub log($@) {
       }
     }
     push @close_fhs, $logfh;
-    printf $logfh "3\01%s\nVERSION\01%s\01%vd\01%s\01\n", $invocation, $Mpp::Text::VERSION, $^V, ARCHITECTURE;
+    printf $logfh "3\01%s\nVERSION\01%s\01%vd\01%s\01\nDEBUG\01%s\01\n",
+      $invocation,
+      $Mpp::Text::VERSION, $^V, ARCHITECTURE,
+      Mpp::DEBUG
+	or die "$progname: can't write logfile--$!";
 
     # If we're running with --traditional-recursive-make, then print the directory
     # when we're entering and exiting the program, because we may be running as
@@ -266,7 +267,7 @@ sub log($@) {
 	  join "\02", map {		# Array shall only contain objects.
 	    if( exists $_->{xLOGGED} ) { # Already defined
 	      sprintf '%x', $_;		# The cheapest external representation of a ref.
-	    } elsif( exists $_->{'..'} ) { # not a Mpp::File or similar
+	    } elsif( exists $_->{'..'} ) { # Mpp::File or similar
 	      undef $_->{xLOGGED};
 	      if( exists $_->{'..'}{xLOGGED} ) { # Dir already defined
 		sprintf "%x\03%s\03%x", $_, $_->{NAME}, $_->{'..'};
@@ -283,7 +284,7 @@ sub log($@) {
 # with &reuse_stack semantics.
 	} elsif( exists $_->{xLOGGED} ) { # Already defined
 	  sprintf '%x', $_;		# The cheapest external representation of a ref.
-	} elsif( exists $_->{'..'} ) {	# not a Mpp::File or similar
+	} elsif( exists $_->{'..'} ) {	# Mpp::File or similar
 	  undef $_->{xLOGGED};
 	  if( exists $_->{'..'}{xLOGGED} ) { # Dir already defined
 	    sprintf "%x\03%s\03%x", $_, $_->{NAME}, $_->{'..'};
@@ -295,7 +296,8 @@ sub log($@) {
 	  $_->name;
 	}
       } @_ ),
-      "\n";
+      "\n"
+	or die "$progname: can't write logfile--$!";
   $last_indent_level = $indent_level;
 }
 
@@ -355,13 +357,16 @@ sub print_error {
 
 
 sub perform(@) {
-  #my @targets = @_;		# Arguments passed to wait_for.
+  #my @targets = @_;		# Arguments passed to build and then wait_for.
+  our $error_found = 0;		# Non-zero if we found an error.  This is used
+				# to stop cleanly when we are doing a parallel
+				# build (unless -k is specified).
   my $status;
   my $start_pid = $$;
   print $logfh "\f\n" if $Mpp::loop && &maybe_stop && defined $logfh;
-  my @handles = grep {
+  my @handles = map {
     exists $_->{DONT_BUILD} or undef $_->{DONT_BUILD};
-    Mpp::build $_;			# Try to build the file, return handle if necessary.
+    Mpp::build $_ or ();	# Try to build the file, return handle if necessary.
   } @_;
   my $error_message = $@;
   unless( $error_message ) {
@@ -406,17 +411,19 @@ signal propagation.$orig Stopped}
 
   unless( $quiet_flag ) {
     my $found;
-    my $msg = join '', map {
+    my $msg = join ', ', map {
       $found ||= $_->[1];
-      $_->[1] || !$_->[2] ?
+      $_->[1] || $_->[2] ?
 	sprintf( $_->[0], $_->[1], $_->[1] == 1 ? '' : 's' ) : # plural?
-	'';
-    } ["%d file%s updated", $n_files_changed],
-      [', %d repository import%s', $Mpp::Repository::hits, 1],
-      [', %d build cache import%s', $Mpp::BuildCache::hits, 1],
-      [($failed_count ? ',' : ' and') . ' %d phony target%s built', $n_phony_targets_built],
-      [" and %d target%s failed", $failed_count, 1];
+	();
+    } ['%d file%s updated', $n_files_changed, 1],
+      ['%d repository import%s', $Mpp::Repository::hits],
+      ['%d build cache import%s', $Mpp::BuildCache::hits],
+      ['%d phony target%s built', $n_phony_targets_built],
+      [($error_message || $status || !MAKEPP ? '%d' : '%d unimportant').' target%s failed', $failed_count];
+				# See FAQ for unimportant.
     if( $found ) {
+      $msg =~ s/,(?=[^,]+$)/ and/;
       print "$progname: $msg\n";
     } elsif( !$error_message ) {
       print "$progname: no update necessary\n";
@@ -434,7 +441,6 @@ signal propagation.$orig Stopped}
       Mpp::log N_CACHE_HITS => $Mpp::BuildCache::hits
 	if $log_level && $Mpp::BuildCache::hits;
       Mpp::log N_FILES => $n_files_changed, $n_phony_targets_built, $failed_count;
-      ;
     }
     $n_files_changed = $Mpp::Repository::hits = $Mpp::BuildCache::hits = $n_phony_targets_built =
       $failed_count = 0;

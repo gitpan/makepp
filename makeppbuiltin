@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #use strict;			# TODO: explore why this breaks the builtins.
 
-# $Id: makeppbuiltin,v 1.23 2013/02/16 15:11:37 pfeiffer Exp $
+# $Id: makeppbuiltin,v 1.24 2013/04/14 19:35:42 pfeiffer Exp $
 
 package Mpp;
 
@@ -31,6 +31,7 @@ BEGIN {
 
   $datadir = eval "use Cwd; cwd . '/$datadir'"
     if $datadir =~ /^\./;	# Make it absolute, if it's a relative path.
+  do "$datadir/Mpp/DB.pm" if exists $DB::{sh};
 #@@
   unshift @INC, $datadir;
 }

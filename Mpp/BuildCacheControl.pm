@@ -1,4 +1,4 @@
-# $Id: BuildCacheControl.pm,v 1.33 2012/06/09 20:36:20 pfeiffer Exp $
+# $Id: BuildCacheControl.pm,v 1.34 2013/04/14 19:39:27 pfeiffer Exp $
 
 =head1 NAME
 
@@ -321,7 +321,7 @@ sub c_clean {
 
     # Traverse desired filesystems
     local $clean_empty = 1;
-    local $Mpp::force_bc_copy = 1;
+    local $Mpp::BuildCache::force_copy = 1;
     ARGVgroups {		# Might specify more than one group.
       # Special rule for incoming subdir:
       for( @group ) {

@@ -202,4 +202,3 @@ t/variables_automatic.test
 t/verilog.test
 t/wait_timestamp.pl
 t/wildcard_repository.test
-

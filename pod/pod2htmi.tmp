@@ -102,6 +102,7 @@ words_text ./makepp_functions.html
 m_method ./makepp_command.html
 force_copy_from_bc ./makepp_command.html
 deletable ./makepp_build_cache.html
+MAKEPP_DEBUG ./makepp_variables.html
 filter_out_patterns_words ./makepp_functions.html
 VFAT_on_GNU_Linux ./makepp_compatibility.html
 h_htmldir_path_to_installation_share_html ./makepp_faq.html
@@ -236,8 +237,8 @@ load_makeppfile_Makefile ./makepp_command.html
 export_MAKEPP_LN_CP_1 ./makepp_builtins.html
 Makefile_PL ./makepp_faq.html
 old_file_filename ./makepp_command.html
-awk ./makepp_builtins.html
 h_hash ./makepp_builtins.html
+awk ./makepp_builtins.html
 YACC ./makepp_variables.html
 register_parser_command_word_parser ./makepp_statements.html
 relative_to_file1_file2_file3_directory ./makepp_functions.html
@@ -404,8 +405,8 @@ m_perlcode ./makeppgraph.html
 C_directory ./makeppreplay.html
 vpath_pattern_directory ./makepp_statements.html
 CFLAGS ./makepp_variables.html
-MAKEPP_LN_CP ./makepp_variables.html
 MAKECMDGOALS ./makepp_variables.html
+MAKEPP_LN_CP ./makepp_variables.html
 root_directory ./makeppreplay.html
 current_working_directory ./makepplog.html
 synclines ./makepp_builtins.html
@@ -428,7 +429,7 @@ Windows_CIFS_on_GNU_Linux ./makepp_compatibility.html
 Not_specifying_all_targets ./makepp_tutorial.html
 wordlist_firstindex_lastindex_words ./makepp_functions.html
 only_logs ./makeppclean.html
-d ./makeppinfo.html
+d ./makepplog.html
 install_option_sourcefile_destdir ./makepp_builtins.html
 access_permissions_perms ./makepp_build_cache.html
 export_global_override_define ./makepp_statements.html
@@ -501,6 +502,7 @@ keylist_list ./makepplog.html
 shell_shell_command ./makepp_functions.html
 plain ./makeppgraph.html
 AS ./makepp_variables.html
+set_directory ./makepplog.html
 CXX ./makepp_variables.html
 sandbox_warning ./makepp_sandboxes.html
 or_condition1_condition2_condition3 ./makepp_functions.html

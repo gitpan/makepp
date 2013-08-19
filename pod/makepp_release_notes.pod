@@ -2,13 +2,21 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.82 2013/01/20 16:54:22 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.84 2013/08/19 06:38:27 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 =head2 Version 2.1 (under development)
 
 =over 4
+
+=item *
+
+New environment variable C<MAKEPP_DEBUG>.
+
+=item *
+
+Installation defaults for html-doc and man have changed slightly.
 
 =item *
 

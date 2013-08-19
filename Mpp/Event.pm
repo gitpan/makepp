@@ -1,6 +1,6 @@
 # use strict qw(vars subs);
 
-# $Id: Event.pm,v 1.33 2012/10/25 21:10:42 pfeiffer Exp $
+# $Id: Event.pm,v 1.34 2013/04/14 19:35:23 pfeiffer Exp $
 
 package Mpp::Event;
 
@@ -623,7 +623,7 @@ sub new {
 				# Make the structure for the process.
 }
 
-*status = \&Mpp::Event::ProcessHandle::status;
+*status = \&Mpp::Event::Process::status;
 
 #
 # Start the process running.  This is pretty simple--we just execute the code.

@@ -2,7 +2,7 @@
 
 makepp -- Command line syntax for makepp
 
-=for vc $Id: makepp_command.pod,v 1.62 2013/01/20 16:54:22 pfeiffer Exp $
+=for vc $Id: makepp_command.pod,v 1.63 2013/08/19 06:38:44 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -719,7 +719,7 @@ sandboxes|makepp_sandboxes>.
 
 =item --populate-bc-only
 
-Don't import for the build cache.  This is useful when you want to
+Don't import from the build cache.  This is useful when you want to
 donate targets to the cache, but you don't want to rely on the contents
 of the cache (e.g. for mission-critical builds).
 

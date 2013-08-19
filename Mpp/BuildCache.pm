@@ -1,4 +1,4 @@
-# $Id: BuildCache.pm,v 1.50 2012/11/12 22:18:04 pfeiffer Exp $
+# $Id: BuildCache.pm,v 1.51 2013/04/14 19:39:27 pfeiffer Exp $
 #
 # Possible improvements:
 #
@@ -113,7 +113,9 @@ BEGIN {
 }
 
 
+our $force_copy;		# Don't link from BC.
 our $global;			# Build cache specified on command line or with global keyword.
+our $md5check;			# Check the MD5 signature of entries
 our $options_file = 'build_cache_options.pl';
 our $error_hook;
 our $hits = 0;			# Number of the files changed that were imported from a build cache.
@@ -123,6 +125,8 @@ our $hits = 0;			# Number of the files changed that were imported from a build c
 Opens an existing build cache.
 
 =cut
+
+our $used;			# Is a BC in use?
 
 sub new {
   my( $class, $build_cache_dir, $self ) = @_;
@@ -143,6 +147,7 @@ sub new {
 
   $self->{DIRNAME} = absolute_filename $build_cache_dir;
 
+  $used = 1;
   bless $self, $class;
 }
 
@@ -275,7 +280,7 @@ sub cache_file {
   my $result = eval {
     my $linking;
     my $target_prot = $file_prot;
-    if( $dev == $self->{DEV} && !$Mpp::force_bc_copy ) {
+    if( $dev == $self->{DEV} && !$force_copy ) {
       $linking = 1;
       $target_src = $input_filename;
       $target_prot &= ~0222;	# Make it read only, so that no one can
@@ -284,15 +289,11 @@ sub cache_file {
 				# Remember that it's linked to the build
 				# cache, so we need to delete it before
 				# allowing it to be changed.
-      if( $Mpp::md5check_bc ) {
-	# Make sure that $build_info->{MD5_SUM} is set.
-	Mpp::Signature::md5::signature $input_finfo;
-      }
+      Mpp::Signature::md5::signature $input_finfo # Make sure that $build_info->{MD5_SUM} is set.
+	if defined $md5check;
     } else {			# Hard link not possible on different dev
-      my $md5;
-      if($Mpp::md5check_bc && !$build_info->{MD5_SUM}) {
-	$md5 = Digest::MD5->new;
-      }
+      my $md5 = Digest::MD5->new
+	if defined $md5check && !$build_info->{MD5_SUM};
       $target_src = $temp_cache_fname;
       push @files_to_unlink, $temp_cache_fname;
       # Need to unlink first, in case there are other links to it and/or
@@ -548,6 +549,27 @@ sub get {
   $rebuild_needed;
 }
 
+# For Mpp::Rule
+
+#
+# Set the build cache for this rule.
+#
+sub set {
+  $_[0]{BUILD_CACHE} = $_[1];
+}
+
+#
+# Return a build cache associated with this rule, if any.
+#
+# A build cache may be specified for each rule, or for a whole makefile,
+# or for all makefiles (on the command line).
+#
+sub Mpp::Rule::build_cache {
+  exists $_[0]{BUILD_CACHE} ? $_[0]{BUILD_CACHE} :
+  exists $_[0]{MAKEFILE}{BUILD_CACHE} ? $_[0]{MAKEFILE}{BUILD_CACHE} :
+  $global;
+}
+
 ###############################################################################
 #
 # Subroutines in the Mpp::BuildCache::Entry package:
@@ -577,7 +599,7 @@ sub absolute_filename { $_[0]->{FILENAME} }
 Replaces the file in $output_finfo with the file from the cache, and updates
 all the Mpp::File data structures to reflect this change.
 The build info signature is checked against the target file in the cache,
-and if $Mpp::md5check_bc is set, then the MD5 checksum is also verified.
+and if $md5check is set, then the MD5 checksum is also verified.
 
 Returns true if the file was successfully restored from the cache, false if
 not.  (I B<think> the only reason it wouldn't be successfully restored is that
@@ -648,12 +670,12 @@ sub copy_from_cache {
   $Mpp::critical_sections++;
   my $result = eval {
     my $output_fname = Mpp::File::absolute_filename_nolink $output_finfo;
-    my $md5 = Digest::MD5->new if $Mpp::md5check_bc;
+    my $md5 = Digest::MD5->new if defined $md5check;
     my ($size, $mtime);
     # TBD: Maybe we shouldn't fall back to copying if link fails.  There
     # should be a warning at least.
     if( $self->{DEV} == ((Mpp::File::stat_array $output_finfo->{'..'})->[Mpp::File::STAT_DEV] || 0)
-	&& !$Mpp::force_bc_copy && # Same file system?
+	&& !$force_copy && # Same file system?
 	link($self->{FILENAME}, $output_fname)) {
       # Re-stat in case it changed since we looked it up.
       ($size, $mtime) = (stat $output_fname)[7, 9];

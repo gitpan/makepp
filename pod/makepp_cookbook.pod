@@ -2,7 +2,7 @@
 
 makepp_cookbook -- The best way to set up makefiles for various situations
 
-=for vc $Id: makepp_cookbook.pod,v 1.29 2013/02/16 15:11:37 pfeiffer Exp $
+=for vc $Id: makepp_cookbook.pod,v 1.30 2013/04/22 07:01:18 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -320,7 +320,7 @@ what the byte order is.  However, perl has already computed these
 things, so you can just use its answers.
 
 Perl's autoconfigure script makes all of its configuration information
-available through the %Config hash.  There's no syntax to access a Perl
+available through the C<%Config> hash.  There's no syntax to access a Perl
 hash directly in makepp, but you can drop into Perl and set scalar
 variables, which are directly accessible from makepp:
 
@@ -941,3 +941,66 @@ C<print> function (which adds a newline, so you don't want several of them):
 
     target:
  	@... $(print interesting part) ...
+
+=head3 How do I convert a file into dependencies?
+
+For some obscure file formats it's not worthwhile to implement a
+L<scanner|makepp_scanning>.  In one project we have xml files, say
+F<foobar.xml> which contains the dependencies for F<foobar.out>:
+
+    <files>
+      <file>a</file>
+      <file>b</file>
+      <file>c</file>
+    </files>
+
+We decided to adhere to this simple layout, so we don't need to parse xml.
+With the builtin C<&sed>, here's what we do with three simple substitutions
+for the three kinds of lines:
+
+    %.d: %.xml
+        &sed 's!<files>!$(stem).out: \\! || s!<file>(.+)</file>!$$1 \\! || s!</files>!!' \
+            $(input) -o $(output)
+ 
+    include foobar.d
+
+Attempting to include this, produces C<foobar.d> first:
+
+    foobar.out: \
+      a \
+      b \
+      c \
+     
+
+The last empty line avoids having to worry about the trailing backslash.  An
+alternative producing a multiline list is:
+
+    %.d: %.xml
+        &sed 's!<files>!$(stem).out: \$$((! || s!</files>!))! || s!<.+?>!!g' \
+            $(input) -o $(output)
+ 
+    include foobar.d
+
+This produces an equivalent:
+
+    foobar.out: $((
+      a
+      b
+      c
+    ))
+
+If you have more complex rewriting to do, define a function within the
+makefile or in a module which you include.  E.g. undefining C<$_> will skip
+input lines:
+
+    sub myfilter {
+      return undef $_ if /<!--/;	# skip comment lines
+      my $stem = f_stem;
+      s!<files>!$stem.out: \$((! || s!</files>!))! || s!<.+?>!!g;
+    }
+ 
+    %.d: %.xml
+        &sed 's!<files>!$(stem).out: \$$((! || s!</files>!))! || s!<.+?>!!g' \
+            $(input) -o $(output)
+ 
+    include foobar.d
