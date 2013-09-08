@@ -959,7 +959,7 @@ With the builtin C<&sed>, here's what we do with three simple substitutions
 for the three kinds of lines:
 
     %.d: %.xml
-        &sed 's!<files>!$(stem).out: \\! || s!<file>(.+)</file>!$$1 \\! || s!</files>!!' \
+        &sed 's!<files>!$(stem).out: \\! || s!<file>(.+)</file>!$$1 \\! || s!</files>!# Empty!' \
             $(input) -o $(output)
  
     include foobar.d
@@ -970,10 +970,10 @@ Attempting to include this, produces C<foobar.d> first:
       a \
       b \
       c \
-     
+    # Empty
 
-The last empty line avoids having to worry about the trailing backslash.  An
-alternative producing a multiline list is:
+Empty (just a comment or really empty) line avoids having to worry about the
+trailing backslash.  An alternative producing a multiline list is:
 
     %.d: %.xml
         &sed 's!<files>!$(stem).out: \$$((! || s!</files>!))! || s!<.+?>!!g' \

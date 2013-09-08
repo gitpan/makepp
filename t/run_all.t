@@ -2,6 +2,9 @@
 
 package Mpp;
 
+use Socket;
+use Sys::Hostname;
+
 chdir 't';			# failure ignored, when called from here
 
 my %c;				# CC=gehtnich CXX=gehtnich ./run_all.t
@@ -88,24 +91,50 @@ if( $ENV{AUTOMATED_TESTING} || $^O =~ /^MSWin/ ) {	# exec detaches a child proce
   die $!;
 }
 
+
 sub mail {
+  my( $s, $e ) = @_;
   my $a = 'occitan@esperanto.org';
   open VERSION, "$^X ../makeppinfo --version|";
   my $v = <VERSION>;
   $v =~ /makeppinfo (?:(?:cvs-)?version|snapshot|release-candidate) ([^:\n]+)(.*)/s;
-  my $s = "-s'$_[0] V$1' ";
-  if( open MAIL, "| exec 2>/dev/null; mailx $s$a || nail $s$a || mail $s$a || /usr/lib/sendmail $a || mail $a" ) {
-    print MAIL "$_[0] V$1$2\n$reason\n$v\n\n\@INC: @INC\n\n";
-    my %acc;
-    for( sort keys %Config ) {
-      next unless defined $Config{$_};
-      my $value = $Config{$_} eq $_ ? '~' : $Config{$_};
-      push @{$acc{$value}},
+  $s .= " V$1";
+  my $_s = "-s'$s' ";
+  my $msg = "$s V$1$2\n$reason\n$v\n\n\@INC: @INC\n\n";
+  $SIG{PIPE} = sub {	# open didn't manage to start mail, or it aborted
+    my $server  = 'makepp.sourceforge.net';
+
+    my $fqhn = eval { gethostbyaddr gethostbyname( hostname ), AF_INET or hostname } || 'none';
+    $fqhn .= ".$server" if $fqhn !~ /\./; # make it at least syntactically fq
+    my $f = ($ENV{LOGNAME} || $ENV{USER} || 'nobody') . '@' . $fqhn;
+    $s =~ tr/ /+/;		# URL safe, no other special sign in this case
+
+    socket MAIL, PF_INET, SOCK_STREAM, getprotobyname 'tcp' or exit $e;
+    connect MAIL, sockaddr_in 80, inet_aton $server or exit $e;
+    print MAIL <<EOM;
+POST /cpantester.php?f=$f&s=$s HTTP/1.0
+Host: $server
+Content-Type: text/plain
+Content-Length: 999999
+
+$msg
+EOM
+    # don't know Content-Length yet, but server needs it, too big is ok
+  };
+  if( open MAIL, "| exec 2>/dev/null; mailx $_s$a || nail $_s$a || mail $_s$a || /usr/lib/sendmail $a || mail $a" ) {
+    print MAIL $msg;
+  } else {
+    $SIG{PIPE}();
+  }
+
+  my %acc;
+  for( sort keys %Config ) {
+    next unless defined $Config{$_};
+    my $value = $Config{$_} eq $_ ? '~' : $Config{$_};
+    push @{$acc{$value}},
       @{$acc{$value}} ? (/^${$acc{$value}}[-1](.+)/ ? "~$1" : $_) : $_
     }
-    print MAIL "@{$acc{$_}} => $_\n" for sort keys %acc;
-    1;
-  }
+  print MAIL "@{$acc{$_}} => $_\n" for sort keys %acc;
 }
 
 # CPAN testers don't send success or error details
@@ -117,12 +146,12 @@ my $perltype =
 $v .= "-$perltype" if $perltype;
 (my $arch = $Config{myarchname}) =~ tr/ ;&|\\'"()[]*\//-/d; # clear out shell meta chars
 unless( $reason || <$v/*.{failed,tdir}> ) {
-  mail "SUCCESS-$arch $v";
+  mail "SUCCESS-$arch $v", 0;
   exit 0;
 }
-if( mail "FAIL-$arch $v" ) {
-  open SPAR, "$^X spar -d - $v|";
-  undef $/;
-  print MAIL "\nbegin 755 $arch-$v.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
-}
+
+mail "FAIL-$arch $v", 1;
+open SPAR, "$^X spar -d - $v|";
+undef $/;
+print MAIL "\nbegin 755 $arch-$v.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
 exit 1;

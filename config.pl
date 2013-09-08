@@ -102,13 +102,13 @@ check: $(FILES)
 test: .test_done
 
 .test_done: $(FILES) t/*.test t/run_tests.pl
-	cd t && PERL=$(PERL) $(PERL) run_tests.pl --hint
+	cd t && $(PASS_PERL) $(PERL) run_tests.pl --hint
 	@touch $@
 
 testall: .testall_done
 
 .testall_done: .test_done t/*/*.test
-	cd t && PERL=$(PERL) $(PERL) run_tests.pl --hint */*.test
+	cd t && $(PASS_PERL) $(PERL) run_tests.pl --hint */*.test
 	@touch $@
 
 distribution: $(VERSION).tar.gz
@@ -128,7 +128,7 @@ $(VERSION).tar.gz: README INSTALL LICENSE ChangeLog \
 	rm -rf $(VERSION)
 
 install:
-	PERL=$(PERL) $(PERL) install.pl $(BINDIR) $(DATADIR) $(MANDIR) $(HTMLDIR) $(FINDBIN) $(DESTDIR)
+	$(PASS_PERL) $(PERL) install.pl $(BINDIR) $(DATADIR) $(MANDIR) $(HTMLDIR) $(FINDBIN) $(DESTDIR)
 
 clean:
 	rm -rf .test*_done t/*.log t/*.failed t/*.tdir .makepp pod/pod2htm?.tmp

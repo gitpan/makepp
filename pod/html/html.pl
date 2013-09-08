@@ -897,7 +897,7 @@ sub emit_item_tag {
 
     print $fh '<strong>';
     if ($Items_Named{$item}++) {
-	print $fh process_text( \$otext );
+	print $fh &process_text( \$otext );
     } else {
         my $name = $item;
         $name = anchorify($name);
@@ -2292,7 +2292,6 @@ sub highlight_variables() {
 
 sub simplify($$$) {
   open my( $tmpfile ), $_[0] or die;
-  binmode $tmpfile, ':utf8' if $] > 5.008; # suppress warning
   my $base = $_[1];
   my $timestamp = $_[2];
   my $file = "$base.html";
