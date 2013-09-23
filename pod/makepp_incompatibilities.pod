@@ -624,3 +624,12 @@ This happens automatically.
 =back
 
 Some of these can be easily supported if anyone cares.
+
+=head1 Variable incompatibilities
+
+Makepp looks for a matching command to return for variables like C<$(CC)> or
+C<$(CXX)>, while GNU make has static defaults.  Also makepp gives preference
+to C<gcc> and C<g++> while surprisingly GNU make returns C<cc> for the former,
+but the same for the latter.  You can override these in the makefile, on the
+command line or by exporting a variable of the same name before invoking
+makepp.

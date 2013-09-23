@@ -92,6 +92,42 @@ if( $ENV{AUTOMATED_TESTING} || $^O =~ /^MSWin/ ) {	# exec detaches a child proce
 }
 
 
+
+# CPAN tester: try to send details about what succeeded or material to analyze what went wrong
+close STDERR;
+my $proxy_prefix = '';
+my $connectee =
+  my $server = 'makepp.sourceforge.net';
+my $port = 80;
+sub auto {
+  eval q
+  {
+    use HTTP::ProxyAutoConfig;
+    $ENV{http_auto_proxy} ||= $_[0];
+    my $pac = new HTTP::ProxyAutoConfig;
+    ($pac = $pac->FindProxy( "http://$server" )) =~ s/^PROXY // or return 1;
+    $pac;
+  }
+  ||
+  eval q
+  {
+    use HTTP::ProxyPAC;
+    my $pac = HTTP::ProxyPAC->new( $_[0] );
+    $pac->find_proxy( "http://$server" )->proxy->as_string;
+  };
+}
+sub win {
+  if( $_[0] =~ /1$/ ) {		# enable
+    if( $_[1] && $_[1] !~ /(?:\A|;)$server(?:\Z|;)/ ) {
+      $_[2];
+    } else {
+      1;
+    }
+  } elsif( $_[3] ) {
+    auto $_[3];
+  }
+}
+
 sub mail {
   my( $s, $e ) = @_;
   my $a = 'occitan@esperanto.org';
@@ -101,8 +137,37 @@ sub mail {
   $s .= " V$1";
   my $_s = "-s'$s' ";
   my $msg = "$s V$1$2\n$reason\n$v\n\n\@INC: @INC\n\n";
-  $SIG{PIPE} = sub {	# open didn't manage to start mail, or it aborted
-    my $server  = 'makepp.sourceforge.net';
+  $SIG{PIPE} = sub {	# open didn't manage to start mail, or it aborted, use own forwarder
+    if( !$ENV{NO_PROXY} || $ENV{NO_PROXY} !~ /(?:\A|,)$server(?:\Z|,)/ ) {
+      my $proxy = $ENV{http_proxy} || $ENV{HTTP_proxy} || $ENV{ALL_PROXY};
+      unless( $proxy ) {
+	if( $ENV{http_auto_proxy} ) {
+	  $proxy = auto $ENV{http_auto_proxy};
+	} elsif( $^O eq 'MSWin32' ) {
+	  $proxy =
+	    eval q
+	    {
+	      use Win32::TieRegistry(Delimiter=>'/', TiedHash=>\my %reg);
+	      my $iekey = $reg{'CUser/Software/Microsoft/Windows/CurrentVersion/Internet Settings/'} or return;
+	      win @$iekey{qw(/ProxyEnable /ProxyOverride /ProxyServer /AutoConfigURL)};
+	    }
+	    ||
+	    eval q
+	    {
+	      use Win32::Registry;
+	      my $iekey;
+	      $::HKEY_CURRENT_USER->Open( 'SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings', $iekey ) or return;
+	      win map { my( $t, $v ); $iekey->QueryValueEx( $_, $t, $v ); $v }
+		qw(ProxyEnable ProxyOverride ProxyServer AutoConfigURL);
+	    }
+	}
+      }
+      if( $proxy =~ /\A(?:http:\/\/)?(.*?)(?::(\d+))\Z/ ) {
+	$proxy_prefix = "http://$server";
+	$connectee = $1;
+	$port = $2 || 80;
+      }
+    }
 
     my $fqhn = eval { gethostbyaddr gethostbyname( hostname ), AF_INET or hostname } || 'none';
     $fqhn .= ".$server" if $fqhn !~ /\./; # make it at least syntactically fq
@@ -110,9 +175,9 @@ sub mail {
     $s =~ tr/ /+/;		# URL safe, no other special sign in this case
 
     socket MAIL, PF_INET, SOCK_STREAM, getprotobyname 'tcp' or exit $e;
-    connect MAIL, sockaddr_in 80, inet_aton $server or exit $e;
+    connect MAIL, sockaddr_in $port, inet_aton $connectee or exit $e;
     print MAIL <<EOM;
-POST /cpantester.php?f=$f&s=$s HTTP/1.0
+POST $proxy_prefix/cpantester.php?f=$f&s=$s HTTP/1.0
 Host: $server
 Content-Type: text/plain
 Content-Length: 999999

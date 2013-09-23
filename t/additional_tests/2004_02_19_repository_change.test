@@ -48,17 +48,17 @@ from_rep 'x2';
 
 sed_17 18;
 # Don't check signatures (\''), because foo/bar/* is out of date
-makepp \'', 'foo/x'; system 'fgrep 1 foo/foo.c 2>&-; exec ls --time-style="+%F %T" -lR foo';
-makepp \'clean', '--only-repository-links', 'foo/bar'; system 'ls --time-style="+%F %T" -lR foo';
+makepp \'', 'foo/x';
+makepp \'clean', '--only-repository-links', 'foo/bar';
 
 # This should pick up x from foo/
-makepp qw(-vR foo/bar=foo foo/bar/x); system 'fgrep 1 foo/foo.c 2>&-; exec ls --time-style="+%F %T" -lR foo';
+makepp qw(-R foo/bar=foo foo/bar/x);
 
 from_rep 'x3';
 
 sed_17 19;
 # Now it should recompile, but still remember that foo.c comes from a repos
-makepp qw(-R foo/bar=foo foo/bar/x); system 'fgrep 1 foo/foo.c 2>&-; exec ls --time-style="+%F %T" -lR foo';
+makepp qw(-R foo/bar=foo foo/bar/x);
 
 from_rep 'x4';
 
