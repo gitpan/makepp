@@ -117,6 +117,8 @@ t/additional_tests/2003_12_05_phony_repository.test
 t/additional_tests/2004_01_21_repository_build.test
 t/additional_tests/2004_02_12_xargs.test
 t/additional_tests/2004_02_19_repository_change.test
+t/additional_tests/2004_02_19_repository_ktrace.test
+t/additional_tests/2004_02_19_repository_strace.test
 t/additional_tests/2004_02_25_only_targets_rule.test
 t/additional_tests/2004_02_27_srctarg.test
 t/additional_tests/2004_03_03_minusk.test
