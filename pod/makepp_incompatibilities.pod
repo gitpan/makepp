@@ -2,7 +2,7 @@
 
 makepp_incompatibilities -- Incompatibilities between makepp and GNU make
 
-=for vc $Id: makepp_incompatibilities.pod,v 1.38 2012/12/27 23:09:57 pfeiffer Exp $
+=for vc $Id: makepp_incompatibilities.pod,v 1.39 2013/10/13 19:43:10 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -627,9 +627,9 @@ Some of these can be easily supported if anyone cares.
 
 =head1 Variable incompatibilities
 
-Makepp looks for a matching command to return for variables like C<$(CC)> or
-C<$(CXX)>, while GNU make has static defaults.  Also makepp gives preference
-to C<gcc> and C<g++> while surprisingly GNU make returns C<cc> for the former,
-but the same for the latter.  You can override these in the makefile, on the
-command line or by exporting a variable of the same name before invoking
-makepp.
+Makepp looks in C<$PATH> for a matching command to return for variables like
+C<$(CC)> or C<$(CXX)>, while GNU make has static defaults.  Also makepp gives
+preference to C<gcc> and C<g++> while surprisingly GNU make returns C<cc> for
+the former, but the same for the latter.  You can override these in the
+makefile, on the command line or by exporting a variable of the same name
+before invoking makepp.

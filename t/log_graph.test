@@ -1,4 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	2	644	1236523730	1380398298	hint
+This tests add-on utilities for analyzing your build.  The failure
+likely does not imply a problem with makepp itself.
 ###	2	644	1216325548	1337890922	is_relevant.pl
 (Cwd::cwd =~ tr!/!!) > 3 &&	# Deep enough with tdir for rewriting cwd 4 levels?
   have_cc
@@ -85,9 +88,6 @@ a: $( a b/b c/c)$(_OBJ_SUFFIX)
     ifperl Mpp::is_windows
 	&mv a.exe a
     endif
-###	2	644	1236523730	1237488299	hint
-This tests neat utilities for analyzing your build.  The failure likely does
-not imply a problem with makepp itself.
 ###	1	644	1170452082	1166207798	makepp.mk
 include makepp1.mk
 ###	0	644	1170452082	1166207809	makepp1.mk

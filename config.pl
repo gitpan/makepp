@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# $Id: config.pl,v 1.36 2013/07/05 21:02:38 pfeiffer Exp $
+# $Id: config.pl,v 1.37 2013/10/13 19:42:58 pfeiffer Exp $
 #
 # Configure this package.
 #
@@ -101,14 +101,14 @@ check: $(FILES)
 
 test: .test_done
 
-.test_done: $(FILES) t/*.test t/run_tests.pl
-	cd t && $(PASS_PERL) $(PERL) run_tests.pl --hint
+.test_done: $(FILES) t/*.test t/run_all.t t/run_tests.pl
+	cd t && $(PASS_PERL) $(PERL) run_all.t *.test
 	@touch $@
 
 testall: .testall_done
 
 .testall_done: .test_done t/*/*.test
-	cd t && $(PASS_PERL) $(PERL) run_tests.pl --hint */*.test
+	cd t && $(PASS_PERL) $(PERL) run_all.t */*.test
 	@touch $@
 
 distribution: $(VERSION).tar.gz

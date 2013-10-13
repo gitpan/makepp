@@ -1,4 +1,10 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	5	644	1236528312	1380446609	hint
+This tests links and symbolic links, among other things.  If your file
+system doesn't support either or both of these, you can try running
+this test with a workaround that consists in setting the environment
+variable MAKEPP_LN_CP to 1, 2 or 3.  If you want to use the &ln builtin
+later on, always set it!
 ###	191	421	1162935563	1217791125	RootMakeppfile
 #
 # This file tests the builtin commands.
@@ -221,11 +227,6 @@ pqrs	tuvw	xyz{	|}~
 ###	0	644	1107332258	1105783994	dir2
 ###	1	644	1107332258	1107331351	grep.in
 aha,foo,bar,with a,without
-###	4	644	1236528312	1236528312	hint
-This tests links and symbolic links, among other things.  If your file system
-doesn't support either of these, you can try running this test with a
-workaround that consists in setting the environment variable MAKEPP_LN_CP to
-1, 2 or 3.  If you want to use the &ln builtin later on, always set it.
 ###	22	644	1153676973	1313824017	preprocess.test
 
 # empty & comment

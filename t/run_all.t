@@ -74,31 +74,32 @@ push @ARGV, <*repository*.test */*repository*.test> if $R;
 @ARGV = grep !exists $c{$_}, @ARGV if $C;
 @ARGV = grep !/stress_tests/, @ARGV if $S;
 
-unshift @ARGV, @opts, $T ? '-dvs' : '-ts';
+my $cpantst = 1 if $ENV{AUTOMATED_TESTING};
+push @opts, $T ? '-dvs' : '-ts' if $T || $cpantst || $ENV{HARNESS_ACTIVE};
+unshift @ARGV, @opts;
 print "$cmd @ARGV\n" if $ENV{DEBUG};
 
-my $reason;
-if( $ENV{AUTOMATED_TESTING} || $^O =~ /^MSWin/ ) {	# exec detaches a child process and exit immediately
-  system $^X, $cmd, @ARGV;
-  exit( $? >> 8 || $? ) unless $ENV{AUTOMATED_TESTING};
-  $reason =
-    $? == -1 ? "failed: $!: system $^X, $cmd, @ARGV\n" :
-    $? & 127 ? "died with signal $?: system $^X, $cmd, @ARGV\n" :
-    $? ? "exited with value " . ($? >> 8) . ": system $^X, $cmd, @ARGV\n" :
-    '';
-} else {
-  exec $^X, $cmd, @ARGV;
-  die $!;
-}
+$ENV{MAKEPP_LN_CP} = 1
+  if $cpantst && !exists $ENV{MAKEPP_LN_CP} && $^O =~ /^MS(?:ys|Win)/i;
 
+system $^X, $cmd, @ARGV;	# run the tests
+my $exit = $?;
+exit 0 unless $exit || $cpantst;
+my $reason =
+  $? == -1 ? "failed: $!: system $^X, $cmd, @ARGV\n" :
+  $? & 127 ? "died with signal $?: system $^X, $cmd, @ARGV\n" :
+  $? ? "exited with value " . ($? >> 8) . ": system $^X, $cmd, @ARGV\n" :
+  '';
 
 
 # CPAN tester: try to send details about what succeeded or material to analyze what went wrong
+# Failure of manual run: ask kindly to have this mailed
 close STDERR;
 my $proxy_prefix = '';
 my $connectee =
   my $server = 'makepp.sourceforge.net';
 my $port = 80;
+# try to handle auto conf by either of two modules as available
 sub auto {
   eval q
   {
@@ -116,6 +117,7 @@ sub auto {
     $pac->find_proxy( "http://$server" )->proxy->as_string;
   };
 }
+# common code for both Windows modules
 sub win {
   if( $_[0] =~ /1$/ ) {		# enable
     if( $_[1] && $_[1] !~ /(?:\A|;)$server(?:\Z|;)/ ) {
@@ -144,7 +146,7 @@ sub mail {
 	if( $ENV{http_auto_proxy} ) {
 	  $proxy = auto $ENV{http_auto_proxy};
 	} elsif( $^O eq 'MSWin32' ) {
-	  $proxy =
+	  $proxy =		# try to find settings by either of two modules as available
 	    eval q
 	    {
 	      use Win32::TieRegistry(Delimiter=>'/', TiedHash=>\my %reg);
@@ -210,13 +212,29 @@ my $perltype =
   '';
 $v .= "-$perltype" if $perltype;
 (my $arch = $Config{myarchname}) =~ tr/ ;&|\\'"()[]*\//-/d; # clear out shell meta chars
-unless( $reason || <$v/*.{failed,tdir}> ) {
-  mail "SUCCESS-$arch $v", 0;
-  exit 0;
+
+if( $cpantst ) {
+  unless( $reason || <$v/*.{failed,tdir}> ) {
+    mail "SUCCESS-$arch $v", 0;
+    exit 0;
+  }
+  mail "FAIL-$arch $v", 1;
+  open SPAR, "$^X spar -d - $v|";
+  undef $/;
+  print MAIL "\nbegin 755 $arch-$v.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
+} else {
+  system "$^X spar -d - $v >$arch-$v.spar";
+  print "I'm sorry, something is not working right in your environment.
+Please check above and in the .log files if there were any hints about what
+you might do. Also on http://makepp.sourceforge.net/2.1/ in the side menu look
+at Compatibility and Incompatibilities!  If all that doesn't help to pass,
+please mail the file $arch-$v.spar to occitan\@esperanto.org
+Thank you for helping!\n"
 }
 
-mail "FAIL-$arch $v", 1;
-open SPAR, "$^X spar -d - $v|";
-undef $/;
-print MAIL "\nbegin 755 $arch-$v.spar\n" . pack( 'u*', <SPAR> ) . "\nend\n";
-exit 1;
+if( $exit > 0xff ) {
+  exit $exit >> 8;
+} elsif( $exit ) {
+  kill $exit & 0x7f, $$;
+}
+exit 0;

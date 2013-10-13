@@ -38,7 +38,6 @@ my $archive = $Config{perlpath}; # Temp assignment is work-around for a nasty pe
 our $source_path;
 my $old_cwd;
 my $dot;
-my $hint;
 my $verbose;
 my $test;
 my $keep;
@@ -124,7 +123,6 @@ BEGIN {
   Mpp::Text::getopts(
     [qw(b basedir), \$basedir, 1],
     [qw(d dots), \$dot],
-    [qw(h hint), \$hint],
     [qw(k keep), \$keep],
     [qw(m makepp), \$makepp_path, 1],
     [qw(n name), \$name, 1],
@@ -137,8 +135,6 @@ run_tests.pl[ options][ tests]
 	Put tdirs into subdir of given dir, to perform tests elsewhere.
     -d, --dots
 	Output only a dot for every successful test.
-    -h, --hint
-	For some tests explain what might be wrong, and give a general hint.
     -k, --keep
 	Keep the tdir even if the test was successful.
     -m, --makepp=PATH_TO_MAKEPP
@@ -148,7 +144,7 @@ run_tests.pl[ options][ tests]
     -s, --subdir
 	Put tdirs into a subdir named [BASEDIR/]perlversion[-NAME].
     -t, --test
-	Output in format expected by Test::Harness.
+	Output in format expected by TAP::Harness.
     -v, --verbose
 	Give some initial info and final statistics.
 
@@ -209,8 +205,17 @@ EOF
   chdir $old_cwd;
 }
 
-my $have_cc;
+my( $cc_errors, $have_cc, $want_cc ) = 0;
+my $cc_hint1 = 'This test needs a C compiler that accepts options in common order.
+';
+my $cc_hint = $cc_hint1 .
+  ($ENV{CC} ? 'Please check your value of $CC' :
+   'Old makes use CC=cc, but makepp may choose another compiler in $PATH') . ".\n" .
+  ($ENV{CFLAGS} ?
+  'Make sure that your CFLAGS are understood by the chosen compiler!
+' : '');
 sub have_cc() {
+  $want_cc = 1;
   unless( defined $have_cc ) {
     $have_cc =
       $ENV{CC} ||
@@ -269,13 +274,16 @@ my $log_count = 1;
 sub makepp(@) {
   my $extra = ref $_[0];
   my $suffix = $extra ? ${shift()} : '';
-  print "${page_break}makepp$suffix" . (@_ ? " @_\n" : "\n");
+  print $page_break;
   $page_break = "\cL\n";
   if( !$suffix && -f '.makepp/log' ) {
     chdir '.makepp';		# For Win.
-    rename log => 'log' . $log_count++;
+    my $save = 'log' . $log_count++;
+    print "saved log to $save\n"
+      if rename log => $save;
     chdir '..';
   }
+  print "makepp$suffix" . (@_ ? " @_\n" : "\n");
   system_intabort \"makepp$suffix", # "
     PERL, '-w', exists $file{'makeppextra.pm'} ? '-Mmakeppextra' : (), $makepp_path.$suffix, @_;
   unless( $extra ) {
@@ -413,6 +421,7 @@ our $mod_answer;
 print OSTDOUT '1..'.@ARGV."\n" if $test;
 test_loop:
 foreach $archive (@ARGV) {
+  $want_cc = 0;
   undef $mod_answer;
   %file = ();
   my $testname = $archive;
@@ -587,7 +596,24 @@ foreach $archive (@ARGV) {
     }
     ++$n_failures;
     close TFILE;		# or Cygwin will hang
-    c_cat 'hint' if $hint && exists $file{hint};
+    if( exists $file{hint} ) {
+      c_sed 'print "\f\n" if $. == 1', 'hint', "-o>>$log";
+      c_sed 's/^/\t/', 'hint' unless $test;
+    } else {
+      if( $want_cc ) {
+	c_echo '-n', "\f\n$cc_hint", "-o>>$log";
+	unless( $test ) {
+	   (my $hint = ++$cc_errors == 1 ? $cc_hint : $cc_hint1) =~ s/^/\t/gm;
+	   print $hint;
+	}
+      }
+      if( $testname =~ /(build_cache|repository)/ ) {
+	my $hint = "Likely only the useful but not essential $1 feature failed.\n";
+	c_echo '-n', "\f\n$hint", "-o>>$log";
+	$hint =~ s/^/\t/;
+	print $hint unless $test;
+      }
+    }
     chdir $old_cwd;		# Get back to the old directory.
     rename $tdir => $tdir_failed unless $dirtest;
     last if $testname eq 'aaasimple'; # If this one fails something is very wrong

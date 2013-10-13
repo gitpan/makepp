@@ -1,7 +1,7 @@
 ###	SPAR <http://www.cpan.org/scripts/>
 ###	1	775	1168790726	1329052044	is_relevant.pl
 have_cc and is_windows ? makepp( '-n' ) : 1; # Let makepp test if it uses a symlink capable compiler.
-###	61	644	1159479798	1364336547	makepp_test_script.pl
+###	61	644	1159479798	1381667483	makepp_test_script.pl
 sub sed_17($) {
   # Make sure that the foo.c timestamp changes
   wait_timestamp 'foo.c';
@@ -35,12 +35,12 @@ makepp qw(-R foo/bar=foo foo/bar/x);
 
 from_rep 'x1';
 
-c_cp qw(foo/f.c foo/foo.c);
+makepp \'clean', '--only-repository-links', 'foo/bar';
+c_cp qw(foo/f.c foo/foo.c);	# If we had not just cleaned, this would sometimes invalidate foo/bar/foo.c!
 wait_timestamp 'foo/bar/foo';
 makepp 'foo/x';
-makepp \'clean', '--only-repository-links', 'foo/bar';
 
-wait_timestamp 'foo/foo';
+wait_timestamp 'foo/foo', 'foo/bar/foo';
 # This should pick up x from foo/
 makepp qw(-R foo/bar=foo foo/bar/x);
 

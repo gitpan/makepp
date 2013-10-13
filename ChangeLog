@@ -1,3 +1,14 @@
+2013-10-13  DP  <occitan@esperanto.org>
+
+snapshot 2.0.98.4
+
+	* config.pl
+	* t/run_all.t
+	* t/run_tests.pl
+	* t/**/*test: Improve hinting and always show it, except in --test.  Try harder to get test results.
+
+	* pod/html/html.pl (emit_item_tag): Put Compatibility with Incompatibilities.
+
 2013-08-18  DP  <occitan@esperanto.org>
 
 	* Mpp.pm

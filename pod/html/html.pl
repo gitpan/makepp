@@ -2,7 +2,7 @@
 #
 # This script does the pod to html generation with some heavy massageing.
 #
-# $Id: html.pl,v 1.15 2013/07/05 21:05:04 pfeiffer Exp $
+# $Id: html.pl,v 1.16 2013/10/13 19:42:43 pfeiffer Exp $
 #
 
 #use Pod::Html ();		# Stole module to have consistent id-attributes.
@@ -2055,6 +2055,7 @@ my @nav =
       makepp_tutorial
       makepp_tutorial_compilation
       makepp_release_notes
+      makepp_compatibility
       makepp_incompatibilities
       makepp_speedup
       perl_performance)],

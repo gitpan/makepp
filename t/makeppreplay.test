@@ -1,4 +1,9 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	4	644	1327960486	1380446186	hint
+This tests an add-on utility for speeding up your build.  The failure
+likely does not imply a problem with makepp itself.
+Ccache at least up to version 3.1.9 is known to fail this test on `out',
+bug report https://bugzilla.samba.org/show_bug.cgi?id=8728 refers.
 ###	1	644	1329052295	1329052295	is_relevant.pl
 have_cc
 ###	36	644	1227216359	1342861520	makepp_test_script.pl
@@ -38,9 +43,6 @@ local $/;
 die 'rescan' if $rescan != 5;	# a, d, dir/e, dir/f & xreal.c don't need scanning, so they don't lose this flag.
 
 1;
-###	2	644	1327960486	1327960486	hint
-Ccache at least up to version 3.1.7 is known to fail this test on "out",
-bug report https://bugzilla.samba.org/show_bug.cgi?id=8728 refers.
 ###	35	644	1227216620	1229020504	RootMakeppfile.mk
 $(phony all): a c cc d dir/$( e f) out
 

@@ -1,4 +1,4 @@
-# $Id: Text.pm,v 1.66 2013/08/19 06:38:27 pfeiffer Exp $
+# $Id: Text.pm,v 1.67 2013/10/13 19:43:16 pfeiffer Exp $
 
 =head1 NAME
 
@@ -22,7 +22,7 @@ use Config;
 BEGIN {
   our $BASEVERSION = 2.1;
 #@@setVERSION
-  our $VERSION = '2.0.98.3.4';
+  our $VERSION = '2.0.98.4';
 
 #
 # Not installed, so grep all our sources for the checkin date.  Make a

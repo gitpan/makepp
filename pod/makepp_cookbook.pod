@@ -2,7 +2,7 @@
 
 makepp_cookbook -- The best way to set up makefiles for various situations
 
-=for vc $Id: makepp_cookbook.pod,v 1.30 2013/04/22 07:01:18 pfeiffer Exp $
+=for vc $Id: makepp_cookbook.pod,v 1.31 2013/10/13 19:43:22 pfeiffer Exp $
 
 =head1 DESCRIPTION
 

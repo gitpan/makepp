@@ -2,7 +2,7 @@
 
 makepp_compatibility -- Compatibility list for makepp
 
-=for vc $Id: makepp_compatibility.pod,v 1.40 2012/10/14 15:18:27 pfeiffer Exp $
+=for vc $Id: makepp_compatibility.pod,v 1.41 2013/10/13 19:43:29 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -15,6 +15,15 @@ pass.  On some platforms lacking some features, notably Cygwin, a few tests
 are explicitly skipped.  This table shows with what version this has been
 tested where, and whether it was successful.  We would like to hear of your
 results on other platforms too!
+
+Note that you get a comparable overview when going to the top right CPAN tab
+and choosing Perl/Platform Version Matrix
+(L<http://matrix.cpantesters.org/?dist=makepp>).  But they give a red bar even
+if only one out of about hundred tests fail.  And since those test are
+automated on screened off machines, it can be hard to find out or even fix
+what is going wrong.  Often it is something that could be worked around, like
+compiler, operating or file system particularities or wrong environment
+variables.
 
 =for html
 <ul>
@@ -33,54 +42,54 @@ list below.  The first two lines are special, based on the OS field being
 empty.  This is converted to html by install.pl and readable as is in other
 formats.  The 1st header line is currently not dynamic.
 
-		#|||||||||			5.8						#|	5.10	#||||		5.12			#|| 5.14		#|||	 5.16			# 5.18	#
+		#|||||||||			5.8						#|	5.10	#||||		5.12			#|| 5.14		#|||	 5.16			#|	5.18	#
 
-		# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	| .9	# .0	| .1	# .0	| .1	| .2	| .3	| .4	# .0	| .1	| .2	# .0	| .1	| .2	| .3	# .0	#
+		# .0	| .1	| .2	| .3	| .4	| .5	| .6	| .7	| .8	| .9	# .0	| .1	# .0	| .1	| .2	| .3	| .4	# .0	| .1	| .2	# .0	| .1	| .2	| .3	# .0	| .1	#
 
- GNU/Linux (x86)# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	| x	| x	# x	| x	| x	# x	| x	| x	| x	# x	#
+ GNU/Linux (x86)# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	| x	| x	# x	| x	| x	# x	| x	| x	| x	# x	| x	#
 
- GNU/Linux (amd64)#	|	|	|	|	| x	|	|	|	| x	#	|	#	|	| x	| x	|	# x	|	| x	#	|	| x	| x	#	#
+ GNU/Linux (amd64)#	|	|	|	|	| x	|	|	|	| x	#	|	#	|	| x	| x	|	# x	|	| x	#	|	| x	| x	#	|	#
 
- GNU/Linux (S/390)#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	|	|	|	|	#	|	|	#	|	|	|	#	#
+ GNU/Linux (S/390)#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	|	|	|	|	#	|	|	#	|	|	|	#	|	#
 
- FreeBSD (x86)	#	|	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	| x	|	#	| x	|	#	|	| x	| x	#	#
+ FreeBSD (x86)	#	|	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	| x	|	#	| x	|	#	|	| x	| x	#	| x	#
 
- NetBSD (x86)	#	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	| x	|	#	| x	| x	#	|	| x	| x	#	#
+ NetBSD (x86)	#	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	| x	|	#	| x	| x	#	|	| x	| x	#	| x	#
 
- NetBSD (Alpha)	#	|	|	|	|	|	|	|	|	| x	# x	| x	#	|	|	|	|	#	|	|	#	|	|	|	#	#
+ NetBSD (Alpha)	#	|	|	|	|	|	|	|	|	| x	# x	| x	#	|	|	|	|	#	|	|	#	|	|	|	#	|	#
 
- OpenBSD (x86)	# x	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	|	| x	# x	| x	| x	# x	| x	| x	|	# x	#
-
-
- AIX (PPC)	#	| x	| x	|	|	|	|	| x	| x	|	#	|	#	|	|	|	|	#	|	|	#	| x	|	|	#	#
-
- Darwin (x86)	#	|	|	|	|	|	|	|	|	|	#	|	#	| x	|	|	|	#	|	| x	#	|	|	|	#	#
-
- Darwin (PPC)	#	|	|	|	|	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	|	|	#	|	|	#	|	| x	|	#	#
-
- HP/UX (IA64)	# x	|	|	| x	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	|	#	|	|	|	#	#
-
- Irix		#	|	|	|	|	|	|	|	| x	|	#	|	#	|	|	|	|	#	|	|	#	|	|	|	#	#
-
- Solaris (Sparc)# x	| x	| x	| x	| x	| x	| x	| x	| x	| x	# x	|	# x	| x	|	|	|	#	|	|	# x	| x	|	|	# x	#
-
- Solaris (64bit)#	| x	|	|	|	|	|	|	| x	|	# x	|	#	|	|	|	|	#	|	|	#	|	|	|	#	#
-
- Solaris (x86)	#	| x	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	|	|	#	|	|	#	|	| x	|	#	#
+ OpenBSD (x86)	# x	|	|	|	|	|	|	|	|	| x	# x	| x	# x	| x	| x	|	| x	# x	| x	| x	# x	| x	| x	|	# x	| x	#
 
 
- BS2000 (S/390)	#	| x	|	|	|	|	|	|	|	|	# /	|	#	|	|	|	|	#	|	|	#	|	|	|	#	#
+ AIX (PPC)	#	| x	| x	|	|	|	|	| x	| x	|	#	|	#	|	|	|	|	#	|	|	#	| x	|	|	#	| x	#
 
- z/OS USS (S/390)#	|	|	|	|	|	|	|	| zOS	|	# /	|	#	|	|	|	|	#	|	|	#	|	|	|	#	#
+ Darwin (x86)	#	|	|	|	|	|	|	|	|	|	#	|	#	| x	|	|	|	#	|	| x	#	|	|	|	#	|	#
+
+ Darwin (PPC)	#	|	|	|	|	|	| x	| x	| x	| x	# x	| x	# x	| x	| x	|	|	#	|	|	#	|	| x	|	#	| x	#
+
+ HP/UX (IA64)	# x	|	|	| x	|	|	|	|	|	|	#	|	#	|	|	|	|	#	|	|	#	|	|	|	#	| x	#
+
+ Irix		#	|	|	|	|	|	|	|	| x	|	#	|	#	|	|	|	|	#	|	|	#	|	|	|	#	|	#
+
+ Solaris (Sparc)# x	| x	| x	| x	| x	| x	| x	| x	| x	| x	# x	|	# x	| x	|	|	|	#	|	|	# x	| x	|	|	# x	| x	#
+
+ Solaris (64bit)#	| x	|	|	|	|	|	|	| x	|	# x	|	#	|	|	|	|	#	|	|	#	|	|	|	#	|	#
+
+ Solaris (x86)	#	| x	|	|	|	|	|	|	| x	| x	# x	| x	# x	| x	| x	|	|	#	|	|	#	|	| x	|	#	|	#
 
 
- Cygwin (x86)	#	|	|	|	|	|	|	| Win	| x	|	# x	| x	#	|	|	|	|	#	|	| x	#	|	|	|	#	#
+ BS2000 (S/390)	#	| x	|	|	|	|	|	|	|	|	# /	|	#	|	|	|	|	#	|	|	#	|	|	|	#	|	#
 
- MinGW MSYS	#	|	|	|	|	|	|	|	| x	|	#	|	#	|	|	|	|	#	|	|	#	|	|	|	#	#
+ z/OS USS (S/390)#	|	|	|	|	|	|	|	| zOS	|	# /	|	#	|	|	|	|	#	|	|	#	|	|	|	#	|	#
 
- Stawberry	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	| x	| x	| x	|	#	|	| x	# x	| x	| x	| x	# x	#
 
- ActiveState Win# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	|	| x	|	# x	|	| x	#	| x	|	| x	#	#
+ Cygwin (x86)	#	|	|	|	|	|	|	| Win	| x	|	# x	| x	#	|	|	|	|	#	|	| x	#	|	|	|	#	|	#
+
+ MinGW MSYS	#	|	|	|	|	|	|	|	| x	|	#	|	#	|	|	|	|	#	|	|	#	|	|	|	#	|	#
+
+ Stawberry	#	|	|	|	|	|	|	|	| x	| x	# x	| x	#	| x	| x	| x	|	#	|	| x	# x	| x	| x	| x	# x	|	#
+
+ ActiveState Win# x	| x	| x	| x	| x	|	| x	| x	| x	| x	# x	| x	# x	| x	|	| x	|	# x	|	| x	#	| x	|	| x	#	|	#
 
 =for html </table>
 

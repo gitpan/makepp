@@ -2,7 +2,7 @@
 
 makepp_faq -- Frequently asked questions about makepp
 
-=for vc $Id: makepp_faq.pod,v 1.16 2013/08/19 06:38:27 pfeiffer Exp $
+=for vc $Id: makepp_faq.pod,v 1.17 2013/10/13 19:43:03 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
@@ -338,6 +338,11 @@ traditional makes this even comes too late, because those miss many situations
 calling for a recompilation.  With makepp it is just easier to use the built
 in L<build cache|makepp_build_cache>, which has the added advantage that it
 can handle all kinds of files.
+
+Note that ccache direct mode has a bug
+https://bugzilla.samba.org/show_bug.cgi?id=8728 that will ignore change in
+include pathes.  This makes F<t/makeppreplay.test> fail with "wrong file:
+out".  Export C<CCACHE_NODIRECT=1> to avoid that.
 
 =head1 AUTHOR
 
