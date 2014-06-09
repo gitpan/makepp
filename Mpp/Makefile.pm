@@ -1,9 +1,9 @@
-# $Id: Makefile.pm,v 1.174 2013/08/19 06:38:27 pfeiffer Exp $
+# $Id: Makefile.pm,v 1.175 2013/12/01 19:24:04 pfeiffer Exp $
 package Mpp::Makefile;
 
 use Mpp::Glob qw(wildcard_do);
 use Mpp::Event qw(wait_for);
-use Mpp::Text qw(max_index_ignoring_quotes index_ignoring_quotes split_on_whitespace split_on_colon
+use Mpp::Text qw(rfind_unquoted find_unquoted split_on_whitespace split_on_colon
 		 unquote unquote_split_on_whitespace requote hash_neq);
 use Mpp::Subs;
 use Mpp::Cmds ();
@@ -1237,7 +1237,7 @@ sub grok_rule {
 # x.o: x.c; @echo this is a stupid syntax
 #	$(CC) $< -o $@
 #
-  my $idx = index_ignoring_quotes $after_colon[-1], ';';
+  my $idx = find_unquoted $after_colon[-1], ';';
   if ($idx >= 0) {
     $action = substr $after_colon[-1], $idx+1;
     substr( $after_colon[-1], $idx ) = '';
@@ -1320,7 +1320,7 @@ sub grok_rule {
     if (/^:\s*((?:build[-_]?c(?:ache|heck)|dispatch|env(?:ironment)?|foreach|multiple[-_]?rules[-_]?ok|parser|s(?:ignature|canner|martscan)|quickscan|last[-_]?chance)\b.*)/ ) {
 				# A colon modifier?
       push @after_colon, $1;
-      if( (my $i = index_ignoring_quotes $after_colon[-1], '#') > 0 ) {
+      if( (my $i = find_unquoted $after_colon[-1], '#') > 0 ) {
 	substr( $after_colon[-1], $i ) = ''
       }
     } else {			# Not a colon modifier?
@@ -1485,11 +1485,11 @@ sub grok_rule {
 #   $(filesubst %.c, %.o, $(foreach)) : $(foreach) : foreach **/*.c
 #
   my $pattern_dep = 0;
-  my $target_pattern = index_ignoring_quotes( $expanded_target_string, '%', 0, 2 ) >= 0;
+  my $target_pattern = find_unquoted( $expanded_target_string, '%', 0, 2 ) >= 0;
   if( $target_pattern ) { # Pattern rule?
     # find the first element of @deps that contains a pattern character, '%'
     for my $dep ( @deps ) {
-      last if index_ignoring_quotes( $dep, '%', 0, 2 ) >= 0;
+      last if find_unquoted( $dep, '%', 0, 2 ) >= 0;
       ++$pattern_dep;
     }
     if( $pattern_dep < @deps ) {  # does such an element exist?
@@ -1536,11 +1536,11 @@ sub grok_rule {
     if( $target_pattern ) { # Pattern rule?
       $target_string = "\$(filesubst $deps[$pattern_dep], $target_string, \$(foreach),_)";
       for( @deps[$pattern_dep+1..$#deps] ) { # Handle any extra dependencies:
-	index_ignoring_quotes( $_, '%', 0, 2 ) >= 0 and
+	find_unquoted( $_, '%', 0, 2 ) >= 0 and
 	  $_ = "\$(filesubst $deps[$pattern_dep], $_, \$(foreach),_)";
       }
       $include = "\$(filesubst $deps[$pattern_dep], $include, \$(foreach),_)"
-	if $include && index_ignoring_quotes( $include, '%', 0, 2 ) >= 0;
+	if $include && find_unquoted( $include, '%', 0, 2 ) >= 0;
       $deps[$pattern_dep] = '$(foreach)'; # This had better match the wildcard specified
 				# in the foreach clause.  TODO: this is buggy with resulting multiple %. (limr mail)
       $after_colon[0] = "@deps";
@@ -1678,13 +1678,13 @@ sub grok_rule {
       	# If it is an open-ended ":last_chance" rule, then we need to
 	# set a trigger to generate the rules on demand.  Otherwise, it's
 	# just a single rule that we can generate now.
-      	if( index_ignoring_quotes( $tstring, '%', 0, 2 ) >= 0 ) {
+      	if( find_unquoted( $tstring, '%', 0, 2 ) >= 0 ) {
 	  die "Can't use :last_chance and :include together\n" if $include; # TODO: figure out how to handle %.d
 	  my $subdirs = expand_variable $self, 'makepp_percent_subdirs', $makefile_line;
 	  my $pct_re = $subdirs ? '.*' : '[^/]*';
 	  my( @wild_targets, @pattern_re );
 	  foreach (split_on_whitespace($tstring)) {
-	    if( index_ignoring_quotes( $_, '%', 0, 2 ) >= 0 ) {
+	    if( find_unquoted( $_, '%', 0, 2 ) >= 0 ) {
 	      my $wild_target = unquote;
 	      my $re = quotemeta $wild_target;
 	      if( $subdirs ) { $wild_target =~ s!%!**/*!g } else { $wild_target =~ tr!%!*! }
@@ -1911,9 +1911,9 @@ sub read_makefile {
 	  s/\(eval \d+\)(?:\[.*?\])? line \d+/\`$makefile_line\'/g;
 	  s/^$cmd: //;
 	  if( $ignore_error ) {
-	    print STDERR "makepp: &$cmd: $_";
+	    print STDERR "$makefile_line: &$cmd: $_";
 	  } else {
-	    die "makepp: &$cmd: $_";
+	    die "$makefile_line: &$cmd: $_";
 	  }
 	}
       }
@@ -1928,7 +1928,7 @@ sub read_makefile {
       die "$makefile_line: export and global can not currently be combined\n"
 	if $keyword->{export} && $keyword->{global};
 
-      $equal = /=/ ? index_ignoring_quotes $_, '=' : -1;
+      $equal = /=/ ? find_unquoted $_, '=' : -1;
       if( $keyword->{define} ) {
 	chomp;
 	if( $equal > 0 ) {
@@ -1948,11 +1948,11 @@ sub read_makefile {
     if( /^\s*([-\w]+)\s+(.*)/ ) { # Statement at beginning of line?
       my ($rtn, $rest_of_line) = ($1, $2);
       $rtn =~ tr/-/_/;		# Make routine names more Perl friendly.
-      substr $rtn, 0, 0, "$self->{PACKAGE}::s_";
-      if( defined &$rtn ) {	# Function from makefile?
-	eval { &$rtn( $rest_of_line, $self, $makefile_line, $keyword ) };
+      my $sub = "$self->{PACKAGE}::s_$rtn";
+      if( defined &$sub ) {	# Function from makefile?
+	eval { &$sub( $rest_of_line, $self, $makefile_line, $keyword ) };
 				# Try to call it as a subroutine.
-	die "$makefile_line: error handling $rtn statement\n$@\n" if $@;
+	die "$makefile_line: $rtn statement raised this error:\n$@\n" if $@;
 	die "$makefile_line: $rtn statement doesn't handle ", join( ', ', keys %$keyword ), "\n"
 	  if keys %$keyword;
 	next;
@@ -2088,7 +2088,7 @@ sub _truthval($$) {
   $line =~ s/^\s+//;		# Strip leading whitespace.
 
   my $truthval;
-  my $idx = index_ignoring_quotes $line, '#'; # Find comment.
+  my $idx = find_unquoted $line, '#'; # Find comment.
   if( defined $def ) {			# See whether something is defined?
     substr( $line, $idx ) = '' if 0 <= $idx; # Strip comment.
 
@@ -2099,7 +2099,7 @@ sub _truthval($$) {
     substr( $line, $idx ) = '' if 0 <= $idx; # Strip comment.
     $line =~ s/\s+$//;	# Strip trailing whitespace.
 
-    $idx = index_ignoring_quotes $line, ',';
+    $idx = find_unquoted $line, ',';
     if ($line =~ /^\(/) {	# Parenthesized syntax? need to match make syntax to avoid
 				# ambiguity if strings contain parentheses
       0 <= $idx or die "$file: Comma missing in 'if$cond$line'\n";
@@ -2107,7 +2107,7 @@ sub _truthval($$) {
       $a =~ s/\s+$//;
       $b = substr $line, $idx + 1;
       $b =~ s/^\s+//;
-      0 <= ($idx = max_index_ignoring_quotes $b, ')') or
+      0 <= ($idx = rfind_unquoted $b, ')') or
 	die "$file: Closing paren missing in 'if$cond$line'\n";
       $idx + 1 < length $b and
 	die "$file: Trailing cruft after closing paren in `if$cond$line'\n";
@@ -2194,7 +2194,7 @@ sub _read_makefile_line_stripped_1 {
     if( -1 < index substr( $line, 0, -1 ), "\n" ) {
       # TODO: figure out if we are in makeperl, else don't expand after #
       warn "$makefile_name:$makefile_lineno: After # multiline \$[] only comments out 1st line.\n"
-	if -1 < index_ignoring_quotes substr( $line, 0, $bracket ), '#';
+	if -1 < find_unquoted substr( $line, 0, $bracket ), '#';
       unshift_makefile_lines( $line );
       $line = shift @hold_lines;
     }
@@ -2321,7 +2321,7 @@ sub skip_makefile_until_else_or_endif {
 	substr $rtn, 0, 0, 'Mpp::Subs::s_';
 	next if defined &$rtn;	# Statement?
       }
-      next if ($line =~ /=/ ? index_ignoring_quotes $line, '=' : -1) != -1; # assignment
+      next if ($line =~ /=/ ? find_unquoted $line, '=' : -1) != -1; # assignment
       my @pieces = split_on_colon $line;
       if( @pieces > 1 ) {	# Was there a colon somewhere?
 	local $skipping = 1;

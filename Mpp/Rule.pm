@@ -1,4 +1,4 @@
-# $Id: Rule.pm,v 1.133 2013/08/19 06:38:27 pfeiffer Exp $
+# $Id: Rule.pm,v 1.134 2013/12/01 19:24:04 pfeiffer Exp $
 use strict qw(vars subs);
 
 package Mpp::Rule;
@@ -1065,7 +1065,7 @@ sub execute_command {
 	  return 1 if $error_abort;
 	}
       } else {
-	my $comment = index_ignoring_quotes $action, '#';
+	my $comment = find_unquoted $action, '#';
 	my( $cmd, @args ) =
 	  unquote_split_on_whitespace $comment > -1 ? substr $action, 0, $comment : $action;
 	eval {

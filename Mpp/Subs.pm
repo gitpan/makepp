@@ -1,4 +1,4 @@
-# $Id: Subs.pm,v 1.207 2013/08/19 06:38:39 pfeiffer Exp $
+# $Id: Subs.pm,v 1.208 2013/12/01 19:25:41 pfeiffer Exp $
 
 =head1 NAME
 
@@ -36,7 +36,7 @@ package Mpp::Subs;
 
 use strict qw(vars subs);
 
-use Mpp::Text qw(index_ignoring_quotes split_on_whitespace requote
+use Mpp::Text qw(find_unquoted split_on_whitespace requote
 		unquote unquote_split_on_whitespace format_exec_args);
 use Mpp::File;
 use Mpp::FileOpt;
@@ -364,7 +364,7 @@ sub f_dir_noslash {		# An internal routine that does the same
 }
 
 sub f_error {
-  die "$_[2]: *** ".&arg."\n";	# Throw the text.
+  die $_[2] || 'somewhere', ": *** ".&arg."\n";	# Throw the text.
 }
 
 #
@@ -379,7 +379,7 @@ sub f_error {
 sub f_filesubst {
   my( $src, $dest, $words, $set_stem ) = args $_[0], $_[1], $_[2], 4, 3;
 				# Get the patterns.
-  die "$_[2]: filesubst has extra argument `$set_stem'\n" if defined $set_stem && $set_stem ne '_';
+  die $_[2] || 'somewhere', ": filesubst has extra argument `$set_stem'\n" if defined $set_stem && $set_stem ne '_';
   my $cwd = $_[1]{CWD};
 #
 # First we eat away at the directories on the source until we find the
@@ -586,7 +586,7 @@ sub f_find_upwards {
 				# intended to avoid trouble with automounters
 				# or dead network file systems.
     }
-    $found or die "find_upwards: cannot find file $_\n";
+    $found or die $_[2] || 'somewhere', ": find_upwards: cannot find file $_\n";
   }
 
   join ' ', @ret_names;
@@ -623,7 +623,7 @@ sub f_find_first_upwards {
 				# or dead network file systems.
   }
   return if $_[3];
-  die "find_first_upwards cannot find any of the requested files: @fnames\n";
+  die $_[2] || 'somewhere', ": find_first_upwards cannot find any of the requested files: @fnames\n";
 }
 
 sub f_findstring {
@@ -701,7 +701,7 @@ sub f_infer_linker {
   }
 
   my $status = wait_for @build_handles;	# Wait for them all to build.
-  $status and die "Error while compiling\n"; # Maybe I'll come up with a better
+  $status and die $mkfile_line || 'somewhere', ": Error while compiling\n"; # Maybe I'll come up with a better
 				# error message later.
 
 #
@@ -752,7 +752,7 @@ sub f_infer_objects {
   my @build_handles;		# Where we put the handles for building objects.
   my @deps = map zglob_fileinfo($_, $build_cwd), split ' ', $seed_objs
 				# Start with the seed files themselves.
-    or die "infer_objects called with seed objects $seed_objs that can't be built\n";
+    or die $mkfile_line || 'somewhere', ": infer_objects called with seed objects $seed_objs that can't be built\n";
   Mpp::log INFER_SEED => \@deps
     if $Mpp::log_level;
 
@@ -799,7 +799,7 @@ sub f_infer_objects {
 
       if( defined $handle ) {   # Something we need to wait for?
         $handle->{STATUS} && !$Mpp::keep_going and
-          die "$mkfile_line: infer_objects failed because dependencies could not be built\n";
+          die $mkfile_line || 'somewhere', ": infer_objects failed because dependencies could not be built\n";
         push @build_handles, $handle;
       }
       ++$dep_idx;
@@ -862,7 +862,7 @@ sub f_mktemp {
   my $template = &arg;
   my $mkfile = $_[1];
   $mkfile ||= \%Mpp::Subs::;	# Any old hash for default LAST_TEMP_FILE & CWD
-  return $mkfile->{LAST_TEMP_FILE} || die "No previous call to \$(mktemp)\n" if $template eq '/';
+  return $mkfile->{LAST_TEMP_FILE} || die $_[2] || 'somewhere', ": No previous call to \$(mktemp)\n" if $template eq '/';
   $template ||= 'tmp.';
   my $Xmax = 9;
   $Xmax = length( $1 ) - 1 if $template =~ s/(X+)$//;
@@ -886,7 +886,7 @@ sub f_mktemp {
       return $mkfile->{LAST_TEMP_FILE};
     }
   }
-  die "$_[2]: too many tries necessary to make unique filename for $_[0]\n";
+  die $_[2] || 'somewhere', ": too many tries necessary to make unique filename for $_[0]\n";
 }
 
 #
@@ -905,7 +905,7 @@ sub f_prebuild {
   }
   my $status = wait_for @build_handles; # Wait for them all to complete before
                                 # we continue.
-  $status and die "\$(prebuild $names) failed\n";
+  $status and die $_[2] || 'somewhere', ": \$(prebuild $names) failed\n";
 
   $names;			# Return arguments verbatim now that we have
                                 # built them.
@@ -1075,7 +1075,7 @@ sub f_relative_filename {
 sub f_relative_to {
   my ($files, $dir, $slash) = args $_[0], $_[1], $_[2], 3, 2;
   my $cwd = $_[1]{CWD};
-  defined $dir or die "wrong number of arguments to \$(relative_to file, dir)\n";
+  defined $dir or die $_[2] || 'somewhere', ": wrong number of arguments to \$(relative_to file, dir)\n";
   $dir =~ s/^\s+//;		# Trim whitespace.
   $dir =~ s/\s+$//;
   my $dirinfo = file_info unquote( $dir ), $cwd;
@@ -1124,16 +1124,16 @@ sub f_shell {
 # (finally) seems to work.  I'm still not 100% clear on why some of the
 # other ones didn't.
 #
-    pipe my $pin, my $pout or die "can't make pipe--$!\n";
+    pipe my $pin, my $pout or die $_[2] || 'somewhere', ": can't make pipe--$!\n";
     my $proc_handle = new Mpp::Event::Process sub { # Wait for process to finish.
       #
       # This is the child process.  Redirect our standard output to the pipe.
       #
       close $pin;		# Don't read from the handle any more.
       close STDOUT;
-      open STDOUT,'>&', $pout or die "can't redirect stdout--$!\n";
+      open STDOUT,'>&', $pout or die $_[2] || 'somewhere', ": can't redirect stdout--$!\n";
       exec format_exec_args $str;
-      die "exec $str failed--$!\n";
+      die $_[2] || 'somewhere', ": exec $str failed--$!\n";
     }, ERROR => sub {
       warn "shell command `$str' returned `$_[0]' at `$mkfile_line'\n";
     };
@@ -1144,7 +1144,7 @@ sub f_shell {
       my $n_chars = sysread $pin, my( $blk ), 8192; # Try to read.
       unless( defined $n_chars ) { # An error on the read?
 	--$n_errors_remaining > 0 and next; # Probably "Interrupted system call".
-	die "read error--$!\n";
+	die $_[2] || 'somewhere', ": read error--$!\n";
       }
       last if $n_chars == 0;	# No characters read--other process closed pipe.
       $shell_output .= $blk;
@@ -1329,7 +1329,7 @@ sub f_sorted_dependencies {
 sub f_foreach {
   unless( $_[0] ) {		# No argument?
     defined $rule && defined $rule->{FOREACH} or
-      die "\$(foreach) used outside of rule, or in a rule that has no :foreach clause at `$_[2]'\n";
+      die $_[2] || 'somewhere', ": \$(foreach) used outside of rule, or in a rule that has no :foreach clause at `$_[2]'\n";
     return relative_filename $rule->{FOREACH}, $rule->build_cwd;
   }
 
@@ -1460,10 +1460,10 @@ sub s_build_check {#_
   $name = $mkfile->expand_text( $name, $mkfile_line )
     if $mkfile;
   $name =~ s/^\s*(\w+)\s*$/$1/ or
-    die "$mkfile_line: invalid build_check statement\n";
+    die $mkfile_line || 'somewhere', ": invalid build_check statement\n";
   if( $name ne 'default' ) {
     $$var = eval "use Mpp::BuildCheck::$name; \$Mpp::BuildCheck::${name}::$name"
-      or die "$mkfile_line: invalid build_check method $name\n";
+      or die $mkfile_line || 'somewhere', ": invalid build_check method $name\n";
   } elsif( $global ) {		# Return to the default method?
     $$var = $Mpp::BuildCheck::exact_match::exact_match;
   } else {
@@ -1506,14 +1506,14 @@ sub s_include {#__
       $mkfile, $mkfile_line, 1;	# Search for special makepp versions of files as well.
     if( $Mpp::Makefile::c_preprocess ) {
       eval { $mkfile->read_makefile($finfo) };
-      die $@ if
+      die $mkfile_line || 'somewhere', ": $@\n" if
 	$@ and exists $keyword->{ignore} ? !/^can't read makefile/ : 1;
     } else {
       if( $finfo ) {
 	if( exists $keyword->{check} ) {
 	  next if Mpp::File::is_stale $finfo;
 	  wait_for prebuild( $finfo, @{$mkfile->{REINCLUDE}{$file}}[1,2] ) and
-	    die "can't build " . absolute_filename( $finfo ) . ", needed at $mkfile->{REINCLUDE}{$file}[2]\n";
+	    die $mkfile_line || 'somewhere', ": can't build " . absolute_filename( $finfo ) . ", needed at $mkfile->{REINCLUDE}{$file}[2]\n";
 	   return 1 if		# Now that we have a rule, did we actually build the file?
 	    ($mkfile->{REINCLUDE}{$file}[0] || 0) != $finfo ||
 	    ($mkfile->{REINCLUDE}{$file}[3] || 'x') ne Mpp::File::signature $finfo;
@@ -1524,7 +1524,7 @@ sub s_include {#__
 	} else {
 	  wait_for prebuild( $finfo, $mkfile, $mkfile_line ) and
 				# Build it if necessary, or link it from a repository.
-	    die "can't build " . absolute_filename( $finfo ) . ", needed at `$mkfile_line'\n";
+	    die $mkfile_line || 'somewhere', ": can't build " . absolute_filename( $finfo ) . "\n";
 	}
       } else {
 #
@@ -1543,7 +1543,7 @@ sub s_include {#__
 	    exists $keyword->{check} or
 	      $mkfile->{REINCLUDE}{$file} = [undef, $mkfile, $mkfile_line, $keyword->{ignore}];
 	  } elsif( !$keyword->{ignore} ) {
-	    die "$mkfile_line: can't find include file `$file'\n";
+	    die $mkfile_line || 'somewhere', ": $mkfile_line: can't find include file `$file'\n";
 	  }
 	  next;
 	}
@@ -1587,7 +1587,7 @@ sub s_load_makefile {#_
   my @makefiles;
   while (defined($_ = shift @words)) { # Any words left?
     if (/^(\w+)=(.*)/) {	# Found a variable?
-      $command_line_vars{$1} = unquote($2);
+      $command_line_vars{$1} = unquote my $copy = $2;
     }
     elsif (/^-I(\S*)/) {	# Specification of the include path?
       unshift @include_path, ($1 || shift @words);
@@ -1691,7 +1691,7 @@ sub s_prebuild {#__
     # didn't need to be built, but it could also means that there was a
     # dependency loop. We ought to generate an error in the latter case.
     wait_for prebuild( $finfo, $mkfile, $mkfile_line ) and
-      die "failed to prebuild $target\n";
+      die $mkfile_line || 'somewhere', ": failed to prebuild $target\n";
   }
 }
 *s_make = \&s_prebuild;
@@ -1742,14 +1742,14 @@ sub s_register_parser {#_
 
   my( @fields ) = unquote_split_on_whitespace $mkfile->expand_text( $_[0], $mkfile_line );
 				# Get the words.
-  @fields == 2 or die "$mkfile_line: register_command_parser needs 2 arguments at `$_[2]'\n";
+  @fields == 2 or die $mkfile_line || 'somewhere', ": register_command_parser needs 2 arguments at `$_[2]'\n";
   $fields[1] =~ tr/-/_/;
   $fields[1] =
     *{"$mkfile->{PACKAGE}::p_$fields[1]"}{CODE} ||
     *{"$fields[1]::factory"}{CODE} ||
     *{"Mpp::CommandParser::$fields[1]::factory"}{CODE} ||
     *{"$fields[1]::factory"}{CODE} ||
-    die "$mkfile_line: invalid command parser $fields[1]\n";
+    die $mkfile_line || 'somewhere', ": invalid command parser $fields[1]\n";
   $mkfile->register_parser( @fields );
 }
 *s_register_command_parser = \&s_register_parser;
@@ -1788,8 +1788,8 @@ sub s_vpath {#__
 sub s_runtime {#__
   my ($text, $mkfile, $mkfile_line) = @_; # Name the arguments.
 
-  (my $comma = index_ignoring_quotes $text, ',') >= 0 or # Find the command
-    die "$mkfile_line: runtime EXE,LIST called with only one argument\n";
+  (my $comma = find_unquoted $text, ',') >= 0 or # Find the command
+    die $mkfile_line || 'somewhere', ": runtime EXE,LIST called with only one argument\n";
   my $exelist = $mkfile->expand_text(substr($text, 0, $comma), $mkfile_line);
   substr $text, 0, $comma+1, ''; # Get rid of the variable name.
   my @deps = map file_info($_, $mkfile->{CWD}), split_on_whitespace $mkfile->expand_text($text, $mkfile_line);
@@ -1819,7 +1819,7 @@ sub s_signature {#__
       $$name_var = $name;
       $$override_var = $override;
     } else {
-      die "$mkfile_line: invalid signature method $name\n";
+      die $mkfile_line || 'somewhere', ": invalid signature method $name\n";
     }
   } else {		# Return to the default method?
     undef $$name_var;

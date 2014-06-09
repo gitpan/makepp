@@ -65,7 +65,7 @@ BEGIN {
 	last;
       }
     }
-  } else {				# Find it in $PATH:
+  } else {			# Find it in $PATH:
     foreach (split(/:/, $ENV{PATH}), '.') {
       my $dir = $_ || '.';	# Blank path element is .
       if( -x "$dir/$0" ) {
@@ -553,10 +553,6 @@ foreach $archive (@ARGV) {
 	or push @errors, 'n_files';
     }
 
-# Get rid of the log file so we don't get confused if the next test doesn't
-# make a log file for some reason.  For a failed test it remains, hence the name.
-    rename '.makepp/log' => '.makepp/log.failed';
-
 #
 # Also search through the log file to make sure there are no Perl messages
 # like "uninitialized value" or something like that.
@@ -575,7 +571,11 @@ foreach $archive (@ARGV) {
     die 'wrong file' . (@errors > 1 ? 's' : '') . ': ' . join( ', ', @errors) . "\n" if @errors;
   };
 
-  if ($@) {
+  if( $@ ) {
+# Get rid of the log file so we don't get confused if the next test doesn't
+# make a log file for some reason.  For a failed test it remains, hence the name.
+    rename '.makepp/log' => '.makepp/log.failed';
+
     if ($@ =~ /skipped(?: (.))?/) {	# Skip this test?
       chop( my $loc = $@ );
       dot $1 || '-', "$loc $testname\n";

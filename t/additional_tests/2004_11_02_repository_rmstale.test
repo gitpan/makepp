@@ -1,7 +1,12 @@
 ###	SPAR <http://www.cpan.org/scripts/>
+###	2	644	1381956736	1382127816	hint
+Ccache at least up to version 3.1.9 is known to make this test die,
+bug report https://bugzilla.samba.org/show_bug.cgi?id=8728 refers.
 ###	1	644	1329052295	1329052295	is_relevant.pl
 have_cc
-###	26	644	1099447329	1364432108	makepp_test_script.pl
+###	28	644	1099447329	1381956819	makepp_test_script.pl
+local $ENV{CCACHE_DISABLE} = 1 if $ENV{AUTOMATED_TESTING}; # Else faile with hint to let user know.
+
 makepp 'BUILD=1';
 
 print "Checking that ./x exits nonzero...\n";

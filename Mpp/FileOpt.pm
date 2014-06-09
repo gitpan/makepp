@@ -1,4 +1,4 @@
-# $Id: FileOpt.pm,v 1.122 2013/08/19 06:38:27 pfeiffer Exp $
+# $Id: FileOpt.pm,v 1.123 2014/03/19 21:56:01 pfeiffer Exp $
 
 =head1 NAME
 
@@ -501,39 +501,38 @@ sub set_rule {
 				# Don't give a warning message about a rule
 				# which was replaced, because it's ok in this
 				# case to use a different rule.
-	} elsif( exists $oldrule->{PATTERN_RULES} ) {
-	  #
-	  # Apparently both are pattern rules.	Figure out which one should override.
-	  #
-	  if( $rule->{MAKEFILE} != $oldrule->{MAKEFILE} ) { # Compare the cwds
+	} elsif( exists $rule->{PATTERN_RULES} ) { # New rule is pattern rule?
+	  if( exists $oldrule->{PATTERN_RULES} ) { # Figure out which one should override.
+	    if( $rule->{MAKEFILE} != $oldrule->{MAKEFILE} ) { # Compare the cwds
 				# if they are from different makefiles.
-	    if( relative_filename( $rule->build_cwd, $finfo->{'..'}, 1 ) <
-		relative_filename( $oldrule->build_cwd, $finfo->{'..'}, 1 )) {
-	      Mpp::log RULE_NEARER => $rule
-		if $Mpp::log_level;
-	    } else {
-	      Mpp::log RULE_NEARER_KEPT => $oldrule
-		if $Mpp::log_level;
-	      return;
-	    }
-	  } elsif( !exists $rule->{PATTERN_RULES} || @{$rule->{PATTERN_RULES}} < @{$oldrule->{PATTERN_RULES}} ) {
+	      if( relative_filename( $rule->build_cwd, $finfo->{'..'}, 1 ) <
+		  relative_filename( $oldrule->build_cwd, $finfo->{'..'}, 1 )) {
+		Mpp::log RULE_NEARER => $rule
+		  if $Mpp::log_level;
+	      } else {
+		Mpp::log RULE_NEARER_KEPT => $oldrule
+		  if $Mpp::log_level;
+		return;
+	      }
+	    } elsif( my $cmp = @{$rule->{PATTERN_RULES}} <=> @{$oldrule->{PATTERN_RULES}} ) {
 				# If they're from the same makefile, use the
 				# one that has a shorter chain of inference.
-	    Mpp::log RULE_SHORTER => $rule
-	      if $Mpp::log_level;
-	  } elsif( @{$rule->{PATTERN_RULES}} > @{$oldrule->{PATTERN_RULES}} ) {
-	    Mpp::log RULE_SHORTER => $oldrule
+	      Mpp::log RULE_SHORTER => $cmp == 1 ? $oldrule : $rule
+		if $Mpp::log_level;
+	      return if $cmp == 1;
+	    } else {
+	      warn 'rule `', $rule->source, "' produces ", &absolute_filename,
+		" in two different ways\n"
+		if $rule->source eq $oldrule->source;
+	    }
+	  } else {
+	    Mpp::log RULE_IGN_PATTERN => $rule
 	      if $Mpp::log_level;
 	    return;
-	  } else {
-	    warn 'rule `', $rule->source, "' produces ", &absolute_filename,
-	      " in two different ways\n"
-		if $rule->source eq $oldrule->source;
 	  }
-	} elsif( exists $rule->{PATTERN_RULES} ) { # New rule is?
-	  Mpp::log RULE_IGN_PATTERN => $rule
+	} elsif( exists $oldrule->{PATTERN_RULES} ) {
+	  Mpp::log RULE_IGN_PATTERN => $oldrule
 	    if $Mpp::log_level;
-	  return;
 	} else {
 	  warn 'conflicting rules `', $rule->source, "' and `", $oldrule->source, "' for target ",
 	    &absolute_filename, "\n"

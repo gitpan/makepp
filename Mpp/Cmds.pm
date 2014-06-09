@@ -144,7 +144,7 @@ sub frame(&@) {
     [qw(v verbose), \$Mpp::verbose];
 
   # Setup input context.
-  local $/ = $separator if defined $separator;
+  local $/ = ref $separator && $$separator == 0 ? undef : $separator if defined $separator; # \0 deprecated in 5.20
   #local *STDIN if $inpipe or $output && $output =~ /^\+</; # Causes input to hang :-(
   if( $inpipe ) {
     $inpipe =~ s/\|$//s;
@@ -628,41 +628,13 @@ sub c_sort {
 sub c_template {
   local @ARGV = @_;		# for <>
   my( %macros, $tmp );
-  my( $pre, $suf, $Pre, $Suf, $afterPre, $afterSuf, $re ) = qw(@ @(?:\\\\\n)? @@ @@ @@);
+  my( $pre, $suf, $Pre, $Suf, $afterPre, $afterSuf, $re ) = qw(@ @(?:\\\\\n)? @@ @@ @@(?:\\\\\n)?);
   frame {
     $re = $re ? join( '|', keys %macros ) : qr/\w[-\w.]*/;
     # Always have a () for multiline, in lst case one that never matches
     my $pre_re = length( $Pre ) ? (length( $pre ) ? qr/$Pre()|$pre/ : qr/$Pre()/) : qr/$pre|$pre()/;
     my $suf_re = length( $Suf ) ? (length( $suf ) ? qr/(?(2)(?:$Suf()|$suf)|$suf)/ : qr/$Suf()/) : qr/$suf/;
     my $handler = sub {
-      if( defined $_[3] ) {	# @macro=def@
-	if( exists $macros{$_[3]} ) {
-	  return '' if $_[4];	# @macro?=def@
-	} else {
-	  $re = ($re ? "$re|" : '') . $_[3];
-	}
-	$macros{$_[3]} = $_[6] ? eval_or_die( "sub $_[6]" ) : $_[5];
-				# @macro { Perlcode }@
-	'';
-      } elsif( defined $_[2] ) { # @{ Perlcode }@
-	eval_or_die $_[2];
-      } else {			# @macro@ or @macro(arg1,arg2...)@
-	my $repl = $macros{$_[0]};
-	if( !defined $repl ) {
-	  $repl = '';
-	} else {
-	  my @args = map { s/$pre($re)$suf/$macros{$1}/g; $_ } split ',', $_[1] if $_[1];
-	  if( ref $repl ) {
-	    $repl = &$repl( @args );
-	  } elsif( $_[1] ) {		# @macro(arg1,arg2...)@
-	    $repl =~ s/\$([1-9])/$1 > @args ? '' : $args[$1-1]/ge;
-	    $repl =~ s/\$\{([1-9]\d*)\}/$1 > @args ? '' : $args[$1-1]/ge;
-	  }
-	}
-	$repl;
-      }
-    };
-    while( <> ) {
       my $line;
       while( s/(.*?) $pre_re (?:($re)(?:\((.*?)\))? | \{(.*?)\} | (\w[-\w.]*)(?:(\?)?=(.*?) | \s*(\{.*?\}))) $suf_re//x ) {
 	if( defined $line ) {
@@ -670,22 +642,57 @@ sub c_template {
 	} else {
 	  $line = $1;
 	}
-	# my( $name, $args, $perl, $def, $optdef, $value, $defcode )
-	@_ = ($3, $4, $5, $6, $7, $8, $9);
+	my( $name, $args, $perl, $def, $optdef, $value, $defcode ) = ($3, $4, $5, $6, $7, $8, $9);
 	if( defined $2 && defined $10 ) { # multiline?
-	  my $end = $afterSuf ? qr/$_[0]$afterSuf/ : '';
+	  my $end = $afterSuf ? qr/$name$afterSuf/ : '';
 	  until( s/.*?$afterPre$end// ) {
 	    if( eof ) {
-	      warn "$ARGV:$.: $Pre$_[0]$Suf unterminated\n";
+	      warn "$ARGV:$.: $Pre$name$Suf unterminated\n";
 	      $_ = '';
 	      last;
 	    }
 	    $_ = <>;
 	  }
 	}
-	$line .= &$handler;
+	if( defined $def ) {	# @macro=def@
+	  if( exists $macros{$def} ) {
+	    next if $optdef;	# @macro?=def@
+	  } else {
+	    $re = ($re ? "$re|" : '') . $def;
+	  }
+	  $macros{$def} = $defcode ? eval_or_die( "sub $defcode" ) : $value;
+				# @macro { Perlcode }@
+	} elsif( defined $perl ) { # @{ Perlcode }@
+	  $line .= eval_or_die $perl;
+	} else {		# @macro@ or @macro(arg1,arg2...)@
+	  if( defined( my $val = $macros{$name} ) ) {
+	    my @args = map { s/$pre($re)$suf/$macros{$1}/g; $_ } split ',', $args if $args;
+	    if( ref $val ) {
+	      $val = &$val( @args );
+	    } elsif( $args ) {		# @macro(arg1,arg2...)@
+	      $val =~ s/\$([1-9])/$1 > @args ? '' : $args[$1-1]/ge;
+	      $val =~ s/\$\{([1-9]\d*)\}/$1 > @args ? '' : $args[$1-1]/ge;
+	    }
+	    $line .= $val;
+	  }
+	}
       }
-      substr $_, 0, 0, $line if defined $line;
+      substr $_, 0, 0, $line if defined $line; # push transformed stuff back to front
+    };
+    $macros{include} ||= sub {
+      $tmp = $.;		# not reading this gets confused by switching filehandles at least till 5.20
+      local( $ARGV, $_ ) = $_[0];
+      $ARGV =~ tr/ //d;
+      open my $fh, '<', $ARGV;
+      my $res = '';
+      while( <$fh> ) {
+	&$handler;
+	$res .= $_;
+      }
+      $res;
+    };
+    while( <> ) {
+      &$handler;
       &print;
       close ARGV if $synclines && eof;
     }

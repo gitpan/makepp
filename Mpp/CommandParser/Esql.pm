@@ -1,4 +1,4 @@
-# $Id: Esql.pm,v 1.22 2012/05/15 21:26:30 pfeiffer Exp $
+# $Id: Esql.pm,v 1.23 2014/01/15 21:32:38 pfeiffer Exp $
 
 =head1 NAME
 
@@ -141,14 +141,14 @@ sub tags {
   my $scanner = $_[0]{SCANNER};
   $scanner->should_find( 'user' );
   $scanner->info_string( \%info_string );
-  $scanner->add_include_suffix_list( usersys => $_[1] ? $db2_inc_suffixes : $inc_suffixes );
+  $scanner->add_include_suffix_list( usersys => $_[2] ? $db2_inc_suffixes : $inc_suffixes );
 }
 sub xparse_command {
   my $scanner = $_[0]{SCANNER};
   my( $cmd ) = Mpp::is_windows ? $_[1][0] =~ /(\w+)(?:\.exe)?$/ : $_[1][0] =~ /(\w+)$/;
 
   if( $cmd eq 'db2' ) {		# Special case this unusual syntax
-    $_[0]->tags( 1 );
+    $_[0]->tags( 0, 1 );
     my $file = $_[1][1];
     return 0 if $file !~ s/^pre(?:compile|p)\s*//i; # other subcommand
     if( $file ) {

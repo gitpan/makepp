@@ -633,13 +633,4 @@ sub wildcard_do(&@) {
 				# of responsibility for recognizing wildcards.
 }
 
-=for todo
-perl { #das matscht nur zukünftige Dateien
-  use Mpp::File;
-  my $dinfo = file_info '.';
-  push @{$dinfo->{WILDCARD_DO}}, [qr/^[ab]/, sub { print 'AHA[' . &relative_filename . "]\n" }]
-}
-
-=cut
-
 1;

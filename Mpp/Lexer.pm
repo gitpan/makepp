@@ -1,4 +1,4 @@
-# $Id: Lexer.pm,v 1.54 2013/07/21 21:46:04 pfeiffer Exp $
+# $Id: Lexer.pm,v 1.55 2013/12/01 19:24:05 pfeiffer Exp $
 
 =head1 NAME
 
@@ -153,8 +153,8 @@ sub lex_rule {
     # Take the backquotes out of parser's way
     my $bq1 = -10;		# pretend initial replacement, length of -backquote
     my $extra = '';
-    while( ($bq1 = index_ignoring_quotes $action, '`', $bq1 + 10, 1) >= 0 ) {
-      my $bq2 = index_ignoring_quotes $action, '`', $bq1 + 1, 1; # If not found, this is conveniently -1, eos
+    while( ($bq1 = find_unquoted $action, '`', $bq1 + 10, 1) >= 0 ) {
+      my $bq2 = find_unquoted $action, '`', $bq1 + 1, 1; # If not found, this is conveniently -1, eos
       $extra .= ';' .substr
 	substr( $action, $bq1, $bq2 - $bq1 + 1, '-backquote' ), # Make parser's life easier
 	1, -1;			# append content of backquote, so it will get parsed as normal commands
@@ -166,11 +166,11 @@ sub lex_rule {
     # by '&' or '|', (but do if a ';' precedes the pipeline).
     for $command ( split_commands $action ) {
       while( $command =~ /[<>]/ ) {
-	my $max = max_index_ignoring_quotes $command, '>';
+	my $max = rfind_unquoted $command, '>';
 	my( $expr, $is_in );
 	if( $max > -1 ) {	# have >
 	  $expr = substr $command, $max + 1;
-	  my $lt = max_index_ignoring_quotes $expr, '<';
+	  my $lt = rfind_unquoted $expr, '<';
 	  if( $lt > -1 ) {	# < after >
 	    $max += $lt;
 	    substr $expr, 0, $lt + 1, '';
@@ -180,7 +180,7 @@ sub lex_rule {
 				# Handle '>>' redirectors
 	  }
 	} else {
-	  $max = max_index_ignoring_quotes $command, '<';
+	  $max = rfind_unquoted $command, '<';
 	  if( $max > -1 ) {	# have <
 	    $expr = substr $command, $max + 1;
 	    $is_in = 1;
@@ -212,9 +212,9 @@ sub lex_rule {
       my %env = %ENV; # copy the set env to isolate command settings
       while ($command =~ s/^\s*(\w+)=//) {
         my $var=$1;             # Is there an environment variable assignment?
-        my $ix = index_ignoring_quotes $command, ' ';
+        my $ix = find_unquoted $command, ' ';
                                 # Look for the next whitespace.
-        $ix >= 0 or $ix = index_ignoring_quotes $command, "\t";
+        $ix >= 0 or $ix = find_unquoted $command, "\t";
                                 # Oops, it must be a tab.
         $ix >= 0 or last;       # Can't find the end.  It must be a simple assignment.
         $env{$var} = substr $command, 0, $ix, ''; # Chop off the environment variable's value.

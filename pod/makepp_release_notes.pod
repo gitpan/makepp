@@ -2,13 +2,28 @@
 
 makepp_release_notes -- Major changes in each version of makepp
 
-=for vc $Id: makepp_release_notes.pod,v 1.84 2013/08/19 06:38:27 pfeiffer Exp $
+=for vc $Id: makepp_release_notes.pod,v 1.85 2013/12/01 19:24:05 pfeiffer Exp $
 
 =head1 DESCRIPTION
 
 =head2 Version 2.1 (under development)
 
 =over 4
+
+=item *
+
+Builtin L<&template|makepp_builtins/template_option_macro_definition_filename>
+mini-language documentation rewritten.  It now has an
+C<@include(I<filename>)@> macro.
+
+=item *
+
+C Scanner now takes into account compiler specific path variables like
+C<C_INCLUDE_PATH> or C<LIB>.
+
+=item *
+
+Parens now nest as in GNU make or Shell: C<$(name ...()...)>
 
 =item *
 

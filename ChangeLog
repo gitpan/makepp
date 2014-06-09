@@ -1,3 +1,30 @@
+2014-06-09  DP  <occitan@esperanto.org>
+
+	* Mpp/Cmds.pm: Eliminate new 5.20 warning, that CPAN counts as failed test.
+	(c_template): New macro @include(filename)@.
+
+	* Mpp/Makefile.pm (read_makefile)
+	* Mpp/Subs.pm: Better show where errors come from.
+
+2014-03-19  DP  <occitan@esperanto.org>
+
+	* Mpp/FileOpt.pm (set_rule): A late found rule for a different dir can override a pattern rule.
+
+2014-01-15  DP  <occitan@esperanto.org>
+
+	* Mpp/CommandParser/Esql.pm
+	* Mpp/CommandParser/Gcc.pm: Treat C_INCLUDE_PATH et al., -static and -l: and optimize.  Few API changes.
+
+	* Mpp/Text.pm (split_path): Extra arg for parsing native vars even on Cygwin.
+
+2013-12-01  DP  <occitan@esperanto.org>
+
+	* Mpp/Text.pm:
+	* Mpp/*.pm: Parens now nest in expressions.
+	Single quotes now ignore \.
+	unquote: no longer works on regexp vars.
+	(r)find_unquoted: rename *index_ignoring_quotes.
+
 2013-10-13  DP  <occitan@esperanto.org>
 
 snapshot 2.0.98.4

@@ -14,6 +14,7 @@ B<C:>E<nbsp>L<&cat|/cat_option_filename>,
   L<&chmod|/chmod_option_mode_filename>,
   L<I<chown>|/chgrp>,
   L<&cp|/cp_option_sourcefile_destfile>,
+  L<I<cpp>|/cpp>,
   L<&cut|/cut_option_filename>,E<nbsp>
 B<D:>E<nbsp>L<I<date>|/date>,E<nbsp>
 B<E:>E<nbsp>L<&echo|/echo_option_string>,
@@ -994,30 +995,88 @@ equivalent.
 
 =item &template I<[option ...] macro=definition ... filename ...>
 
-This is a macro preprocessor, not quite as powerful as C<m4>, but covers more
-than is found in many makefiles.  See L<C<&preprocess>|/preprocess_option_variable_definition_filename> for a
-more powerful alternative.  Any normal text goes through unchanged.  It
-replaces all occurrences of C<@macro@>, C<@macro(arg1,arg2...)@> or everything
-between C<@@macro@@>, C<@@macro(arg1,arg2...)@@> and C<@@> with I<definition>.
-If there are args, they replace C<$1> through C<$9> or C<${I<number>}> in
-I<definition>.  One level of macro nesting is possible in that the args in
-parenthesis may contain plain C<@macro@> invocations, as in C<@f(@x@)@>, where
-@x@ gets expanded before being replaced into the body of C<f>.
+This is a macro preprocessor, not quite as powerful as the C preprocessor or
+C<m4>.  See L<C<&preprocess>|/preprocess_option_variable_definition_filename>
+for a more powerful alternative.  It was inspired by automake's macro
+replacement in F<Makefile.am> and F<Makefile.in>.  But it goes beyond that.
+Any normal text goes through unchanged.  Special constructs are by default
+delimited with C<@>.
 
-The simple C<@...@> cases are single line, but may mask a trailing newline if
-the closing C<@> is immediately followed by a backslash.  The multiline
-C<@@...@@> cases must also fit on one line, but the corresponding C<@@> may be
-on a different line.  This is useful if you have a workaround code block in an
-unprocessed script, which is to get replaced with the configured code.
+=over 4
 
-In addition to passing macro definitions on the command line, you can also put
-C<@macro=definition@> or C<@macro?=definition@> into the file.  The latter
-only takes effect if the macro was not defined, presumably on the command
-line.  You can also call C<@{ I<Perlcode> }@> or C<@@{ I<Perlcode> }@@ ... @@>
-in the file.  The Perl variable C<$ARGV> contains the name of the current
-input file.  If you call C<@macro { I<Perlcode> }@>, then you define a new
-macro, the body of which is a Perl sub.  The arguments, if there are any, get
-passed in as C<@_>.
+=item @I<MACRO>@
+
+This construct is replaced by the value of the I<MACRO>.  Macro names must start
+with a letter or underscore, followed by any number of letters, underscores,
+minuses or dots.  Unlike in makepp names, underscore and minus are not
+equivalent.
+
+=item @I<MACRO>(I<arg1,arg2>...)@
+
+Like the first one, but parametrized.  The args replace C<$1> through C<$9> or
+C<${I<number>}> in the value.  Or, if the value is a Perl function, they are
+passed as normal parameters.  The result then replaces the whole construct.
+One level of macro nesting is possible in that the args in parenthesis may
+contain plain C<@MACRO@> invocations, as in C<@f(@x@)@>, where C<@x@> gets
+expanded before being replaced into the body of C<f>.
+
+=item @include(I<filename>)@
+
+This is the only predefined macro.  It is replaced by the &template-processed
+content of the named file.  Like all macros this can occur in the middle of a
+line.  Alas, because of that, C<-S, --synclines> ignores the file inclusion,
+making everything seem to come from the including file.
+
+=item @I<MACRO>=I<definition>@
+
+=item @I<MACRO>?=I<definition>@
+
+This defines a macro within the file.  This is replaced by nothing.
+The second form only takes effect if the macro was not defined, presumably on
+the command line.
+
+=item @I<MACRO> { I<Perlcode> }@
+
+This also defines a macro, the body of which is a Perl sub.  The arguments, if
+there are any, get passed in as C<@_>.
+
+=item @{ I<Perlcode> }@
+
+This runs the I<Perlcode> immediately and gets replaced by the return value.
+
+=back
+
+So far we have only seen one syntax for embedding special things.  There is
+another multiline syntax, and both allow a variation to suppress a newline.
+These are the builtin syntaxes (which can be configured by options below).
+Here I<SPECIAL> stands for any of the constructs shown above:
+
+=over 4
+
+=item @I<SPECIAL>@
+
+=item @I<SPECIAL>@\
+
+This can appear multiply anywhere on a line.  The variant immediately followed
+by C<\> only works at the end of the line.  It also replaces the following
+line break.
+
+=item @@I<SPECIAL>@@ I<Normal text> @@
+
+=item @@I<SPECIAL>@@ I<Normal text> @@\
+
+This is like the previous one.  However the normal text, which also gets
+replaced, can span multiple lines.  You can put the special parts on comment
+lines around source code that is only needed in an uninstalled script, to be
+replaced by C<&template EMPTY_MACRO=''> during the installation process:
+
+    # @@EMPTY_MACRO@@
+    echo You are running the uninstalled version of this script
+    # @@
+
+=back
+
+A meaningless example showing the various possibilities:
 
     @m1=some definition@\
     @m2=foo $1 bar@\
@@ -1054,16 +1113,16 @@ I<Perlcode> }@> definitions.
 
 =item --simple=I</prefix/suffix/>
 
-Use I<prefix> and I<suffix> before and after I<var> respectively instead of
+Use I<prefix> and I<suffix> before and after I<SPECIAL> respectively instead of
 C<@>.  The first character is the separator and need not be a slash.
 
 =item -m I</prefix/suffix/afterprefix/[aftersuffix/]>
 
 =item --multiline=I</prefix/suffix/afterprefix/[aftersuffix/]>
 
-Use I<prefix>, I<suffix> and I<afterprefix> before and after I<var> and at the
-end of the block respectively instead of C<@@>.  If I<aftersuffix> is also
-given, the I<var> name must get repeated before it.  The first character is
+Use I<prefix>, I<suffix> and I<afterprefix> before and after I<SPECIAL> and at
+the end of the block respectively instead of C<@@>.  If I<aftersuffix> is also
+given, the macro name must get repeated before it.  The first character is
 the separator and need not be a slash.  E.g. an XML-ish
 
     --simple=|<|/>| --multiline=|<|>|</|>|
@@ -1072,7 +1131,8 @@ the separator and need not be a slash.  E.g. an XML-ish
 
 =item --defined
 
-Replace only instances of macros which are actually defined.
+Replace only instances of macros which are actually defined.  Without this
+option the undefined ones will all be replaced by nothing.
 
 =back
 
@@ -1142,6 +1202,13 @@ These commands are mostly not portable!  They will either quietly do nothing
 or fail, depending on the system.  Generally only root may perform these
 operations, which is why they are only available through the
 L<C<&install>|/install_option_sourcefile_destfile> command.
+
+
+
+=item cpp
+
+Use L<C<&preprocess>|/preprocess_option_variable_definition_filename> or
+L<C<&template>|/template_option_macro_definition_filename>.
 
 
 

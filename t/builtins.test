@@ -268,13 +268,15 @@ gets replaced. 1 + 2 = @{ 1 + 2 }@
     foo bar
   </aa> <aa no="go"/>
 </doc>
-###	7	644	1107332258	1106067541	title.tmpl
+###	-6	644	1107332258	1402078423	title.tmpl
 @UNDEF@@field=Title@\
 @TITLE?=nothing@\
 @field@\
 @field { ' ' . ($_[0]+1) . " is$_[1]" }@\
 @n=0@\
-@field(@n@,:)@ @TITLE@
+@field(@n@,:)@ @include( dotitle.tmpl )@
+###	2	644	1402078420	1402078420	dotitle.tmpl
+@TITLE@
 --------------------
 ###	5	644	1112771877	1112771877	uniq.in
 aa

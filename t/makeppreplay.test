@@ -6,8 +6,10 @@ Ccache at least up to version 3.1.9 is known to fail this test on `out',
 bug report https://bugzilla.samba.org/show_bug.cgi?id=8728 refers.
 ###	1	644	1329052295	1329052295	is_relevant.pl
 have_cc
-###	36	644	1227216359	1342861520	makepp_test_script.pl
+###	38	644	1227216359	1381956818	makepp_test_script.pl
 # This test creates some files, also in other dirs, messes them up and wants mppr to recreate them.
+
+local $ENV{CCACHE_DISABLE} = 1 if $ENV{AUTOMATED_TESTING}; # Else fail with hint to let user know.
 
 local $ENV{X} = 0;		# Set up a dependency mpp won't know about.
 local $ENV{C} = 1;

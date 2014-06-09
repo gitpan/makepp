@@ -1,4 +1,4 @@
-# $Id: Gcc.pm,v 1.38 2012/05/15 21:26:30 pfeiffer Exp $
+# $Id: Gcc.pm,v 1.39 2014/01/15 21:32:38 pfeiffer Exp $
 
 =head1 NAME
 
@@ -53,32 +53,35 @@ sub parse_arg {
 }
 
 
-our( $stop_at_obj, $leave_comments, $nostdinc);
+my( $no_link, $leave_comments, $nostdinc, $static );
+
 
 my %opt =
-  (c => \$stop_at_obj,
-   E => \$stop_at_obj,
-   S => \$stop_at_obj,
+  (c => \$no_link,
+   E => \$no_link,
+   S => \$no_link,
    C => \$leave_comments,
-   nostdinc => \$nostdinc);
+   nostdinc => \$nostdinc,
+   static => \$static);
 
 my %info_string = (user => 'INCLUDES',
 		   sys => 'SYSTEM_INCLUDES',
 		   lib => 'LIBS');
+my @static_suffix_list = qw(.a);
 my @suffix_list = qw(.la .so .sa .a .sl);
 sub tags {
   my $scanner = $_[0]{SCANNER};
   $scanner->should_find( 'user' );
   $scanner->info_string( \%info_string );
-  $scanner->add_include_suffix_list( lib => \@suffix_list );
+  $scanner->add_include_suffix_list( lib => $_[1] == 1 ? \@static_suffix_list : \@suffix_list )
+    if $_[1];
 }
 sub xparse_command {
   my( $self, $command, $setenv ) = @_;
 
   my $dir = $self->dir;
   my $scanner = $self->{SCANNER};
-
-  $self->tags;
+  my $conditional = $scanner->{CONDITIONAL};
 
   my @prefiles;
   my @files;
@@ -89,14 +92,13 @@ sub xparse_command {
   my $iprefix = '';
   my @libs;
   my @obj_files;
-  my @cpp_cmd;
+  my @cpp_opts;
   my $file_regexp = $self->input_filename_regexp($command->[0]);
+  my $real_lib;
 
-  $stop_at_obj = $leave_comments = $nostdinc =  0;
+  $no_link = $leave_comments = $nostdinc = $static = 0;
   my( $cmd, @words ) = @$command;
   $cmd =~ s@.*/@@ || Mpp::is_windows > 1 && $cmd =~ s/.*\\//;
-  push (@cpp_cmd, $cmd);
-  $cmd =~ s!.*/!!;
   my $icc = $cmd =~ /^ic[cl](?:\.exe)?$/;
   local $_;
   while( defined( $_ = shift @words )) {
@@ -143,11 +145,15 @@ sub xparse_command {
 	push @idirafter, $iprefix . $val;
       }
     } elsif( s/^L// ) {
-      $_ ||= shift @words;
-      $scanner->add_include_dir( lib => $_ );
+      $scanner->add_include_dir( lib => $_ || shift @words );
     } elsif( s/^l// ) {
       $_ ||= shift @words;
-      push @libs, "lib$_";
+      if( s/^:// ) {		# colon means actual lib name follows
+	$real_lib = 1;
+	push @libs, $_;
+      } else {
+	push @libs, "lib$_";
+      }
     } elsif( s/^D// ) {
       $_ ||= shift @words;
       if( /^(\w+)=(.*)/ ) {
@@ -156,13 +162,12 @@ sub xparse_command {
 	$scanner->set_var( $_, 1 );
       }
     } elsif( s/^U// ) {
-      $_ ||= shift @words;
-      $scanner->set_var( $_, undef );
+      $scanner->set_var( $_ || shift @words, undef );
     } elsif( $icc && /^op(?:t-|enmp)/ ) {
     } elsif( s/^o// ) {
       $self->add_target( $_ || shift @words );
     } else {
-      push @cpp_cmd, "-$_";	# collect non parsed options for preprocessor
+      push @cpp_opts, "-$_" if $conditional;	# collect non parsed options for preprocessor
       $self->parse_opt( $_, \@words, \@files );
     }
   }
@@ -173,8 +178,11 @@ sub xparse_command {
     unshift @incdirs, splice @inc1dirs;
     $scanner->add_include_dir( user => undef );
   }
-  push @incdirs, split ':', $setenv->{CPATH}
-    if $setenv->{CPATH} && $command->[0] =~ /^g/i;
+
+  $self->tags( $no_link ? 0 : $static ? 1 : 2 );
+
+  push @incdirs, Mpp::Text::split_path 0, 0, $setenv->{CPATH}
+    if $setenv->{CPATH} && ! exists $self->{xNO_GCC};
   $scanner->add_include_dir( user => $_ )
     for @inc1dirs, @incdirs;
   $scanner->add_include_dir( sys => $_ )
@@ -192,20 +200,40 @@ sub xparse_command {
     $scanner->add_include_dir( $_, absolute_filename file_info $dir, $self->{RULE}{MAKEFILE}{CWD} )
       for qw(user sys);
   }
-  my $context = $scanner->get_context;
+  my $context = $scanner->get_context if @files > 1;
   for( @files ) {
-    $scanner->reset( $context );
-    $self->xset_preproc_vars(\@cpp_cmd, $_) if $scanner->{CONDITIONAL};
-    # scan each file included on command line with  set of preproc. vars
-    for (@prefiles) {
-      $scanner->scan_file( $self, c => $_ ) or return undef;
+    my $file_end = case_sensitive_filenames ? lc substr $_, -4 : substr $_, -4;
+    my $cplusplus = $file_end =~ /\.(?:c(?:c|xx|pp|\+\+)|C)$/;
+    $scanner->reset( $context, $cplusplus ) if $context;
+    my $var = exists $self->{xNO_GCC} ?
+      Mpp::is_windows && $cmd =~ /\bcl(?:.cl)?$/i && 'INCLUDE' :
+      $cplusplus ? 'CPLUS_INCLUDE_PATH' : 'C_INCLUDE_PATH';
+    if( $var && $setenv->{$var} ) {
+      for( Mpp::Text::split_path 0, 0, $setenv->{$var}, Mpp::is_windows < 0 && $var eq 'INCLUDE' ) {
+	$scanner->add_include_dir( user => $_ );
+	$scanner->add_include_dir( sys => $_ );
+      }
     }
-    $scanner->scan_file( $self, c => $_ ) or return undef;
+
+    $self->xset_preproc_vars( $cmd, \@cpp_opts, $cplusplus ) if $conditional;
+    # scan each file included on command line with  set of preproc. vars
+    $scanner->scan_file( $self, c => $_ ) or return undef
+      for @prefiles, $_;
   }
 
-  unless( $stop_at_obj ) {
+  unless( $no_link ) {
+    $scanner->add_include_suffix( lib => '' )
+      if $real_lib;
     $scanner->add_include_dir( lib => $_ )
       for @Mpp::Subs::system_lib_dirs;
+    my $var = exists $self->{xNO_GCC} ?
+      Mpp::is_windows && $cmd =~ /\bcl(?:.cl)?$/i && 'LIB' :
+      'LIBRARY_PATH';
+    if( $var && $setenv->{$var} ) {
+      $scanner->add_include_dir( lib => $_ )
+	for Mpp::Text::split_path 0, 0, $setenv->{$var}, Mpp::is_windows < 0 && $var eq 'LIB';
+    }
+
     $self->add_simple_dependency( $_ )
       for @obj_files;
     return 1 unless @libs;
@@ -223,24 +251,15 @@ sub _set_def {
 }
 my %var_cache;
 sub xset_preproc_vars {
-  my( $self, $command ) = @_;
-  my $file_end = substr $_[2], -4;
-  case_sensitive_filenames or $file_end =~ tr/A-Z/a-z/;
+  my( $self, $cmd, $opts, $cplusplus ) = @_;
 
-#figure out file type
-  my $cplusplus = $file_end =~ /\.(?:c(?:c|xx|pp|\+\+)|C)$/;
-  my $used_cpp;
-
-  my $traditional = grep { $_ eq '-traditional' } @$command;
-  my $no_gcc = exists $self->{xNO_GCC} || grep { $_ eq '-no-gcc' } @$command;
-#very basic setup any compiler/OS
-  my $cmd;
+  my $ran;
   unless( exists $self->{xNO_GCC} ) {
-#use preprocessor
-    my @command = @$command;
-    splice(@command, 1, 0, '-E', '-dM', '-x', $cplusplus ? 'c++' : 'c', '/dev/null');
-    $cmd=Mpp::Text::join_with_protection(@command);
-    if($var_cache{$cmd}) {
+    #use preprocessor
+    $cmd = Mpp::Text::join_with_protection $cmd,
+      '-E', '-dM', '-x', $cplusplus ? 'c++' : 'c', '/dev/null',
+      @$opts;
+    if( $var_cache{$cmd} ) {
       my %copy = %{$var_cache{$cmd}};
       $self->{SCANNER}{VARS} = \%copy;
       return;
@@ -248,32 +267,26 @@ sub xset_preproc_vars {
 #now call preprocessor to get rest of variables, but do not
 #override variables which were already set up via -D and -U
     local $_;
-    open(my $cpp, "$cmd|") or die;
-    while(<$cpp>) {
-      chomp;
+    open my $cpp, '-|', $cmd or die;
+    while( <$cpp> ) {
       next if(/^\#\s+\d/);	# gcc 3.4 reports an explicit line number
       # The second space is optional, because gcc doesn't always print it
       # for certain built-in macros such as __FILE__, and when that happens
       # the value is the empty string.
-      if(/^\#define (\S+) ?(.*)$/) {
+      if( /^\#define (\S+) ?(.*)/ ) {
 	my ($name, $val)=($1, $2);
 	_set_def $self, $name, $val;
       } else {
+	chomp;
 	warn "$cmd produced unparsable `$_'";
       }
     }
-    close($cpp);
-    if($?) {
-      warn "Preprocessor exited with status $? from command: $cmd\n";
-    }
-    else {
-      $used_cpp=1;
-    }
+    $ran = close $cpp or
+      warn "Preprocessor exited with status $? from opts: $cmd\n";
   }
-  if(!$used_cpp) {
-    my $vars = $self->{SCANNER}{VARS};
-    _set_def $self, __STDC__ => 1 unless $traditional;
-    _set_def $self, __GNUC__ => 1 unless $no_gcc;
+  unless( $ran ) { # very basic setup any compiler/OS
+    _set_def $self, __STDC__ => 1 unless grep { $_ eq '-traditional' } @$opts;
+    _set_def $self, __GNUC__ => 1 unless exists $self->{xNO_GCC} || grep { $_ eq '-no-gcc' } @$opts;
     _set_def $self, __cplusplus => 1 if $cplusplus;
   }
   unless( exists $self->{xNO_GCC} ) {
