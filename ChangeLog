@@ -1,4 +1,6 @@
-2014-06-09  DP  <occitan@esperanto.org>
+2014-06-10  DP  <occitan@esperanto.org>
+
+snapshot 2.0.98.5
 
 	* Mpp/Cmds.pm: Eliminate new 5.20 warning, that CPAN counts as failed test.
 	(c_template): New macro @include(filename)@.

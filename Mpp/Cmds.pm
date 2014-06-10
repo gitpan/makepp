@@ -630,20 +630,19 @@ sub c_template {
   my( %macros, $tmp );
   my( $pre, $suf, $Pre, $Suf, $afterPre, $afterSuf, $re ) = qw(@ @(?:\\\\\n)? @@ @@ @@(?:\\\\\n)?);
   frame {
-    $re = $re ? join( '|', keys %macros ) : qr/\w[-\w.]*/;
     # Always have a () for multiline, in lst case one that never matches
     my $pre_re = length( $Pre ) ? (length( $pre ) ? qr/$Pre()|$pre/ : qr/$Pre()/) : qr/$pre|$pre()/;
     my $suf_re = length( $Suf ) ? (length( $suf ) ? qr/(?(2)(?:$Suf()|$suf)|$suf)/ : qr/$Suf()/) : qr/$suf/;
     my $handler = sub {
       my $line;
-      while( s/(.*?) $pre_re (?:($re)(?:\((.*?)\))? | \{(.*?)\} | (\w[-\w.]*)(?:(\?)?=(.*?) | \s*(\{.*?\}))) $suf_re//x ) {
+      while( s/(.*?) $pre_re (?:($re)(?:\((.*?)\))? | \{(.*?)\} | (\w[-\w.]*)(?:(\?)?=(.*?) | \s*(\{.*?\})) | \#().*?) $suf_re//sx ) {
 	if( defined $line ) {
 	  $line .= $1;
 	} else {
 	  $line = $1;
 	}
-	my( $name, $args, $perl, $def, $optdef, $value, $defcode ) = ($3, $4, $5, $6, $7, $8, $9);
-	if( defined $2 && defined $10 ) { # multiline?
+	my( $name, $args, $perl, $def, $optdef, $value, $defcode, $comment ) = ($3, $4, $5, $6, $7, $8, $9, $10);
+	if( defined $2 && defined $11 ) { # multiline?
 	  my $end = $afterSuf ? qr/$name$afterSuf/ : '';
 	  until( s/.*?$afterPre$end// ) {
 	    if( eof ) {
@@ -654,6 +653,7 @@ sub c_template {
 	    $_ = <>;
 	  }
 	}
+	next if defined $comment;
 	if( defined $def ) {	# @macro=def@
 	  if( exists $macros{$def} ) {
 	    next if $optdef;	# @macro?=def@
@@ -681,9 +681,10 @@ sub c_template {
     };
     $macros{include} ||= sub {
       $tmp = $.;		# not reading this gets confused by switching filehandles at least till 5.20
-      local( $ARGV, $_ ) = $_[0];
-      $ARGV =~ tr/ //d;
-      open my $fh, '<', $ARGV;
+      local $_ = $_[0];
+      s/^\s+//; s/\s+$//;
+      open my $fh, '<', $_ or die "$ARGV:$.: can't open file `$_'--$!\n";
+      local $ARGV = $_;
       my $res = '';
       while( <$fh> ) {
 	&$handler;
@@ -691,12 +692,13 @@ sub c_template {
       }
       $res;
     };
+    $re = $re ? join( '|', keys %macros ) : qr/\w[-\w.]*/;
     while( <> ) {
       &$handler;
       &print;
       close ARGV if $synclines && eof;
     }
-  } \%macros, qw(f i I o O S),
+  } \%macros, qw(f i I o O r s S),
     [qw(h hashref), \$tmp, 1, sub { $tmp = eval_or_die $tmp; $macros{$_} = $tmp->{$_} for keys %$tmp }],
     [qw(s simple), \$pre, 1,
      sub {

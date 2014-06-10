@@ -1000,9 +1000,15 @@ C<m4>.  See L<C<&preprocess>|/preprocess_option_variable_definition_filename>
 for a more powerful alternative.  It was inspired by automake's macro
 replacement in F<Makefile.am> and F<Makefile.in>.  But it goes beyond that.
 Any normal text goes through unchanged.  Special constructs are by default
-delimited with C<@>.
+delimited with C<@>.  They must fit on one line unless you pass one of C<-r,
+--record-size> or C<--separator>.
 
 =over 4
+
+=item @#I< comment >@
+
+Note that despite borrowing from script C<#> line end comment syntax, this one
+is an inline comment.
 
 =item @I<MACRO>@
 
@@ -1068,10 +1074,13 @@ line break.
 This is like the previous one.  However the normal text, which also gets
 replaced, can span multiple lines.  You can put the special parts on comment
 lines around source code that is only needed in an uninstalled script, to be
-replaced by C<&template EMPTY_MACRO=''> during the installation process:
+eliminated or replaced during the installation process:
 
-    # @@EMPTY_MACRO@@
+    # @@# the next 2 lines will disappear @@
     echo You are running the uninstalled version of this script
+    # @@
+    # @@REPLAMCENT@@
+    echo Something else will be here
     # @@
 
 =back
@@ -1092,11 +1101,19 @@ becomes
     foo many lines bar plain text 1 + 2 = 3
 
 
-L</Standard options>: C<-A, --args-file, --arguments-file=filename, -f, --force,
--i, --inpipe=shellcommand, -I, --infail, -o, --output=filename, -O, --outfail,
--S, --synclines, -v, --verbose>
+L</Standard options>: C<-A, --args-file, --arguments-file=filename, -f,
+--force, -i, --inpipe=shellcommand, -I, --infail, -o, --output=filename, -O,
+--outfail, -r, --record-size=number, --separator=string, -S, --synclines, -v,
+--verbose>
 
 =over
+
+=item -d
+
+=item --defined
+
+Replace only instances of macros which are actually defined.  Without this
+option the undefined ones will all be replaced by nothing.
 
 =item -h \\%I<hash>
 
@@ -1113,8 +1130,10 @@ I<Perlcode> }@> definitions.
 
 =item --simple=I</prefix/suffix/>
 
-Use I<prefix> and I<suffix> before and after I<SPECIAL> respectively instead of
-C<@>.  The first character is the separator and need not be a slash.
+Use I<prefix> and I<suffix> before and after I<SPECIAL> respectively instead
+of C<@>.  The first character is the separator and need not be a slash.  These
+values are Perl regexps.  You must not introduce grouping like C<(...)>, but
+C<(?:...)> is ok.
 
 =item -m I</prefix/suffix/afterprefix/[aftersuffix/]>
 
@@ -1123,16 +1142,20 @@ C<@>.  The first character is the separator and need not be a slash.
 Use I<prefix>, I<suffix> and I<afterprefix> before and after I<SPECIAL> and at
 the end of the block respectively instead of C<@@>.  If I<aftersuffix> is also
 given, the macro name must get repeated before it.  The first character is
-the separator and need not be a slash.  E.g. an XML-ish
+the separator and need not be a slash.  E.g. an XML-ish, to which you must add
+C<--defined> if you want to preserve other tags, not defined by you:
 
-    --simple=|<|/>| --multiline=|<|>|</|>|
+    --defined --simple=|<|/>| --multiline=|<|>|</|>|
 
-=item -d
+Or, better, use processing instructions C<< <?...?> >>, intended for such a
+purpose:
 
-=item --defined
+    --defined --simple='|<\?|\?>|'
 
-Replace only instances of macros which are actually defined.  Without this
-option the undefined ones will all be replaced by nothing.
+Or, if you want to combine this with C<&entity;> syntax for the simple macro
+replacements (preserving numeric entities C<&#x263A;> which are not comments):
+
+    --defined --simple='_(?:&(?!#)|<\?)_(?:;|\?>)_'
 
 =back
 

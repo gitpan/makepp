@@ -79,7 +79,7 @@ sub c_clonetest {
 
 1;
 ###	D	755	1140344139	1140344139	answers
-###	174	644	1153678523	1229044125	answers/help
+###	176	644	1153678523	1402433959	answers/help
 cat options:
   -f, --force
   -i, --inpipe=arg
@@ -227,7 +227,9 @@ template options:
   -m, --multiline=arg
   -o, --output=arg
   -O, --outfail
+  -r, --record-size=arg
   -s, --simple=arg
+      --separator=arg
   -S, --sync-lines
   -v, --verbose
 touch options:

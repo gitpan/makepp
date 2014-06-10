@@ -22,7 +22,7 @@ BEGIN {
   # Keep it here, as this is the common to all mpp* utilities.
   our $BASEVERSION = 2.1;
 #@@setVERSION
-  our $VERSION = '2.0.98.4.9cvs';
+  our $VERSION = '2.0.98.5';
 
 #
 # Not installed, so grep all our sources for the checkin date.  Make a
